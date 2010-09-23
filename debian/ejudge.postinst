@@ -1,0 +1,156 @@
+#!/bin/sh
+
+
+# summary of how this script can be called:
+#        * <postinst> `configure' <most-recently-configured-version>
+#        * <old-postinst> `abort-upgrade' <new version>
+#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
+#          <new-version>
+#        * <postinst> `abort-remove'
+#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
+#          <failed-install-package> <version> `removing'
+#          <conflicting-package> <version>
+# for details, see http://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+
+set -e
+
+. /usr/share/debconf/confmodule
+
+case "${1}" in
+	configure|abort-upgrade)
+		db_version 2.0
+
+		db_get ejudge/username
+		_USERNAME="${RET:-ejudge}"
+    
+    if [ x${_USERNAME} != xejudge ]; then
+      echo "WARNING: ejudge username \"${_USERNAME}\" differs from default \"ejudge\", you'll have to modify configs manually." >&2
+    fi
+
+		db_get ejudge/groupname
+		_GROUPNAME="${RET:-ejudge}"
+    
+    if [ x${_GROUPNAME} != xejudge ]; then
+      echo "WARNING: ejudge groupname \"${_GROUPNAME}\" differs from default \"ejudge\", you'll have to modify configs manually." >&2
+    fi
+
+
+		db_get ejudge/directory
+		_DIRECTORY="${RET:-/srv/ejudge}"
+
+    if [ x${_DIRECTORY} != x"/srv/ejudge" ]; then
+      echo "WARNING: ejudge contests directory \"${_DIRECTORY}\" differs from default \"/srv/ejudge\", you'll have to modify configs manually." >&2
+    fi
+
+
+		db_stop
+
+		if ! getent passwd | grep -q "^${_USERNAME}"
+		then
+			adduser --system --home ${_DIRECTORY}  --quiet --gecos 'ejudge daemon' --group ${_GROUPNAME} 
+		elif ! getent group | grep -q "^${_GROUPNAME}"
+		then
+			addgroup --system --quiet ${_GROUPNAME}
+			gpasswd -a ${_USERNAME} ${_GROUPNAME}
+ 		else
+			echo "ejudge user (${_USERNAME}) already exists, doing nothing."
+		fi
+
+		#if [ ! -d "${_DIRECTORY}" ]
+		#then
+	  #	 mkdir -p "${_DIRECTORY}"
+		#	 chown ${_USERNAME}:${_GROUPNAME} ${_DIRECTORY} -R
+		#else
+		#	echo
+		#	echo "ejudge directory (${_DIRECTORY}) already exists, doing nothing."
+		#fi
+
+    #configuring compilers
+    ejudge-configure-compilers --batch
+
+    #installing sample contest
+    if [ ! -d ${_DIRECTORY}/000001 ]
+    then
+      #echo "INFO: copying sample contest"
+      cp -r /usr/share/ejudge/sample_config/000001 ${_DIRECTORY}/
+      mkdir ${_DIRECTORY}/contests
+      cp /usr/share/ejudge/sample_config/000001.xml ${_DIRECTORY}/contests/
+      chown -R ${_USERNAME}:${_GROUPNAME} ${_DIRECTORY}
+      chmod g+w -R ${_DIRECTORY}
+    else
+      echo "not installing sample contest --- directory ${_DIRECTORY}/000001 exists"
+    fi
+
+    if [ ! -e /var/lib/ejudge/db/userlist.xml ]
+    then
+      cp /usr/share/ejudge/sample_config/userlist.xml /var/lib/ejudge/db/userlist.xml
+    else
+      echo "not updating userlist.xml --- file exists"
+    fi
+
+
+    #creating symlinks for cgi-bin scripts
+    for cgi_script in $( ls /usr/lib/ejudge/cgi-bin/ ) 
+    do
+      [ ! -e /usr/lib/cgi-bin/${cgi_script} ] && ln -s ../ejudge/cgi-bin/${cgi_script} /usr/lib/cgi-bin/${cgi_script}
+    done
+
+    [ -e /var/lib/ejudge/compile/scripts/lang ] || ln -s . /var/lib/ejudge/compile/scripts/lang
+
+    [ -e ${_DIRECTORY}/compile ] || ln -s /var/lib/ejudge/compile ${_DIRECTORY}/compile
+
+    #mkdir /var/cache/ejudge/work-disk/work
+
+    #creating permissions
+    chown -R ${_USERNAME}:${_GROUPNAME} /var/spool/ejudge
+    chown -R ${_USERNAME}:${_GROUPNAME} /var/lib/ejudge
+    [ -d /var/run/ejudge ] || mkdir /var/run/ejudge
+    chown -R ${_USERNAME}:${_GROUPNAME} /var/run/ejudge
+    chown -R ${_USERNAME}:${_GROUPNAME} /var/log/ejudge
+
+
+    cgi_data_dir="/usr/share/ejudge/style"
+    if [ -e /var/www ] 
+    then
+      [ -e /var/www/ejudge ] || ln -s ../../$cgi_data_dir /var/www/ejudge
+    else
+      echo "WARNING: can not find '/var/www' httpd document root. You'll have to create link for ejudge styles dir manually" >&2
+    fi
+    #creating links to dojox
+    for folder in dijit dojo dojox
+    do
+      [ -e $cgi_data_dir/$folder ] || ln -s /usr/share/javascript/$folder $cgi_data_dir/$folder
+    done
+
+
+
+
+    #probe run for ej-compile
+    /usr/sbin/ej-compile -u ${_USERNAME} -g ${_GROUPNAME} -C "/var/lib/ejudge/compile" -i conf/compile.cfg
+
+    #probe run for ej-contests
+    /usr/sbin/ej-contests -u ${_USERNAME} -g ${_GROUPNAME} -C "${_DIRECTORY}"  --create
+
+    #probe run of the contest serer to create dirs
+     /usr/sbin/ej-serve -u ${_USERNAME}  -g ${_GROUPNAME} -C "${_DIRECTORY}/000001" -i conf/serve.cfg
+    
+     update-rc.d ejudge defaults
+
+ 		;;
+
+	abort-remove|abort-deconfigure)
+
+		;;
+
+	*)
+		echo "postinst called with unknown argument \`${1}'" >&2
+		exit 1
+		;;
+esac
+
+#DEBHELPER#
+
+exit 0
+

@@ -1,0 +1,27 @@
+Template: ejudge/username
+Type: string
+Default: ejudge
+Description: Dedicated system account for the ejudge contest managment service:
+ The ejudge server must use a dedicated account for its operation so that
+ the system's security is not compromised by running it with superuser
+ privileges.
+ .
+ Please choose that account's username.
+
+Template: ejudge/groupname
+Type: string
+Default: ejudge
+Description: Dedicated system group for ejudge contest managment service:
+ The ejudge server must use a dedicated group for its operation so that
+ the system's security is not compromised by running it with superuser
+ privileges.
+ .
+ Please choose group for ejudge.
+
+
+Template: ejudge/directory
+Type: string
+Default: /srv/ejudge
+Description: ejudge conststs root directory:
+ Please specify the directory that will be used as root for contests in the
+ ejudge server.

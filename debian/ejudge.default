@@ -1,0 +1,10 @@
+# Defaults for ejudge initscript
+# sourced by /etc/init.d/ejudge
+# installed at /etc/default/ejudge by the maintainer scripts
+
+#
+# This is a POSIX shell fragment
+#
+
+# Additional options that are passed to the Daemon.
+DAEMON_OPTS=" -u ejudge -g ejudge "

@@ -1,0 +1,48 @@
+Index: ejudge-2.3.15/configure
+===================================================================
+--- ejudge-2.3.15.orig/configure	2010-09-16 17:19:57.886948740 +0400
++++ ejudge-2.3.15/configure	2010-09-16 17:20:37.423444727 +0400
+@@ -8466,7 +8466,7 @@
+       case "$xx" in
+         -L*)
+           [ x"${ac_cv_mysql_lib_opt}" != x ] && ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt} "
+-          tmp_rpath=`echo "$xx" | sed s+-L+-Wl,-rpath,+`
++          tmp_rpath=`echo "$xx" | sed s+-L+-Wl,+`
+           ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt}${xx} ${tmp_rpath}"
+           ;;
+         -l*)
+@@ -10697,8 +10697,8 @@
+   ac_cv_ejudge_server_bin_path="${actual_libexecdir}/ejudge/bin"
+   ac_cv_ejudge_server_bin_path_m="${libexecdir}/ejudge/bin"
+ else
+-  ac_cv_ejudge_server_bin_path="${actual_prefix}/bin"
+-  ac_cv_ejudge_server_bin_path_m="${bindir}"
++  ac_cv_ejudge_server_bin_path="${actual_prefix}/sbin"
++  ac_cv_ejudge_server_bin_path_m="${sbindir}"
+ fi
+ ac_cv_ejudge_serve_path="${ac_cv_ejudge_server_bin_path}/ej-serve"
+ ac_cv_ejudge_run_path="${ac_cv_ejudge_server_bin_path}/ej-run"
+Index: ejudge-2.3.15/configure.ac
+===================================================================
+--- ejudge-2.3.15.orig/configure.ac	2010-09-16 17:20:13.226942503 +0400
++++ ejudge-2.3.15/configure.ac	2010-09-16 17:20:31.847457794 +0400
+@@ -585,7 +585,7 @@
+       case "$xx" in
+         -L*)
+           [[ x"${ac_cv_mysql_lib_opt}" != x ]] && ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt} "
+-          tmp_rpath=`echo "$xx" | sed s+-L+-Wl,-rpath,+`
++          tmp_rpath=`echo "$xx" | sed s+-L+-Wl,+`
+           ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt}${xx} ${tmp_rpath}"
+           ;;
+         -l*)
+@@ -965,8 +965,8 @@
+   ac_cv_ejudge_server_bin_path="${actual_libexecdir}/ejudge/bin"
+   ac_cv_ejudge_server_bin_path_m="${libexecdir}/ejudge/bin"
+ else
+-  ac_cv_ejudge_server_bin_path="${actual_prefix}/bin"
+-  ac_cv_ejudge_server_bin_path_m="${bindir}"
++  ac_cv_ejudge_server_bin_path="${actual_prefix}/sbin"
++  ac_cv_ejudge_server_bin_path_m="${sbindir}"
+ fi
+ ac_cv_ejudge_serve_path="${ac_cv_ejudge_server_bin_path}/ej-serve"
+ ac_cv_ejudge_run_path="${ac_cv_ejudge_server_bin_path}/ej-run"

@@ -1,0 +1,73 @@
+Index: ejudge-2.3.15/edit-userlist.c
+===================================================================
+--- ejudge-2.3.15.orig/edit-userlist.c	2010-09-22 15:34:50.714942698 +0400
++++ ejudge-2.3.15/edit-userlist.c	2010-09-22 15:35:13.807442409 +0400
+@@ -37,9 +37,9 @@
+ #include <stdlib.h>
+ #include <stdarg.h>
+ #include <time.h>
+-#include <ncurses.h>
+-#include <menu.h>
+-#include <panel.h>
++#include <ncursesw/ncurses.h>
++#include <ncursesw/menu.h>
++#include <ncursesw/panel.h>
+ #include <locale.h>
+ #include <errno.h>
+ #include <regex.h>
+Index: ejudge-2.3.15/ncurses_utils.h
+===================================================================
+--- ejudge-2.3.15.orig/ncurses_utils.h	2010-09-22 15:34:50.722942717 +0400
++++ ejudge-2.3.15/ncurses_utils.h	2010-09-22 15:35:13.807442409 +0400
+@@ -18,9 +18,9 @@
+  * GNU General Public License for more details.
+  */
+ 
+-#include <menu.h>
+-#include <panel.h>
+-#include <ncurses.h>
++#include <ncursesw/menu.h>
++#include <ncursesw/panel.h>
++#include <ncursesw/ncurses.h>
+ 
+ extern WINDOW *root_window;
+ 
+Index: ejudge-2.3.15/configure
+===================================================================
+--- ejudge-2.3.15.orig/configure	2010-09-22 15:38:09.871442383 +0400
++++ ejudge-2.3.15/configure	2010-09-22 15:38:54.447442984 +0400
+@@ -7875,7 +7875,7 @@
+ cat >>conftest.$ac_ext <<_ACEOF
+ /* end confdefs.h.  */
+ $ac_includes_default
+-#include <ncurses.h>
++#include <ncursesw/ncurses.h>
+ _ACEOF
+ rm -f conftest.$ac_objext
+ if { (ac_try="$ac_compile"
+@@ -7916,7 +7916,7 @@
+ cat confdefs.h >>conftest.$ac_ext
+ cat >>conftest.$ac_ext <<_ACEOF
+ /* end confdefs.h.  */
+-#include <ncurses.h>
++#include <ncursesw/ncurses.h>
+ _ACEOF
+ if { (ac_try="$ac_cpp conftest.$ac_ext"
+ case "(($ac_try" in
+Index: ejudge-2.3.15/ncurses_utils.c
+===================================================================
+--- ejudge-2.3.15.orig/ncurses_utils.c	2010-09-22 15:35:37.962942149 +0400
++++ ejudge-2.3.15/ncurses_utils.c	2010-09-22 15:36:03.373908542 +0400
+@@ -24,9 +24,9 @@
+ #include <reuse/osdeps.h>
+ 
+ #include <limits.h>
+-#include <menu.h>
+-#include <panel.h>
+-#include <ncurses.h>
++#include <ncursesw/menu.h>
++#include <ncursesw/panel.h>
++#include <ncursesw/ncurses.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
