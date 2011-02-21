@@ -1,0 +1,21 @@
+2010-01-06 (r5604) Alexander Chernov  <cher@ejudge.ru>
+
+	* common_mysql.h: copyright notice is updated;
+	EJUDGE_SKIP_MYSQL feature check is added to avoid inclusion
+	of mysql.h.
+
+2008-11-27 (r5365) Alexander Chernov  <cher@ejudge.ru>
+
+	* common_mysql.c:
+	(query_func) `do_query' is used to support reconnect;
+	(query_one_row_func) the same.
+
+2008-11-15 (r5302) Alexander Chernov  <cher@ejudge.ru>
+
+	* common_mysql.c:
+	(parse_spec_func) the hour value is not set to 12 for date columns.
+
+2008-11-12 (r5280) Alexander Chernov  <cher@ejudge.ru>
+
+	* common_mysql.h, common_mysql.c: implemented.
+

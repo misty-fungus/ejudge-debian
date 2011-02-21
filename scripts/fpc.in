@@ -1,0 +1,43 @@
+#!/bin/sh
+# $Id: fpc.in 5550 2009-02-19 18:14:43Z cher $
+# Copyright (c) 2002-2008 Alexander Chernov <cher@ejudge.ru>
+
+# using EJUDGE_FLAGS we may pass additional flags
+
+LANG_CONFIG_DIR="@lang_config_dir@"
+[ "${EJUDGE_LANG_CONFIG}" = "" ] && EJUDGE_LANG_CONFIG="${LANG_CONFIG_DIR}/fpc.cfg"
+
+if [ -f "${EJUDGE_LANG_CONFIG}" ]
+then
+  . "${EJUDGE_LANG_CONFIG}"
+else
+  version="unknown"
+  FPCRUN="fpc"
+  FPCDIR=
+fi
+
+if [ x"${version}" = x ]
+then
+  echo "This language is not supported." >&2
+  exit 1
+fi
+
+if [ x"${FPCDIR}" != x ]
+then
+    PATH="${FPCDIR}:${PATH}"
+fi
+
+unset LANG
+unset LC_ALL
+unset LC_MESSAGES
+unset LANGUAGE
+
+# These compilation options enables various run-time checks
+#${FPCRUN} -Ci -Co -Cr -Ct -So -XS $1 -o${2}
+
+# No run-time checks
+"${FPCRUN}" ${EJUDGE_FLAGS} -So -XS "$1" "-o$2"
+
+#if the output file is not created - compile error
+[ -f "$2" ] || exit 1
+exit 0
