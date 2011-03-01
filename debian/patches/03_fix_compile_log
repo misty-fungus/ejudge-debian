@@ -1,0 +1,21 @@
+Index: ejudge-debian/compile.c
+===================================================================
+--- ejudge-debian.orig/compile.c	2011-03-01 22:52:31.882868291 +0300
++++ ejudge-debian/compile.c	2011-03-01 23:13:34.866868687 +0300
+@@ -705,9 +705,13 @@
+ 
+ #if HAVE_SETSID - 0
+   if (daemon_mode) {
+-    // FIXME: make log file tunable?
+-    snprintf(log_path, sizeof(log_path), "%s/compile.log",
+-             serve_state.global->var_dir);
++    if (ejudge_config && ejudge_config->compile_log) {
++       snprintf(log_path, sizeof(log_path), "%s",
++             ejudge_config->compile_log);
++    } else {
++      snprintf(log_path, sizeof(log_path), "%s/compile.log",
++             "/var/log/ejudge");
++    }
+ 
+     // daemonize itself
+     if ((log_fd = open(log_path, O_WRONLY | O_CREAT | O_APPEND, 0600)) < 0) {
