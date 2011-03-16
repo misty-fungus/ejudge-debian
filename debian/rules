@@ -12,6 +12,7 @@ export DH_VERBOSE=1
 %:
 	dh --with quilt $@ --parallel 
 override_dh_auto_configure:
+	[ -f ejudge.ru_RU.KOI8-R.po.bak ] || cp -a ejudge.ru_RU.KOI8-R.po ejudge.ru_RU.KOI8-R.po.bak
 	./configure --build=x86_64-linux-gnu \
 	--prefix=/usr --includedir=${prefix}/include \
 	--mandir=${prefix}/share/man \
@@ -32,75 +33,42 @@ override_dh_auto_configure:
 	--enable-super-serve-socket=/var/run/ejudge/super-serve-socket \
 	--enable-new-server-socket=/var/run/ejudge/new-server-socket \
 	--enable-cgi-conf-dir=/usr/lib/ejudge/cgi-data \
-	--enable-local-dir=/var/spool/ejudge 
+	--enable-local-dir=/var/spool/ejudge  \
+	--with-mysql=/usr/lib/mysql/lib
 
 override_dh_auto_install:
 	dh_auto_install
-	#mv $(CURDIR)/debian/ejudge/lib/* $(CURDIR)/debian/ejudge/usr/lib/
-	#rm -r $(CURDIR)/debian/ejudge/lib
 	mv $(CURDIR)/debian/ejudge/include $(CURDIR)/debian/ejudge/usr
-	#mv $(CURDIR)/debian/ejudge/usr/lib/ejudge/ejudge/* $(CURDIR)/debian/ejudge/usr/lib/ejudge
-	#rm -r $(CURDIR)/debian/ejudge/usr/lib/ejudge/ejudge
-	#moving to sbin
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-compile $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-convert-clars $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-jobs-control $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-super-server $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-control $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-users $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-compile-control $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-convert-runs $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-nwrun $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-super-server-control $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-execute $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-users-control $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-contests $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-fix-db $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-run $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-config $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-jobs-cmd $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-contests-control $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-jobs $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ej-serve $(CURDIR)/debian/ejudge/usr/sbin/
-	#mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-contests-cmd $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-upgrade-web $(CURDIR)/debian/ejudge/usr/sbin/
-	#end moving to sbin
+	# removing extra binaries
 	rm $(CURDIR)/debian/ejudge/usr/sbin/uudecode
-	#mv $(CURDIR)/debian/ejudge/usr/lib/libchecker.so $(CURDIR)/debian/ejudge/usr/lib/ejudge/
-	#mv $(CURDIR)/debian/ejudge/usr/lib/libchecker.a $(CURDIR)/debian/ejudge/usr/lib/ejudge/
-	#moving files to var
+	# making dirs in var
 	mkdir $(CURDIR)/debian/ejudge/var/lib/ejudge/compile/scripts
-	#mv $(CURDIR)/debian/ejudge/usr/lib/ejudge/lang $(CURDIR)/debian/ejudge/var/lib/ejudge/compile/scripts
-	#rm -r $(CURDIR)/debian/ejudge/usr/lib/ejudge/lang
 	mkdir $(CURDIR)/debian/ejudge/var/lib/ejudge/compile/conf
-	#making plugins directory
+	# making plugins directory
 	mkdir $(CURDIR)/debian/ejudge/usr/lib/ejudge/plugins
-	#installing sample contest
+	# installing sample contest
 	mkdir $(CURDIR)/debian/ejudge/usr/share/ejudge/sample_config
 	cp -r $(CURDIR)/debian/extra/000001 $(CURDIR)/debian/ejudge/usr/share/ejudge/sample_config
 	cp $(CURDIR)/debian/extra/000001.xml $(CURDIR)/debian/ejudge/usr/share/ejudge/sample_config
-	#installing default config
+	# installing default config
 	cp $(CURDIR)/debian/extra/ejudge.xml $(CURDIR)/debian/ejudge/etc/ejudge/ejudge.xml
-	#installing default userlist
+	# installing default userlist
 	cp $(CURDIR)/debian/extra/userlist.xml $(CURDIR)/debian/ejudge/usr/share/ejudge/sample_config
-	#istalling missing dirs
+	# istalling missing dirs
 	mkdir $(CURDIR)/debian/ejudge/var/spool/ejudge/work-disk/work
 	mkdir $(CURDIR)/debian/ejudge/usr/share/ejudge/cgi-data
+	# fix bad perl interpreter
+	sed -i 's)@ac_cv_contest_perl_path@)/usr/bin/perl)' debian/ejudge/usr/lib/ejudge/lang/in/runperl.in
 
 
 override_dh_auto_clean:
 	dh_auto_clean
-	cp debian/fix/ejudge.ru_RU.KOI8-R.po ejudge.ru_RU.KOI8-R.po
+	[ ! -f ejudge.ru_RU.KOI8-R.po.bak ] || mv ejudge.ru_RU.KOI8-R.po.bak ejudge.ru_RU.KOI8-R.po
 	rm .build || true
 	rm style/ejudge-upgrade-web || true
 	rm python/streamio/Makefile || true
 	rm python/Makefile || true
 
-#install: build
-#	dh_auto_test
-#	dh_testroot
-#	dh_prep
-#	dh_installdirs
-#	dh_auto_install
-#	# Add here commands to install the package into debian/testpack.
-#	touch $(CURDIR)/debian/ejudge/file.zzz
