@@ -16,35 +16,39 @@
 
 set -e
 
-. /usr/share/debconf/confmodule
+#. /usr/share/debconf/confmodule
 
 case "${1}" in
     configure|abort-upgrade)
-        db_version 2.0
+#        db_version 2.0
+#
+#        db_get ejudge/username
+#        _USERNAME="${RET:-ejudge}"
+#
+#        if [ x${_USERNAME} != xejudge ]; then
+#            echo "WARNING: ejudge username \"${_USERNAME}\" differs from default \"ejudge\", you'll have to modify configs manually." >&2
+#        fi
+#
+#        db_get ejudge/groupname
+#        _GROUPNAME="${RET:-ejudge}"
+#
+#        if [ x${_GROUPNAME} != xejudge ]; then
+#            echo "WARNING: ejudge groupname \"${_GROUPNAME}\" differs from default \"ejudge\", you'll have to modify configs manually." >&2
+#        fi
+#
+#        db_get ejudge/directory
+#        _DIRECTORY="${RET:-/srv/ejudge}"
+#
+#        if [ x${_DIRECTORY} != x"/srv/ejudge" ]; then
+#            echo "WARNING: ejudge contests directory \"${_DIRECTORY}\" differs from default \"/srv/ejudge\", you'll have to modify configs manually." >&2
+#        fi
+#
+#
+#        db_stop
 
-        db_get ejudge/username
-        _USERNAME="${RET:-ejudge}"
-
-        if [ x${_USERNAME} != xejudge ]; then
-            echo "WARNING: ejudge username \"${_USERNAME}\" differs from default \"ejudge\", you'll have to modify configs manually." >&2
-        fi
-
-        db_get ejudge/groupname
-        _GROUPNAME="${RET:-ejudge}"
-
-        if [ x${_GROUPNAME} != xejudge ]; then
-            echo "WARNING: ejudge groupname \"${_GROUPNAME}\" differs from default \"ejudge\", you'll have to modify configs manually." >&2
-        fi
-
-        db_get ejudge/directory
-        _DIRECTORY="${RET:-/srv/ejudge}"
-
-        if [ x${_DIRECTORY} != x"/srv/ejudge" ]; then
-            echo "WARNING: ejudge contests directory \"${_DIRECTORY}\" differs from default \"/srv/ejudge\", you'll have to modify configs manually." >&2
-        fi
-
-
-        db_stop
+        _USERNAME=ejudge
+        _GROUPNAME=ejudge
+        _DIRECTORY='/srv/ejudge'
 
         if ! getent passwd | grep -q "^${_USERNAME}"
         then
