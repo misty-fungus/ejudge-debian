@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.c 5739 2010-01-25 17:47:25Z cher $ */
+/* $Id: prepare.c 5957 2010-07-23 17:39:27Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -113,6 +113,8 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(notify_clar_reply, "d"),
   GLOBAL_PARAM(notify_status_change, "d"),
   GLOBAL_PARAM(memoize_user_results, "d"),
+  GLOBAL_PARAM(advanced_layout, "d"),
+  GLOBAL_PARAM(disable_auto_refresh, "d"),
 
   GLOBAL_PARAM(stand_ignore_after, "t"),
   GLOBAL_PARAM(appeal_deadline, "t"),
@@ -124,6 +126,7 @@ static const struct config_parse_info section_global_params[] =
 
   GLOBAL_PARAM(root_dir, "s"),
   GLOBAL_PARAM(conf_dir, "s"),
+  GLOBAL_PARAM(problems_dir, "s"),
   GLOBAL_PARAM(script_dir, "s"),
   GLOBAL_PARAM(test_dir, "s"),
   GLOBAL_PARAM(corr_dir, "s"),
@@ -142,6 +145,7 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(info_pat, "s"),
   GLOBAL_PARAM(tgz_pat, "s"),
   GLOBAL_PARAM(contest_start_cmd, "s"),
+  GLOBAL_PARAM(contest_stop_cmd, "S"),
   GLOBAL_PARAM(description_file, "s"),
   GLOBAL_PARAM(contest_plugin_file, "s"),
 
@@ -313,6 +317,8 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(full_exam_protocol_header_file, "s"),
   GLOBAL_PARAM(full_exam_protocol_footer_file, "s"),
 
+  GLOBAL_PARAM(load_user_group, "x"),
+
   { 0, 0, 0, 0 }
 };
 
@@ -335,6 +341,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(combined_stdin, "d"),
   PROBLEM_PARAM(combined_stdout, "d"),
   PROBLEM_PARAM(binary_input, "d"),
+  PROBLEM_PARAM(binary, "d"),
   PROBLEM_PARAM(ignore_exit_code, "d"),
   PROBLEM_PARAM(olympiad_mode, "d"),
   PROBLEM_PARAM(score_latest, "d"),
@@ -375,6 +382,8 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(stand_hide_time, "d"),
   PROBLEM_PARAM(advance_to_next, "d"),
   PROBLEM_PARAM(disable_ctrl_chars, "d"),
+  PROBLEM_PARAM(valuer_sets_marked, "d"),
+  PROBLEM_PARAM(ignore_unmarked, "d"),
   PROBLEM_PARAM(enable_text_form, "d"),
   PROBLEM_PARAM(stand_ignore_score, "d"),
   PROBLEM_PARAM(stand_last_column, "d"),
@@ -410,6 +419,8 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(start_date, "t"),
   PROBLEM_PARAM(variant_num, "d"),
   PROBLEM_PARAM(date_penalty, "x"),
+  PROBLEM_PARAM(group_start_date, "x"),
+  PROBLEM_PARAM(group_deadline, "x"),
   PROBLEM_PARAM(disable_language, "x"),
   PROBLEM_PARAM(enable_language, "x"),
   PROBLEM_PARAM(require, "x"),
@@ -417,17 +428,22 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(checker_env, "x"),
   PROBLEM_PARAM(valuer_env, "x"),
   PROBLEM_PARAM(interactor_env, "x"),
+  PROBLEM_PARAM(style_checker_env, "x"),
+  PROBLEM_PARAM(test_checker_env, "x"),
   PROBLEM_PARAM(lang_time_adj, "x"),
   PROBLEM_PARAM(lang_time_adj_millis, "x"),
   PROBLEM_PARAM(check_cmd, "s"),
   PROBLEM_PARAM(valuer_cmd, "s"),
   PROBLEM_PARAM(interactor_cmd, "s"),
+  PROBLEM_PARAM(style_checker_cmd, "s"),
+  PROBLEM_PARAM(test_checker_cmd, "S"),
   PROBLEM_PARAM(test_pat, "s"),
   PROBLEM_PARAM(corr_pat, "s"),
   PROBLEM_PARAM(info_pat, "s"),
   PROBLEM_PARAM(tgz_pat, "s"),
   PROBLEM_PARAM(personal_deadline, "x"),
   PROBLEM_PARAM(score_bonus, "s"),
+  PROBLEM_PARAM(open_tests, "s"),
   PROBLEM_PARAM(statement_file, "s"),
   PROBLEM_PARAM(alternatives_file, "s"),
   PROBLEM_PARAM(plugin_file, "s"),
@@ -462,6 +478,7 @@ static const struct config_parse_info section_language_params[] =
   LANGUAGE_PARAM(cmd, "s"),
   LANGUAGE_PARAM(content_type, "s"),
   LANGUAGE_PARAM(style_checker_cmd, "s"),
+  LANGUAGE_PARAM(style_checker_env, "x"),
 
   LANGUAGE_PARAM(disable_auto_testing, "d"),
   LANGUAGE_PARAM(disable_testing, "d"),
@@ -527,6 +544,11 @@ void prepare_problem_init_func(struct generic_section_config *);
 static void tester_init_func(struct generic_section_config *);
 static void global_init_func(struct generic_section_config *);
 static void language_init_func(struct generic_section_config *);
+
+static void prepare_global_free_func(struct generic_section_config *g);
+static void prepare_language_free_func(struct generic_section_config *g);
+static void prepare_problem_free_func(struct generic_section_config *g);
+static void prepare_tester_free_func(struct generic_section_config *g);
 
 static const struct config_section_info params[] =
 {
@@ -705,6 +727,8 @@ global_init_func(struct generic_section_config *gp)
   p->enable_continue = -1;
   p->html_report = -1;
   p->xml_report = -1;
+  p->advanced_layout = -1;
+  p->disable_auto_refresh = -1;
 }
 
 static void free_user_adjustment_info(struct user_adjustment_info*);
@@ -740,6 +764,8 @@ prepare_global_free_func(struct generic_section_config *gp)
   xfree(p->prob_exam_protocol_footer_txt);
   xfree(p->full_exam_protocol_header_txt);
   xfree(p->full_exam_protocol_footer_txt);
+  xfree(p->contest_stop_cmd);
+  sarray_free(p->load_user_group);
 
   memset(p, 0xab, sizeof(*p));
   xfree(p);
@@ -759,6 +785,7 @@ prepare_language_free_func(struct generic_section_config *gp)
   struct section_language_data *p = (struct section_language_data*) gp;
 
   p->compiler_env = sarray_free(p->compiler_env);
+  p->style_checker_env = sarray_free(p->style_checker_env);
   xfree(p->unhandled_vars);
   memset(p, 0xab, sizeof(*p));
   xfree(p);
@@ -778,6 +805,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->combined_stdin = -1;
   p->combined_stdout = -1;
   p->binary_input = -1;
+  p->binary = -1;
   p->ignore_exit_code = -1;
   p->olympiad_mode = -1;
   p->score_latest = -1;
@@ -819,6 +847,8 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->hidden = -1;
   p->advance_to_next = -1;
   p->disable_ctrl_chars = -1;
+  p->valuer_sets_marked = -1;
+  p->ignore_unmarked = -1;
   p->enable_text_form = -1;
   p->stand_ignore_score = -1;
   p->stand_last_column = -1;
@@ -835,6 +865,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
 static void free_testsets(int t, struct testset_info *p);
 static void free_deadline_penalties(int t, struct penalty_info *p);
 static void free_personal_deadlines(int t, struct pers_dead_info *p);
+void prepare_free_group_dates(struct group_dates *gd);
 
 void
 prepare_problem_free_func(struct generic_section_config *gp)
@@ -842,21 +873,29 @@ prepare_problem_free_func(struct generic_section_config *gp)
   struct section_problem_data *p = (struct section_problem_data*) gp;
   int i;
 
+  prepare_free_group_dates(&p->gsd);
+  prepare_free_group_dates(&p->gdl);
   xfree(p->tscores);
   xfree(p->x_score_tests);
+  xfree(p->test_checker_cmd);
   sarray_free(p->test_sets);
   sarray_free(p->date_penalty);
+  sarray_free(p->group_start_date);
+  sarray_free(p->group_deadline);
   sarray_free(p->disable_language);
   sarray_free(p->enable_language);
   sarray_free(p->require);
   sarray_free(p->checker_env);
   sarray_free(p->valuer_env);
   sarray_free(p->interactor_env);
+  sarray_free(p->style_checker_env);
+  sarray_free(p->test_checker_env);
   sarray_free(p->lang_time_adj);
   sarray_free(p->lang_time_adj_millis);
   sarray_free(p->personal_deadline);
   sarray_free(p->alternative);
   xfree(p->score_bonus_val);
+  xfree(p->open_tests_val);
   free_testsets(p->ts_total, p->ts_infos);
   free_deadline_penalties(p->dp_total, p->dp_infos);
   free_personal_deadlines(p->pd_total, p->pd_infos);
@@ -876,6 +915,14 @@ prepare_problem_free_func(struct generic_section_config *gp)
 
   memset(p, 0xab, sizeof(*p));
   xfree(p);
+}
+
+struct section_problem_data *
+prepare_problem_free(struct section_problem_data *prob)
+{
+  if (!prob) return 0;
+  prepare_problem_free_func(&prob->g);
+  return 0;
 }
 
 static void
@@ -1441,6 +1488,19 @@ parse_score_view(struct section_problem_data *prob)
 }
 
 void
+prepare_free_group_dates(struct group_dates *gd)
+{
+  int i;
+
+  for (i = 0; i < gd->count; ++i) {
+    xfree(gd->info[i].group_name);
+    gd->info[i].group_name = 0;
+  }
+  xfree(gd->info);
+  memset(gd, 0, sizeof(*gd));
+}
+
+void
 prepare_free_variant_map(struct variant_map *p)
 {
   int i;
@@ -2003,6 +2063,118 @@ parse_score_bonus(const unsigned char *str, int *p_total, int **p_values)
   return -1;
 }
 
+static int
+int_sort_func(const void *p1, const void *p2)
+{
+  int v1 = *(const int*) p1;
+  int v2 = *(const int*) p2;
+
+  if (v1 < v2) return -1;
+  if (v1 > v2) return 1;
+  return 0;
+}
+
+int
+prepare_parse_open_tests(FILE *flog, const unsigned char *str, int **p_vals)
+{
+  int *vals = 0;
+  int *x = 0;
+  int x_a = 0;
+  int x_u = 0;
+  const unsigned char *p = str;
+  int n;
+  int v1, v2, i, j;
+
+  if (*p_vals) *p_vals = 0;
+  if (!str || !*str) return 0;
+
+  while (1) {
+    while (isspace(*p)) ++p;
+    if (!*p) break;
+    if (!isdigit(*p)) {
+      if (flog) {
+        fprintf(flog, "parse_open_tests: number expected\n");
+      }
+      goto fail;
+    }
+    v1 = -1; n = -1;
+    if (sscanf(p, "%d%n", &v1, &n) != 1 || v1 <= 0 || v1 > 100000) {
+      if (flog) {
+        fprintf(flog, "parse_open_tests: invalid test number\n");
+      }
+      goto fail;
+    }
+    v2 = v1;
+    p += n;
+    while (isspace(*p)) ++p;
+    if (*p == '-') {
+      ++p;
+      while (isspace(*p)) ++p;
+      if (sscanf(p, "%d%n", &v2, &n) != 1 || v2 <= 0 || v2 > 100000) {
+        if (flog) {
+          fprintf(flog, "parse_open_tests: invalid test number\n");
+        }
+        goto fail;
+      }
+      if (v2 < v1) {
+        if (flog) {
+          fprintf(flog, "parse_open_tests: second test in range is < than the first");
+        }
+        goto fail;
+      }
+      while (isspace(*p)) ++p;
+    }
+    if (*p == ',') {
+      ++p;
+    }
+
+    if (x_u + v2 - v1 + 1 > x_a) {
+      int new_a = x_a;
+      int *new_x = 0;
+      if (!new_a) new_a = 8;
+      while (new_a < x_u + v2 - v1 + 1) new_a *= 2;
+      XCALLOC(new_x, new_a);
+      if (x_u > 0) {
+        memcpy(new_x, x, x_u * sizeof(new_x[0]));
+      }
+      xfree(x);
+      x = new_x;
+      x_a = new_a;
+    }
+    for (; v1 <= v2; ++v1)
+      x[x_u++] = v1;
+  }
+
+  if (x_u > 0) {
+    // remove duplicates
+    qsort(x, x_u, sizeof(x[0]), int_sort_func);
+    for (i = 0, j = 1; j < x_u; ++j) {
+      if (x[i] != x[j]) {
+        x[++i] = x[j];
+      }
+    }
+    x_u = i + 1;
+  }
+
+  if (x_u > 0) {
+    XCALLOC(vals, x_u + 1);
+    memcpy(vals, x, x_u * sizeof(vals[0]));
+  }
+  xfree(x); x = 0; x_a = x_u = 0;
+
+  if (p_vals) {
+    *p_vals = vals;
+  } else {
+    xfree(vals); vals = 0;
+  }
+  return 0;
+
+fail:
+  xfree(x);
+  xfree(vals);
+  return -1;
+}
+
 const unsigned char * const memory_limit_type_str[] =
 {
   [MEMLIMIT_TYPE_DEFAULT] = "default",
@@ -2113,6 +2285,8 @@ set_defaults(
   int r;
   path_t fpath;
   path_t start_path;
+  path_t xml_path;
+  path_t tmp_buf;
 
   /* find global section */
   for (p = state->config; p; p = p->next)
@@ -2237,6 +2411,10 @@ set_defaults(
   if (g->detect_violations == -1) g->detect_violations = 0;
   if (g->enable_memory_limit_error == -1)
     g->enable_memory_limit_error = DFLT_G_ENABLE_MEMORY_LIMIT_ERROR;
+  if (g->advanced_layout < 0)
+    g->advanced_layout = 0;
+  if (g->disable_auto_refresh < 0)
+    g->disable_auto_refresh = 0;
 
 #if defined EJUDGE_HTTPD_HTDOCS_DIR
   if (!g->htdocs_dir[0]) {
@@ -2328,6 +2506,12 @@ set_defaults(
     snprintf(g->var_dir, sizeof(g->var_dir), "var");
   }
   pathmake2(g->var_dir, g->root_dir, "/", g->var_dir, NULL);
+
+  /* problems integrated directory (for advanced_layout) */
+  if (!g->problems_dir[0]) {
+    snprintf(g->problems_dir,sizeof(g->problems_dir),"%s",DFLT_G_PROBLEMS_DIR);
+  }
+  pathmake2(g->problems_dir, g->root_dir, "/", g->problems_dir, NULL);
 
   /* CONFIGURATION FILES DEFAULTS */
 #define GLOBAL_INIT_FIELD(f,d,c) do { if (!g->f[0]) { vinfo("global." #f " set to %s", d); snprintf(g->f, sizeof(g->f), "%s", d); } pathmake2(g->f,g->c, "/", g->f, NULL); } while (0)
@@ -2541,6 +2725,17 @@ set_defaults(
             g->contest_start_cmd);
         return -1;
       }
+    }
+
+    if (g->contest_stop_cmd && g->contest_stop_cmd[0]) {
+      pathmake2(tmp_buf, g->conf_dir, "/", g->contest_stop_cmd, NULL);
+      if (check_executable(tmp_buf) < 0) {
+        err("contest stop command %s is not executable or does not exist",
+            tmp_buf);
+        return -1;
+      }
+      xfree(g->contest_stop_cmd);
+      g->contest_stop_cmd = xstrdup(tmp_buf);
     }
 
     if (g->stand_header_file[0]) {
@@ -2865,6 +3060,18 @@ set_defaults(
         if (!lang->compiler_env[j]) return -1;
       }
     }
+    if (lang->style_checker_env) {
+      for (j = 0; lang->style_checker_env[j]; ++j) {
+        lang->style_checker_env[j] = varsubst_heap(state,
+                                                   lang->style_checker_env[j],
+                                                   1,
+                                                   section_global_params,
+                                                   section_problem_params,
+                                                   section_language_params,
+                                                   section_tester_params);
+        if (!lang->style_checker_env[j]) return -1;
+      }
+    }
   }
 
   for (i = 0; i < state->max_abstr_prob && mode != PREPARE_COMPILE; i++) {
@@ -2920,17 +3127,29 @@ set_defaults(
       sformat_message(prob->xml_file, sizeof(prob->xml_file), 0,
                       aprob->xml_file, 0, prob, 0, 0, 0, 0, 0, 0);
     }
-    if (prob->xml_file[0]) {
+    if (prob->xml_file[0] && g->advanced_layout <= 0) {
       path_add_dir(prob->xml_file, g->statement_dir);
     }
     if (prob->xml_file[0] && prob->variant_num > 0) {
       XCALLOC(prob->xml.a, prob->variant_num);
       for (j = 1; j <= prob->variant_num; j++) {
-        prepare_insert_variant_num(fpath, sizeof(fpath), prob->xml_file, j);
-        if (!(prob->xml.a[j - 1] = problem_xml_parse(fpath))) return -1;
+        if (g->advanced_layout > 0) {
+          get_advanced_layout_path(xml_path, sizeof(xml_path), g,
+                                   prob, prob->xml_file, j);
+          if (!(prob->xml.a[j - 1] = problem_xml_parse(xml_path))) return -1;
+        } else {
+          prepare_insert_variant_num(fpath, sizeof(fpath), prob->xml_file, j);
+          if (!(prob->xml.a[j - 1] = problem_xml_parse(fpath))) return -1;
+        }
       }
     } else if (prob->xml_file[0]) {
-      if (!(prob->xml.p = problem_xml_parse(prob->xml_file))) return -1;
+      if (g->advanced_layout > 0) {
+        get_advanced_layout_path(xml_path, sizeof(xml_path), g,
+                                 prob, prob->xml_file, -1);
+        if (!(prob->xml.p = problem_xml_parse(xml_path))) return -1;
+      } else {
+        if (!(prob->xml.p = problem_xml_parse(prob->xml_file))) return -1;
+      }
     }
 
     prepare_set_prob_value(CNTSPROB_type, prob, aprob, g);
@@ -2964,6 +3183,8 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_hidden, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_advance_to_next, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_ctrl_chars, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_valuer_sets_marked, prob, aprob, g);    
+    prepare_set_prob_value(CNTSPROB_ignore_unmarked, prob, aprob, g);    
     prepare_set_prob_value(CNTSPROB_enable_text_form, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_stand_ignore_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_stand_last_column, prob, aprob, g);
@@ -2976,6 +3197,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_combined_stdin, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_combined_stdout, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_binary_input, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_binary, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_ignore_exit_code, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_olympiad_mode, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest, prob, aprob, g);
@@ -2996,6 +3218,8 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_check_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_valuer_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_interactor_cmd, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_style_checker_cmd, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_test_checker_cmd, prob, aprob, g);
 
     prepare_set_prob_value(CNTSPROB_max_vm_size, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_max_stack_size, prob, aprob, g);
@@ -3090,11 +3314,48 @@ set_defaults(
         }
       }
 
+      if (si != -1 && aprob->style_checker_env) {
+        prob->style_checker_env = sarray_merge_pf(aprob->style_checker_env,
+                                                  prob->style_checker_env);
+      }
+      if (prob->style_checker_env) {
+        for (j = 0; prob->style_checker_env[j]; j++) {
+          prob->style_checker_env[j] = varsubst_heap(state,
+                                                     prob->style_checker_env[j],
+                                                     1, section_global_params,
+                                                     section_problem_params,
+                                                     section_language_params,
+                                                     section_tester_params);
+          if (!prob->style_checker_env[j]) return -1;
+        }
+      }
+
+      if (si != -1 && aprob->test_checker_env) {
+        prob->test_checker_env = sarray_merge_pf(aprob->test_checker_env,
+                                                 prob->test_checker_env);
+      }
+      if (prob->test_checker_env) {
+        for (j = 0; prob->test_checker_env[j]; j++) {
+          prob->test_checker_env[j] = varsubst_heap(state,
+                                                    prob->test_checker_env[j],
+                                                    1, section_global_params,
+                                                    section_problem_params,
+                                                    section_language_params,
+                                                    section_tester_params);
+          if (!prob->test_checker_env[j]) return -1;
+        }
+      }
+
       /* score bonus */
       prepare_set_prob_value(CNTSPROB_score_bonus, prob, aprob, g);
       if (prob->score_bonus[0]) {
         if (parse_score_bonus(prob->score_bonus, &prob->score_bonus_total,
                               &prob->score_bonus_val) < 0) return -1;
+      }
+      if (prob->open_tests[0]) {
+        if (prepare_parse_open_tests(stderr, prob->open_tests,
+                                     &prob->open_tests_val) < 0)
+          return -1;
       }
     }
 
@@ -3123,7 +3384,7 @@ set_defaults(
         sformat_message(prob->plugin_file, PATH_MAX, 0, aprob->plugin_file,
                         NULL, prob, NULL, NULL, NULL, 0, 0, 0);
       }
-      if (prob->plugin_file[0]) {
+      if (prob->plugin_file[0] && g->advanced_layout <= 0) {
         path_add_dir(prob->plugin_file, g->plugin_dir);
       }
 
@@ -3190,8 +3451,7 @@ set_defaults(
       }
       if (!prob->tgz_dir[0] && prob->use_tgz) {
         pathcpy(prob->tgz_dir, prob->short_name);
-        vinfo("problem.%s.tgz_dir is set to '%s'", ish,
-              prob->tgz_dir);
+        vinfo("problem.%s.tgz_dir is set to '%s'", ish, prob->tgz_dir);
       }
       if (prob->use_tgz) {
         path_add_dir(prob->tgz_dir, g->tgz_dir);
@@ -3575,8 +3835,18 @@ set_defaults(
           err("tester.%d.check_cmd must be set", i);
           return -1;
         }
-        pathmake2(state->testers[i]->check_cmd, g->checker_dir, "/",
-                  state->testers[i]->check_cmd, NULL);
+        if (g->advanced_layout > 0
+            && !os_IsAbsolutePath(state->testers[i]->check_cmd)) {
+          get_advanced_layout_path(fpath, sizeof(fpath), g,
+                                   state->probs[tp->problem],
+                                   state->testers[i]->check_cmd, -1);
+          snprintf(state->testers[i]->check_cmd,
+                   sizeof(state->testers[i]->check_cmd), "%s",
+                   fpath);
+        } else {
+          pathmake2(state->testers[i]->check_cmd, g->checker_dir, "/",
+                    state->testers[i]->check_cmd, NULL);
+        }
         if (!tp->start_cmd[0] && atp && atp->start_cmd[0]) {
           sformat_message(tp->start_cmd, PATH_MAX, 0, atp->start_cmd,
                           g, state->probs[tp->problem], NULL,
@@ -4058,7 +4328,7 @@ prepare(
   write_log(0, LOG_INFO, "configuration file parsed ok");
   if (collect_sections(state, mode) < 0) return -1;
 
-  if (!state->max_lang && mode != PREPARE_RUN) {
+  if (!state->max_lang && mode == PREPARE_COMPILE) {
     err("no languages specified");
     return -1;
   }
@@ -4066,7 +4336,7 @@ prepare(
     err("no problems specified");
     return -1;
   }
-  if (!state->max_tester && mode != PREPARE_COMPILE) {
+  if (!state->max_tester && mode == PREPARE_RUN) {
     err("no testers specified");
     return -1;
   }
@@ -4373,8 +4643,15 @@ prepare_tester_refinement(serve_state_t state, struct section_tester_data *out,
           out->arch);
       return -1;
     }
-    pathmake2(out->check_cmd, state->global->checker_dir, "/",
-              out->check_cmd, NULL);
+    if (state->global->advanced_layout > 0
+        && !os_IsAbsolutePath(out->check_cmd)) {
+      get_advanced_layout_path(start_path, sizeof(start_path),
+                               state->global, prb, out->check_cmd, -1);
+      snprintf(out->check_cmd, sizeof(out->check_cmd), "%s", start_path);
+    } else {
+      pathmake2(out->check_cmd, state->global->checker_dir, "/",
+                out->check_cmd, NULL);
+    }
   }
 
   /* copy valuer_cmd */
@@ -4581,6 +4858,10 @@ prepare_set_global_defaults(struct section_global_data *g)
     g->stand_show_ok_time = DFLT_G_STAND_SHOW_OK_TIME;
   if (g->stand_use_login < 0)
     g->stand_use_login = DFLT_G_STAND_USE_LOGIN;
+  if (g->advanced_layout < 0)
+    g->advanced_layout = 0;
+  if (g->disable_auto_refresh < 0)
+    g->disable_auto_refresh = 0;
 }
 
 void
@@ -4599,6 +4880,7 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->combined_stdin < 0) prob->combined_stdin = 0;
   if (prob->combined_stdout < 0) prob->combined_stdout = 0;
   if (prob->binary_input < 0) prob->binary_input = DFLT_P_BINARY_INPUT;
+  if (prob->binary < 0) prob->binary = 0;
   if (prob->ignore_exit_code < 0) prob->ignore_exit_code = 0;
   if (prob->olympiad_mode < 0) prob->olympiad_mode = 0;
   if (prob->score_latest < 0) prob->score_latest = 0;
@@ -4620,6 +4902,8 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->hidden < 0) prob->hidden = 0;
   if (prob->advance_to_next < 0) prob->advance_to_next = 0;
   if (prob->disable_ctrl_chars < 0) prob->disable_ctrl_chars = 0;
+  if (prob->valuer_sets_marked < 0) prob->valuer_sets_marked = 0;
+  if (prob->ignore_unmarked < 0) prob->ignore_unmarked = 0;
   if (prob->enable_text_form < 0) prob->enable_text_form = 0;
   if (prob->stand_ignore_score < 0) prob->stand_ignore_score = 0;
   if (prob->stand_last_column < 0) prob->stand_last_column = 0;
@@ -4765,6 +5049,7 @@ prepare_new_global_section(int contest_id, const unsigned char *root_dir,
   global->stand_use_login = DFLT_G_STAND_USE_LOGIN;
   global->stand_show_ok_time = DFLT_G_STAND_SHOW_OK_TIME;
   global->stand_show_warn_number = DFLT_G_STAND_SHOW_WARN_NUMBER;
+  global->use_ac_not_ok = 0;
 
   strcpy(global->charset, DFLT_G_CHARSET);
 
@@ -4793,6 +5078,7 @@ prepare_new_global_section(int contest_id, const unsigned char *root_dir,
   GLOBAL_PARAM(info_pat, "s"),
   GLOBAL_PARAM(tgz_pat, "s"),
   GLOBAL_PARAM(contest_start_cmd, "s"),
+  GLOBAL_PARAM(contest_stop_cmd, "S"),
   */
 
   /*
@@ -4975,12 +5261,14 @@ prepare_free_config(struct generic_section_config *cfg)
   return param_free(cfg, params);
 }
 
-void
-prepare_copy_problem(struct section_problem_data *out,
-                     const struct section_problem_data *in)
+struct section_problem_data *
+prepare_copy_problem(const struct section_problem_data *in)
 {
-  if (out == in) return;
+  struct section_problem_data *out = prepare_alloc_problem();
+
   memmove(out, in, sizeof(*out));
+
+  // clear the pointers
   out->ntests = 0;
   out->tscores = 0;
   out->x_score_tests = 0;
@@ -4990,27 +5278,48 @@ prepare_copy_problem(struct section_problem_data *out,
   out->date_penalty = 0;
   out->dp_total = 0;
   out->dp_infos = 0;
+  out->group_start_date = 0;
+  out->group_deadline = 0;
+  memset(&out->gsd, 0, sizeof(out->gsd));
+  memset(&out->gdl, 0, sizeof(out->gdl));
   out->disable_language = 0;
   out->enable_language = 0;
   out->require = 0;
   out->checker_env = 0;
+  out->valuer_env = 0;
+  out->interactor_env = 0;
+  out->style_checker_env = 0;
+  out->test_checker_env = 0;
+  if (in->test_checker_cmd) {
+    out->test_checker_cmd = xstrdup(in->test_checker_cmd);
+  }
   out->lang_time_adj = 0;
   out->lang_time_adj_millis = 0;
+  out->alternative = 0;
   out->personal_deadline = 0;
   out->pd_total = 0;
   out->pd_infos = 0;
   out->score_bonus_total = 0;
   out->score_bonus_val = 0;
+  out->open_tests_val = 0;
+  out->unhandled_vars = 0;
   out->score_view = 0;
   out->score_view_score = 0;
   out->score_view_text = 0;
+  out->xml.p = 0;
+
+  return out;
 }
 
 void
-prepare_set_prob_value(int field, struct section_problem_data *out,
-                       const struct section_problem_data *abstr,
-                       const struct section_global_data *global)
+prepare_set_prob_value(
+        int field,
+        struct section_problem_data *out,
+        const struct section_problem_data *abstr,
+        const struct section_global_data *global)
 {
+  path_t tmp_buf;
+
   switch (field) {
   case CNTSPROB_type:
     if (out->type == -1 && abstr) out->type = abstr->type;
@@ -5066,6 +5375,11 @@ prepare_set_prob_value(int field, struct section_problem_data *out,
   case CNTSPROB_binary_input:
     if (out->binary_input == -1 && abstr) out->binary_input = abstr->binary_input;
     if (out->binary_input == -1) out->binary_input = DFLT_P_BINARY_INPUT;
+    break;
+
+  case CNTSPROB_binary:
+    if (out->binary == -1 && abstr) out->binary = abstr->binary;
+    if (out->binary == -1) out->binary = 0;
     break;
 
   case CNTSPROB_ignore_exit_code:
@@ -5289,6 +5603,20 @@ prepare_set_prob_value(int field, struct section_problem_data *out,
       out->disable_ctrl_chars = abstr->disable_ctrl_chars;
     if (out->disable_ctrl_chars == -1)
       out->disable_ctrl_chars = 0;
+    break;
+
+  case CNTSPROB_valuer_sets_marked:
+    if (out->valuer_sets_marked == -1 && abstr)
+      out->valuer_sets_marked = abstr->valuer_sets_marked;
+    if (out->valuer_sets_marked == -1)
+      out->valuer_sets_marked = 0;
+    break;
+
+  case CNTSPROB_ignore_unmarked:
+    if (out->ignore_unmarked == -1 && abstr)
+      out->ignore_unmarked = abstr->ignore_unmarked;
+    if (out->ignore_unmarked == -1)
+      out->ignore_unmarked = 0;
     break;
 
   case CNTSPROB_enable_text_form:
@@ -5558,7 +5886,7 @@ prepare_set_prob_value(int field, struct section_problem_data *out,
       sformat_message(out->valuer_cmd, PATH_MAX, 0, abstr->valuer_cmd,
                       NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
-    if (global && out->valuer_cmd[0]) {
+    if (global && out->valuer_cmd[0] && global->advanced_layout <= 0) {
       pathmake2(out->valuer_cmd, global->checker_dir, "/", out->valuer_cmd, NULL);
     }
     break;
@@ -5568,9 +5896,37 @@ prepare_set_prob_value(int field, struct section_problem_data *out,
       sformat_message(out->interactor_cmd, PATH_MAX, 0, abstr->interactor_cmd,
                       NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
-    if (global && out->interactor_cmd[0]) {
+    if (global && out->interactor_cmd[0] && global->advanced_layout <= 0) {
       pathmake2(out->interactor_cmd, global->checker_dir, "/",
                 out->interactor_cmd, NULL);
+    }
+    break;
+
+  case CNTSPROB_style_checker_cmd:
+    if (!out->style_checker_cmd[0] && abstr && abstr->style_checker_cmd[0]) {
+      sformat_message(out->style_checker_cmd, PATH_MAX, 0,
+                      abstr->style_checker_cmd,
+                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+    }
+    if (global && out->style_checker_cmd[0] && global->advanced_layout <= 0) {
+      pathmake2(out->style_checker_cmd, global->checker_dir, "/",
+                out->style_checker_cmd, NULL);
+    }
+    break;
+
+  case CNTSPROB_test_checker_cmd:
+    if (!out->test_checker_cmd && abstr && abstr->test_checker_cmd) {
+      sformat_message(tmp_buf, sizeof(tmp_buf), 0, abstr->test_checker_cmd,
+                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      out->test_checker_cmd = xstrdup(tmp_buf);
+    }
+    if (out->test_checker_cmd && out->test_checker_cmd[0]
+        && global && global->advanced_layout <= 0
+        && !os_IsAbsolutePath(out->test_checker_cmd)) {
+      snprintf(tmp_buf, sizeof(tmp_buf), "%s/%s", global->checker_dir,
+               out->test_checker_cmd);
+      xfree(out->test_checker_cmd);
+      out->test_checker_cmd = xstrdup(tmp_buf);
     }
     break;
 
@@ -5600,7 +5956,7 @@ prepare_set_prob_value(int field, struct section_problem_data *out,
       sformat_message(out->plugin_file, PATH_MAX, 0, abstr->plugin_file,
                       NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
-    if (global && out->plugin_file[0]) {
+    if (global && out->plugin_file[0] && global->advanced_layout <= 0) {
       path_add_dir(out->plugin_file, global->statement_dir);
     }
     break;
@@ -5629,9 +5985,12 @@ prepare_set_prob_value(int field, struct section_problem_data *out,
       sformat_message(out->xml_file, sizeof(out->xml_file), 0,
                       abstr->xml_file, 0, out, 0, 0, 0, 0, 0, 0);
     }
-    if (global && out->xml_file[0]) {
+    if (global && out->xml_file[0] && global->advanced_layout <= 0) {
       path_add_dir(out->xml_file, global->statement_dir);
     }
+    break;
+
+  case CNTSPROB_open_tests:
     break;
 
   default:
@@ -5648,7 +6007,8 @@ static const int prob_settable_list[] =
   CNTSPROB_scoring_checker, CNTSPROB_manual_checking, CNTSPROB_examinator_num,
   CNTSPROB_check_presentation, CNTSPROB_use_stdin, CNTSPROB_use_stdout,
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
-  CNTSPROB_binary_input, CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode,
+  CNTSPROB_binary_input, CNTSPROB_binary, CNTSPROB_ignore_exit_code,
+  CNTSPROB_olympiad_mode,
   CNTSPROB_score_latest, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
   CNTSPROB_real_time_limit, CNTSPROB_use_ac_not_ok,
   CNTSPROB_team_enable_rep_view, CNTSPROB_team_enable_ce_view,
@@ -5664,7 +6024,9 @@ static const int prob_settable_list[] =
   CNTSPROB_disable_security, CNTSPROB_enable_compilation,
   CNTSPROB_skip_testing, CNTSPROB_variable_full_score, CNTSPROB_hidden,
   CNTSPROB_priority_adjustment, CNTSPROB_spelling, CNTSPROB_stand_hide_time,
-  CNTSPROB_advance_to_next, CNTSPROB_disable_ctrl_chars, CNTSPROB_enable_text_form,
+  CNTSPROB_advance_to_next, CNTSPROB_disable_ctrl_chars,
+  CNTSPROB_valuer_sets_marked, CNTSPROB_ignore_unmarked,
+  CNTSPROB_enable_text_form,
   CNTSPROB_stand_ignore_score, CNTSPROB_stand_last_column,
   CNTSPROB_score_multiplier, CNTSPROB_prev_runs_to_show,
   CNTSPROB_max_vm_size, CNTSPROB_max_stack_size, CNTSPROB_max_data_size,
@@ -5673,16 +6035,20 @@ static const int prob_settable_list[] =
   CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx, CNTSPROB_input_file,
   CNTSPROB_output_file, CNTSPROB_test_score_list, CNTSPROB_score_tests,
   CNTSPROB_test_sets, CNTSPROB_deadline, CNTSPROB_start_date,
-  CNTSPROB_variant_num, CNTSPROB_date_penalty, CNTSPROB_disable_language,
+  CNTSPROB_variant_num, CNTSPROB_date_penalty, CNTSPROB_group_start_date,
+  CNTSPROB_group_deadline, CNTSPROB_disable_language,
   CNTSPROB_enable_language, CNTSPROB_require, CNTSPROB_standard_checker,
   CNTSPROB_checker_env, CNTSPROB_valuer_env, CNTSPROB_interactor_env,
-  CNTSPROB_lang_time_adj, CNTSPROB_lang_time_adj_millis, CNTSPROB_check_cmd,
-  CNTSPROB_valuer_cmd, CNTSPROB_interactor_cmd,
+  CNTSPROB_style_checker_env, CNTSPROB_test_checker_env, CNTSPROB_lang_time_adj,
+  CNTSPROB_lang_time_adj_millis, CNTSPROB_check_cmd, CNTSPROB_valuer_cmd,
+  CNTSPROB_interactor_cmd, CNTSPROB_style_checker_cmd,
+  CNTSPROB_test_checker_cmd,
   CNTSPROB_test_pat, CNTSPROB_corr_pat, CNTSPROB_info_pat, CNTSPROB_tgz_pat,
   CNTSPROB_personal_deadline, CNTSPROB_score_bonus, CNTSPROB_statement_file,
   CNTSPROB_alternatives_file, CNTSPROB_plugin_file, CNTSPROB_xml_file,
   CNTSPROB_alternative, CNTSPROB_stand_attr, CNTSPROB_source_header,
   CNTSPROB_source_footer, CNTSPROB_score_view,
+  CNTSPROB_open_tests,
 
   0
 };
@@ -5701,6 +6067,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_combined_stdin] = 1,
   [CNTSPROB_combined_stdout] = 1,
   [CNTSPROB_binary_input] = 1,
+  [CNTSPROB_binary] = 1,
   [CNTSPROB_ignore_exit_code] = 1,
   [CNTSPROB_olympiad_mode] = 1,
   [CNTSPROB_score_latest] = 1,
@@ -5741,6 +6108,8 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_stand_hide_time] = 1,
   [CNTSPROB_advance_to_next] = 1,
   [CNTSPROB_disable_ctrl_chars] = 1,
+  [CNTSPROB_valuer_sets_marked] = 1,
+  [CNTSPROB_ignore_unmarked] = 1,
   [CNTSPROB_enable_text_form] = 1,
   [CNTSPROB_stand_ignore_score] = 1,
   [CNTSPROB_stand_last_column] = 1,
@@ -5773,6 +6142,8 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_start_date] = 1,
   [CNTSPROB_variant_num] = 1,
   [CNTSPROB_date_penalty] = 1,
+  [CNTSPROB_group_start_date] = 1,
+  [CNTSPROB_group_deadline] = 1,
   [CNTSPROB_disable_language] = 1,
   [CNTSPROB_enable_language] = 1,
   [CNTSPROB_require] = 1,
@@ -5780,11 +6151,15 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_checker_env] = 1,
   [CNTSPROB_valuer_env] = 1,
   [CNTSPROB_interactor_env] = 1,
+  [CNTSPROB_style_checker_env] = 1,
+  [CNTSPROB_test_checker_env] = 1,
   [CNTSPROB_lang_time_adj] = 1,
   [CNTSPROB_lang_time_adj_millis] = 1,
   [CNTSPROB_check_cmd] = 1,
   [CNTSPROB_valuer_cmd] = 1,
   [CNTSPROB_interactor_cmd] = 1,
+  [CNTSPROB_style_checker_cmd] = 1,
+  [CNTSPROB_test_checker_cmd] = 1,
   [CNTSPROB_test_pat] = 1,
   [CNTSPROB_corr_pat] = 1,
   [CNTSPROB_info_pat] = 1,
@@ -5801,6 +6176,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_source_header] = 1,
   [CNTSPROB_source_footer] = 1,
   [CNTSPROB_score_view] = 1,
+  [CNTSPROB_open_tests] = 1,
 };
 
 static const int prob_inheritable_list[] =
@@ -5809,7 +6185,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_examinator_num, CNTSPROB_check_presentation,
   CNTSPROB_use_stdin, CNTSPROB_use_stdout,
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
-  CNTSPROB_binary_input,
+  CNTSPROB_binary_input, CNTSPROB_binary,
   CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode, CNTSPROB_score_latest,
   CNTSPROB_time_limit, CNTSPROB_time_limit_millis, CNTSPROB_real_time_limit,
   CNTSPROB_use_ac_not_ok, CNTSPROB_team_enable_rep_view,
@@ -5826,7 +6202,9 @@ static const int prob_inheritable_list[] =
   CNTSPROB_disable_security, CNTSPROB_enable_compilation,
   CNTSPROB_skip_testing, CNTSPROB_variable_full_score,
   CNTSPROB_hidden, CNTSPROB_priority_adjustment, CNTSPROB_spelling,
-  CNTSPROB_stand_hide_time, CNTSPROB_advance_to_next, CNTSPROB_disable_ctrl_chars,
+  CNTSPROB_stand_hide_time, CNTSPROB_advance_to_next,
+  CNTSPROB_disable_ctrl_chars, CNTSPROB_valuer_sets_marked,
+  CNTSPROB_ignore_unmarked,
   CNTSPROB_enable_text_form, CNTSPROB_stand_ignore_score,
   CNTSPROB_stand_last_column, CNTSPROB_score_multiplier,
   CNTSPROB_prev_runs_to_show, CNTSPROB_max_vm_size,
@@ -5836,11 +6214,15 @@ static const int prob_inheritable_list[] =
   CNTSPROB_input_file, CNTSPROB_output_file, CNTSPROB_test_score_list,
   CNTSPROB_score_tests, CNTSPROB_test_sets, CNTSPROB_deadline,
   CNTSPROB_start_date, CNTSPROB_variant_num, CNTSPROB_date_penalty,
+  CNTSPROB_group_start_date, CNTSPROB_group_deadline,
   CNTSPROB_disable_language, CNTSPROB_enable_language, CNTSPROB_require,
   CNTSPROB_standard_checker, CNTSPROB_checker_env, CNTSPROB_valuer_env,
-  CNTSPROB_interactor_env, CNTSPROB_lang_time_adj,
+  CNTSPROB_interactor_env, CNTSPROB_style_checker_env,
+  CNTSPROB_test_checker_env, CNTSPROB_lang_time_adj,
   CNTSPROB_lang_time_adj_millis, CNTSPROB_check_cmd, CNTSPROB_valuer_cmd,
-  CNTSPROB_interactor_cmd, CNTSPROB_test_pat, CNTSPROB_corr_pat,
+  CNTSPROB_interactor_cmd, CNTSPROB_style_checker_cmd,
+  CNTSPROB_test_checker_cmd,
+  CNTSPROB_test_pat, CNTSPROB_corr_pat,
   CNTSPROB_info_pat, CNTSPROB_tgz_pat, CNTSPROB_personal_deadline,
   CNTSPROB_score_bonus, CNTSPROB_statement_file, CNTSPROB_alternatives_file,
   CNTSPROB_plugin_file, CNTSPROB_xml_file, CNTSPROB_type,
@@ -5861,6 +6243,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_combined_stdin] = 1,
   [CNTSPROB_combined_stdout] = 1,
   [CNTSPROB_binary_input] = 1,
+  [CNTSPROB_binary] = 1,
   [CNTSPROB_ignore_exit_code] = 1,
   [CNTSPROB_olympiad_mode] = 1,
   [CNTSPROB_score_latest] = 1,
@@ -5901,6 +6284,8 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_stand_hide_time] = 1,
   [CNTSPROB_advance_to_next] = 1,
   [CNTSPROB_disable_ctrl_chars] = 1,
+  [CNTSPROB_valuer_sets_marked] = 1,
+  [CNTSPROB_ignore_unmarked] = 1,
   [CNTSPROB_enable_text_form] = 1,
   [CNTSPROB_stand_ignore_score] = 1,
   [CNTSPROB_stand_last_column] = 1,
@@ -5926,6 +6311,8 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_start_date] = 1,
   [CNTSPROB_variant_num] = 1,
   [CNTSPROB_date_penalty] = 1,
+  [CNTSPROB_group_start_date] = 1,
+  [CNTSPROB_group_deadline] = 1,
   [CNTSPROB_disable_language] = 1,
   [CNTSPROB_enable_language] = 1,
   [CNTSPROB_require] = 1,
@@ -5933,11 +6320,15 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_checker_env] = 1,
   [CNTSPROB_valuer_env] = 1,
   [CNTSPROB_interactor_env] = 1,
+  [CNTSPROB_style_checker_env] = 1,
+  [CNTSPROB_test_checker_env] = 1,
   [CNTSPROB_lang_time_adj] = 1,
   [CNTSPROB_lang_time_adj_millis] = 1,
   [CNTSPROB_check_cmd] = 1,
   [CNTSPROB_valuer_cmd] = 1,
   [CNTSPROB_interactor_cmd] = 1,
+  [CNTSPROB_style_checker_cmd] = 1,
+  [CNTSPROB_test_checker_cmd] = 1,
   [CNTSPROB_test_pat] = 1,
   [CNTSPROB_corr_pat] = 1,
   [CNTSPROB_info_pat] = 1,
@@ -5973,6 +6364,7 @@ static const struct section_problem_data prob_undef_values =
   .combined_stdin = -1,
   .combined_stdout = -1,
   .binary_input = -1,
+  .binary = -1,
   .ignore_exit_code = -1,
   .olympiad_mode = -1,
   .score_latest = -1,
@@ -6013,6 +6405,8 @@ static const struct section_problem_data prob_undef_values =
   .prev_runs_to_show = -1,
   .advance_to_next = -1,
   .disable_ctrl_chars = -1,
+  .valuer_sets_marked = -1,
+  .ignore_unmarked = -1,
   .enable_text_form = -1,
   .stand_ignore_score = -1,
   .stand_last_column = -1,
@@ -6055,15 +6449,21 @@ static const struct section_problem_data prob_undef_values =
   .start_date = -1,
   .variant_num = -1,
   .date_penalty = 0,
+  .group_start_date = 0,
+  .group_deadline = 0,
   .disable_language = 0,
   .enable_language = 0,
   .require = 0,
   .checker_env = 0,
   .valuer_env = 0,
   .interactor_env = 0,
+  .style_checker_env = 0,
+  .test_checker_env = 0,
   .check_cmd = { 1, 0 },
   .valuer_cmd = { 1, 0 },
   .interactor_cmd = { 1, 0 },
+  .style_checker_cmd = { 1, 0 },
+  .test_checker_cmd = 0,
   .lang_time_adj = 0,
   .lang_time_adj_millis = 0,
   .alternative = 0,
@@ -6089,6 +6489,7 @@ static const struct section_problem_data prob_default_values =
   .combined_stdin = 0,
   .combined_stdout = 0,
   .binary_input = 0,
+  .binary = 0,
   .ignore_exit_code = 0,
   .olympiad_mode = 0,
   .score_latest = 0,
@@ -6129,6 +6530,8 @@ static const struct section_problem_data prob_default_values =
   .prev_runs_to_show = 0,
   .advance_to_next = 0,
   .disable_ctrl_chars = 0,
+  .valuer_sets_marked = 0,
+  .ignore_unmarked = 0,
   .enable_text_form = 0,
   .stand_ignore_score = 0,
   .stand_last_column = 0,
@@ -6174,6 +6577,8 @@ static const struct section_problem_data prob_default_values =
   .check_cmd = "",
   .valuer_cmd = "",
   .interactor_cmd = "",
+  .style_checker_cmd = "",
+  .test_checker_cmd = 0,
   .score_bonus = "",
   .max_vm_size = 0,
   .max_data_size = 0,
@@ -6215,6 +6620,8 @@ static const unsigned char prob_format_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_check_cmd] = 1,
   [CNTSPROB_valuer_cmd] = 1,
   [CNTSPROB_interactor_cmd] = 1,
+  [CNTSPROB_style_checker_cmd] = 1,
+  [CNTSPROB_test_checker_cmd] = 1,
   [CNTSPROB_statement_file] = 1,
   [CNTSPROB_alternatives_file] = 1,
   [CNTSPROB_plugin_file] = 1,
@@ -6244,6 +6651,12 @@ cntsprob_is_undefined(
       ejintbool_t b_ptr = *(const ejintbool_t *) f_ptr;
       ejintbool_t b_undef = *(const ejintbool_t*) f_undef;
       return b_ptr == b_undef;
+    }
+    break;
+  case 's':
+    {
+      const unsigned char *s_ptr = *(const unsigned char**) f_ptr;
+      return s_ptr == 0;
     }
     break;
   case 'S':
@@ -6367,6 +6780,23 @@ cntsprob_copy_and_set_default(
             *d_bool = *(const ejintbool_t*) g_ptr;
           if (is_inh && *d_bool == u_bool)
             *d_bool = *(const ejintbool_t*) i_ptr;
+        }
+      }
+      break;
+    case 's':
+      {
+        unsigned char **pd_str = (unsigned char **) d_ptr;
+        if (*(unsigned char **) s_ptr != 0) {
+          *pd_str = xstrdup(*(unsigned char **) s_ptr);
+        }
+        if (!*pd_str && is_inh && *(unsigned char **) a_ptr) {
+          *pd_str = xstrdup(*(unsigned char **) a_ptr);
+        }
+        if (*pd_str && prob_format_set[f_id]) {
+          sformat_message(tmp_buf, sizeof(tmp_buf), 0, *pd_str,
+                          gp, dp, NULL, NULL, NULL, NULL, NULL, NULL);
+          xfree(*pd_str);
+          *pd_str = xstrdup(tmp_buf);
         }
       }
       break;
@@ -6548,6 +6978,10 @@ cntsprob_clear_field(
   case 'B':
     *(ejintbool_t*) d_ptr = *(const ejintbool_t*) s_ptr;
     break;
+  case 's':
+    xfree(*(unsigned char**) d_ptr);
+    *(unsigned char**) d_ptr = 0;
+    break;
   case 'S':
     memset(d_ptr, 0, f_size);
     strcpy((char*) d_ptr, (const char*) s_ptr);
@@ -6583,6 +7017,48 @@ cntsprob_is_inheritable_field(int f_id)
 {
   if (f_id <= 0 || f_id >= CNTSPROB_LAST_FIELD) return 0;
   return prob_inheritable_set[f_id];
+}
+
+const unsigned char*
+get_advanced_layout_path(
+        unsigned char *buf,
+        size_t bufsize,
+        const struct section_global_data *global,
+        const struct section_problem_data *prob,
+        const unsigned char *entry,
+        int variant)
+{
+  path_t path1;
+  const unsigned char *prob_name;
+
+  if (global->problems_dir[0] && os_IsAbsolutePath(global->problems_dir)) {
+    snprintf(path1, sizeof(path1), "%s", global->problems_dir);
+  } else if (global->problems_dir[0]) {
+    snprintf(path1,sizeof(path1),"%s/%s",global->root_dir,global->problems_dir);
+  } else {
+    snprintf(path1,sizeof(path1),"%s/%s",global->root_dir,DFLT_G_PROBLEMS_DIR);
+  }
+
+  prob_name = prob->short_name;
+  if (prob->internal_name[0]) {
+    prob_name = prob->internal_name;
+  }
+
+  if (!entry) {
+    if (variant < 0 || prob->variant_num <= 0) {
+      snprintf(buf, bufsize, "%s/%s", path1, prob_name);
+    } else {
+      snprintf(buf, bufsize, "%s/%s-%d", path1, prob_name, variant);
+    }
+  } else {
+    if (variant < 0 || prob->variant_num <= 0) {
+      snprintf(buf, bufsize, "%s/%s/%s", path1, prob_name, entry);
+    } else {
+      snprintf(buf, bufsize, "%s/%s-%d/%s", path1, prob_name, variant, entry);
+    }
+  }
+
+  return buf;
 }
 
 /*

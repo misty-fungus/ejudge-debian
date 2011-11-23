@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: compile.c 5742 2010-01-25 20:25:20Z cher $ */
+/* $Id: compile.c 5882 2010-06-14 18:07:19Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -18,6 +18,8 @@
 /*
  * This program compiles incoming source files and puts the resulting
  * executables into the spool directory.
+ *
+ * Note: this program must compile and work on win32
  */
 
 #include "config.h"
@@ -63,6 +65,147 @@ static int initialize_mode = 0;
 static int daemon_mode;
 
 static int
+check_style_only(
+        const struct section_global_data *global,
+        struct compile_request_packet *req,
+        struct compile_reply_packet *rpl,
+        const unsigned char *pkt_name,
+        const unsigned char *run_name,
+        const unsigned char *report_dir,
+        const unsigned char *status_dir)
+{
+  void *reply_bin = 0;
+  size_t reply_bin_size = 0;
+  unsigned char msgbuf[1024] = { 0 };
+  path_t log_path;
+  path_t work_src_path;
+  path_t work_log_path;
+  path_t work_txt_path;
+  int r, i;
+  const unsigned char *src_sfx = "";
+  tpTask tsk = 0;
+
+  // input file: ${global->compile_src_dir}/${pkt_name}${req->src_sfx}
+  // output log file: ${report_dir}/${run_name}
+  // file listing: ${report_dir}/${run_name} (if OK status)
+  // working directory: ${global->compile_work_dir}
+
+  snprintf(log_path, sizeof(log_path), "%s/%s", report_dir, run_name);
+  if (req->src_sfx) src_sfx = req->src_sfx;
+  snprintf(work_src_path, sizeof(work_src_path), "%s/%s%s",
+           global->compile_work_dir, run_name, src_sfx);
+  snprintf(work_log_path, sizeof(work_log_path), "%s/%s.log",
+           global->compile_work_dir, run_name);
+  snprintf(work_txt_path, sizeof(work_txt_path), "%s/%s.txt",
+           global->compile_work_dir, run_name);
+
+  r = generic_copy_file(REMOVE, global->compile_src_dir, pkt_name, src_sfx,
+                        0, global->compile_work_dir, run_name, src_sfx);
+  if (!r) {
+    snprintf(msgbuf, sizeof(msgbuf), "The source file %s/%s%s is missing.\n",
+             global->compile_src_dir, pkt_name, src_sfx);
+    goto internal_error;
+  }
+  if (r < 0) {
+    snprintf(msgbuf, sizeof(msgbuf),
+             "Read error on the source file %s/%s%s is missing.\n",
+             global->compile_src_dir, pkt_name, src_sfx);
+    goto internal_error;
+  }
+
+  info("Starting: %s %s", req->style_checker, work_src_path);
+  tsk = task_New();
+  task_AddArg(tsk, req->style_checker);
+  task_AddArg(tsk, work_src_path);
+  task_SetPathAsArg0(tsk);
+  task_SetWorkingDir(tsk, global->compile_work_dir);
+  task_SetRedir(tsk, 0, TSR_FILE, "/dev/null", TSK_WRITE);
+  task_SetRedir(tsk, 1, TSR_FILE, work_txt_path, TSK_REWRITE, 0777);
+  task_SetRedir(tsk, 2, TSR_FILE, work_log_path, TSK_REWRITE, 0777);
+  if (req->sc_env_num > 0) {
+    for (i = 0; i < req->sc_env_num; i++)
+      task_PutEnv(tsk, req->sc_env_vars[i]);
+  }
+#if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
+  task_EnableAllSignals(tsk);
+#endif /* HAVE_TASK_ENABLEALLSIGNALS */
+  if (task_Start(tsk) < 0) {
+    err("Failed to start style checker process");
+    snprintf(msgbuf, sizeof(msgbuf), "Failed to start style checker %s\n",
+             req->style_checker);
+    goto internal_error;
+  }
+
+  task_Wait(tsk);
+  if (task_IsTimeout(tsk)) {
+    err("Style checker process is timed out");
+    snprintf(msgbuf, sizeof(msgbuf), "Style checker %s process timeout\n",
+             req->style_checker);
+    goto internal_error;
+  }
+  r = task_Status(tsk);
+  if (r != TSK_EXITED && r != TSK_SIGNALED) {
+    err("Style checker invalid task status");
+    snprintf(msgbuf, sizeof(msgbuf),
+             "Style checker %s invalid task status %d\n",
+             req->style_checker, r);
+    goto internal_error;
+  }
+  if (r == TSK_SIGNALED) {
+    err("Style checker terminated by signal");
+    snprintf(msgbuf, sizeof(msgbuf),
+             "Style checker %s terminated by signal %d\n",
+             req->style_checker, task_TermSignal(tsk));
+    goto internal_error;
+  }
+  r = task_ExitCode(tsk);
+  if (r != 0 && r != RUN_COMPILE_ERR && r != RUN_PRESENTATION_ERR
+      && r != RUN_WRONG_ANSWER_ERR && r != RUN_STYLE_ERR) {
+    err("Invalid style checker exit code");
+    snprintf(msgbuf, sizeof(msgbuf),
+             "Style checker %s exit code %d\n",
+             req->style_checker, r);
+    goto internal_error;
+  }
+  if (r) {
+    // style checker error
+    rpl->status = RUN_STYLE_ERR;
+    get_current_time(&rpl->ts3, &rpl->ts3_us);
+    generic_copy_file(0, 0, work_log_path, "", 0, 0, log_path, "");
+  } else {
+    // success
+    rpl->status = RUN_OK;
+    get_current_time(&rpl->ts3, &rpl->ts3_us);
+    generic_copy_file(0, 0, work_txt_path, "", 0, 0, log_path, "");
+  }
+
+  if (compile_reply_packet_write(rpl, &reply_bin_size, &reply_bin) < 0)
+    goto cleanup;
+  // ignore error: we cannot do anything anyway
+  generic_write_file(reply_bin, reply_bin_size, SAFE, status_dir, run_name, 0);
+
+cleanup:
+  task_Delete(tsk); tsk = 0;
+  xfree(reply_bin); reply_bin = 0;
+  req = compile_request_packet_free(req);
+  clear_directory(global->compile_work_dir);
+  return 0;
+
+internal_error:
+  rpl->status = RUN_CHECK_FAILED;
+  get_current_time(&rpl->ts3, &rpl->ts3_us);
+  if (compile_reply_packet_write(rpl, &reply_bin_size, &reply_bin) < 0)
+    goto cleanup;
+  if (generic_write_file(msgbuf, strlen(msgbuf), 0, 0, log_path, 0) < 0)
+    goto cleanup;
+  if (generic_write_file(reply_bin, reply_bin_size, SAFE, status_dir,
+                         run_name, 0) < 0) {
+    unlink(log_path);
+  }
+  goto cleanup;
+}
+
+static int
 do_loop(void)
 {
   path_t src_name;
@@ -93,6 +236,7 @@ do_loop(void)
 #endif /* HAVE_TRUNCATE */
   FILE *log_f = 0;
   struct section_language_data *lang = 0;
+  const struct section_global_data *global = serve_state.global;
 
   if (cr_serialize_init(&serve_state) < 0) return -1;
   interrupt_init();
@@ -102,8 +246,7 @@ do_loop(void)
     // terminate if signaled
     if (interrupt_get_status() || interrupt_restart_requested()) break;
 
-    r = scan_dir(serve_state.global->compile_queue_dir,
-                 pkt_name, sizeof(pkt_name));
+    r = scan_dir(global->compile_queue_dir, pkt_name, sizeof(pkt_name));
 
     if (r < 0) {
       switch (-r) {
@@ -123,16 +266,15 @@ do_loop(void)
 
     if (!r) {
       interrupt_enable();
-      os_Sleep(serve_state.global->sleep_time);
+      os_Sleep(global->sleep_time);
       interrupt_disable();
       continue;
     }
 
     pkt_ptr = 0;
     pkt_len = 0;
-    r = generic_read_file(&pkt_ptr, 0, &pkt_len,
-                          SAFE | REMOVE, serve_state.global->compile_queue_dir,
-                          pkt_name, "");
+    r = generic_read_file(&pkt_ptr, 0, &pkt_len, SAFE | REMOVE,
+                          global->compile_queue_dir, pkt_name, "");
     if (r == 0) continue;
     if (r < 0 || !pkt_ptr) {
       // it looks like there's no reasonable recovery strategy
@@ -140,7 +282,7 @@ do_loop(void)
       continue;
     }
 
-    r = compile_request_packet_read(&serve_state, pkt_len, pkt_ptr, &req);
+    r = compile_request_packet_read(pkt_len, pkt_ptr, &req);
     xfree(pkt_ptr); pkt_ptr = 0;
     if (r < 0) {
       /*
@@ -177,9 +319,9 @@ do_loop(void)
 
     /* prepare paths useful to report messages to the serve */
     snprintf(report_dir, sizeof(report_dir),
-             "%s/%06d/report", serve_state.global->compile_dir, rpl.contest_id);
+             "%s/%06d/report", global->compile_dir, rpl.contest_id);
     snprintf(status_dir, sizeof(status_dir),
-             "%s/%06d/status", serve_state.global->compile_dir, rpl.contest_id);
+             "%s/%06d/status", global->compile_dir, rpl.contest_id);
     snprintf(run_name, sizeof(run_name), "%06d", rpl.run_id);
     pathmake(log_out, report_dir, "/", run_name, NULL);
 
@@ -195,21 +337,32 @@ do_loop(void)
       snprintf(msgbuf, sizeof(msgbuf), "invalid compile packet\n");
       goto report_internal_error;
     }
-    
-    lang = serve_state.langs[req->lang_id];
+
+    if (req->style_check_only && req->style_checker && req->style_checker[0]) {
+      check_style_only(global, req, &rpl, pkt_name, run_name, report_dir,
+                       status_dir);
+      req = 0;
+      continue;
+    }
+
+    if (req->lang_id <= 0 || req->lang_id > serve_state.max_lang
+        || !(lang = serve_state.langs[req->lang_id])) {
+      snprintf(msgbuf, sizeof(msgbuf), "invalid lang_id %d\n", req->lang_id);
+      goto report_internal_error;
+    }
     pathmake(src_name, run_name, lang->src_sfx, NULL);
     pathmake(exe_name, run_name, lang->exe_sfx, NULL);
 
-    pathmake(src_path, serve_state.global->compile_work_dir, "/", src_name, NULL);
-    pathmake(exe_path, serve_state.global->compile_work_dir, "/", exe_name, NULL);
-    pathmake(log_path, serve_state.global->compile_work_dir, "/", "log", NULL);
+    pathmake(src_path, global->compile_work_dir, "/", src_name, NULL);
+    pathmake(exe_path, global->compile_work_dir, "/", exe_name, NULL);
+    pathmake(log_path, global->compile_work_dir, "/", "log", NULL);
     /* the resulting executable file */
     pathmake(exe_out, report_dir, "/", exe_name, NULL);
 
     /* move the source file into the working dir */
-    r = generic_copy_file(REMOVE, serve_state.global->compile_src_dir, pkt_name,
+    r = generic_copy_file(REMOVE, global->compile_src_dir, pkt_name,
                           lang->src_sfx,
-                          0, serve_state.global->compile_work_dir, src_name, "");
+                          0, global->compile_work_dir, src_name, "");
     if (!r) {
       snprintf(msgbuf, sizeof(msgbuf), "the source file is missing\n");
       err("the source file is missing");
@@ -237,31 +390,41 @@ do_loop(void)
         task_AddArg(tsk, req->style_checker);
         task_AddArg(tsk, src_path);
         task_SetPathAsArg0(tsk);
-        task_SetWorkingDir(tsk, serve_state.global->compile_work_dir);
+        task_SetWorkingDir(tsk, global->compile_work_dir);
         task_SetRedir(tsk, 1, TSR_FILE, log_path, TSK_REWRITE, 0777);
         task_SetRedir(tsk, 0, TSR_FILE, "/dev/null", TSK_WRITE);
         task_SetRedir(tsk, 2, TSR_DUP, 1);
+        if (req->sc_env_num > 0) {
+          for (i = 0; i < req->sc_env_num; i++)
+            task_PutEnv(tsk, req->sc_env_vars[i]);
+        }
         if (lang->compile_real_time_limit > 0) {
           task_SetMaxRealTime(tsk, lang->compile_real_time_limit);
         }
 #if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
         task_EnableAllSignals(tsk);
 #endif /* HAVE_TASK_ENABLEALLSIGNALS */
-        task_Start(tsk);
-        task_Wait(tsk);
-        if (task_IsTimeout(tsk)) {
-          err("Style checker process timed out");
-          tail_message = "\n\nStyle checker process timed out";
-          ce_flag = 1;
-          rpl.status = RUN_STYLE_ERR;
-        } else if (task_IsAbnormal(tsk)) {
-          info("Style checker failed");
+        if (task_Start(tsk) < 0) {
+          err("Failed to start style checker process");
+          tail_message = "\n\nFailed to start style checker";
           ce_flag = 1;
           rpl.status = RUN_STYLE_ERR;
         } else {
-          info("Style checker sucessful");
-          ce_flag = 0;
-          rpl.status = RUN_OK;
+          task_Wait(tsk);
+          if (task_IsTimeout(tsk)) {
+            err("Style checker process timed out");
+            tail_message = "\n\nStyle checker process timed out";
+            ce_flag = 1;
+            rpl.status = RUN_STYLE_ERR;
+          } else if (task_IsAbnormal(tsk)) {
+            info("Style checker failed");
+            ce_flag = 1;
+            rpl.status = RUN_STYLE_ERR;
+          } else {
+            info("Style checker sucessful");
+            ce_flag = 0;
+            rpl.status = RUN_OK;
+          }
         }
         task_Delete(tsk); tsk = 0;
       }
@@ -278,7 +441,7 @@ do_loop(void)
           for (i = 0; i < req->env_num; i++)
             task_PutEnv(tsk, req->env_vars[i]);
         }
-        task_SetWorkingDir(tsk, serve_state.global->compile_work_dir);
+        task_SetWorkingDir(tsk, global->compile_work_dir);
         task_SetRedir(tsk, 1, TSR_FILE, log_path, TSK_REWRITE, 0777);
         task_SetRedir(tsk, 0, TSR_FILE, "/dev/null", TSK_WRITE);
         task_SetRedir(tsk, 2, TSR_DUP, 1);
@@ -378,7 +541,7 @@ do_loop(void)
 
   cleanup_and_continue:;
     task_Delete(tsk); tsk = 0;
-    clear_directory(serve_state.global->compile_work_dir);
+    clear_directory(global->compile_work_dir);
     xfree(rpl_pkt); rpl_pkt = 0;
     req = compile_request_packet_free(req);
   } /* while (1) */

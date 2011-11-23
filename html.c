@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 5755 2010-01-28 20:02:41Z cher $ */
+/* $Id: html.c 5950 2010-07-16 12:33:23Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -40,6 +40,7 @@
 #include "serve_state.h"
 #include "charsets.h"
 #include "compat.h"
+#include "filter_eval.h"
 
 #include <reuse/logger.h>
 #include <reuse/xalloc.h>
@@ -1085,6 +1086,60 @@ score_view_display(
   return buf;
 }
 
+static void
+get_problem_map(
+        const serve_state_t state,
+        time_t cur_time,        /* the current time */
+        int *p_rev,             /* prob_id -> prob_ind map */
+        int p_max,              /* the size of the probs */
+        int *p_ind,             /* the problem index array */
+        int *p_p_tot,           /* [OUT] the size of the problem index array */
+        int *p_last_col_ind,    /* [OUT] the index of the last column prob */
+        struct user_filter_info *filter)
+{
+  int p_tot, i;
+  const struct section_problem_data *prob;
+  struct filter_env env;
+  struct run_entry fake_entries[1];
+
+  memset(p_rev, -1, p_max * sizeof(p_rev[0]));
+  memset(&env, 0, sizeof(env));
+  memset(fake_entries, 0, sizeof(fake_entries[0]) * 1);
+
+  if (filter && filter->stand_prob_tree) {
+    env.teamdb_state = state->teamdb_state;
+    env.serve_state = state;
+    env.mem = filter_tree_new();
+    env.maxlang = state->max_lang;
+    env.langs = (const struct section_language_data * const *) state->langs;
+    env.maxprob = state->max_prob;
+    env.probs = (const struct section_problem_data * const *) state->probs;
+    env.rtotal = 1;
+    env.cur_time = cur_time;
+    env.rentries = fake_entries;
+    env.rid = 0;
+  }
+
+  for (i = 1, p_tot = 0; i < p_max; i++) {
+    if (!(prob = state->probs[i])) continue;
+    if (prob->hidden > 0) continue;
+    if (prob->stand_column[0]) continue;
+    if (prob->start_date > 0 && cur_time < prob->start_date) continue;
+    if (filter && filter->stand_prob_tree) {
+      fake_entries[0].prob_id = i;
+      if (filter_tree_bool_eval(&env, filter->stand_prob_tree) <= 0) continue;
+    }
+    if (prob->stand_last_column > 0 && *p_last_col_ind && *p_last_col_ind < 0){
+      *p_last_col_ind = p_tot;
+    }
+    p_rev[i] = p_tot;
+    p_ind[p_tot++] = i;
+  }
+
+  env.mem = filter_tree_delete(env.mem);
+  *p_p_tot = p_tot;
+}
+
 void
 do_write_kirov_standings(
         const serve_state_t state,
@@ -1099,7 +1154,8 @@ do_write_kirov_standings(
         int accepting_mode,
         int force_fancy_style,
         time_t cur_time,
-        int charset_id)
+        int charset_id,
+        struct user_filter_info *user_filter)
 {
   struct section_global_data *global = state->global;
   const struct section_problem_data *prob;
@@ -1125,6 +1181,7 @@ do_write_kirov_standings(
   int *trans_num = 0;
   int *penalty = 0;
   int *cf_num = 0;
+  int *marked_flag = 0;
 
   int  *tot_score = 0, *tot_full = 0, *succ_att = 0, *tot_att = 0, *tot_penalty = 0;
   int  *t_sort = 0, *t_sort2 = 0, *t_n1 = 0, *t_n2 = 0;
@@ -1159,6 +1216,9 @@ do_write_kirov_standings(
   char *encode_txt = 0;
   size_t encode_len = 0;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  struct filter_env env;
+
+  memset(&env, 0, sizeof(env));
 
   if (client_flag) head_style = cnts->team_head_style;
   else head_style = "h2";
@@ -1270,7 +1330,8 @@ do_write_kirov_standings(
     }
   } else {
     // use a fast function, if no `stand_collate_name'
-    teamdb_get_user_map(state->teamdb_state, t_max,t_runs,&t_tot, t_rev, t_ind);
+    teamdb_get_user_map(state, cur_time, t_max,t_runs,&t_tot, t_rev, t_ind,
+                        user_filter);
   }
 
   /* make problem index */
@@ -1282,15 +1343,8 @@ do_write_kirov_standings(
   p_max = state->max_prob + 1;
   XALLOCAZ(p_ind, p_max);
   XALLOCAZ(p_rev, p_max);
-  for (i = 1, p_tot = 0; i < p_max; i++) {
-    p_rev[i] = -1;
-    if (!(prob = state->probs[i]) || prob->hidden) continue;
-    if (prob->stand_column[0]) continue;
-    if (prob->start_date > 0 && cur_time < prob->start_date) continue;
-    if (prob->stand_last_column > 0 && last_col_ind < 0) last_col_ind = p_tot;
-    p_rev[i] = p_tot;
-    p_ind[p_tot++] = i;
-  }
+  get_problem_map(state, cur_time, p_rev, p_max, p_ind, &p_tot, &last_col_ind,
+                  user_filter);
   for (i = 1; i < p_max; i++) {
     if (!(prob = state->probs[i]) || !prob->stand_column[0]) continue;
     if (prob->start_date > 0 && cur_time < prob->start_date) continue;
@@ -1329,6 +1383,7 @@ do_write_kirov_standings(
     XCALLOC(trans_num, up_ind);
     XCALLOC(penalty, up_ind);
     XCALLOC(cf_num, up_ind);
+    XCALLOC(marked_flag, up_ind);
   }
   XALLOCAZ(tot_score, t_tot);
   XALLOCAZ(tot_full, t_tot);
@@ -1344,6 +1399,20 @@ do_write_kirov_standings(
   XALLOCAZ(t_n1, t_tot);
   XALLOCAZ(t_n2, t_tot);
 
+  if (user_filter && user_filter->stand_run_tree) {
+    env.teamdb_state = state->teamdb_state;
+    env.serve_state = state;
+    env.mem = filter_tree_new();
+    env.maxlang = state->max_lang;
+    env.langs = (const struct section_language_data * const *) state->langs;
+    env.maxprob = state->max_prob;
+    env.probs = (const struct section_problem_data * const *) state->probs;
+    env.rtotal = r_tot;
+    env.cur_time = cur_time;
+    env.rentries = runs;
+    env.rid = 0;
+  }
+
   for (k = 0; k < r_tot; k++) {
     int tind;
     int pind;
@@ -1355,6 +1424,11 @@ do_write_kirov_standings(
     if (pe->user_id <= 0 || pe->user_id >= t_max) continue;
     if (pe->prob_id <= 0 || pe->prob_id > state->max_prob) continue;
     if (pe->is_hidden) continue;
+    if (user_filter && user_filter->stand_run_tree) {
+      env.rid = k;
+      if (filter_tree_bool_eval(&env, user_filter->stand_run_tree) <= 0)
+        continue;
+    }
     tind = t_rev[pe->user_id];
     pind = p_rev[pe->prob_id];
     up_ind = (tind << row_sh) + pind;
@@ -1489,35 +1563,46 @@ do_write_kirov_standings(
     } else {
       if (run_score == -1) run_score = 0;
       if (pe->status == RUN_OK) {
-        if (!full_sol[up_ind]) sol_att[up_ind]++;
-        score = calc_kirov_score(0, 0, pe, prob, att_num[up_ind],
-                                 disq_num[up_ind],
-                                 full_sol[up_ind]?RUN_TOO_MANY:succ_att[pind],
-                                 0, 0);
-        if (prob->score_latest > 0 || score > prob_score[up_ind]) {
-          prob_score[up_ind] = score;
-          if (!prob->stand_hide_time) sol_time[up_ind] = pe->time;
+        if (!marked_flag[up_ind] || prob->ignore_unmarked <= 0
+            || pe->is_marked) {
+          marked_flag[up_ind] = pe->is_marked;
+          if (!full_sol[up_ind]) sol_att[up_ind]++;
+          score = calc_kirov_score(0, 0, pe, prob, att_num[up_ind],
+                                   disq_num[up_ind],
+                                   full_sol[up_ind]?RUN_TOO_MANY:succ_att[pind],
+                                   0, 0);
+          if (prob->score_latest > 0 || score > prob_score[up_ind]) {
+            prob_score[up_ind] = score;
+            if (!prob->stand_hide_time) sol_time[up_ind] = pe->time;
+          }
+          if (!sol_time[up_ind] && !prob->stand_hide_time)
+            sol_time[up_ind] = pe->time;
+          if (!full_sol[up_ind]) {
+            succ_att[pind]++;
+            tot_att[pind]++;
+          }
+          att_num[up_ind]++;
+          full_sol[up_ind] = 1;
+          last_submit_run = k;
+          last_success_run = k;
         }
-        if (!sol_time[up_ind] && !prob->stand_hide_time)
-          sol_time[up_ind] = pe->time;
-        if (!full_sol[up_ind]) {
-          succ_att[pind]++;
-          tot_att[pind]++;
-        }
-        att_num[up_ind]++;
-        full_sol[up_ind] = 1;
-        last_submit_run = k;
-        last_success_run = k;
       } else if (pe->status == RUN_PARTIAL) {
-        if (!full_sol[up_ind]) sol_att[up_ind]++;
-        score = calc_kirov_score(0, 0, pe, prob, att_num[up_ind],
-                                 disq_num[up_ind], RUN_TOO_MANY, 0, 0);
-        if (prob->score_latest > 0 || score > prob_score[up_ind]) {
-          prob_score[up_ind] = score;
+        if (!marked_flag[up_ind] || prob->ignore_unmarked <= 0
+            || pe->is_marked) {
+          marked_flag[up_ind] = pe->is_marked;
+          if (!full_sol[up_ind]) sol_att[up_ind]++;
+          score = calc_kirov_score(0, 0, pe, prob, att_num[up_ind],
+                                   disq_num[up_ind], RUN_TOO_MANY, 0, 0);
+          if (prob->score_latest > 0 || score > prob_score[up_ind]) {
+            prob_score[up_ind] = score;
+          }
+          if (prob->score_latest > 0) {
+            full_sol[up_ind] = 0;
+          }
+          att_num[up_ind]++;
+          if (!full_sol[up_ind]) tot_att[pind]++;
+          last_submit_run = k;
         }
-        att_num[up_ind]++;
-        if (!full_sol[up_ind]) tot_att[pind]++;
-        last_submit_run = k;
       } else if (pe->status == RUN_WRONG_ANSWER_ERR && prob->type != 0) {
         if (!full_sol[up_ind]) sol_att[up_ind]++;
         score = calc_kirov_score(0, 0, pe, prob, att_num[up_ind],
@@ -2312,7 +2397,9 @@ do_write_kirov_standings(
   xfree(trans_num);
   xfree(cf_num);
   xfree(penalty);
+  xfree(marked_flag);
   html_armor_free(&ab);
+  env.mem = filter_tree_delete(env.mem);
 }
 
 static int
@@ -2394,7 +2481,8 @@ do_write_moscow_standings(
         const unsigned char *user_name,
         int force_fancy_style,
         time_t cur_time,
-        int charset_id)
+        int charset_id,
+        struct user_filter_info *user_filter)
 {
   struct section_global_data *global = state->global;
   const unsigned char *head_style;
@@ -2483,7 +2571,10 @@ do_write_moscow_standings(
   char *encode_txt = 0;
   size_t encode_len = 0;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  struct filter_env env;
   
+  memset(&env, 0, sizeof(env));
+
   if (client_flag) head_style = cnts->team_head_style;
   else head_style = "h2";
 
@@ -2565,7 +2656,8 @@ do_write_moscow_standings(
   /* make users index */
   XALLOCA(u_ind, u_max);
   XALLOCA(u_rev, u_max);
-  teamdb_get_user_map(state->teamdb_state, u_max, u_runs, &u_tot, u_rev, u_ind);
+  teamdb_get_user_map(state, cur_time, u_max, u_runs, &u_tot, u_rev, u_ind,
+                      user_filter);
   /*
   for (i = 1, u_tot = 0; i < u_max; i++)
     if (teamdb_lookup(state->teamdb_state, i) > 0
@@ -2587,15 +2679,8 @@ do_write_moscow_standings(
   p_max = state->max_prob + 1;
   XALLOCA(p_ind, p_max);
   XALLOCA(p_rev, p_max);
-  memset(p_rev, -1, p_max * sizeof(p_rev[0]));
-  for (i = 1, p_tot = 0; i < p_max; i++) {
-    if (!(prob = state->probs[i])) continue;
-    if (prob->hidden > 0 || prob->stand_column[0]) continue;
-    if (prob->start_date > 0 && cur_time < prob->start_date) continue;
-    p_rev[i] = p_tot;
-    p_ind[p_tot] = i;
-    p_tot++;
-  }
+  get_problem_map(state, cur_time, p_rev, p_max, p_ind, &p_tot, NULL,
+                  user_filter);
   for (i = 1; i < p_max; i++) {
     if (!(prob = state->probs[i])) continue;
     if (!prob->stand_column[0]) continue;
@@ -2640,6 +2725,20 @@ do_write_moscow_standings(
   /* full solutions for a problem */
   XALLOCAZ(p_succ, p_tot);
 
+  if (user_filter && user_filter->stand_run_tree) {
+    env.teamdb_state = state->teamdb_state;
+    env.serve_state = state;
+    env.mem = filter_tree_new();
+    env.maxlang = state->max_lang;
+    env.langs = (const struct section_language_data * const *) state->langs;
+    env.maxprob = state->max_prob;
+    env.probs = (const struct section_problem_data * const *) state->probs;
+    env.rtotal = r_tot;
+    env.cur_time = cur_time;
+    env.rentries = runs;
+    env.rid = 0;
+  }
+
   for (i = 0; i < r_tot; i++) {
     const struct run_entry *pe = &runs[i];
     time_t run_time = pe->time;
@@ -2651,6 +2750,11 @@ do_write_moscow_standings(
     if (pe->user_id <= 0 || pe->user_id >= u_max || (u = u_rev[pe->user_id]) < 0) continue;
     if (pe->prob_id <= 0 || pe->prob_id > state->max_prob) continue;
     if ((p = p_rev[pe->prob_id]) < 0) continue;
+    if (user_filter && user_filter->stand_run_tree) {
+      env.rid = i;
+      if (filter_tree_bool_eval(&env, user_filter->stand_run_tree) <= 0)
+        continue;
+    }
     prob = state->probs[pe->prob_id];
     up_ind = (u << row_sh) + p;
 
@@ -3306,6 +3410,7 @@ do_write_moscow_standings(
   xfree(up_time);
   xfree(up_pen);
   html_armor_free(&ab);
+  env.mem = filter_tree_delete(env.mem);
 }
 
 /*
@@ -3324,7 +3429,8 @@ do_write_standings(
         int raw_flag,
         const unsigned char *user_name,
         int force_fancy_style,
-        time_t cur_time)
+        time_t cur_time,
+        struct user_filter_info *user_filter)
 {
   struct section_global_data *global = state->global;
   int      i, j, t;
@@ -3382,6 +3488,9 @@ do_write_standings(
   unsigned char *disq_flag = 0;
   unsigned char *cf_flag = 0;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  struct filter_env env;
+
+  memset(&env, 0, sizeof(env));
 
   if (cur_time <= 0) cur_time = time(0);
   if (!only_table_flag) {
@@ -3463,7 +3572,8 @@ do_write_standings(
   /* make team index */
   XALLOCAZ(t_ind, t_max);
   XALLOCAZ(t_rev, t_max);
-  teamdb_get_user_map(state->teamdb_state, t_max, t_runs, &t_tot, t_rev, t_ind);
+  teamdb_get_user_map(state, cur_time, t_max, t_runs, &t_tot, t_rev, t_ind,
+                      user_filter);
   /*
   for (i = 1, t_tot = 0; i < t_max; i++) {
     t_rev[i] = -1;
@@ -3484,14 +3594,8 @@ do_write_standings(
   p_max = state->max_prob + 1;
   XALLOCAZ(p_ind, p_max);
   XALLOCAZ(p_rev, p_max);
-  for (i = 1, p_tot = 0; i < p_max; i++) {
-    p_rev[i] = -1;
-    if (!(prob = state->probs[i]) || prob->hidden) continue;
-    if (prob->stand_column[0]) continue;
-    if (prob->start_date > 0 && cur_time < prob->start_date) continue;
-    p_rev[i] = p_tot;
-    p_ind[p_tot++] = i;
-  }
+  get_problem_map(state, cur_time, p_rev, p_max, p_ind, &p_tot, NULL,
+                  user_filter);
   for (i = 1; i < p_max; i++) {
     if (!(prob = state->probs[i])) continue;
     if (!prob->stand_column[0]) continue;
@@ -3519,6 +3623,20 @@ do_write_standings(
   XALLOCAZ(succ_att, p_tot);
   XALLOCAZ(tot_att, p_tot);
 
+  if (user_filter && user_filter->stand_run_tree) {
+    env.teamdb_state = state->teamdb_state;
+    env.serve_state = state;
+    env.mem = filter_tree_new();
+    env.maxlang = state->max_lang;
+    env.langs = (const struct section_language_data * const *) state->langs;
+    env.maxprob = state->max_prob;
+    env.probs = (const struct section_problem_data * const *) state->probs;
+    env.rtotal = r_tot;
+    env.cur_time = cur_time;
+    env.rentries = runs;
+    env.rid = 0;
+  }
+
   /* now scan runs log */
   for (k = 0; k < r_tot; k++) {
     pe = &runs[k];
@@ -3530,6 +3648,11 @@ do_write_standings(
       continue;
     if (!state->probs[pe->prob_id] || state->probs[pe->prob_id]->hidden) continue;
     if (pe->is_hidden) continue;
+    if (user_filter && user_filter->stand_run_tree) {
+      env.rid = k;
+      if (filter_tree_bool_eval(&env, user_filter->stand_run_tree) <= 0)
+        continue;
+    }
     prob = state->probs[pe->prob_id];
 
     if (global->is_virtual) {
@@ -3981,6 +4104,7 @@ do_write_standings(
   xfree(disq_flag);
   xfree(cf_flag);
   html_armor_free(&ab);
+  env.mem = filter_tree_delete(env.mem);
 }
 
 void
@@ -4016,14 +4140,14 @@ write_standings(
       || global->score_system == SCORE_OLYMPIAD)
     do_write_kirov_standings(state, cnts, f, stat_dir, 0, 0, header_str,
                              footer_str, 0, accepting_mode, force_fancy_style,
-                             0, charset_id);
+                             0, charset_id, NULL);
   else if (global->score_system == SCORE_MOSCOW)
     do_write_moscow_standings(state, cnts, f, stat_dir, 0, 0, 0, header_str,
                               footer_str, 0, 0, force_fancy_style, 0,
-                              charset_id);
+                              charset_id, NULL);
   else
     do_write_standings(state, cnts, f, 0, 0, 0, header_str, footer_str, 0, 0,
-                       force_fancy_style, 0);
+                       force_fancy_style, 0, NULL);
   if (charset_id > 0) {
     fclose(f); f = 0; encode_len = 0;
     encode_txt = charset_encode_heap(charset_id, encode_txt);
@@ -4232,11 +4356,128 @@ write_public_log(
   return;
 }
 
+#define BGCOLOR_CHECK_FAILED " bgcolor=\"#FF80FF\""
+#define BGCOLOR_FAIL         " bgcolor=\"#FF8080\""
+#define BGCOLOR_PASS         " bgcolor=\"#80FF80\""
+
 int
-write_xml_team_testing_report(const serve_state_t state, FILE *f,
-                              int output_only,
-                              const unsigned char *txt,
-                              const unsigned char *table_class)
+write_xml_team_tests_report(
+        const serve_state_t state,
+        const struct section_problem_data *prob,
+        FILE *f,
+        const unsigned char *txt,
+        const unsigned char *table_class)
+{
+  testing_report_xml_t r = 0;
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  unsigned char *cl = 0;
+  const unsigned char *font_color = 0;
+  const unsigned char *comment = 0;
+  const unsigned char *bgcolor = 0;
+  const unsigned char *fail_str = 0;
+  int i;
+  struct testing_report_row *trr = 0;
+
+  if (!(r = testing_report_parse_xml(txt))) {
+    fprintf(f, "<p><big>Cannot parse XML file!</big></p>\n");
+    fprintf(f, "<pre>%s</pre>\n", ARMOR(txt));
+    goto done;
+  }
+
+  if (!r->tests_mode) {
+    fprintf(f, "<p><big>Invalid XML file!</big></p>\n");
+    fprintf(f, "<pre>%s</pre>\n", ARMOR(txt));
+    goto done;
+  }
+
+  if (table_class && *table_class) {
+    cl = (unsigned char *) alloca(strlen(table_class) + 16);
+    sprintf(cl, " class=\"%s\"", table_class);
+  }
+
+  if (r->status == RUN_CHECK_FAILED) {
+    font_color = " color=\"magenta\"";
+  } else if (r->status == RUN_OK || r->status == RUN_ACCEPTED) {
+    font_color = " color=\"green\"";
+  } else {
+    font_color = " color=\"red\"";
+  }
+  fprintf(f, "<h2><font%s>%s</font></h2>\n",
+          font_color, run_status_str(r->status, 0, 0, 0, 0));
+
+  if (r->status == RUN_CHECK_FAILED) {
+    goto done;
+  }
+
+  if (r->errors && (r->tt_row_count <= 0 || r->tt_column_count <= 0)) {
+    fprintf(f, "<h3>%s</h3>\n", _("Testing messages"));
+    fprintf(f, "<pre>%s</pre>\n", ARMOR(r->errors));
+  }
+
+  if (r->tt_row_count <= 0 || r->tt_column_count <= 0) {
+    goto done;
+  }
+
+  fprintf(f, "<p>%s: %d.</p>\n",
+          _("Total number of sample programs in the test suite"),
+          r->tt_row_count);
+  fprintf(f, "<p>%s: %d.</p>\n",
+          _("Total number of submitted tests"),
+          r->tt_column_count);
+
+  fprintf(f, "<table%s>\n", cl);
+  fprintf(f, "<tr>");
+  fprintf(f, "<td%s>NN</td>", cl);
+  fprintf(f, "<td%s>Pass/fail</td>", cl);
+  fprintf(f, "<td%s>%s</td>", cl, _("Comment"));
+  fprintf(f, "</tr>\n");
+
+  for (i = 0; i < r->tt_row_count; ++i) {
+    fprintf(f, "<tr>");
+    trr = r->tt_rows[i];
+    comment = "&nbsp;";
+    if (trr->status == RUN_CHECK_FAILED) {
+      bgcolor = BGCOLOR_CHECK_FAILED;
+    } else if (trr->status == RUN_OK) {
+      if (trr->must_fail) {
+        bgcolor = BGCOLOR_FAIL;
+        comment = _("This test program is incorrect, but passed all tests");
+      } else {
+        bgcolor = BGCOLOR_PASS;
+      }
+    } else {
+      if (trr->must_fail) {
+        bgcolor = BGCOLOR_PASS;
+      } else {
+        bgcolor = BGCOLOR_FAIL;
+        comment = _("This test program is correct, but failed on some tests");
+      }
+    }
+    fail_str = "pass";
+    if (trr->must_fail) fail_str = "fail";
+    fprintf(f, "<td%s%s>%d</td>", cl, bgcolor, i + 1);
+    fprintf(f, "<td%s%s>%s</td>", cl, bgcolor, fail_str);
+    fprintf(f, "<td%s%s>%s</td>", cl, bgcolor, comment);
+    fprintf(f, "</tr>\n");
+  }
+
+  fprintf(f, "</table>\n");
+
+
+done:
+  testing_report_free(r);
+  html_armor_free(&ab);
+  return 0;
+}
+
+int
+write_xml_team_testing_report(
+        const serve_state_t state,
+        const struct section_problem_data *prob,
+        FILE *f,
+        int output_only,
+        const unsigned char *txt,
+        const unsigned char *table_class)
 {
   const struct section_global_data *global = state->global;
   testing_report_xml_t r = 0;
@@ -4244,6 +4485,8 @@ write_xml_team_testing_report(const serve_state_t state, FILE *f,
   unsigned char *font_color = 0, *s;
   int need_comment = 0, need_info = 0, is_kirov = 0, i;
   unsigned char cl[128] = { 0 };
+  const int *open_tests = 0;
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
 
   if (table_class && *table_class) {
     snprintf(cl, sizeof(cl), " class=\"%s\"", table_class);
@@ -4321,12 +4564,20 @@ write_xml_team_testing_report(const serve_state_t state, FILE *f,
     xfree(s);
   }
 
+  open_tests = 0;
+  if (prob) open_tests = prob->open_tests_val;
   for (i = 0; i < r->run_tests; i++) {
     if (!(t = r->tests[i])) continue;
+    while (open_tests && *open_tests > 0 && *open_tests <= i) {
+      ++open_tests;
+    }
     if (t->team_comment) {
       need_comment = 1;
     }
     if (global->report_error_code && t->status == RUN_RUN_TIME_ERR) {
+      need_info = 1;
+    }
+    if (open_tests && *open_tests == i + 1 && t->status == RUN_RUN_TIME_ERR) {
       need_info = 1;
     }
   }
@@ -4347,8 +4598,14 @@ write_xml_team_testing_report(const serve_state_t state, FILE *f,
   }
 
   fprintf(f, "</tr>\n");
+
+  open_tests = 0;
+  if (prob) open_tests = prob->open_tests_val;
   for (i = 0; i < r->run_tests; i++) {
     if (!(t = r->tests[i])) continue;
+    while (open_tests && *open_tests > 0 && *open_tests <= i) {
+      ++open_tests;
+    }
     fprintf(f, "<tr>");
     fprintf(f, "<td%s>%d</td>", cl, t->num);
     if (t->status == RUN_OK || t->status == RUN_ACCEPTED) {
@@ -4375,7 +4632,9 @@ write_xml_team_testing_report(const serve_state_t state, FILE *f,
     */
     if (need_info) {
       fprintf(f, "<td%s>", cl);
-      if (t->status == RUN_RUN_TIME_ERR && global->report_error_code) {
+      if (t->status == RUN_RUN_TIME_ERR
+          && (global->report_error_code
+              || (open_tests && *open_tests == i + 1))) {
         if (t->exit_comment) {
           fprintf(f, "%s", t->exit_comment);
         } else if (t->term_signal >= 0) {
@@ -4404,6 +4663,60 @@ write_xml_team_testing_report(const serve_state_t state, FILE *f,
     fprintf(f, "</tr>\n");
   }
   fprintf(f, "</table>\n");
+
+  open_tests = 0;
+  if (prob) open_tests = prob->open_tests_val;
+  if (open_tests && *open_tests > 0) {
+    fprintf(f, "<pre>");
+    for (i = 0; i < r->run_tests; i++) {
+      if (!(t = r->tests[i])) continue;
+      if (!t->args && !t->args_too_long && !t->input
+          && !t->output && !t->error && !t->correct && !t->checker)
+        continue;
+      while (*open_tests > 0 && *open_tests <= i) {
+        ++open_tests;
+      }
+      if (*open_tests != i + 1) continue;
+      fprintf(f, _("<b>====== Test #%d =======</b>\n"), t->num);
+      if (t->args || t->args_too_long) {
+        fprintf(f, "<a name=\"%dL\"></a>", t->num);
+        fprintf(f, _("<u>--- Command line arguments ---</u>\n"));
+        if (t->args_too_long) {
+          fprintf(f, _("<i>Command line is too long</i>\n"));
+        } else {
+          fprintf(f, "%s", ARMOR(t->args));
+        }
+      }
+      if (t->input) {
+        fprintf(f, "<a name=\"%dI\"></a>", t->num);
+        fprintf(f, _("<u>--- Input ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->input));
+      }
+      if (t->output) {
+        fprintf(f, "<a name=\"%dO\"></a>", t->num);
+        fprintf(f, _("<u>--- Output ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->output));
+      }
+      if (t->correct) {
+        fprintf(f, "<a name=\"%dA\"></a>", t->num);
+        fprintf(f, _("<u>--- Correct ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->correct));
+      }
+      if (t->correct) {
+        fprintf(f, "<a name=\"%dE\"></a>", t->num);
+        fprintf(f, _("<u>--- Stderr ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->error));
+      }
+      if (t->checker) {
+        fprintf(f, "<a name=\"%dC\"></a>", t->num);
+        fprintf(f, _("<u>--- Checker output ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->checker));
+      }
+    }
+    fprintf(f, "</pre>");
+  }
+
+  html_armor_free(&ab);
   testing_report_free(r);
   return 0;
 }

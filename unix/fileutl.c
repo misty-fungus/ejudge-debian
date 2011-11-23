@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: fileutl.c 5698 2010-01-20 13:12:53Z cher $ */
+/* $Id: fileutl.c 5906 2010-06-24 04:54:23Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1713,6 +1713,120 @@ get_tmp_dir(unsigned char *buf, size_t size)
 #endif
   snprintf(buf, size, "%s", "/tmp");
   return buf;
+}
+
+static int
+name_sort_func(const void *p1, const void *p2)
+{
+  const unsigned char *s1 = *(const unsigned char **) p1;
+  const unsigned char *s2 = *(const unsigned char **) p2;
+  return strcmp(s1, s2);
+}
+
+int
+scan_executable_files(
+        const unsigned char *dir,
+        int *p_count,
+        unsigned char ***p_files)
+{
+  int count = 0;
+  int alloc = 0;
+  unsigned char **files = 0;
+  int i;
+  DIR *d;
+  struct dirent *dd;
+  path_t path;
+  struct stat stb;
+
+  if (p_count) *p_count = 0;
+  if (p_files) *p_files = 0;
+
+  if (!(d = opendir(dir))) {
+    err("scan_executable_file: no directory %s", dir);
+    goto fail;
+  }
+  while ((dd = readdir(d))) {
+    if (!strcmp(dd->d_name, ".") || !strcmp(dd->d_name, "..")) continue;
+    snprintf(path, sizeof(path), "%s/%s", dir, dd->d_name);
+    if (stat(path, &stb) < 0) continue;
+    if (!S_ISREG(stb.st_mode)) continue;
+    if (access(path, X_OK) < 0) continue;
+
+    if (count >= alloc) {
+      int new_alloc = alloc * 2;
+      unsigned char **new_files = 0;
+      if (!new_alloc) new_alloc = 32;
+      XCALLOC(new_files, new_alloc);
+      if (count > 0) {
+        memcpy(new_files, files, count * sizeof(new_files[0]));
+      }
+      xfree(files);
+      files = new_files;
+      alloc = new_alloc;
+    }
+    files[count++] = xstrdup(dd->d_name);
+  }
+  closedir(d);
+
+  if (count > 1) {
+    qsort(files, count, sizeof(files[0]), name_sort_func);
+  }
+
+  if (p_count) *p_count = count;
+  if (p_files) *p_files = files;
+  return 0;
+
+fail:
+  if (d) closedir(d);
+  for (i = 0; i < count; ++i)
+    xfree(files[i]);
+  xfree(files);
+  return -1;
+}
+
+int
+write_tmp_file(
+        unsigned char *path,
+        size_t path_size,
+        const unsigned char *bytes,
+        size_t bytes_count)
+{
+  const unsigned char *tmpdir = 0;
+  int fd, r;
+  size_t w;
+  const unsigned char *p;
+
+  if (!tmpdir) tmpdir = getenv("TMPDIR");
+#if defined P_tmpdir
+  if (!tmpdir) tmpdir = P_tmpdir;
+#endif
+  if (!tmpdir) tmpdir = "/tmp";
+
+  snprintf(path, path_size, "%s/ejf_XXXXXX", tmpdir);
+  if ((fd = mkstemp(path)) < 0) {
+    err("write_tmp_file: mkstemp() failed: %s", os_ErrorMsg());
+    return -1;
+  }
+
+  p = bytes; w = bytes_count;
+  while (w > 0) {
+    if ((r = write(fd, p, w)) <= 0) {
+      err("write_tmp_file: write() error: %s", os_ErrorMsg());
+      goto failed;
+    }
+    w -= r; p += r;
+  }
+  if (close(fd) < 0) {
+    err("write_tmp_file: close() failed: %s", os_ErrorMsg());
+    goto failed;
+  }
+  fd = -1;
+  return 0;
+
+failed:
+  if (fd >= 0) close(fd);
+  if (path[0]) unlink(path);
+  return -1;
 }
 
 /*

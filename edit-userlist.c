@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: edit-userlist.c 5538 2008-12-31 10:40:16Z cher $ */
+/* $Id: edit-userlist.c 5828 2010-06-02 05:09:43Z cher $ */
 
-/* Copyright (C) 2002-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1875,7 +1875,8 @@ do_display_user(unsigned char const *upper, int user_id, int contest_id,
           r = okcancel("Clear field %s?",
                        user_descs[info[cur_i].field].name);
           if (r != 1) goto menu_continue;
-          r = userlist_clnt_delete_field(server_conn, u->id, contest_id, 0,
+          r = userlist_clnt_delete_field(server_conn, ULS_DELETE_FIELD,
+                                         u->id, contest_id, 0,
                                          info[cur_i].field);
           if (r < 0) {
             vis_err("Delete failed: %s", userlist_strerror(-r));
@@ -1959,7 +1960,8 @@ do_display_user(unsigned char const *upper, int user_id, int contest_id,
                        info[cur_i].pers + 1,
                        member_descs[info[cur_i].field].name);
           if (r != 1) goto menu_continue;
-          r = userlist_clnt_delete_field(server_conn, u->id, contest_id,
+          r = userlist_clnt_delete_field(server_conn, ULS_DELETE_FIELD,
+                                         u->id, contest_id,
                                          m->serial, info[cur_i].field);
           if (r < 0) {
             vis_err("Delete failed: %s", userlist_strerror(-r));
@@ -2107,7 +2109,8 @@ do_display_user(unsigned char const *upper, int user_id, int contest_id,
             vis_err("Invalid field value");
             goto menu_continue;
           }
-          r = userlist_clnt_edit_field(server_conn, u->id, contest_id, 0,
+          r = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD,
+                                       u->id, contest_id, 0,
                                        info[cur_i].field, edit_buf);
           if (r < 0) {
             vis_err("Server error: %s", userlist_strerror(-r));
@@ -2144,7 +2147,8 @@ do_display_user(unsigned char const *upper, int user_id, int contest_id,
           vis_err("Invalid field value");
           goto menu_continue;
         }
-        r = userlist_clnt_edit_field(server_conn, u->id, contest_id, 0,
+        r = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD,
+                                     u->id, contest_id, 0,
                                      info[cur_i].field, edit_buf);
         if (r < 0) {
           vis_err("Server error: %s", userlist_strerror(-r));
@@ -2190,7 +2194,8 @@ do_display_user(unsigned char const *upper, int user_id, int contest_id,
             vis_err("Invalid field value");
             goto menu_continue;
           }
-          r = userlist_clnt_edit_field(server_conn, u->id, contest_id,
+          r = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD,
+                                       u->id, contest_id,
                                        m->serial, info[cur_i].field, edit_buf);
           if (r < 0) {
             vis_err("Server error: %s", userlist_strerror(-r));
@@ -2216,7 +2221,8 @@ do_display_user(unsigned char const *upper, int user_id, int contest_id,
             vis_err("Invalid field value");
             goto menu_continue;
           }
-          r = userlist_clnt_edit_field(server_conn, u->id, contest_id,
+          r = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD,
+                                       u->id, contest_id,
                                        m->serial, info[cur_i].field, edit_buf);
           if (r < 0) {
             vis_err("Server error: %s", userlist_strerror(-r));
@@ -2245,7 +2251,8 @@ do_display_user(unsigned char const *upper, int user_id, int contest_id,
             vis_err("Invalid field value");
             goto menu_continue;
           }
-          r = userlist_clnt_edit_field(server_conn, u->id, contest_id,
+          r = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD,
+                                       u->id, contest_id,
                                        m->serial, info[cur_i].field, edit_buf);
           if (r < 0) {
             vis_err("Server error: %s", userlist_strerror(-r));
@@ -2549,11 +2556,43 @@ struct selected_users_info
 {
   int contest_id;
   int total_selected;
+  int used;
   int allocated;
   unsigned char *mask;
+  int *ids;
 };
+static struct selected_users_info g_sel_users;
 static struct selected_users_info sel_users;
 static struct selected_users_info sel_cnts;
+static struct selected_users_info sel_groups;
+static struct selected_users_info sel_members;
+
+static void
+selected_mask_allocate(struct selected_users_info *info, int used)
+{
+  if (!info) return;
+  xfree(info->mask); info->mask = 0;
+  xfree(info->ids); info->ids = 0;
+  info->allocated = 0;
+  info->used = 0;
+  info->total_selected = 0;
+  if (used <= 0) return;
+
+  info->allocated = 16;
+  while (info->allocated < used) info->allocated *= 2;
+  XCALLOC(info->mask, info->allocated);
+  XCALLOC(info->ids, info->allocated);
+  info->used = used;
+}
+
+static void
+selected_mask_clear(struct selected_users_info *info)
+{
+  if (!info) return;
+  info->total_selected = 0;
+  if (info->allocated <= 0) return;
+  memset(info->mask, 0, info->allocated);
+}
 
 static int
 generate_reg_user_item(unsigned char *buf, size_t size, int i,
@@ -2586,9 +2625,11 @@ static unsigned char csv_path[1024];
 static unsigned char csv_sep[1024];
 
 static int
-display_registered_users(unsigned char const *upper,
-                         int contest_id,
-                         int init_val)
+do_display_registered_users(
+        unsigned char const *upper,
+        int contest_id,
+        int *p_cur_val,
+        int only_choose)
 {
   unsigned char current_level[512];
   int r, nuser, i, j, k;
@@ -2661,26 +2702,18 @@ display_registered_users(unsigned char const *upper,
     if (users->user_map[i]) uu[j++] = users->user_map[i];
   }
 
-  /* check the selected_users info */
-  if (sel_users.contest_id <= 0 || contest_id != sel_users.contest_id) {
-    /* reset selection if the contest is different */
-    if (sel_users.allocated > 0) memset(sel_users.mask, 0,sel_users.allocated);
-    sel_users.total_selected = 0;
-    sel_users.contest_id = contest_id;
+  if (sel_users.contest_id != contest_id || sel_users.used != nuser) {
+    selected_mask_allocate(&sel_users, nuser);
+  } else {
+    for (j = 0; j < nuser && sel_users.ids[j] == uu[j]->id; ++j) {
+    }
+    if (j < nuser) {
+      selected_mask_allocate(&sel_users, nuser);
+    }
   }
-  if (nuser > sel_users.allocated) {
-    /* extend memory */
-    int new_size = sel_users.allocated;
-    unsigned char *new_ptr = 0;
-
-    if (!new_size) new_size = 64;
-    while (nuser > new_size) new_size *= 2;
-    new_ptr = (unsigned char*) xcalloc(new_size, 1);
-    if (sel_users.allocated > 0)
-      memcpy(new_ptr, sel_users.mask, sel_users.allocated);
-    sel_users.allocated = new_size;
-    xfree(sel_users.mask);
-    sel_users.mask = new_ptr;
+  sel_users.contest_id = contest_id;
+  for (j = 0; j < nuser; ++j) {
+    sel_users.ids[j] = uu[j]->id;
   }
 
   if (registered_users_sort_flag > 0) {
@@ -2722,13 +2755,13 @@ display_registered_users(unsigned char const *upper,
   set_menu_win(menu, in_win);
   set_menu_format(menu, LINES - 4, 0);
 
-  if (init_val >= nuser) init_val = nuser - 1;
-  if (init_val < 0) init_val = 0;
-  first_row = init_val - (LINES - 4) / 2;
+  if (*p_cur_val >= nuser) *p_cur_val = nuser - 1;
+  if (*p_cur_val < 0) *p_cur_val = 0;
+  first_row = *p_cur_val - (LINES - 4) / 2;
   if (first_row + LINES - 4 > nuser) first_row = nuser - (LINES - 4);
   if (first_row < 0) first_row = 0;
   set_top_row(menu, first_row);
-  set_current_item(menu, items[init_val]);
+  set_current_item(menu, items[*p_cur_val]);
 
   while (1) {
     mvwprintw(stdscr, 0, 0, "%s", current_level);
@@ -2808,16 +2841,14 @@ display_registered_users(unsigned char const *upper,
       // clear all selection
       memset(sel_users.mask, 0, sel_users.allocated);
       sel_users.total_selected = 0;
-      c = 'q';
-      retcode = 0;
+      retcode = -2;
     } else if (c == 't') {
       // toggle all selection
       sel_users.total_selected = 0;
       for (j = 0; j < nuser; j++)
         sel_users.total_selected += (sel_users.mask[j] ^= 1);
-      c = 'q';
-      retcode = 0;
-    } else if (c == 'c') {
+      retcode = -2;
+    } else if (c == 'c' && !only_choose) {
       if ((k = display_contests_menu(current_level, 1)) <= 0) continue;
 
       if (!sel_users.total_selected && !sel_cnts.total_selected) {
@@ -2888,7 +2919,7 @@ display_registered_users(unsigned char const *upper,
         memset(sel_users.mask, 0, sel_users.allocated);
         sel_users.total_selected = 0;
       }
-    } else if (c == 'r') {
+    } else if (c == 'r' && !only_choose) {
       i = item_index(current_item(menu));
       cur_line = i - top_row(menu) + 2;
       new_status = display_reg_status_menu(cur_line, uc[i]->status);
@@ -2926,7 +2957,7 @@ display_registered_users(unsigned char const *upper,
         memset(sel_users.mask, 0, sel_users.allocated);
         sel_users.total_selected = 0;
       }
-    } else if (c == 'd') {
+    } else if (c == 'd' && !only_choose) {
       if (!sel_users.total_selected) {
         // operation on a single user
         i = item_index(current_item(menu));
@@ -2955,9 +2986,8 @@ display_registered_users(unsigned char const *upper,
       }
       memset(sel_users.mask, 0, sel_users.allocated);
       sel_users.total_selected = 0;
-      c = 'q';
-      retcode = 0;
-    } else if (c == 'b') {
+      retcode = -2;
+    } else if (c == 'b' && !only_choose) {
       if (!sel_users.total_selected) {
         // operation on a single user
         i = item_index(current_item(menu));
@@ -2993,7 +3023,7 @@ display_registered_users(unsigned char const *upper,
         memset(sel_users.mask, 0, sel_users.allocated);
         sel_users.total_selected = 0;
       }
-    } else if (c == 'i') {
+    } else if (c == 'i' && !only_choose) {
       if (!sel_users.total_selected) {
         // operation on a single user
         i = item_index(current_item(menu));
@@ -3029,7 +3059,7 @@ display_registered_users(unsigned char const *upper,
         memset(sel_users.mask, 0, sel_users.allocated);
         sel_users.total_selected = 0;
       }
-    } else if (c == 'l') {
+    } else if (c == 'l' && !only_choose) {
       if (!sel_users.total_selected) {
         // operation on a single user
         i = item_index(current_item(menu));
@@ -3065,7 +3095,7 @@ display_registered_users(unsigned char const *upper,
         memset(sel_users.mask, 0, sel_users.allocated);
         sel_users.total_selected = 0;
       }
-    } else if (c == 'n') {
+    } else if (c == 'n' && !only_choose) {
       if (!sel_users.total_selected) {
         // operation on a single user
         i = item_index(current_item(menu));
@@ -3101,7 +3131,7 @@ display_registered_users(unsigned char const *upper,
         memset(sel_users.mask, 0, sel_users.allocated);
         sel_users.total_selected = 0;
       }
-    } else if (c == 'u') {
+    } else if (c == 'u' && !only_choose) {
       if (!sel_users.total_selected) {
         // operation on a single user
         i = item_index(current_item(menu));
@@ -3137,13 +3167,17 @@ display_registered_users(unsigned char const *upper,
         memset(sel_users.mask, 0, sel_users.allocated);
         sel_users.total_selected = 0;
       }
+    } else if (c == '\n' && only_choose) {
+      i = item_index(current_item(menu));
+      *p_cur_val = i;
+      retcode = uu[i]->id;
+      c = 'q';
     } else if (c == '\n') {
       i = item_index(current_item(menu));
-      r = 0;
       display_user(current_level, uu[i]->id, contest_id);
-      c = 'q';
-      retcode = i;
-    } else if (c == 'a') {
+      *p_cur_val = i;
+      retcode = -2;
+    } else if (c == 'a' && !only_choose) {
       i = display_user_menu(current_level, 0, 1);
       if (i > 0) {
         r = okcancel("Register user %d?", i);
@@ -3156,8 +3190,7 @@ display_registered_users(unsigned char const *upper,
           } else {
             memset(sel_users.mask, 0, sel_users.allocated);
             sel_users.total_selected = 0;
-            c = 'q';
-            retcode = 0;
+            retcode = -2;
           }
         }
       }
@@ -3165,8 +3198,7 @@ display_registered_users(unsigned char const *upper,
       /* change sort criteria */
       i = display_participant_sort_menu(registered_users_sort_flag);
       if (i >= 0 && i != registered_users_sort_flag) {
-        c = 'q';
-        retcode = 0;
+        retcode = -2;
         registered_users_sort_flag = i;
       }
     } else if (c == 'j') {
@@ -3192,17 +3224,17 @@ display_registered_users(unsigned char const *upper,
                 break;
             }
           }
-          retcode = j;
-          c = 'q';
+          retcode = -2;
+          *p_cur_val = j;
         }
       }
     } else if (c == 'e') {
       i = user_search(uu, nuser, item_index(current_item(menu)));
       if (i >= 0) {
-        retcode = i;
-        c = 'q';
+        retcode = -2;
+        *p_cur_val = i;
       }
-    } else if (c == 'o') {
+    } else if (c == 'o' && !only_choose) {
       // copy user_info
       if ((k = display_contests_menu(current_level, 1)) <= 0) continue;
 
@@ -3272,7 +3304,7 @@ display_registered_users(unsigned char const *upper,
         sel_users.total_selected = 0;
       }
       */
-    } else if (c == 'f') {
+    } else if (c == 'f' && !only_choose) {
       int field_op, field_code = 0;
       field_op = generic_menu(10, -1, -1, -1, 0, 4, -1, -1,
                               field_op_names, field_op_keys,
@@ -3292,12 +3324,14 @@ display_registered_users(unsigned char const *upper,
         i = item_index(current_item(menu));
         switch (field_op) {
         case 1:                 /* clear field */
-          r = userlist_clnt_delete_field(server_conn, uu[i]->id, contest_id,
+          r = userlist_clnt_delete_field(server_conn, ULS_DELETE_FIELD,
+                                         uu[i]->id, contest_id,
                                          0, field_code);
           break;
         case 2:                 /* set field */
           snprintf(edit_buf, sizeof(edit_buf), "%d", 1);
-          r = userlist_clnt_edit_field(server_conn, uu[i]->id, contest_id,
+          r = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD,
+                                       uu[i]->id, contest_id,
                                        0, field_code, edit_buf);
           break;
         case 3:
@@ -3314,12 +3348,14 @@ display_registered_users(unsigned char const *upper,
           if (!sel_users.mask[i]) continue;
           switch (field_op) {
           case 1:               /* clear field */
-            r = userlist_clnt_delete_field(server_conn, uu[i]->id, contest_id,
+            r = userlist_clnt_delete_field(server_conn, ULS_DELETE_FIELD,
+                                           uu[i]->id, contest_id,
                                            0, field_code);
             break;
           case 2:               /* set field */
             snprintf(edit_buf, sizeof(edit_buf), "%d", 1);
-            r = userlist_clnt_edit_field(server_conn, uu[i]->id, contest_id,
+            r = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD,
+                                         uu[i]->id, contest_id,
                                          0, field_code, edit_buf);
           case 3:
             r = userlist_clnt_register_contest(server_conn, ULS_FIX_PASSWORD,
@@ -3333,10 +3369,9 @@ display_registered_users(unsigned char const *upper,
         }
         memset(sel_users.mask, 0, sel_users.allocated);
         sel_users.total_selected = 0;
-        c = 'q';
-        retcode = 0;
+        retcode = -2;
       }
-    } else if (c == 'v') {
+    } else if (c == 'v' && !only_choose) {
       FILE *csv_f = 0, *csv_in = 0;
       char *csv_txt = 0;
       size_t csv_z = 0;
@@ -3387,8 +3422,7 @@ display_registered_users(unsigned char const *upper,
       ncurses_view_text("Import log", csv_reply);
       xfree(csv_txt);
       xfree(csv_reply);
-      c = 'q';
-      retcode = 0;
+      retcode = -2;
     }
 
     unpost_menu(menu);
@@ -3397,7 +3431,7 @@ display_registered_users(unsigned char const *upper,
     update_panels();
     doupdate();
 
-    if (c == 'q') break;
+    if (c == 'q' || retcode == -2) break;
   }
 
   // cleanup
@@ -3416,6 +3450,21 @@ display_registered_users(unsigned char const *upper,
     free_item(items[i]);
   }
   return retcode;
+}
+
+static int
+display_registered_users(
+        unsigned char const *upper,
+        int contest_id,
+        int init_val,
+        int only_choose)
+{
+  int val = -2;
+
+  while (val == -2) {
+    val = do_display_registered_users(upper, contest_id, &init_val, only_choose);
+  }
+  return val;
 }
 
 static int
@@ -3650,10 +3699,7 @@ display_contests_menu(unsigned char *upper, int only_choose)
     }
     if (c == '\n') {
       sel_num = item_index(current_item(menu));
-      r = 0;
-      while (r >= 0) {
-        r = display_registered_users(current_level, cntsi[sel_num], r);
-      }
+      r = display_registered_users(current_level, cntsi[sel_num], r, 0);
     }
   }
 
@@ -3674,8 +3720,6 @@ display_contests_menu(unsigned char *upper, int only_choose)
     xfree(cnts_names[i]);
   return retval;
 }
-
-static struct selected_users_info g_sel_users;
 
 static int
 do_display_user_menu(unsigned char *upper, int *p_start_item, int only_choose)
@@ -3725,7 +3769,7 @@ do_display_user_menu(unsigned char *upper, int *p_start_item, int only_choose)
   if (!nusers) {
     j = okcancel("No users in database. Add new user?");
     if (j != 1) return -1;
-    j = userlist_clnt_create_user(server_conn, 0, 0);
+    j = userlist_clnt_create_user(server_conn, ULS_CREATE_USER, 0, 0);
     if (j < 0) {
       vis_err("Add failed: %s", userlist_strerror(-j));
       return -1;
@@ -3744,24 +3788,18 @@ do_display_user_menu(unsigned char *upper, int *p_start_item, int only_choose)
   ASSERT(j == nusers);
 
   // extend selection
-  if (nusers >= g_sel_users.allocated) {
-    int new_size = g_sel_users.allocated;
-    unsigned char *new_ptr = 0;
-
-    if (!new_size) new_size = 64;
-    while (nusers > new_size) new_size *= 2;
-    new_ptr = (unsigned char*) xcalloc(new_size, 1);
-    if (g_sel_users.allocated > 0)
-      memcpy(new_ptr, g_sel_users.mask, g_sel_users.allocated);
-    g_sel_users.allocated = new_size;
-    xfree(g_sel_users.mask);
-    g_sel_users.mask = new_ptr;
+  if (nusers != g_sel_users.used) {
+    selected_mask_allocate(&g_sel_users, nusers);
+  } else {
+    for (j = 0; j < nusers && g_sel_users.ids[j] == uu[j]->id; ++j) {
+    }
+    if (j < nusers) {
+      selected_mask_allocate(&g_sel_users, nusers);
+    }
   }
-  /*
-  g_sel_users.total_selected = 0;
-  if (g_sel_users.allocated > 0)
-    memset(g_sel_users.mask, 0, g_sel_users.allocated);
-  */
+  for (j = 0; j < nusers; ++j) {
+    g_sel_users.ids[j] = uu[j]->id;
+  }
 
   if (registered_users_sort_flag > 0) {
     qsort(uu, nusers, sizeof(uu[0]), registered_users_sort_func);
@@ -3897,7 +3935,7 @@ do_display_user_menu(unsigned char *upper, int *p_start_item, int only_choose)
     if (c == 'a' && !only_choose) {
       j = okcancel("Add new user?");
       if (j != 1) goto menu_continue;
-      j = userlist_clnt_create_user(server_conn, 0, 0);
+      j = userlist_clnt_create_user(server_conn, ULS_CREATE_USER, 0, 0);
       if (j < 0) {
         vis_err("Add failed: %s", userlist_strerror(-j));
         goto menu_continue;
@@ -4002,33 +4040,34 @@ do_display_user_menu(unsigned char *upper, int *p_start_item, int only_choose)
 
       for (i = first_num; i <= last_num; i++) {
         user_id = -1;
-        j = userlist_clnt_create_user(server_conn, 0, &user_id);
+        j = userlist_clnt_create_user(server_conn, ULS_CREATE_USER, 0,&user_id);
         if (j < 0) {
           vis_err("Adding failed: %s", userlist_strerror(-j));
           goto menu_continue;
         }
         snprintf(valbuf, sizeof(valbuf), templ_buf, i);
-        j = userlist_clnt_edit_field(server_conn, user_id, 0, 0,
+        j = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD, user_id, 0, 0,
                                      USERLIST_NN_LOGIN, valbuf);
         if (j < 0) {
           vis_err("Setting login failed: %s", userlist_strerror(-j));
           goto menu_continue;
         }
-        j = userlist_clnt_edit_field(server_conn, user_id, contest_num, 0,
+        j = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD,
+                                     user_id, contest_num, 0,
                                      USERLIST_NC_NAME, valbuf);
         if (j < 0) {
           vis_err("Setting name failed: %s", userlist_strerror(-j));
           goto menu_continue;
         }
         snprintf(valbuf, sizeof(valbuf), "N/A");
-        j = userlist_clnt_edit_field(server_conn, user_id, 0, 0,
+        j = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD, user_id, 0, 0,
                                      USERLIST_NN_EMAIL, valbuf);
         if (j < 0) {
           vis_err("Setting e-mail failed: %s", userlist_strerror(-j));
           goto menu_continue;
         }
         snprintf(valbuf, sizeof(valbuf), passwd_buf, i);
-        j = userlist_clnt_edit_field(server_conn, user_id, 0, 0,
+        j = userlist_clnt_edit_field(server_conn, ULS_EDIT_FIELD, user_id, 0, 0,
                                      USERLIST_NN_PASSWD, valbuf);
         if (j < 0) {
           vis_err("Setting reg. password failed: %s", userlist_strerror(-j));
@@ -4224,15 +4263,898 @@ display_user_menu(unsigned char *upper, int start_item, int only_choose)
   return val;
 }
 
+static unsigned char *
+group_member_menu_entry(
+        unsigned char *prev_entry,
+        struct userlist_groupmember *gm,
+        int sel_flag)
+{
+  int w1 = 50, y1 = 0;
+  if (utf8_mode) w1 = utf8_cnt(gm->user->login, w1, &y1);
+  unsigned char buf[512];
+  snprintf(buf, sizeof(buf), "%c%6d %-*.*s", sel_flag?'!':' ',
+           gm->user->id, w1 + y1, w1, gm->user->login);
+  xfree(prev_entry);
+  return xstrdup(buf);
+}
+
+static int
+do_display_group_members_menu(
+        const unsigned char *upper,
+        int group_id,
+        int *p_user_id,
+        int only_choose)
+{
+  int retval = -1;
+  int user_id = 0;
+  int r, i, j, contest_id;
+  unsigned char current_level[512];
+  unsigned char *xml_text = 0;
+  struct userlist_list *users = 0;
+  struct userlist_group *grp = 0;
+  int member_count = 0;
+  struct xml_tree *t;
+  struct userlist_groupmember *gm;
+  struct userlist_groupmember **uu = 0;
+  unsigned char **descs = 0;
+  int need_clear = 0, height = 0, cur_pos, first_row, c, cmd, done = 0;
+  ITEM **items = 0;
+  MENU *menu = 0;
+  WINDOW *in_win = 0, *out_win = 0;
+  PANEL *out_pan = 0, *in_pan = 0;
+
+  if (p_user_id) user_id = *p_user_id;
+  snprintf(current_level, sizeof(current_level), "%s->Group %d members", upper,
+           group_id);
+  r = userlist_clnt_list_all_users(server_conn, ULS_LIST_GROUP_USERS,
+                                   group_id, &xml_text);
+  if (r < 0) {
+    vis_err("Cannot get group members: %s", userlist_strerror(-r));
+    goto cleanup;
+  }
+  users = userlist_parse_str(xml_text);
+  if (!users) {
+    vis_err("XML parse error");
+    goto cleanup;
+  }
+  xfree(xml_text); xml_text = 0;
+
+  if (group_id <= 0 || group_id >= users->group_map_size
+      || !(grp = users->group_map[group_id])) {
+    vis_err("Invalid group");
+    goto cleanup;
+  }
+
+  member_count = 0;
+  if (users->groupmembers_node) {
+    for (t = users->groupmembers_node->first_down; t; t = t->right) {
+      ASSERT(t->tag == USERLIST_T_USERGROUPMEMBER);
+      gm = (struct userlist_groupmember*) t;
+      if (gm->group_id != group_id) continue;
+      if (gm->user_id <= 0 || gm->user_id >= users->user_map_size
+          || !users->user_map[gm->user_id])
+        continue;
+      gm->user = users->user_map[gm->user_id];
+      ++member_count;
+    }
+  }
+  if (!member_count) {
+    j = okcancel("No members in the group. Add a new member?");
+    if (j != 1) goto cleanup;
+    i = display_user_menu(current_level, 0, 1);
+    if (i > 0 && g_sel_users.total_selected > 0) {
+      j = okcancel("Add %d users?", g_sel_users.total_selected);
+      if (j != 1) {
+        selected_mask_clear(&g_sel_users);
+        goto cleanup;
+      }
+      for (i = 0; i < g_sel_users.used; ++i) {
+        if (!g_sel_users.mask[i]) continue;
+        j = userlist_clnt_register_contest(server_conn, ULS_CREATE_GROUP_MEMBER,
+                                           g_sel_users.ids[i], group_id, 0, 0);
+        if (j < 0) {
+          vis_err("Member creation failed: %s", userlist_strerror(-r));
+          selected_mask_clear(&g_sel_users);
+          goto cleanup;
+        }
+      }
+      selected_mask_clear(&g_sel_users);
+    } else {
+      if (i <= 0) goto cleanup;
+      j = okcancel("Add user %d?", i);
+      if (j != 1) goto cleanup;
+      j = userlist_clnt_register_contest(server_conn, ULS_CREATE_GROUP_MEMBER,
+                                         i, group_id, 0, 0);
+      if (j < 0) {
+        vis_err("Member creation failed: %s", userlist_strerror(-r));
+        goto cleanup;
+      }
+      user_id = 0;
+      retval = -2;
+      goto cleanup;
+    }
+  }
+
+  XCALLOC(uu, member_count);
+  for (t = users->groupmembers_node->first_down, i = 0; t; t = t->right) {
+    gm = (struct userlist_groupmember*) t;
+    if (gm->user) {
+      uu[i++] = gm;
+    }
+  }
+  ASSERT(i == member_count);
+
+  if (member_count != sel_members.used || group_id != sel_members.contest_id) {
+    selected_mask_allocate(&sel_members, member_count);
+  } else {
+    for (j = 0; j < member_count; ++j) {
+      if (uu[j]->user_id != sel_groups.ids[j])
+        break;
+    }
+    if (j < member_count) {
+      selected_mask_allocate(&sel_members, member_count);
+    }
+  }
+  sel_members.contest_id = group_id;
+  for (j = 0; j < member_count; ++j) {
+    sel_members.ids[j] = uu[j]->user_id;
+  }
+
+  XCALLOC(descs, member_count);
+  for (i = 0; i < member_count; ++i) {
+    descs[i] = group_member_menu_entry(descs[i], uu[i], sel_members.mask[j]);
+  }
+
+  XCALLOC(items, member_count + 1);
+  for (i = 0; i < member_count; ++i) {
+    items[i] = new_item(descs[i], 0);
+  }
+  height = LINES - 4;
+  need_clear = 1;
+  menu = new_menu(items);
+  set_menu_back(menu, COLOR_PAIR(1));
+  set_menu_fore(menu, COLOR_PAIR(3));
+  out_win = newwin(height + 2, COLS, 1, 0);
+  in_win = newwin(height, COLS - 2, 2, 1);
+  wattrset(out_win, COLOR_PAIR(1));
+  wbkgdset(out_win, COLOR_PAIR(1));
+  wattrset(in_win, COLOR_PAIR(1));
+  wbkgdset(in_win, COLOR_PAIR(1));
+  wclear(in_win);
+  wclear(out_win);
+  box(out_win, 0, 0);
+  out_pan = new_panel(out_win);
+  in_pan = new_panel(in_win);
+  set_menu_win(menu, in_win);
+  set_menu_format(menu, height, 0);
+
+  for (cur_pos = 0; cur_pos < member_count; ++cur_pos)
+    if (uu[cur_pos]->user_id == user_id)
+      break;
+  if (cur_pos >= member_count)
+    cur_pos = 0;
+  first_row = cur_pos - height / 2;
+  if (first_row + height > member_count) first_row = member_count - height;
+  if (first_row < 0) first_row = 0;
+  set_top_row(menu, first_row);
+  set_current_item(menu, items[cur_pos]);
+
+  do {
+    mvwprintw(stdscr, 0, 0, "%s", current_level);
+    wclrtoeol(stdscr);
+    print_help("Quit Add Delete Contests :-Sel Toggle 0-clear");
+    show_panel(out_pan);
+    show_panel(in_pan);
+    post_menu(menu);
+    update_panels();
+    doupdate();
+
+    while (1) {
+      c = ncurses_getkey(utf8_mode, 0);
+      if (c == KEY_BACKSPACE || c == KEY_DC || c == 127 || c == 8 || c == 'd') {
+        c = 'd';
+        break;
+      }
+      if (c == 'q' || c == ('G' & 31) || c == '\033') {
+        c = 'q';
+        break;
+      }
+      if (c == '\n' || c == '\r') {
+        c = '\n';
+        break;
+      }
+      if (c == 'a' || c == 't' || c == ';' || c == '0' || c == 'c') {
+        break;
+      }
+
+      cmd = -1;
+      switch (c) {
+      case KEY_UP:
+      case KEY_LEFT:
+        cmd = REQ_UP_ITEM;
+        break;
+      case KEY_DOWN:
+      case KEY_RIGHT:
+        cmd = REQ_DOWN_ITEM;
+        break;
+      case KEY_HOME:
+        cmd = REQ_FIRST_ITEM;
+        break;
+      case KEY_END:
+        cmd = REQ_LAST_ITEM;
+        break;
+      case KEY_NPAGE:
+        i = item_index(current_item(menu));
+        if (i + height >= member_count) cmd = REQ_LAST_ITEM;
+        else cmd = REQ_SCR_DPAGE;
+        break;
+      case KEY_PPAGE:
+        i = item_index(current_item(menu));
+        if (i - height < 0) cmd = REQ_FIRST_ITEM;
+        else cmd = REQ_SCR_UPAGE;
+        break;
+      }
+      if (cmd != -1) {
+        menu_driver(menu, cmd);
+        update_panels();
+        doupdate();
+      }
+    }
+
+    if (c == 'd' && !only_choose) {
+      if (sel_members.total_selected > 0) {
+        j = okcancel("REMOVE %d GROUP MEMBERS?", sel_members.total_selected);
+        if (j == 1) {
+          r = 0;
+          for (i = 0; i < sel_members.used; ++i) {
+            if (!sel_members.mask[i]) continue;
+            j = userlist_clnt_register_contest(server_conn,
+                                               ULS_DELETE_GROUP_MEMBER,
+                                               sel_members.ids[i],
+                                               group_id, 0, 0);
+            if (j < 0) ++r;
+          }
+          if (r > 0) {
+            vis_err("Delete of %d members failed", r);
+          }
+          selected_mask_clear(&sel_members);
+          done = 1;
+          retval = -2;
+          user_id = 0;
+        }
+      } else {
+        i = item_index(current_item(menu));
+        j = okcancel("REMOVE GROUP MEMBER %d (%s)?", uu[i]->user_id,
+                     uu[i]->user->login);
+        if (j == 1) {
+          j = userlist_clnt_register_contest(server_conn,
+                                             ULS_DELETE_GROUP_MEMBER,
+                                             uu[i]->user_id, group_id, 0, 0);
+          if (j < 0) {
+            vis_err("Delete failed: %s", userlist_strerror(-j));
+          } else {
+            done = 1;
+            retval = -2;
+            user_id = 0;
+          }
+        }
+      }
+    } else if (c == 'a' && !only_choose) {
+      i = display_user_menu(current_level, 0, 1);
+      if (i > 0 && g_sel_users.total_selected > 0) {
+        j = okcancel("Add %d users?", g_sel_users.total_selected);
+        if (j == 1) {
+          r = 0;
+          for (i = 0; i < g_sel_users.used; ++i) {
+            if (!g_sel_users.mask[i]) continue;
+            j = userlist_clnt_register_contest(server_conn,
+                                               ULS_CREATE_GROUP_MEMBER,
+                                               g_sel_users.ids[i], group_id, 0,0);
+            if (j < 0) ++r;
+          }
+          if (r > 0) {
+            vis_err("Adding of %d members failed", r);
+          }
+          selected_mask_clear(&g_sel_users);
+          done = 1;
+          retval = -2;
+          user_id = 0;
+        } else {
+          selected_mask_clear(&g_sel_users);
+        }
+      } else if (i > 0) {
+        j = userlist_clnt_register_contest(server_conn, ULS_CREATE_GROUP_MEMBER,
+                                           i, group_id, 0, 0);
+        if (j < 0) {
+          vis_err("Member creation failed: %s", userlist_strerror(-r));
+        } else {
+          done = 1;
+          retval = -2;
+          user_id = 0;
+        }
+      }
+    } else if (c == 'q') {
+      retval = -1;
+      done = 1;
+    } else if (c == '0') {
+      for (j = 0; j < member_count; ++j) {
+        if (sel_members.mask[j]) {
+          sel_members.mask[j] = 0;
+          --sel_members.total_selected;
+          descs[j]=group_member_menu_entry(descs[j],uu[j],sel_members.mask[j]);
+        }
+      }
+    } else if (c == 't') {
+      for (j = 0; j < member_count; ++j) {
+        if (sel_members.mask[j]) {
+          sel_members.mask[j] = 0;
+          --sel_members.total_selected;
+        } else {
+          sel_members.mask[j] = 1;
+          ++sel_members.total_selected;
+        }
+        descs[j] = group_member_menu_entry(descs[j], uu[j],sel_members.mask[j]);
+      }
+    } else if (c == ';') {
+      i = item_index(current_item(menu));
+      if (sel_members.mask[i]) {
+        sel_members.mask[i] = 0;
+        --sel_members.total_selected;
+      } else {
+        sel_members.mask[i] = 1;
+        ++sel_members.total_selected;
+      }
+      descs[i] = group_member_menu_entry(descs[i], uu[i], sel_members.mask[i]);
+      menu_driver(menu, REQ_DOWN_ITEM);
+    } else if (c == 'c') {
+      contest_id = display_contests_menu(current_level, 1);
+      if (contest_id > 0) {
+        j = okcancel("Add users from contest %d?", contest_id);
+        if (j == 1) {
+          i = display_registered_users(current_level, contest_id, 0, 1);
+          if (i > 0 && sel_users.total_selected > 0) {
+            j = okcancel("Add %d users?", sel_users.total_selected);
+            if (j == 1) {
+              r = 0;
+              for (i = 0; i < sel_users.used; ++i) {
+                if (!sel_users.mask[i]) continue;
+                j = userlist_clnt_register_contest(server_conn,
+                                                   ULS_CREATE_GROUP_MEMBER,
+                                                   sel_users.ids[i], group_id, 0,0);
+                if (j < 0) ++r;
+              }
+              if (r > 0) {
+                vis_err("Adding of %d members failed", r);
+              }
+              selected_mask_clear(&sel_users);
+              done = 1;
+              retval = -2;
+              user_id = 0;
+            } else {
+              selected_mask_clear(&sel_users);
+            }
+          } else if (i > 0) {
+            j = userlist_clnt_register_contest(server_conn, ULS_CREATE_GROUP_MEMBER,
+                                               i, group_id, 0, 0);
+            if (j < 0) {
+              vis_err("Member creation failed: %s", userlist_strerror(-r));
+            } else {
+              done = 1;
+              retval = -2;
+              user_id = 0;
+            }
+          }
+        }
+      }
+    }
+
+  /*
+    else if (c == 'n') {
+      // edit name
+      i = item_index(current_item(menu));
+      buf[0] = 0;
+      if (uu[i]->group_name) {
+        snprintf(buf, sizeof(buf), "%s", uu[i]->group_name);
+      }
+      j = ncurses_edit_string(LINES / 2, COLS, "Change the group name",
+                              buf, sizeof(buf) - 1, utf8_mode);
+      if (j >= 0) {
+        j = userlist_clnt_edit_field(server_conn, ULS_EDIT_GROUP_FIELD,
+                                     uu[i]->group_id, 0,
+                                     0, USERLIST_GRP_GROUP_NAME, buf);
+        if (j < 0) {
+          vis_err("Operation failed: %s", userlist_strerror(-j));
+        } else {
+          done = 1;
+          retval = -2;
+          group_id = uu[i]->group_id;
+        }
+      }
+    } else if (c == 'c') {
+      // edit description
+      i = item_index(current_item(menu));
+      buf[0] = 0;
+      if (uu[i]->description) {
+        snprintf(buf, sizeof(buf), "%s", uu[i]->description);
+      }
+      j = ncurses_edit_string(LINES / 2, COLS, "Change the group description",
+                              buf, sizeof(buf) - 1, utf8_mode);
+      if (j >= 0) {
+        j = userlist_clnt_edit_field(server_conn, ULS_EDIT_GROUP_FIELD,
+                                     uu[i]->group_id, 0,
+                                     0, USERLIST_GRP_DESCRIPTION, buf);
+        if (j < 0) {
+          vis_err("Operation failed: %s", userlist_strerror(-j));
+        } else {
+          done = 1;
+          retval = -2;
+          group_id = uu[i]->group_id;
+        }
+      }
+    } else if (c == 'z') {
+      // delete description
+      i = item_index(current_item(menu));
+      j = userlist_clnt_delete_field(server_conn, ULS_DELETE_GROUP_FIELD,
+                                     uu[i]->group_id, 0, 0, 
+                                     USERLIST_GRP_DESCRIPTION);
+      if (j < 0) {
+        vis_err("Operation failed: %s", userlist_strerror(-j));
+      } else {
+        done = 1;
+        retval = -2;
+        group_id = uu[i]->group_id;
+      }
+    } else if (c == 'm') {
+      // view members
+      i = item_index(current_item(menu));
+      display_group_members_menu(current_level, uu[i]->group_id, 0, 0);
+      done = 1;
+      retval = -2;
+      group_id = uu[i]->group_id;
+    }
+
+   */
+    unpost_menu(menu);
+    hide_panel(out_pan);
+    hide_panel(in_pan);
+    update_panels();
+    doupdate();
+  } while (!done);
+
+ cleanup:
+  if (in_pan) del_panel(in_pan);
+  if (out_pan) del_panel(out_pan);
+  if (in_win) delwin(in_win);
+  if (out_win) delwin(out_win);
+  if (need_clear) {
+    wmove(stdscr, 0, 0);
+    wclrtoeol(stdscr);
+  }
+  if (menu) free_menu(menu);
+  if (items) {
+    for (i = 0; i < member_count; ++i) {
+      free_item(items[i]);
+    }
+    xfree(items);
+  }
+  if (member_count > 0) {
+    for (i = 0; i < member_count; ++i) {
+      xfree(descs[i]);
+    }
+  }
+  xfree(descs);
+  xfree(uu);
+  if (users) {
+    userlist_free(&users->b);
+  }
+  xfree(xml_text);
+  if (p_user_id) *p_user_id = user_id;
+  return retval;
+}
+
+static int
+display_group_members_menu(
+        const unsigned char *upper,
+        int group_id,
+        int user_id,
+        int only_choose)
+{
+  int val = -2;
+
+  while ((val = do_display_group_members_menu(upper, group_id, &user_id,
+                                              only_choose)) == -2) {
+  }
+  return val;
+}
+
+static unsigned char *
+group_menu_entry(
+        unsigned char *prev_entry,
+        struct userlist_group *grp,
+        int sel_flag)
+{
+  const unsigned char *description = grp->description;
+  if (!description) description = "";
+  int w1 = 15, y1 = 0;
+  if (utf8_mode) w1 = utf8_cnt(grp->group_name, w1, &y1);
+  int w2 = 50, y2 = 0;
+  if (utf8_mode) w2 = utf8_cnt(description, w2, &y2);
+  unsigned char buf[512];
+  snprintf(buf, sizeof(buf), "%c%6d %-*.*s %-*.*s",
+           sel_flag?'!':' ',
+           grp->group_id, w1 + y1, w1, grp->group_name,
+           w2 + y2, w2, description);
+  xfree(prev_entry);
+  return xstrdup(buf);
+}
+
+/*
+  return values: -2 means restart the function
+  -1 - no group selected
+ */
+static int
+do_display_group_menu(
+        const unsigned char *upper,
+        int *p_group_id,
+        int only_choose)
+{
+  int group_id = 0;
+  int retval = -1;
+  unsigned char current_level[512];
+  int r, i, j, group_count = 0;
+  unsigned char *xml_text = 0;
+  struct userlist_list *users = 0;
+  struct userlist_group **uu = 0;
+  unsigned char **descs = 0;
+  unsigned char buf[1024];
+  ITEM **items = 0;
+  MENU *menu = 0;
+  WINDOW *in_win = 0, *out_win = 0;
+  PANEL *out_pan = 0, *in_pan = 0;
+  int cur_pos, first_row, height, need_clear = 0;
+  int c, cmd, done = 0;
+
+  if (p_group_id) group_id = *p_group_id;
+  snprintf(current_level, sizeof(current_level), "%s->%s", upper, "Group list");
+
+  r = userlist_clnt_list_all_users(server_conn, ULS_LIST_ALL_GROUPS,
+                                   0, &xml_text);
+  if (r < 0) {
+    vis_err("Cannot get the list of groups: %s", userlist_strerror(-r));
+    goto cleanup;
+  }
+  users = userlist_parse_str(xml_text);
+  if (!users) {
+    vis_err("XML parse error");
+    goto cleanup;
+  }
+  xfree(xml_text); xml_text = 0;
+
+  group_count = 0;
+  for (i = 1; i < users->group_map_size; ++i) {
+    group_count += (users->group_map[i] != NULL);
+  }
+  if (!group_count) {
+    j = okcancel("No groups in the database. Add a new group?");
+    if (j != 1) goto cleanup;
+    j = userlist_clnt_create_user(server_conn, ULS_CREATE_GROUP, 0, 0);
+    if (j < 0) {
+      vis_err("Group creation failed: %s", userlist_strerror(-j));
+      goto cleanup;
+    }
+    group_id = 0;
+    retval = -2;
+    goto cleanup;
+  }
+
+  XCALLOC(uu, group_count);
+  for (i = 1, j = 0; i < users->group_map_size; ++i) {
+    if (users->group_map[i]) {
+      uu[j++] = users->group_map[i];
+    }
+  }
+  ASSERT(j == group_count);
+
+  if (group_count != sel_groups.used) {
+    selected_mask_allocate(&sel_groups, group_count);
+  } else {
+    for (j = 0; j < group_count; ++j) {
+      if (uu[j]->group_id != sel_groups.ids[j])
+        break;
+    }
+    if (j < group_count) {
+      selected_mask_allocate(&sel_groups, group_count);
+    }
+  }
+  for (j = 0; j < group_count; ++j) {
+    sel_groups.ids[j] = uu[j]->group_id;
+  }
+
+  XCALLOC(descs, group_count);
+  for (i = 0; i < group_count; ++i) {
+    descs[i] = group_menu_entry(descs[i], uu[i], sel_groups.mask[i]);
+  }
+
+  XCALLOC(items, group_count + 1);
+  for (i = 0; i < group_count; ++i) {
+    items[i] = new_item(descs[i], 0);
+  }
+  height = LINES - 4;
+  need_clear = 1;
+  menu = new_menu(items);
+  set_menu_back(menu, COLOR_PAIR(1));
+  set_menu_fore(menu, COLOR_PAIR(3));
+  out_win = newwin(height + 2, COLS, 1, 0);
+  in_win = newwin(height, COLS - 2, 2, 1);
+  wattrset(out_win, COLOR_PAIR(1));
+  wbkgdset(out_win, COLOR_PAIR(1));
+  wattrset(in_win, COLOR_PAIR(1));
+  wbkgdset(in_win, COLOR_PAIR(1));
+  wclear(in_win);
+  wclear(out_win);
+  box(out_win, 0, 0);
+  out_pan = new_panel(out_win);
+  in_pan = new_panel(in_win);
+  set_menu_win(menu, in_win);
+  set_menu_format(menu, height, 0);
+
+  for (cur_pos = 0; cur_pos < group_count; ++cur_pos)
+    if (uu[cur_pos]->group_id == group_id)
+      break;
+  if (cur_pos >= group_count)
+    cur_pos = 0;
+  first_row = cur_pos - height / 2;
+  if (first_row + height > group_count) first_row = group_count - height;
+  if (first_row < 0) first_row = 0;
+  set_top_row(menu, first_row);
+  set_current_item(menu, items[cur_pos]);
+
+  do {
+    mvwprintw(stdscr, 0, 0, "%s", current_level);
+    wclrtoeol(stdscr);
+    print_help("Quit Add Delete Name desCription Members :-Sel Toggle 0-clear");
+    show_panel(out_pan);
+    show_panel(in_pan);
+    post_menu(menu);
+    update_panels();
+    doupdate();
+
+    while (1) {
+      c = ncurses_getkey(utf8_mode, 0);
+      if (c == KEY_BACKSPACE || c == KEY_DC || c == 127 || c == 8 || c == 'd') {
+        c = 'd';
+        break;
+      }
+      if (c == 'q' || c == ('G' & 31) || c == '\033') {
+        c = 'q';
+        break;
+      }
+      if (c == '\n' || c == '\r') {
+        c = '\n';
+        break;
+      }
+
+      if (c == 'a' || c == 'n' || c == 'c' || c == 'z' || c == 'm'
+          || c == ';' || c == 't' || c == '0') {
+        break;
+      }
+
+      cmd = -1;
+      switch (c) {
+      case KEY_UP:
+      case KEY_LEFT:
+        cmd = REQ_UP_ITEM;
+        break;
+      case KEY_DOWN:
+      case KEY_RIGHT:
+        cmd = REQ_DOWN_ITEM;
+        break;
+      case KEY_HOME:
+        cmd = REQ_FIRST_ITEM;
+        break;
+      case KEY_END:
+        cmd = REQ_LAST_ITEM;
+        break;
+      case KEY_NPAGE:
+        i = item_index(current_item(menu));
+        if (i + height >= group_count) cmd = REQ_LAST_ITEM;
+        else cmd = REQ_SCR_DPAGE;
+        break;
+      case KEY_PPAGE:
+        i = item_index(current_item(menu));
+        if (i - height < 0) cmd = REQ_FIRST_ITEM;
+        else cmd = REQ_SCR_UPAGE;
+        break;
+      }
+      if (cmd != -1) {
+        menu_driver(menu, cmd);
+        update_panels();
+        doupdate();
+      }
+    }
+
+    if (c == 'd' && !only_choose) {
+      i = item_index(current_item(menu));
+      j = okcancel("REMOVE GROUP %d (%s)?", uu[i]->group_id, uu[i]->group_name);
+      if (j == 1) {
+        j = userlist_clnt_delete_info(server_conn, ULS_DELETE_GROUP,
+                                      uu[i]->group_id, 0, 0);
+        if (j < 0) {
+          vis_err("Delete failed: %s", userlist_strerror(-j));
+        } else {
+          done = 1;
+          retval = -2;
+          group_id = 0;
+        }
+      }
+    } else if (c == 'a' && !only_choose) {
+      j = okcancel("Create a new group?");
+      if (j == 1) {
+        j = userlist_clnt_create_user(server_conn, ULS_CREATE_GROUP, 0, &i);
+        if (j < 0) {
+          vis_err("Create failed: %s", userlist_strerror(-j));
+        } else {
+          done = 1;
+          retval = -2;
+          group_id = i;
+        }
+      }
+    } else if (c == 'q') {
+      retval = -1;
+      done = 1;
+    } else if (c == '\n' && only_choose) {
+    } else if (c == 'n') {
+      // edit name
+      i = item_index(current_item(menu));
+      buf[0] = 0;
+      if (uu[i]->group_name) {
+        snprintf(buf, sizeof(buf), "%s", uu[i]->group_name);
+      }
+      j = ncurses_edit_string(LINES / 2, COLS, "Change the group name",
+                              buf, sizeof(buf) - 1, utf8_mode);
+      if (j >= 0) {
+        j = userlist_clnt_edit_field(server_conn, ULS_EDIT_GROUP_FIELD,
+                                     uu[i]->group_id, 0,
+                                     0, USERLIST_GRP_GROUP_NAME, buf);
+        if (j < 0) {
+          vis_err("Operation failed: %s", userlist_strerror(-j));
+        } else {
+          done = 1;
+          retval = -2;
+          group_id = uu[i]->group_id;
+        }
+      }
+    } else if (c == 'c') {
+      // edit description
+      i = item_index(current_item(menu));
+      buf[0] = 0;
+      if (uu[i]->description) {
+        snprintf(buf, sizeof(buf), "%s", uu[i]->description);
+      }
+      j = ncurses_edit_string(LINES / 2, COLS, "Change the group description",
+                              buf, sizeof(buf) - 1, utf8_mode);
+      if (j >= 0) {
+        j = userlist_clnt_edit_field(server_conn, ULS_EDIT_GROUP_FIELD,
+                                     uu[i]->group_id, 0,
+                                     0, USERLIST_GRP_DESCRIPTION, buf);
+        if (j < 0) {
+          vis_err("Operation failed: %s", userlist_strerror(-j));
+        } else {
+          done = 1;
+          retval = -2;
+          group_id = uu[i]->group_id;
+        }
+      }
+    } else if (c == 'z') {
+      // delete description
+      i = item_index(current_item(menu));
+      j = userlist_clnt_delete_field(server_conn, ULS_DELETE_GROUP_FIELD,
+                                     uu[i]->group_id, 0, 0, 
+                                     USERLIST_GRP_DESCRIPTION);
+      if (j < 0) {
+        vis_err("Operation failed: %s", userlist_strerror(-j));
+      } else {
+        done = 1;
+        retval = -2;
+        group_id = uu[i]->group_id;
+      }
+    } else if (c == 'm') {
+      // view members
+      i = item_index(current_item(menu));
+      display_group_members_menu(current_level, uu[i]->group_id, 0, 0);
+      done = 1;
+      retval = -2;
+      group_id = uu[i]->group_id;
+    } else if (c == '0') {
+      for (j = 0; j < group_count; ++j) {
+        if (sel_groups.mask[j]) {
+          sel_groups.mask[j] = 0;
+          --sel_groups.total_selected;
+          descs[j] = group_menu_entry(descs[j], uu[j], sel_groups.mask[j]);
+        }
+      }
+    } else if (c == 't') {
+      for (j = 0; j < group_count; ++j) {
+        if (sel_groups.mask[j]) {
+          sel_groups.mask[j] = 0;
+          --sel_groups.total_selected;
+        } else {
+          sel_groups.mask[j] = 1;
+          ++sel_groups.total_selected;
+        }
+        descs[j] = group_menu_entry(descs[j], uu[j], sel_groups.mask[j]);
+      }
+    } else if (c == ';') {
+      i = item_index(current_item(menu));
+      if (sel_groups.mask[i]) {
+        sel_groups.mask[i] = 0;
+        --sel_groups.total_selected;
+      } else {
+        sel_groups.mask[i] = 1;
+        ++sel_groups.total_selected;
+      }
+      descs[i] = group_menu_entry(descs[i], uu[i], sel_groups.mask[i]);
+      menu_driver(menu, REQ_DOWN_ITEM);
+    }
+
+    unpost_menu(menu);
+    hide_panel(out_pan);
+    hide_panel(in_pan);
+    update_panels();
+    doupdate();
+  } while (!done);
+
+ cleanup: ;
+  if (in_pan) del_panel(in_pan);
+  if (out_pan) del_panel(out_pan);
+  if (in_win) delwin(in_win);
+  if (out_win) delwin(out_win);
+  if (need_clear) {
+    wmove(stdscr, 0, 0);
+    wclrtoeol(stdscr);
+  }
+  if (menu) free_menu(menu);
+  if (items) {
+    for (i = 0; i < group_count; ++i) {
+      free_item(items[i]);
+    }
+    xfree(items);
+  }
+  if (descs) {
+    for (i = 0; i < group_count; ++i)
+      xfree(descs[i]);
+    xfree(descs);
+  }
+  xfree(uu);
+  xfree(xml_text);
+  userlist_free(&users->b);
+  if (p_group_id) *p_group_id = group_id;
+  return retval;
+}
+
+static int
+display_group_menu(
+        const unsigned char *upper,
+        int start_item,
+        int only_choose)
+{
+  int val = -2;
+
+  while (val == -2) {
+    val = do_display_group_menu(upper, &start_item, only_choose);
+  }
+  return val;
+}
+
 static void
 display_main_menu(void)
 {
-  ITEM *items[5];
+  ITEM *items[6];
   MENU *menu;
   WINDOW *window, *in_win;
   PANEL *panel, *in_pan;
   int req_rows, req_cols;
-  int c, cmd, start_col, r = 0;
+  int c, cmd, start_col, r = 0, cur_group = 0;
   unsigned char current_level[512];
 
   snprintf(current_level, sizeof(current_level), "%s", "Main menu");
@@ -4240,7 +5162,8 @@ display_main_menu(void)
   memset(items, 0, sizeof(items));
   items[0] = new_item("View contests", 0);
   items[1] = new_item("View users", 0);
-  items[2] = new_item("Quit", 0);
+  items[2] = new_item("View groups", 0);
+  items[3] = new_item("Quit", 0);
   menu = new_menu(items);
   scale_menu(menu, &req_rows, &req_cols);
   set_menu_back(menu, COLOR_PAIR(1));
@@ -4259,7 +5182,7 @@ display_main_menu(void)
   while (1) {
     mvwprintw(stdscr, 0, 0, "%s", current_level);
     wclrtoeol(stdscr);
-    print_help("Enter-view C-contests U-users Q-quit");
+    print_help("Enter-view C-contests U-users G-groups Q-quit");
     show_panel(panel);
     show_panel(in_pan);
     post_menu(menu);
@@ -4275,7 +5198,7 @@ display_main_menu(void)
       case '\n': case '\r': case ' ':
         c = '\n';
         goto menu_done;
-      case 'c': case 'u':
+      case 'c': case 'u': case 'g':
         goto menu_done;
       }
       cmd = -1;
@@ -4322,6 +5245,8 @@ display_main_menu(void)
       } else if (cur == items[1]) {
         c = 'u';
       } else if (cur == items[2]) {
+        c = 'g';
+      } else if (cur == items[3]) {
         c = 'q';
       }
     }
@@ -4330,6 +5255,8 @@ display_main_menu(void)
       display_contests_menu(current_level, 0);
     } else if (c == 'u') {
       r = display_user_menu(current_level, r, 0);
+    } else if (c == 'g') {
+      cur_group = display_group_menu(current_level, cur_group, 0);
     }
 
     // perform other actions

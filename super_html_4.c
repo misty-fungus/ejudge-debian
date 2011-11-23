@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 5739 2010-01-25 17:47:25Z cher $ */
+/* $Id: super_html_4.c 5973 2010-08-03 20:11:15Z cher $ */
 
 /* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1127,8 +1127,10 @@ static const struct cnts_edit_info cnts_global_info[] =
   { NS_GLOBAL, CNTSGLOB_enable_auto_print_protocol, 'Y', 1, 0, 0, 0, 0, "Enable automatic printing of olympiad protocols", 0, "SidState.show_global_1 Global.score_system SCORE_OLYMPIAD == &&" },
   { NS_GLOBAL, CNTSGLOB_notify_clar_reply, 'Y', 1, 0, 0, 0, 0, "Enable e-mail clar notifications", 0, "SidState.show_global_1 Global.disable_clars ! &&" },
   { NS_GLOBAL, CNTSGLOB_notify_status_change, 'Y', 1, 0, 0, 0, 0, "Enable e-mail status change notifications", 0, "SidState.show_global_1" },
+  { NS_GLOBAL, CNTSGLOB_disable_auto_refresh, 'Y', 1, 0, 0, 0, 0, "Disable auto-refreshing", 0, "SidState.show_global_1" },
 
   { NS_SID_STATE, SSSS_show_global_2, '-', 1, 0, 0, 0, 0, "Files and directories", 0, 0 },
+  { NS_GLOBAL, CNTSGLOB_advanced_layout, 'Y', 1, 0, 0, 0, 0, "Advanced layout of problem files", 0, "SidState.show_global_2" },
   { NS_GLOBAL, CNTSGLOB_test_dir, 'S', 1, 1, 1, 1, 0, "Directory for tests", "Directory for tests (relative to the contest configuration directory)", "SidState.show_global_2" },
   { NS_GLOBAL, CNTSGLOB_corr_dir, 'S', 1, 1, 1, 1, 0, "Directory for correct answers", "Directory for correct answers (relative to the contest configuration directory)", "SidState.show_global_2" },
   { NS_GLOBAL, CNTSGLOB_info_dir, 'S', 1, 1, 1, 1, 0, "Directory for test information files", "Directory for test information files (relative to the contest configuration directory)", "SidState.show_global_2" },
@@ -1137,6 +1139,7 @@ static const struct cnts_edit_info cnts_global_info[] =
   { NS_GLOBAL, CNTSGLOB_statement_dir, 'S', 1, 1, 1, 1, 0, "Directory for problem statements", "Directory for problem statements (relative to the contest configuration directory)", "SidState.show_global_2" },
   { NS_GLOBAL, CNTSGLOB_plugin_dir, 'S', 1, 1, 1, 1, 0, "Directory for the problem plugins", "Directory for problem plugins (relative to the contest configuration directory)", "SidState.show_global_2" },
   { NS_GLOBAL, CNTSGLOB_contest_start_cmd, 'S', 1, 1, 1, 1, 0, "The contest start script", 0, "SidState.show_global_2" },
+  { NS_GLOBAL, CNTSGLOB_contest_stop_cmd, 'S', 1, 1, 1, 1, 0, "The contest stop script", 0, "SidState.show_global_2" },
   { NS_GLOBAL, CNTSGLOB_description_file, 'S', 1, 1, 1, 1, 0, "The contest description file", 0, "SidState.show_global_2" },
 
   { NS_SID_STATE, SSSS_show_global_3, '-', 1, 0, 0, 0, 0, "Contestants' quotas", 0, 0 },
@@ -1236,6 +1239,7 @@ static const struct cnts_edit_info cnts_global_info[] =
   { NS_GLOBAL, CNTSGLOB_clardb_plugin, 'S', 1, 1, 1, 1, 0, "ClarDB storage engine", 0, "SidState.show_global_6" },
   { NS_GLOBAL, CNTSGLOB_rundb_plugin, 'S', 1, 1, 1, 1, 0, "RunDB storage engine", 0, "SidState.show_global_6" },
   { NS_GLOBAL, CNTSGLOB_xuser_plugin, 'S', 1, 1, 1, 1, 0, "XuserDB storage engine", 0, "SidState.show_global_6" },
+  { NS_GLOBAL, CNTSGLOB_load_user_group, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_GLOBAL_FIELD_DETAIL_PAGE, "User groups to load", 0, "SidState.show_global_6" },
 
   { NS_SID_STATE, SSSS_show_global_7, '-', 1, 0, 0, 0, 0, "Other parameters", 0, 0 },
   { NS_GLOBAL, CNTSGLOB_unhandled_vars, 137, 0, 0, 0, 0, SSERV_OP_EDIT_SERVE_GLOBAL_FIELD_DETAIL_PAGE, 0, 0, "SidState.show_global_7" },
@@ -1268,6 +1272,7 @@ static const struct cnts_edit_info cnts_language_info[] =
   { NS_LANGUAGE, CNTSLANG_binary, 'Y', 1, 0, 0, 0, 0, "Source files are binary", 0, 0 },
   // content_type
   { NS_LANGUAGE, CNTSLANG_style_checker_cmd, 'S', 1, 1, 1, 1, 0, "Style checker command", "Style checker command", 0 },
+  { NS_LANGUAGE, CNTSLANG_style_checker_env, 'X', 1, 1, 1, 1, 0, "Style checker environment", "Style checker environment", 0 },
   { NS_SID_STATE, SSSS_lang_opts, 138, 1, 1, 1, 1, 0, "Compilation options", 0, 0 },
   { NS_LANGUAGE, CNTSLANG_compiler_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_LANG_FIELD_DETAIL_PAGE, "Additional environment variables", 0, 0 },
   { 0, 0, '-', 0, 0, 0, 0, 0, "Other parameters", 0, 0 },
@@ -1295,6 +1300,7 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_output_file, 'S', 1, 1, 1, 1, 0, "Name of the output file", 0, "Problem.manual_checking !" },
   { NS_PROBLEM, CNTSPROB_combined_stdout, 'Y', 1, 0, 0, 0, 0, "Combine the standard and file output", 0, "Problem.manual_checking !" },
   { NS_PROBLEM, CNTSPROB_binary_input, 'Y', 1, 0, 0, 0, 0, "Input data in binary", 0, "Problem.manual_checking ! SidState.prob_show_adv &&" },
+  { NS_PROBLEM, CNTSPROB_binary, 'Y', 1, 0, 0, 0, 0, "Submit is binary", 0, "Problem.manual_checking ! SidState.prob_show_adv &&" },
   { NS_PROBLEM, CNTSPROB_xml_file, 'S', 1, 1, 1, 1, 0, "Name of XML file with problem statement", 0, 0 },
   { NS_PROBLEM, CNTSPROB_plugin_file, 'S', 1, 1, 1, 1, 0, "Problem plugin file", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_test_dir, 'S', 1, 1, 1, 1, 0, "Directory with tests", 0, 0 },
@@ -1339,11 +1345,12 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_test_score, 'd', 1, 1, 1, 1, 0, "Score for one passed test", 0, "Global.score_system SCORE_KIROV == Global.score_system SCORE_OLYMPIAD == ||" },
   { NS_PROBLEM, CNTSPROB_run_penalty, 'd', 1, 1, 1, 1, 0, "Penalty for a failed submit", 0, "Global.score_system SCORE_KIROV ==" },
   { NS_PROBLEM, CNTSPROB_disqualified_penalty, 'd', 1, 1, 1, 1, 0, "Penalty for a disqualified submit", 0, "Global.score_system SCORE_KIROV ==" },
-  { NS_PROBLEM, CNTSPROB_test_score_list, 's', 1, 1, 1, 1, 0, "Test scores for tests", 0, "Global.score_system SCORE_KIROV == Global.score_system SCORE_OLYMPIAD == ||" },
+  { NS_PROBLEM, CNTSPROB_test_score_list, 'S', 1, 1, 1, 1, 0, "Test scores for tests", 0, "Global.score_system SCORE_KIROV == Global.score_system SCORE_OLYMPIAD == ||" },
   { NS_PROBLEM, CNTSPROB_acm_run_penalty, 'd', 1, 1, 1, 1, 0, "Penalty for a submit", 0, "SidState.prob_show_adv Global.score_system SCORE_ACM == Global.score_system SCORE_MOSCOW == || &&" },
-  { NS_PROBLEM, CNTSPROB_score_tests, 's', 1, 1, 1, 1, 0, "Tests for problem scoring", 0, "Global.score_system SCORE_MOSCOW ==" },
+  { NS_PROBLEM, CNTSPROB_score_tests, 'S', 1, 1, 1, 1, 0, "Tests for problem scoring", 0, "Global.score_system SCORE_MOSCOW ==" },
   { NS_PROBLEM, CNTSPROB_test_sets, 'x', 1, 1, 1, 1, 0, "Specially scored test sets", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == Global.score_system SCORE_OLYMPIAD == || &&" },
-  { NS_PROBLEM, CNTSPROB_score_bonus, 's', 1, 1, 1, 1, 0, "Additional score bonus", 0, "Global.score_system SCORE_KIROV ==" },
+  { NS_PROBLEM, CNTSPROB_score_bonus, 'S', 1, 1, 1, 1, 0, "Additional score bonus", 0, "Global.score_system SCORE_KIROV ==" },
+  { NS_PROBLEM, CNTSPROB_open_tests, 'S', 1, 1, 1, 1, 0, "Tests open for participants", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_tests_to_accept, 'd', 1, 1, 1, 1, 0, "Number of accept tests", 0, "Global.score_system SCORE_OLYMPIAD ==" },
   { NS_PROBLEM, CNTSPROB_accept_partial, 'Y', 1, 0, 0, 0, 0, "Accept submits, which do not pass accept tests", 0, "SidState.prob_show_adv Global.score_system SCORE_OLYMPIAD == &&" },
   { NS_PROBLEM, CNTSPROB_min_tests_to_accept, 'd', 1, 1, 1, 1, 0, "Minimum number of tests to accept", 0, "SidState.prob_show_adv Global.score_system SCORE_OLYMPIAD == &&" },
@@ -1351,16 +1358,23 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_stand_hide_time, 'Y', 1, 0, 0, 0, 0, "Do not show OK time in the standings", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_advance_to_next, 'Y', 1, 0, 0, 0, 0, "Advance to the next problem", 0, "SidState.prob_show_adv Global.problem_navigation &&" },
   { NS_PROBLEM, CNTSPROB_disable_ctrl_chars, 'Y', 1, 0, 0, 0, 0, "Disable control characters in the source", 0, "SidState.prob_show_adv" },
-  { NS_PROBLEM, CNTSPROB_enable_text_form, 'Y', 1, 0, 0, 0, 0, "Enable text input form", 0, "SidState.prob_show_adv Global.problem_navigation && Problem.type 1 == &&" },
+  { NS_PROBLEM, CNTSPROB_valuer_sets_marked, 'Y', 1, 0, 0, 0, 0, "Valuer sets _marked_ flag", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_ignore_unmarked, 'Y', 1, 0, 0, 0, 0, "Ignore unmarked runs in scoring", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_enable_text_form, 'Y', 1, 0, 0, 0, 0, "Enable text input form", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_stand_attr, 'S', 1, 1, 1, 1, 0, "Standings attributes", 0, 0 },
   { NS_PROBLEM, CNTSPROB_standard_checker, 142, 1, 0, 0, 0, 0, "Standard checker", 0, 0 },
   { NS_PROBLEM, CNTSPROB_check_cmd, 'S', 1, 1, 1, 1, 0, "Checker", 0, 0 /*"Problem.standard_checker"*/ },
   { NS_PROBLEM, CNTSPROB_checker_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Checker environment", 0, 0 },
   { NS_PROBLEM, CNTSPROB_scoring_checker, 'Y', 1, 0, 0, 0, 0, "Checker calculates score", 0, 0 },
   { NS_PROBLEM, CNTSPROB_valuer_cmd, 'S', 1, 1, 1, 1, 0, "Valuer", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_valuer_sets_marked, 'Y', 1, 0, 0, 0, 0, "Valuer sets _marked_ flag", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_valuer_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Valuer environment", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_interactor_cmd, 'S', 1, 1, 1, 1, 0, "Interactor", 0, "SidState.prob_show_adv"  },
   { NS_PROBLEM, CNTSPROB_interactor_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Interactor environment", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_style_checker_cmd, 'S', 1, 1, 1, 1, 0, "Style checker", 0, "SidState.prob_show_adv"  },
+  { NS_PROBLEM, CNTSPROB_style_checker_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Style checker environment", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_test_checker_cmd, 's', 1, 1, 1, 1, 0, "Test checker", 0, "SidState.prob_show_adv"  },
+  { NS_PROBLEM, CNTSPROB_test_checker_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Test checker environment", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_score_view, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Special view for score", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_stand_ignore_score, 'Y', 1, 0, 0, 0, 0, "Ignore problem score", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_stand_last_column, 'Y', 1, 0, 0, 0, 0, "Show as the last column", 0, "SidState.prob_show_adv" },
@@ -5436,6 +5450,7 @@ const unsigned char lang_editable_fields[CNTSLANG_LAST_FIELD] =
   [CNTSLANG_disable_auto_testing] = 1,
   [CNTSLANG_binary] = 1,
   [CNTSLANG_style_checker_cmd] = 1,
+  [CNTSLANG_style_checker_env] = 1,
   [CNTSLANG_compiler_env] = 1,
   [CNTSLANG_unhandled_vars] = 1,
 };
@@ -5578,6 +5593,7 @@ cmd_op_clear_serve_lang_field(
 const unsigned char lang_editable_details[CNTSLANG_LAST_FIELD] =
 {
   [CNTSLANG_compiler_env] = 1,
+  [CNTSLANG_style_checker_env] = 1,
   [CNTSLANG_unhandled_vars] = 1,
 };
 
@@ -5703,6 +5719,7 @@ cmd_op_edit_serve_lang_field_detail(
 
   switch (f_id) {
   case CNTSLANG_compiler_env:
+  case CNTSLANG_style_checker_env:
     split_to_lines(filt_txt, &lns, 2);
     sarray_free(*(char***) f_ptr);
     *(char***) f_ptr = lns;
@@ -5909,6 +5926,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_combined_stdin] = 0,
   [CNTSPROB_combined_stdout] = 0,
   [CNTSPROB_binary_input] = 0,
+  [CNTSPROB_binary] = 0,
   [CNTSPROB_ignore_exit_code] = 0,
   [CNTSPROB_olympiad_mode] = 1,
   [CNTSPROB_score_latest] = 0,
@@ -5949,6 +5967,8 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_stand_hide_time] = 0,
   [CNTSPROB_advance_to_next] = 0,
   [CNTSPROB_disable_ctrl_chars] = 0,
+  [CNTSPROB_valuer_sets_marked] = 0,
+  [CNTSPROB_ignore_unmarked] = 0,
   [CNTSPROB_enable_text_form] = 0,
   [CNTSPROB_stand_ignore_score] = 0,
   [CNTSPROB_stand_last_column] = 0,
@@ -5981,6 +6001,8 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_start_date] = 0,
   [CNTSPROB_variant_num] = 1,
   [CNTSPROB_date_penalty] = 0,
+  [CNTSPROB_group_start_date] = 0,
+  [CNTSPROB_group_deadline] = 0,
   [CNTSPROB_disable_language] = 0,
   [CNTSPROB_enable_language] = 0,
   [CNTSPROB_require] = 0,
@@ -5988,17 +6010,22 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_checker_env] = 0,
   [CNTSPROB_valuer_env] = 0,
   [CNTSPROB_interactor_env] = 0,
+  [CNTSPROB_style_checker_env] = 0,
+  [CNTSPROB_test_checker_env] = 0,
   [CNTSPROB_lang_time_adj] = 0,
   [CNTSPROB_lang_time_adj_millis] = 0,
   [CNTSPROB_check_cmd] = 0,
   [CNTSPROB_valuer_cmd] = 0,
   [CNTSPROB_interactor_cmd] = 0,
+  [CNTSPROB_style_checker_cmd] = 0,
+  [CNTSPROB_test_checker_cmd] = 0,
   [CNTSPROB_test_pat] = 1,
   [CNTSPROB_corr_pat] = 1,
   [CNTSPROB_info_pat] = 1,
   [CNTSPROB_tgz_pat] = 1,
   [CNTSPROB_personal_deadline] = 0,
   [CNTSPROB_score_bonus] = 0,
+  [CNTSPROB_open_tests] = 0,
   [CNTSPROB_statement_file] = 1,
   [CNTSPROB_alternatives_file] = 0,
   [CNTSPROB_plugin_file] = 1,
@@ -6247,6 +6274,8 @@ const unsigned char prob_editable_details[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_checker_env] = 1,
   [CNTSPROB_valuer_env] = 1,
   [CNTSPROB_interactor_env] = 1,
+  [CNTSPROB_style_checker_env] = 1,
+  [CNTSPROB_test_checker_env] = 1,
   [CNTSPROB_score_view] = 1,
   [CNTSPROB_lang_time_adj] = 1,
   [CNTSPROB_lang_time_adj_millis] = 1,
@@ -6397,6 +6426,8 @@ cmd_op_edit_serve_prob_field_detail(
   case CNTSPROB_checker_env:
   case CNTSPROB_valuer_env:
   case CNTSPROB_interactor_env:
+  case CNTSPROB_style_checker_env:
+  case CNTSPROB_test_checker_env:
   case CNTSPROB_score_view:
   case CNTSPROB_lang_time_adj:
   case CNTSPROB_lang_time_adj_millis:

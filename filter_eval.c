@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: filter_eval.c 5750 2010-01-26 07:33:40Z cher $ */
+/* $Id: filter_eval.c 5948 2010-07-15 09:47:25Z cher $ */
 
 /* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -72,6 +72,22 @@ is_latest(struct filter_env *env, int rid)
 
 /* FIXME: dumb :( */
 static int
+is_latestmarked(struct filter_env *env, int rid)
+{
+  int r;
+
+  if (rid < 0 || rid >= env->rtotal) return 0;
+  if (!env->rentries[rid].is_marked) return 0;
+  for (r = rid + 1; r < env->rtotal; r++) {
+    if (env->rentries[rid].user_id == env->rentries[r].user_id
+        && env->rentries[rid].prob_id == env->rentries[r].prob_id
+        && env->rentries[r].is_marked) return 0;
+  }
+  return 1;
+}
+
+/* FIXME: dumb :( */
+static int
 is_afterok(struct filter_env *env, int rid)
 {
   int r;
@@ -111,6 +127,35 @@ is_missing_source(
                                           g->run_archive_dir,
                                           re->run_id, 0, 1)) < 0)
     return 1;
+  return 0;
+}
+
+static int
+find_user_group(struct filter_env *env, const unsigned char *group_name)
+{
+  int i;
+
+  if (!group_name || !*group_name) return FILTER_ERR_INV_USERGROUP;
+  for (i = 0; i < env->serve_state->user_group_count; ++i) {
+    if (!strcmp(env->serve_state->user_groups[i].group_name, group_name))
+      return i;
+  }
+  return FILTER_ERR_INV_USERGROUP;
+} 
+
+static int
+check_user_group(struct filter_env *env, int user_id, int group_ind)
+{
+  serve_state_t cs = env->serve_state;
+  int user_ind;
+  unsigned int *b;
+
+  if (user_id <= 0 || user_id >= cs->group_member_map_size) return 0;
+  user_ind = cs->group_member_map[user_id];
+  if (user_ind < 0 || user_ind >= cs->group_member_count) return 0;
+  if (group_ind < 0 || group_ind >= cs->user_group_count) return 0;
+  if (!(b = cs->group_members[user_ind].group_bitmap)) return 0;
+  if ((b[group_ind >> 5] & (1U << (group_ind & 0x1F)))) return 1;
   return 0;
 }
 
@@ -203,6 +248,8 @@ do_eval(struct filter_env *env,
   case TOK_IMPORTED:
   case TOK_HIDDEN:
   case TOK_READONLY:
+  case TOK_MARKED:
+  case TOK_SAVED:
   case TOK_VARIANT:
   case TOK_RAWVARIANT:
   case TOK_USERINVISIBLE:
@@ -211,6 +258,7 @@ do_eval(struct filter_env *env,
   case TOK_USERINCOMPLETE:
   case TOK_USERDISQUALIFIED:
   case TOK_LATEST:
+  case TOK_LATESTMARKED:
   case TOK_AFTEROK:
   case TOK_EXAMINABLE:
   case TOK_CYPHER:
@@ -345,6 +393,16 @@ do_eval(struct filter_env *env,
       res->type = FILTER_TYPE_BOOL;
       res->v.b = env->rentries[r1.v.i].is_readonly;
       break;
+    case TOK_MARKED:
+      res->kind = TOK_BOOL_L;
+      res->type = FILTER_TYPE_BOOL;
+      res->v.b = env->rentries[r1.v.i].is_marked;
+      break;
+    case TOK_SAVED:
+      res->kind = TOK_BOOL_L;
+      res->type = FILTER_TYPE_BOOL;
+      res->v.b = env->rentries[r1.v.i].is_saved;
+      break;
     case TOK_VARIANT:
       res->kind = TOK_INT_L;
       res->type = FILTER_TYPE_INT;
@@ -435,6 +493,11 @@ do_eval(struct filter_env *env,
       res->kind = TOK_BOOL_L;
       res->type = FILTER_TYPE_BOOL;
       res->v.b = is_latest(env, r1.v.i);
+      break;
+    case TOK_LATESTMARKED:
+      res->kind = TOK_BOOL_L;
+      res->type = FILTER_TYPE_BOOL;
+      res->v.b = is_latestmarked(env, r1.v.i);
       break;
     case TOK_AFTEROK:
       res->kind = TOK_BOOL_L;
@@ -606,6 +669,16 @@ do_eval(struct filter_env *env,
     res->type = FILTER_TYPE_BOOL;
     res->v.b = env->cur->is_readonly;
     break;
+  case TOK_CURMARKED:
+    res->kind = TOK_BOOL_L;
+    res->type = FILTER_TYPE_BOOL;
+    res->v.b = env->cur->is_marked;
+    break;
+  case TOK_CURSAVED:
+    res->kind = TOK_BOOL_L;
+    res->type = FILTER_TYPE_BOOL;
+    res->v.b = env->cur->is_saved;
+    break;
   case TOK_CURVARIANT:
     res->kind = TOK_INT_L;
     res->type = FILTER_TYPE_INT;
@@ -694,6 +767,11 @@ do_eval(struct filter_env *env,
     res->kind = TOK_BOOL_L;
     res->type = FILTER_TYPE_BOOL;
     res->v.b = is_latest(env, env->cur->run_id);
+    break;
+  case TOK_CURLATESTMARKED:
+    res->kind = TOK_BOOL_L;
+    res->type = FILTER_TYPE_BOOL;
+    res->v.b = is_latestmarked(env, env->cur->run_id);
     break;
   case TOK_CURAFTEROK:
     res->kind = TOK_BOOL_L;
@@ -795,6 +873,25 @@ do_eval(struct filter_env *env,
       }
     }
     break;
+
+  case TOK_INUSERGROUP:
+    if ((c = do_eval(env, t->v.t[0], &r1)) < 0) return c;
+    ASSERT(r1.kind == TOK_STRING_L);
+    if ((c = find_user_group(env, r1.v.s)) < 0) return c;
+    t->kind = TOK_INUSERGROUPINT;
+    t->v.t[0] = filter_tree_new_int(env->mem, c);
+    res->kind = TOK_BOOL_L;
+    res->type = FILTER_TYPE_BOOL;
+    res->v.b = check_user_group(env, env->cur->user_id, c);
+    break;
+
+  case TOK_INUSERGROUPINT:
+    if ((c = do_eval(env, t->v.t[0], &r1)) < 0) return c;
+    ASSERT(r1.kind == TOK_INT_L); 
+    res->kind = TOK_BOOL_L;
+    res->type = FILTER_TYPE_BOOL;
+    res->v.b = check_user_group(env, env->cur->user_id, r1.v.i);
+    break;   
 
   default:
     SWERR(("unhandled kind: %d", t->kind));

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: userlist-server.c 5720 2010-01-23 13:13:54Z cher $ */
+/* $Id: userlist-server.c 5948 2010-07-15 09:47:25Z cher $ */
 
 /* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -537,6 +537,15 @@ link_client_state(struct client_state *p)
 }
 
 #define dflt_iface ((struct uldb_plugin_iface*)(uldb_default->iface))
+
+#define plugin_func(func) (dflt_iface->func)
+
+#define plugin_call(func, ...) (dflt_iface->func)(uldb_default->data, __VA_ARGS__)
+#define plugin_call0(func) (dflt_iface->func)(uldb_default->data)
+#define plugin_call1(func, a) (dflt_iface->func)(uldb_default->data, (a))
+#define plugin_call2(func, a, b) (dflt_iface->func)(uldb_default->data, (a), (b))
+#define plugin_call3(func, a, b, c) (dflt_iface->func)(uldb_default->data, (a), (b), (c))
+#define plugin_call5(func, a, b, c, d, e) (dflt_iface->func)(uldb_default->data, (a), (b), (c), (d), (e))
 
 // methods for accessing the default userlist database backend
 #define default_get_user_full(a, b) dflt_iface->get_user_full(uldb_default->data, a, b)
@@ -1083,6 +1092,138 @@ check_dbcnts_capable(
   if (!cnts) return -1;
   if (get_uid_caps(&cnts->capabilities, p->user_id, &caps) < 0) return -1;
   if (opcaps_check(caps, bit) < 0) return -1;
+  return 0;
+}
+
+static int
+check_pk_map_contest(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
+{
+  if (pkt_len != sizeof(*data)) {
+    CONN_BAD("packet length mismatch");
+    return -1;
+  }
+  return 0;
+}
+
+static int
+check_pk_edit_field(
+        struct client_state *p,
+        int pkt_len,
+        const struct userlist_pk_edit_field *data)
+{
+  int value_len;
+
+  if (pkt_len < sizeof(*data)) {
+    CONN_BAD("bad packet length: %d instead of %d", pkt_len,(int)sizeof(*data));
+    return -1;
+  }
+  value_len = strlen(data->data);
+  if (value_len != data->value_len) {
+    CONN_BAD("login_len mismatch %d instead of %d", value_len, data->value_len);
+    return -1;
+  }
+  if (value_len + sizeof(*data) != pkt_len) {
+    CONN_BAD("packet size mismatch: %d instead of %d", pkt_len,
+             value_len + (int) sizeof(*data));
+    return -1;
+  }
+
+  return 0;
+}
+
+static int
+check_pk_delete_info(
+        struct client_state *p,
+        int pkt_len,
+        const struct userlist_pk_delete_info *data)
+{
+  if (pkt_len != sizeof(*data)) {
+    CONN_BAD("bad packet length: %d instead of %d",pkt_len,(int) sizeof(*data));
+    return -1;
+  }
+
+  return 0;
+}
+
+static int
+check_pk_register_contest(
+        struct client_state *p,
+        int pkt_len,
+        const struct userlist_pk_register_contest *data)
+{
+  if (pkt_len != sizeof(*data)) {
+    CONN_BAD("bad packet length: %d instead of %d",pkt_len,(int) sizeof(*data));
+    return -1;
+  }
+
+  return 0;
+}
+
+static int
+check_pk_set_password(
+        struct client_state *p,
+        int pkt_len,
+        const struct userlist_pk_set_password *data)
+{
+  const char *old_pwd, *new_pwd;
+  int old_len, new_len, exp_len;
+
+  if (pkt_len < sizeof(*data)) {
+    CONN_BAD("packet too small: %d instead of %d",
+             pkt_len, (int) sizeof(*data));
+    return -1;
+  }
+
+  old_pwd = data->data;
+  old_len = strlen(old_pwd);
+  if (old_len != data->old_len) {
+    CONN_BAD("old_len mismatch: %d instead of %d", data->old_len, old_len);
+    return -1;
+  }
+
+  new_pwd = old_pwd + old_len + 1;
+  new_len = strlen(new_pwd);
+  if (new_len != data->new_len) {
+    CONN_BAD("new_len mismatch: %d instead of %d", data->new_len, new_len);
+    return -1;
+  }
+
+  exp_len = sizeof(*data) + old_len + new_len;
+  if (pkt_len != exp_len) {
+    CONN_BAD("pkt_len mismatch: %d instead of %d", pkt_len, exp_len);
+    return -1;
+  }
+
+  return 0;
+}
+
+static int
+check_pk_set_user_info(
+        struct client_state *p,
+        int pkt_len,
+        const struct userlist_pk_set_user_info *data)
+{
+  int xml_len, exp_len;
+
+  if (pkt_len < sizeof(*data)) {
+    CONN_BAD("packet too small: %d instead of %d",
+             pkt_len, (int) sizeof(*data));
+    return -1;
+  }
+  xml_len = strlen(data->data);
+  if (xml_len != data->info_len) {
+    CONN_BAD("info_len mismatch: %d instead of %d", data->info_len, xml_len);
+    return -1;
+  }
+  exp_len = sizeof(*data) + xml_len;
+  if (pkt_len != exp_len) {
+    CONN_BAD("pkt_len mismatch: %d instead of %d", pkt_len, exp_len);
+    return -1;
+  }
+
   return 0;
 }
 
@@ -1922,7 +2063,7 @@ cmd_recover_password_1(struct client_state *p,
     xfree(msg_text); msg_text = 0;
   }
 
-  send_reply(p,ULS_OK);
+  send_reply(p, ULS_OK);
   info("%s -> ok", logbuf);
 }
 
@@ -3902,7 +4043,7 @@ cmd_get_user_info(struct client_state *p,
   default_unlock_user(u);
 
   ASSERT(xml_size == strlen(xml_ptr));
-  out_size = sizeof(*out) + xml_size + 1;
+  out_size = sizeof(*out) + xml_size;
   out = alloca(out_size);
   ASSERT(out);
   memset(out, 0, out_size);
@@ -3974,7 +4115,7 @@ cmd_priv_get_user_info(struct client_state *p,
   default_unlock_user(u);
 
   ASSERT(xml_size == strlen(xml_ptr));
-  out_size = sizeof(*out) + xml_size + 1;
+  out_size = sizeof(*out) + xml_size;
   out = alloca(out_size);
   ASSERT(out);
   memset(out, 0, out_size);
@@ -3987,9 +4128,10 @@ cmd_priv_get_user_info(struct client_state *p,
 }
 
 static void
-cmd_list_all_users(struct client_state *p,
-                   int pkt_len,
-                   struct userlist_pk_map_contest *data)
+cmd_list_all_users(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   FILE *f = 0;
   char *xml_ptr = 0;
@@ -4000,11 +4142,6 @@ cmd_list_all_users(struct client_state *p,
   unsigned char logbuf[1024];
   ptr_iterator_t iter;
   const struct userlist_user *u;
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("packet length mismatch");
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "PRIV_ALL_USERS: %d, %d",
            p->user_id, data->contest_id);
@@ -4029,7 +4166,7 @@ cmd_list_all_users(struct client_state *p,
   if (iter) iter->destroy(iter);
   close_memstream(f); f = 0;
   ASSERT(xml_size == strlen(xml_ptr));
-  out_size = sizeof(*out) + xml_size + 1;
+  out_size = sizeof(*out) + xml_size;
   out = alloca(out_size);
   ASSERT(out);
   memset(out, 0, out_size);
@@ -4042,9 +4179,10 @@ cmd_list_all_users(struct client_state *p,
 }
 
 static void
-cmd_list_standings_users(struct client_state *p,
-                         int pkt_len,
-                         struct userlist_pk_map_contest *data)
+cmd_list_standings_users(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   FILE *f = 0;
   char *xml_ptr = 0;
@@ -4056,11 +4194,6 @@ cmd_list_standings_users(struct client_state *p,
   unsigned char logbuf[1024];
   ptr_iterator_t iter;
   const struct userlist_user *u;
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("packet length mismatch");
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "PRIV_STANDINGS_USERS: %d, %d",
            p->user_id, data->contest_id);
@@ -4111,7 +4244,7 @@ cmd_list_standings_users(struct client_state *p,
   iter->destroy(iter);
   close_memstream(f); f = 0;
   ASSERT(xml_size == strlen(xml_ptr));
-  out_size = sizeof(*out) + xml_size + 1;
+  out_size = sizeof(*out) + xml_size;
   out = alloca(out_size);
   ASSERT(out);
   memset(out, 0, out_size);
@@ -4180,7 +4313,7 @@ cmd_get_user_contests(struct client_state *p,
   close_memstream(f); f = 0;
 
   ASSERT(xml_size == strlen(xml_ptr));
-  out_size = sizeof(*out) + xml_size + 1;
+  out_size = sizeof(*out) + xml_size;
   out = alloca(out_size);
   memset(out, 0, out_size);
   out->reply_id = ULS_XML_DATA;
@@ -4198,21 +4331,10 @@ cmd_set_user_info(struct client_state *p,
                   int pkt_len,
                   struct userlist_pk_set_user_info *data)
 {
-  size_t xml_len;
   const struct contest_desc *cnts = 0;
   unsigned char logbuf[1024];
   struct userlist_user *new_u = 0;
   int reply_code = ULS_OK, cloned_flag = 0;
-
-  xml_len = strlen(data->data);
-  if (xml_len != data->info_len) {
-    CONN_BAD("XML length does not match");
-    return;
-  }
-  if (pkt_len != sizeof(*data) + xml_len) {
-    CONN_BAD("packet length mismatch");
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf),
            "SET_USER_INFO: %d, %d", data->user_id, data->info_len);
@@ -4274,38 +4396,24 @@ cmd_set_user_info(struct client_state *p,
   userlist_free(&new_u->b);
 }
 
+/*
+This function is not used. Pending removal.
+ */
 static void
-cmd_set_passwd(struct client_state *p, int pkt_len,
-               struct userlist_pk_set_password *data)
+cmd_set_passwd(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_set_password *data)
 {
-  int old_len, new_len, exp_len, contest_id = 0;
+  int contest_id = 0;
   unsigned char *old_pwd, *new_pwd;
   const struct userlist_user *u;
   struct passwd_internal oldint, newint;
   unsigned char logbuf[1024];
   const struct contest_desc *cnts = 0;
 
-  if (pkt_len < sizeof(*data)) {
-    CONN_BAD("packet is too small: %d", pkt_len);
-    return;
-  }
   old_pwd = data->data;
-  old_len = strlen(old_pwd);
-  if (old_len != data->old_len) {
-    CONN_BAD("old password length mismatch: %d, %d", old_len, data->old_len);
-    return;
-  }
-  new_pwd = old_pwd + old_len + 1;
-  new_len = strlen(new_pwd);
-  if (new_len != data->new_len) {
-    CONN_BAD("new password length mismatch: %d, %d", new_len, data->new_len);
-    return;
-  }
-  exp_len = sizeof(*data) + old_len + new_len;
-  if (pkt_len != exp_len) {
-    CONN_BAD("packet length mismatch: %d, %d", exp_len, pkt_len);
-    return;
-  }
+  new_pwd = old_pwd + data->old_len + 1;
 
   snprintf(logbuf, sizeof(logbuf), "SET_PASSWD: %d", data->user_id);
 
@@ -4337,7 +4445,7 @@ cmd_set_passwd(struct client_state *p, int pkt_len,
     return;
   }
 
-  if (!new_len) {
+  if (data->new_len <= 0) {
     err("%s -> new password is empty", logbuf);
     send_reply(p, -ULS_ERR_INVALID_PASSWORD);
     return;
@@ -4371,10 +4479,11 @@ cmd_set_passwd(struct client_state *p, int pkt_len,
 }
 
 static void
-cmd_team_set_passwd(struct client_state *p, int pkt_len,
-                    struct userlist_pk_set_password *data)
+cmd_team_set_passwd(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_set_password *data)
 {
-  int old_len, new_len, exp_len;
   unsigned char *old_pwd, *new_pwd;
   const struct userlist_user *u;
   struct passwd_internal oldint, newint;
@@ -4384,28 +4493,8 @@ cmd_team_set_passwd(struct client_state *p, int pkt_len,
   const struct userlist_user_info *ui;
   const struct userlist_contest *c;
 
-  // check packet
-  if (pkt_len < sizeof(*data)) {
-    CONN_BAD("packet is too small: %d", pkt_len);
-    return;
-  }
   old_pwd = data->data;
-  old_len = strlen(old_pwd);
-  if (old_len != data->old_len) {
-    CONN_BAD("old password length mismatch: %d, %d", old_len, data->old_len);
-    return;
-  }
-  new_pwd = old_pwd + old_len + 1;
-  new_len = strlen(new_pwd);
-  if (new_len != data->new_len) {
-    CONN_BAD("new password length mismatch: %d, %d", new_len, data->new_len);
-    return;
-  }
-  exp_len = sizeof(*data) + old_len + new_len;
-  if (pkt_len !=  exp_len) {
-    CONN_BAD("packet length mismatch: %d, %d", exp_len, pkt_len);
-    return;
-  }
+  new_pwd = old_pwd + data->old_len + 1;
 
   snprintf(logbuf, sizeof(logbuf),
            "SET_TEAM_PASSWD: %d, %d", data->user_id, data->contest_id);
@@ -4437,7 +4526,7 @@ cmd_team_set_passwd(struct client_state *p, int pkt_len,
     send_reply(p, -ULS_ERR_NO_PERMS);
     return;
   }
-  if (!new_len) {
+  if (data->new_len <= 0) {
     err("%s -> new password is empty", logbuf);
     send_reply(p, -ULS_ERR_INVALID_PASSWORD);
     return;
@@ -4489,18 +4578,15 @@ cmd_team_set_passwd(struct client_state *p, int pkt_len,
 
 /* unprivileged version of the function */
 static void
-cmd_register_contest(struct client_state *p, int pkt_len,
-                     struct userlist_pk_register_contest *data)
+cmd_register_contest(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_register_contest *data)
 {
   const struct contest_desc *c = 0;
   const struct userlist_contest *r;
   int errcode, status = USERLIST_REG_PENDING, orig_contest_id = 0;
   unsigned char logbuf[1024];
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "REGISTER_CONTEST: %d, %d",
            data->user_id, data->contest_id);
@@ -4559,19 +4645,16 @@ cmd_register_contest(struct client_state *p, int pkt_len,
 
 /* unprivileged version for use by `new-register' */
 static void
-cmd_register_contest_2(struct client_state *p, int pkt_len,
-                       struct userlist_pk_register_contest *data)
+cmd_register_contest_2(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_register_contest *data)
 {
   const struct contest_desc *c = 0;
   const struct userlist_contest *r;
   int errcode, status = USERLIST_REG_PENDING, bit;
   unsigned char logbuf[1024];
   const struct userlist_user *u = 0;
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "REGISTER_CONTEST_2: %d, %d",
            data->user_id, data->contest_id);
@@ -4637,19 +4720,16 @@ cmd_register_contest_2(struct client_state *p, int pkt_len,
 
 /* privileged version */
 static void
-cmd_priv_register_contest(struct client_state *p, int pkt_len,
-                          struct userlist_pk_register_contest *data)
+cmd_priv_register_contest(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_register_contest *data)
 {
   const struct userlist_user *u;
   const struct contest_desc *c = 0;
   const struct userlist_contest *r;
   int status = USERLIST_REG_PENDING, bit;
   unsigned char logbuf[1024];
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "PRIV_REGISTER_CONTEST: %d, %d, %d",
            p->user_id, data->user_id, data->contest_id);
@@ -5657,8 +5737,10 @@ cmd_dump_whole_database(struct client_state *p, int pkt_len,
 }
 
 static void
-cmd_map_contest(struct client_state *p, int pkt_len,
-                struct userlist_pk_map_contest *data)
+cmd_map_contest(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   const struct contest_desc *cnts = 0;
   struct contest_extra *ex = 0;
@@ -5666,11 +5748,6 @@ cmd_map_contest(struct client_state *p, int pkt_len,
   struct userlist_pk_contest_mapped *out;
   int errcode;
   unsigned char logbuf[1024];
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "MAP_CONTEST: %d, %d",
            p->user_id, data->contest_id);
@@ -5832,8 +5909,10 @@ do_generate_passwd(int contest_id, FILE *log)
 }
 
 static void
-cmd_generate_register_passwords(struct client_state *p, int pkt_len,
-                                struct userlist_pk_map_contest *data)
+cmd_generate_register_passwords(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   char *log_ptr = 0;
   size_t log_size = 0;
@@ -5842,11 +5921,6 @@ cmd_generate_register_passwords(struct client_state *p, int pkt_len,
   const struct contest_desc *cnts = 0;
   int errcode;
   unsigned char logbuf[1024];
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "GENERATE_REGISTER_PASSWORDS: %d, %d",
            p->user_id, data->contest_id);
@@ -5867,7 +5941,7 @@ cmd_generate_register_passwords(struct client_state *p, int pkt_len,
   }
   if (!(f = open_memstream(&log_ptr, &log_size))) {
     err("%s -> open_memstream failed", logbuf);
-    send_reply(p, ULS_ERR_OUT_OF_MEM);
+    send_reply(p, -ULS_ERR_OUT_OF_MEM);
     return;
   }
   do_generate_passwd(data->contest_id, f);
@@ -5893,8 +5967,10 @@ cmd_generate_register_passwords(struct client_state *p, int pkt_len,
 
 /* quiet password regeneration */
 static void
-cmd_generate_register_passwords_2(struct client_state *p, int pkt_len,
-                                  struct userlist_pk_map_contest *data)
+cmd_generate_register_passwords_2(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   const struct userlist_user *u;
   const struct userlist_contest *c;
@@ -5903,11 +5979,6 @@ cmd_generate_register_passwords_2(struct client_state *p, int pkt_len,
   const struct contest_desc *cnts;
   int errcode;
   unsigned char logbuf[1024];
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "GENERATE_REGISTER_PASSWORDS_2: %d, %d",
            p->user_id, data->contest_id);
@@ -5955,8 +6026,10 @@ cmd_generate_register_passwords_2(struct client_state *p, int pkt_len,
 
 /* quiet password regeneration */
 static void
-cmd_generate_team_passwords_2(struct client_state *p, int pkt_len,
-                              struct userlist_pk_map_contest *data)
+cmd_generate_team_passwords_2(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   const struct userlist_user *u;
   const struct userlist_contest *c;
@@ -5964,11 +6037,6 @@ cmd_generate_team_passwords_2(struct client_state *p, int pkt_len,
   ptr_iterator_t iter;
   const struct contest_desc *cnts;
   unsigned char logbuf[1024];
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "GENERATE_TEAM_PASSWORDS_2: %d, %d",
            p->user_id, data->contest_id);
@@ -6060,8 +6128,10 @@ do_generate_team_passwd(int contest_id, FILE *log)
 }
 
 static void
-cmd_generate_team_passwords(struct client_state *p, int pkt_len,
-                            struct userlist_pk_map_contest *data)
+cmd_generate_team_passwords(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   char *log_ptr = 0;
   size_t log_size = 0;
@@ -6069,11 +6139,6 @@ cmd_generate_team_passwords(struct client_state *p, int pkt_len,
   struct client_state *q = 0;
   const struct contest_desc *cnts = 0;
   unsigned char logbuf[1024];
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "GENERATE_TEAM_PASSWORDS: %d, %d",
            p->user_id, data->contest_id);
@@ -6089,7 +6154,7 @@ cmd_generate_team_passwords(struct client_state *p, int pkt_len,
   }
   if (!(f = open_memstream(&log_ptr, &log_size))) {
     err("%s -> open_memstream failed", logbuf);
-    send_reply(p, ULS_ERR_OUT_OF_MEM);
+    send_reply(p, -ULS_ERR_OUT_OF_MEM);
     return;
   }
   do_generate_team_passwd(data->contest_id, f);
@@ -6148,16 +6213,13 @@ do_clear_team_passwords(int contest_id)
 }
 
 static void
-cmd_clear_team_passwords(struct client_state *p, int pkt_len,
-                         struct userlist_pk_map_contest *data)
+cmd_clear_team_passwords(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   const struct contest_desc *cnts = 0;
   unsigned char logbuf[1024];
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "CLEAR_TEAM_PASSWORDS: %d, %d",
            p->user_id, data->contest_id);
@@ -6173,19 +6235,16 @@ cmd_clear_team_passwords(struct client_state *p, int pkt_len,
 }
 
 static void
-cmd_get_contest_name(struct client_state *p, int pkt_len,
-                     struct userlist_pk_map_contest *data)
+cmd_get_contest_name(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   struct userlist_pk_xml_data *out = 0;
   const struct contest_desc *cnts = 0;
   int out_size = 0, name_len = 0;
   int errcode;
   unsigned char logbuf[1024];
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "GET_CONTEST_NAME: %d",
            data->contest_id);
@@ -6386,17 +6445,14 @@ cmd_priv_delete_member(struct client_state *p, int pkt_len,
 }
 
 static void
-cmd_delete_cookie(struct client_state *p, int pkt_len,
-                  struct userlist_pk_edit_field *data)
+cmd_delete_cookie(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
 {
   unsigned char logbuf[1024];
   const struct userlist_user *u;
   const struct userlist_cookie *c;
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   if (is_judge(p, logbuf) < 0) return;
 
@@ -6483,18 +6539,15 @@ cmd_delete_user_info(struct client_state *p, int pkt_len,
 }
 
 static void
-cmd_delete_field(struct client_state *p, int pkt_len,
-                 struct userlist_pk_edit_field *data)
+cmd_delete_field(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
 {
   const struct userlist_user *u;
   const struct contest_desc *cnts = 0;
   unsigned char logbuf[1024];
   int r, reply_code = ULS_OK, cloned_flag = 0, bit = 0;
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   if (!data->user_id) data->user_id = p->user_id;
   snprintf(logbuf, sizeof(logbuf), "DELETE_FIELD: %d, %d, %d, %d, %d",
@@ -6596,29 +6649,15 @@ cmd_delete_field(struct client_state *p, int pkt_len,
 }
 
 static void
-cmd_edit_field(struct client_state *p, int pkt_len,
-               struct userlist_pk_edit_field *data)
+cmd_edit_field(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
 {
   const struct userlist_user *u;
   const struct contest_desc *cnts = 0;
-  int vallen, explen;
   unsigned char logbuf[1024];
   int r = 0, reply_code = ULS_OK, cloned_flag = 0, bit;
-
-  if (pkt_len < sizeof(*data)) {
-    CONN_BAD("packet is too small: %d", pkt_len);
-    return;
-  }
-  vallen = strlen(data->data);
-  if (vallen != data->value_len) {
-    CONN_BAD("value_len mismatch: %d, %d", vallen, data->value_len);
-    return;
-  }
-  explen = sizeof(*data) + data->value_len;
-  if (pkt_len != explen) {
-    CONN_BAD("packet length mismatch: %d, %d", explen, pkt_len);
-    return;
-  }
 
   if (!data->user_id) data->user_id = p->user_id;
   snprintf(logbuf, sizeof(logbuf), "EDIT_FIELD: %d, %d, %d, %d, %d",
@@ -6699,29 +6738,16 @@ cmd_edit_field(struct client_state *p, int pkt_len,
 }
 
 static void
-cmd_create_user(struct client_state *p, int pkt_len,
-                struct userlist_pk_edit_field *data)
+cmd_create_user(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
 {
   struct userlist_pk_login_ok out;
   unsigned char logbuf[1024];
   int serial = -1, user_id;
   unsigned char buf[64];
-  int login_len;
   unsigned char *login_ptr = 0;
-
-  if (pkt_len < sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
-  login_len = strlen(data->data);
-  if (login_len != data->value_len) {
-    CONN_BAD("login_len mismatch");
-    return;
-  }
-  if (login_len + sizeof(*data) != pkt_len) {
-    CONN_BAD("packet size mismatch");
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "CREATE_USER: %d, %s", p->user_id,
            data->data);
@@ -6734,7 +6760,7 @@ cmd_create_user(struct client_state *p, int pkt_len,
   ASSERT(p->user_id > 0);
   if (is_db_capable(p, OPCAP_CREATE_USER, logbuf) < 0) return;
 
-  if (login_len > 0) {
+  if (data->value_len > 0) {
     if (default_get_user_by_login(data->data) >= 0) {
       err("%s -> login already exists", logbuf);
       send_reply(p, -ULS_ERR_LOGIN_USED);
@@ -6778,23 +6804,16 @@ cmd_create_user(struct client_state *p, int pkt_len,
 }
 
 static void
-cmd_create_member(struct client_state *p, int pkt_len,
-                  struct userlist_pk_edit_field *data)
+cmd_create_member(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
 {
   unsigned char logbuf[1024];
   const struct contest_desc *cnts = 0;
   const struct userlist_user *u;
   int cloned_flag = 0, m = 0, bit;
   struct userlist_pk_login_ok out;
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
-  if (data->value_len != 0) {
-    CONN_BAD("value_len != 0: %d", data->value_len);
-    return;
-  }
 
   if (data->serial < -1 || data->serial >= CONTEST_LAST_MEMBER) {
     err("%s -> invalid role", logbuf);
@@ -6986,9 +7005,10 @@ cmd_is_valid_cookie(struct client_state *p,
 }
 
 static void
-cmd_user_op(struct client_state *p,
-            int pkt_len,
-            struct userlist_pk_register_contest *data)
+cmd_user_op(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_register_contest *data)
 {
   unsigned char logbuf[1024];
   const struct userlist_user *u = 0;
@@ -6996,11 +7016,6 @@ cmd_user_op(struct client_state *p,
   const struct userlist_user_info *ui;
   int reply_code = ULS_OK, cloned_flag = 0;
   const struct contest_desc *cnts = 0;
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   if (!data->user_id) data->user_id = p->user_id;
   snprintf(logbuf, sizeof(logbuf), "USER_OP: %d, %d, %d, %d",
@@ -7119,8 +7134,10 @@ cmd_user_op(struct client_state *p,
 }
 
 static void
-cmd_copy_user_info(struct client_state *p, int pkt_len,
-                   struct userlist_pk_edit_field *data)
+cmd_copy_user_info(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
 {
   unsigned char logbuf[1024];
   const struct userlist_user *u = 0;
@@ -7129,11 +7146,6 @@ cmd_copy_user_info(struct client_state *p, int pkt_len,
 
   // data->contest_id --- source contest
   // data->serial     --- destination contest
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   if (!data->user_id) data->user_id = p->user_id;
   snprintf(logbuf, sizeof(logbuf), "COPY_USER_INFO: %d, %d, %d, %d",
@@ -7482,19 +7494,15 @@ cmd_get_cookie(struct client_state *p,
 }
 
 static void
-cmd_set_cookie(struct client_state *p,
-               int pkt_len,
-               struct userlist_pk_edit_field *data)
+cmd_set_cookie(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
 {
   unsigned char logbuf[1024];
   const struct userlist_cookie *cookie;
   int contest_id = 0;
   const struct contest_desc *cnts = 0;
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf),
            "SET_COOKIE: %llx, %d, %d",
@@ -7526,17 +7534,13 @@ cmd_set_cookie(struct client_state *p,
 }
 
 static void
-cmd_observer_cmd(struct client_state *p,
-                 int pkt_len,
-                 struct userlist_pk_map_contest *data)
+cmd_observer_cmd(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
 {
   unsigned char logbuf[1024];
   const struct contest_desc *cnts = 0;
-
-  if (pkt_len != sizeof(*data)) {
-    CONN_BAD("bad packet length: %d", pkt_len);
-    return;
-  }
 
   snprintf(logbuf, sizeof(logbuf), "OBSERVER: %d, %d, %d",
            p->id, data->request_id, data->contest_id);
@@ -7566,10 +7570,11 @@ cmd_observer_cmd(struct client_state *p,
 }
 
 static void
-cmd_priv_set_passwd(struct client_state *p, int pkt_len,
-                    struct userlist_pk_set_password *data)
+cmd_priv_set_passwd(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_set_password *data)
 {
-  size_t old_len, new_len, exp_len;
   const unsigned char *old_pwd, *new_pwd;
   unsigned char logbuf[1024];
   struct passwd_internal oldint, newint;
@@ -7577,29 +7582,10 @@ cmd_priv_set_passwd(struct client_state *p, int pkt_len,
   const struct contest_desc *cnts = 0;
   const struct userlist_user_info *ui = 0;
   const struct userlist_contest *c = 0;
-  int r, reply_code = ULS_OK, cloned_flag = 0;
+  int reply_code = ULS_OK, cloned_flag = 0, contest_id = 0;
 
-  if (pkt_len < sizeof(*data)) {
-    CONN_BAD("packet is too small: %d", pkt_len);
-    return;
-  }
   old_pwd = data->data;
-  old_len = strlen(old_pwd);
-  if (old_len != data->old_len) {
-    CONN_BAD("old password length mismatch: %zu, %d", old_len, data->old_len);
-    return;
-  }
-  new_pwd = old_pwd + old_len + 1;
-  new_len = strlen(new_pwd);
-  if (new_len != data->new_len) {
-    CONN_BAD("new password length mismatch: %zu, %d", new_len, data->new_len);
-    return;
-  }
-  exp_len = sizeof(*data) + old_len + new_len;
-  if (pkt_len != exp_len) {
-    CONN_BAD("packet length mismatch: %zu, %d", exp_len, pkt_len);
-    return;
-  }
+  new_pwd = old_pwd + data->old_len + 1;
 
   if (!data->user_id) data->user_id = p->user_id;
   snprintf(logbuf, sizeof(logbuf), "PRIV_SET_PASSWD: %d, %d, %d",
@@ -7607,7 +7593,7 @@ cmd_priv_set_passwd(struct client_state *p, int pkt_len,
 
   if (is_admin(p, logbuf) < 0) return;
 
-  if (!old_len) {
+  if (data->old_len <= 0) {
     err("%s -> old password is empty", logbuf);
     send_reply(p, -ULS_ERR_INVALID_PASSWORD);
     return;
@@ -7617,7 +7603,7 @@ cmd_priv_set_passwd(struct client_state *p, int pkt_len,
     send_reply(p, -ULS_ERR_INVALID_PASSWORD);
     return;
   }
-  if (!new_len) {
+  if (data->new_len <= 0) {
     err("%s -> new password is empty", logbuf);
     send_reply(p, -ULS_ERR_INVALID_PASSWORD);
     return;
@@ -7657,12 +7643,9 @@ cmd_priv_set_passwd(struct client_state *p, int pkt_len,
     break;
 
   case ULS_PRIV_SET_TEAM_PASSWD:
-    if (data->contest_id > 0) {
-      if ((r = contests_get(data->contest_id, &cnts)) < 0) {
-        err("%s -> invalid contest: %s", logbuf, contests_strerror(-r));
-        send_reply(p, -ULS_ERR_BAD_CONTEST_ID);
-        return;
-      }
+    contest_id = data->contest_id;
+    if (contest_id > 0) {
+      if (full_get_contest(p, logbuf, &contest_id, &cnts) < 0) return;
       if (cnts->disable_team_password) {
         err("%s -> team password is disabled", logbuf);
         send_reply(p, -ULS_ERR_NO_PERMS);
@@ -7670,7 +7653,7 @@ cmd_priv_set_passwd(struct client_state *p, int pkt_len,
       }
     }
 
-    if (default_get_user_info_3(data->user_id,data->contest_id,&u,&ui,&c) < 0
+    if (default_get_user_info_3(data->user_id, contest_id, &u, &ui, &c) < 0
         || !u) {
       err("%s -> invalid user", logbuf);
       send_reply(p, -ULS_ERR_BAD_UID);
@@ -7702,7 +7685,7 @@ cmd_priv_set_passwd(struct client_state *p, int pkt_len,
       return;
     }
 
-    default_set_team_passwd(data->user_id, data->contest_id, USERLIST_PWD_SHA1,
+    default_set_team_passwd(data->user_id, contest_id, USERLIST_PWD_SHA1,
                             newint.pwds[USERLIST_PWD_SHA1], cur_time,
                             &cloned_flag);
     if (cloned_flag) reply_code = ULS_CLONED;
@@ -8362,20 +8345,6 @@ cmd_import_csv_users(
   int cloned_flag = 0;
   int member_serial = 0;
 
-  if (pkt_len < sizeof(*data)) {
-    CONN_BAD("packet is too small: %d < %zu", pkt_len, sizeof(*data));
-    return;
-  }
-  if (strlen(data->data) != data->value_len) {
-    CONN_BAD("invalid data length");
-    return;
-  }
-  if (pkt_len != data->value_len + sizeof(*data)) {
-    CONN_BAD("packet size mismatch: %d, %zu", pkt_len,
-             data->value_len + sizeof(*data));
-    return;
-  }
-
   snprintf(logbuf, sizeof(logbuf), "IMPORT_CSV_USERS: %d, %d, %d",
            data->contest_id, data->field, data->serial);
 
@@ -8568,6 +8537,427 @@ cmd_import_csv_users(
   xfree(log_txt);
 }
 
+static void
+cmd_list_all_groups(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
+{
+  unsigned char logbuf[1024];
+  FILE *fout = 0;
+  char *xml_ptr = 0;
+  size_t xml_size = 0;
+  ptr_iterator_t iter = 0;
+  const struct userlist_group *grp = 0;
+  struct userlist_pk_xml_data *out = 0;
+  size_t out_size = 0;
+
+  snprintf(logbuf, sizeof(logbuf), "PRIV_ALL_GROUPS: %d", p->user_id);
+  if (is_admin(p, logbuf) < 0) return;
+
+  if (!plugin_func(get_group_iterator)) {
+    err("%s -> not implemented", logbuf);
+    send_reply(p, -ULS_ERR_NOT_IMPLEMENTED);
+    return;
+  }
+
+  fout = open_memstream(&xml_ptr, &xml_size);
+  userlist_write_xml_header(fout);
+  userlist_write_groups_header(fout);
+  iter = plugin_call0(get_group_iterator);
+  if (iter) {
+    for (; iter->has_next(iter); iter->next(iter)) {
+      grp = (const struct userlist_group*) iter->get(iter);
+      if (grp) {
+        userlist_unparse_usergroup(fout, grp, "      ", "\n");
+        // plugin_call1(unlock_group, grp);
+      }
+    }
+    iter->destroy(iter); iter = 0;
+  }
+  userlist_write_groups_footer(fout);
+  userlist_write_xml_footer(fout);
+  fclose(fout); fout = 0;
+
+  out_size = sizeof(*out) + xml_size;
+  out = alloca(out_size);
+  memset(out, 0, out_size);
+  out->reply_id = ULS_XML_DATA;
+  out->info_len = xml_size;
+  memcpy(out->data, xml_ptr, xml_size + 1);
+  xfree(xml_ptr); xml_ptr = 0;
+  enqueue_reply_to_client(p, out_size, out);
+  info("%s -> OK, size = %zu", logbuf, xml_size); 
+}
+
+static void
+cmd_create_group(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
+{
+  unsigned char logbuf[1024];
+  unsigned char buf[64];
+  const unsigned char *group_name = 0;
+  int group_id = -1;
+  struct userlist_pk_login_ok out;
+
+  snprintf(logbuf, sizeof(logbuf), "CREATE_GROUP: %d, %s",
+           p->user_id, data->data);
+
+  if (p->user_id < 0) {
+    err("%s -> not authentificated", logbuf);
+    send_reply(p, -ULS_ERR_NO_PERMS);
+    return;
+  }
+  ASSERT(p->user_id > 0);
+  if (is_db_capable(p, OPCAP_CREATE_USER, logbuf) < 0) return;
+
+  if (!plugin_func(create_group)) {
+    err("%s -> not implemented", logbuf);
+    send_reply(p, -ULS_ERR_NOT_IMPLEMENTED);
+    return;
+  }
+
+  if (data->value_len > 0) {
+    if (plugin_call(get_group_by_name, data->data)) {
+      err("%s -> group already exists", logbuf);
+      send_reply(p, -ULS_ERR_GROUP_NAME_USED);
+      return;
+    }
+    group_name = data->data;
+  } else {
+    if (plugin_call(try_new_group_name, buf, sizeof(buf), "New_group_%d", 0, 1) < 0) {
+      err("%s -> database error", logbuf);
+      send_reply(p, -ULS_ERR_DB_ERROR);
+      return;
+    }
+    group_name = buf;
+  }
+
+  group_id = plugin_call(create_group, group_name, p->user_id);
+  if (group_id <= 0) {
+    err("%s -> cannot create group", logbuf);
+    send_reply(p, -ULS_ERR_NO_PERMS);
+    return;
+  }
+
+  info("%s -> new group %d", logbuf, group_id);
+  memset(&out, 0, sizeof(out));
+  out.reply_id = ULS_LOGIN_OK;
+  out.user_id = group_id;
+  enqueue_reply_to_client(p, sizeof(out), &out);
+}
+
+static void
+cmd_delete_group(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_delete_info *data)
+{
+  unsigned char logbuf[1024];
+
+  snprintf(logbuf, sizeof(logbuf), "DELETE_GROUP: %d, %d",
+           p->user_id, data->user_id);
+
+  if (is_admin(p, logbuf) < 0) return;
+
+  plugin_call(remove_group, data->user_id);
+
+  send_reply(p, ULS_OK);
+  info("%s -> OK", logbuf);
+}
+
+static void
+cmd_edit_group_field(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
+{
+  unsigned char logbuf[1024];
+  int errcode = 0;
+
+  snprintf(logbuf, sizeof(logbuf), "EDIT_GROUP_FIELD: %d, %d, %d, \"%s\"",
+           p->user_id, data->user_id, data->field, data->data);
+
+  if (is_admin(p, logbuf) < 0) return;
+
+  errcode = plugin_call(edit_group_field, data->user_id, data->field, data->data);
+  if (errcode < 0) {
+    err("%s -> database error %d", logbuf, -errcode);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;
+  }
+
+  send_reply(p, ULS_OK);
+  info("%s -> OK", logbuf);
+}
+
+static void
+cmd_delete_group_field(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_edit_field *data)
+{
+  unsigned char logbuf[1024];
+  int errcode = 0;
+
+  snprintf(logbuf, sizeof(logbuf), "DELETE_GROUP_FIELD: %d, %d, %d",
+           p->user_id, data->user_id, data->field);
+
+  if (is_admin(p, logbuf) < 0) return;
+
+  errcode = plugin_call(clear_group_field, data->user_id, data->field);
+  if (errcode < 0) {
+    err("%s -> database error %d", logbuf, -errcode);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;
+  }
+
+  send_reply(p, ULS_OK);
+  info("%s -> OK", logbuf);
+}
+
+static void
+cmd_list_group_users(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
+{
+  unsigned char logbuf[1024];
+  char *xml_ptr = 0;
+  size_t xml_size = 0;
+  FILE *fout = 0;
+  struct userlist_pk_xml_data *out = 0;
+  size_t out_size;
+  const struct userlist_group *grp;
+  ptr_iterator_t iter = 0;
+  const struct userlist_user *u;
+  const struct userlist_groupmember *gm;
+
+  snprintf(logbuf, sizeof(logbuf), "LIST_GROUP_USERS: %d, %d",
+           p->user_id, data->contest_id);
+
+  if (is_admin(p, logbuf) < 0) return;
+
+  grp = plugin_call(get_group, data->contest_id);
+  if (!grp) {
+    err("%s -> invalid group %d", logbuf, data->contest_id);
+    send_reply(p, -ULS_ERR_BAD_GROUP_ID);
+    return;
+  }
+
+  fout = open_memstream(&xml_ptr, &xml_size);
+  userlist_write_xml_header(fout);
+  iter = plugin_call(get_group_user_iterator, grp->group_id);
+  if (iter) {
+    for (; iter->has_next(iter); iter->next(iter)) {
+      if (!(u = (const struct userlist_user*) iter->get(iter))) continue;
+      userlist_unparse_user_short(u, fout, 0);
+      default_unlock_user(u);
+    }
+    iter->destroy(iter); iter = 0;
+  }
+  userlist_write_groups_header(fout);
+  userlist_unparse_usergroup(fout, grp, "      ", "\n");
+  userlist_write_groups_footer(fout);
+  userlist_write_groupmembers_header(fout);
+  iter = plugin_call(get_group_member_iterator, grp->group_id);
+  if (iter) {
+    for (; iter->has_next(iter); iter->next(iter)) {
+      if (!(gm = (const struct userlist_groupmember*) iter->get(iter)))
+        continue;
+      userlist_unparse_usergroupmember(fout, gm, "      ", "\n");
+    }
+    iter->destroy(iter); iter = 0;
+  }
+  userlist_write_groupmembers_footer(fout);
+  userlist_write_xml_footer(fout);
+  fclose(fout); fout = 0;
+
+  out_size = sizeof(*out) + xml_size;
+  out = alloca(out_size);
+  memset(out, 0, out_size);
+  out->reply_id = ULS_XML_DATA;
+  out->info_len = xml_size;
+  memcpy(out->data, xml_ptr, xml_size + 1);
+  xfree(xml_ptr); xml_ptr = 0;
+  enqueue_reply_to_client(p, out_size, out);
+  info("%s -> OK, size = %zu", logbuf, xml_size); 
+}
+
+static void
+cmd_create_group_member(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_register_contest *data)
+{
+  unsigned char logbuf[1024];
+  const struct userlist_user *u = 0;
+  const struct userlist_group *grp = 0;
+  int r;
+
+  snprintf(logbuf, sizeof(logbuf), "CREATE_GROUP_MEMBER: %d, %d, %d",
+           p->user_id, data->user_id, data->contest_id);
+
+  if (is_admin(p, logbuf) < 0) return;
+
+  if (default_get_user_info_1(data->user_id, &u) < 0 || !u) {
+    err("%s -> invalid user_id", logbuf);
+    send_reply(p, -ULS_ERR_BAD_UID);
+    return;
+  }
+  grp = plugin_call(get_group, data->contest_id);
+  if (!grp) {
+    err("%s -> invalid group %d", logbuf, data->contest_id);
+    send_reply(p, -ULS_ERR_BAD_GROUP_ID);
+    return;
+  }
+
+  if ((r = plugin_call(create_group_member,data->contest_id,data->user_id))<0) {
+    err("%s -> database error %d", logbuf, -r);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;
+  }
+  
+  send_reply(p, ULS_OK);
+  info("%s -> OK", logbuf);
+}
+
+static void
+cmd_delete_group_member(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_register_contest *data)
+{
+  unsigned char logbuf[1024];
+  const struct userlist_user *u = 0;
+  const struct userlist_group *grp = 0;
+  int r;
+
+  snprintf(logbuf, sizeof(logbuf), "DELETE_GROUP_MEMBER: %d, %d, %d",
+           p->user_id, data->user_id, data->contest_id);
+
+  if (is_admin(p, logbuf) < 0) return;
+
+  if (default_get_user_info_1(data->user_id, &u) < 0 || !u) {
+    err("%s -> invalid user_id", logbuf);
+    send_reply(p, -ULS_ERR_BAD_UID);
+    return;
+  }
+  grp = plugin_call(get_group, data->contest_id);
+  if (!grp) {
+    err("%s -> invalid group %d", logbuf, data->contest_id);
+    send_reply(p, -ULS_ERR_BAD_GROUP_ID);
+    return;
+  }
+
+  if ((r = plugin_call(remove_group_member,data->contest_id,data->user_id))<0) {
+    err("%s -> database error %d", logbuf, -r);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;
+  }
+  
+  send_reply(p, ULS_OK);
+  info("%s -> OK", logbuf);
+}
+
+static void
+cmd_get_groups(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_set_user_info *data)
+{
+  unsigned char logbuf[1024];
+  struct userlist_pk_xml_data *out = 0;
+  size_t out_size, xml_size = 0;
+  char *xml_text = 0;
+  FILE *xml_file = 0;
+  unsigned char *group_name = 0;
+  int offset = 0, n, group_count = 0, i;
+  int *groups = 0;
+  const struct userlist_group *grp;
+  ptr_iterator_t iter = 0;
+  const struct userlist_groupmember *gm;
+
+  snprintf(logbuf, sizeof(logbuf), "GET_GROUPS: %d, %s",
+           p->user_id, data->data);
+
+  /* space-separated list of group names */
+  if (data->info_len <= 0 || data->info_len > 64 * 1024) {
+    err("%s -> invalid size %d", logbuf, data->info_len);
+    send_reply(p, -ULS_ERR_INVALID_SIZE);
+    goto cleanup;
+  }
+  group_name = alloca(data->info_len + 32);
+  while (sscanf(data->data + offset, "%s%n", group_name, &n) == 1) {
+    offset += n;
+    ++group_count;
+  }
+  if (group_count <= 0 || group_count > 256) {
+    err("%s -> invalid group count %d", logbuf, group_count);
+    send_reply(p, -ULS_ERR_INVALID_SIZE);
+    goto cleanup;
+  }
+  XALLOCAZ(groups, group_count);
+  i = 0;
+  offset = 0;
+  while (sscanf(data->data + offset, "%s%n", group_name, &n) == 1) {
+    grp = plugin_call(get_group_by_name, group_name);
+    if (!grp) {
+      err("%s -> invalid group %s", logbuf, group_name);
+      send_reply(p, -ULS_ERR_BAD_GROUP_ID);
+      goto cleanup;
+    }
+    groups[i] = grp->group_id;
+
+    offset += n;
+    ++i;
+  }
+  ASSERT(i == group_count);
+
+  xml_file = open_memstream(&xml_text, &xml_size);
+  userlist_write_xml_header(xml_file);
+  userlist_write_groups_header(xml_file);
+  for (i = 0; i < group_count; ++i) {
+    grp = plugin_call(get_group, groups[i]);
+    if (grp) {
+      userlist_unparse_usergroup(xml_file, grp, "      ", "\n");
+    }
+  }
+  userlist_write_groups_footer(xml_file);
+  userlist_write_groupmembers_header(xml_file);
+  for (i = 0; i < group_count; ++i) {
+    iter = plugin_call(get_group_member_iterator, groups[i]);
+    if (iter) {
+      for (; iter->has_next(iter); iter->next(iter)) {
+        if ((gm = (const struct userlist_groupmember*) iter->get(iter))) {
+          userlist_unparse_usergroupmember(xml_file, gm, "      ", "\n");
+        }
+      }
+      iter->destroy(iter); iter = 0;
+    }
+  }
+  userlist_write_groupmembers_footer(xml_file);
+  userlist_write_xml_footer(xml_file);
+  fclose(xml_file); xml_file = 0;
+
+  out_size = sizeof(*out) + xml_size;
+  out = (struct userlist_pk_xml_data*) xmalloc(out_size);
+  memset(out, 0, out_size);
+  out->reply_id = ULS_XML_DATA;
+  out->info_len = xml_size;
+  memcpy(out->data, xml_text, xml_size + 1);
+  xfree(xml_text); xml_text = 0;
+  enqueue_reply_to_client(p, out_size, out);
+  info("%s -> OK, size = %zu", logbuf, xml_size);
+
+cleanup:
+  if (iter) iter->destroy(iter);
+  if (xml_file) fclose(xml_file);
+  xfree(xml_text);
+}
+
 static void (*cmd_table[])() =
 {
   [ULS_REGISTER_NEW] =          cmd_register_new,
@@ -8645,6 +9035,105 @@ static void (*cmd_table[])() =
   [ULS_MOVE_MEMBER] =           cmd_move_member,
   [ULS_IMPORT_CSV_USERS] =      cmd_import_csv_users,
   [ULS_FETCH_COOKIE] =          cmd_get_cookie,
+  [ULS_LIST_ALL_GROUPS] =       cmd_list_all_groups,
+  [ULS_CREATE_GROUP] =          cmd_create_group,
+  [ULS_DELETE_GROUP] =          cmd_delete_group,
+  [ULS_EDIT_GROUP_FIELD] =      cmd_edit_group_field,
+  [ULS_DELETE_GROUP_FIELD] =    cmd_delete_group_field,
+  [ULS_LIST_GROUP_USERS] =      cmd_list_group_users,
+  [ULS_CREATE_GROUP_MEMBER] =   cmd_create_group_member,
+  [ULS_DELETE_GROUP_MEMBER] =   cmd_delete_group_member,
+  [ULS_GET_GROUPS] =            cmd_get_groups,
+
+  [ULS_LAST_CMD] 0
+};
+
+static int (*check_table[])() =
+{
+  [ULS_REGISTER_NEW] =          0,
+  [ULS_DO_LOGIN] =              0,
+  [ULS_CHECK_COOKIE] =          0,
+  [ULS_DO_LOGOUT] =             0,
+  [ULS_GET_USER_INFO] =         0,
+  [ULS_SET_USER_INFO] =         check_pk_set_user_info,
+  [ULS_SET_PASSWD] =            check_pk_set_password,
+  [ULS_GET_USER_CONTESTS] =     0,
+  [ULS_REGISTER_CONTEST] =      check_pk_register_contest,
+  [ULS_DELETE_MEMBER] =         0,
+  [ULS_PASS_FD] =               0,
+  [ULS_LIST_USERS] =            0,
+  [ULS_MAP_CONTEST] =           check_pk_map_contest,
+  [ULS_ADMIN_PROCESS] =         0,
+  [ULS_GENERATE_TEAM_PASSWORDS]=check_pk_map_contest,
+  [ULS_TEAM_LOGIN] =            0,
+  [ULS_TEAM_CHECK_COOKIE] =     0,
+  [ULS_GET_CONTEST_NAME] =      check_pk_map_contest,
+  [ULS_TEAM_SET_PASSWD] =       check_pk_set_password,
+  [ULS_LIST_ALL_USERS] =        check_pk_map_contest,
+  [ULS_EDIT_REGISTRATION] =     0,
+  [ULS_EDIT_FIELD] =            check_pk_edit_field,
+  [ULS_DELETE_FIELD] =          check_pk_edit_field,
+  [ULS_ADD_FIELD] =             0,
+  [ULS_GET_UID_BY_PID] =        0,
+  [ULS_PRIV_LOGIN] =            0,
+  [ULS_PRIV_CHECK_COOKIE] =     0,
+  [ULS_DUMP_DATABASE] =         0,
+  [ULS_PRIV_GET_USER_INFO] =    0,
+  [ULS_PRIV_REGISTER_CONTEST] = check_pk_register_contest,
+  [ULS_GENERATE_PASSWORDS] =    check_pk_map_contest,
+  [ULS_CLEAR_TEAM_PASSWORDS] =  check_pk_map_contest,
+  [ULS_LIST_STANDINGS_USERS] =  check_pk_map_contest,
+  [ULS_GET_UID_BY_PID_2] =      0,
+  [ULS_IS_VALID_COOKIE] =       0,
+  [ULS_DUMP_WHOLE_DATABASE] =   0,
+  [ULS_RANDOM_PASSWD] =         check_pk_register_contest,
+  [ULS_RANDOM_TEAM_PASSWD] =    check_pk_register_contest,
+  [ULS_COPY_TO_TEAM] =          check_pk_register_contest,
+  [ULS_COPY_TO_REGISTER] =      check_pk_register_contest,
+  [ULS_FIX_PASSWORD] =          check_pk_register_contest,
+  [ULS_LOOKUP_USER] =           0,
+  [ULS_REGISTER_NEW_2] =        0,
+  [ULS_DELETE_USER] =           0,
+  [ULS_DELETE_COOKIE] =         check_pk_edit_field,
+  [ULS_DELETE_USER_INFO] =      0,
+  [ULS_CREATE_USER] =           check_pk_edit_field,
+  [ULS_CREATE_MEMBER] =         check_pk_edit_field,
+  [ULS_PRIV_DELETE_MEMBER] =    0,
+  [ULS_PRIV_CHECK_USER] =       0,
+  [ULS_PRIV_GET_COOKIE] =       0,
+  [ULS_LOOKUP_USER_ID] =        0,
+  [ULS_TEAM_CHECK_USER] =       0,
+  [ULS_TEAM_GET_COOKIE] =       0,
+  [ULS_ADD_NOTIFY] =            check_pk_map_contest,
+  [ULS_DEL_NOTIFY] =            check_pk_map_contest,
+  [ULS_SET_COOKIE_LOCALE] =     check_pk_edit_field,
+  [ULS_PRIV_SET_REG_PASSWD] =   check_pk_set_password,
+  [ULS_PRIV_SET_TEAM_PASSWD] =  check_pk_set_password,
+  [ULS_GENERATE_TEAM_PASSWORDS_2]=check_pk_map_contest,
+  [ULS_GENERATE_PASSWORDS_2] =  check_pk_map_contest,
+  [ULS_GET_DATABASE] =          0,
+  [ULS_COPY_USER_INFO] =        check_pk_edit_field,
+  [ULS_RECOVER_PASSWORD_1] =    0,
+  [ULS_RECOVER_PASSWORD_2] =    0,
+  [ULS_STOP] =                  0,
+  [ULS_RESTART] =               0,
+  [ULS_PRIV_COOKIE_LOGIN] =     0,
+  [ULS_CHECK_USER] =            0,
+  [ULS_REGISTER_CONTEST_2] =    check_pk_register_contest,
+  [ULS_GET_COOKIE] =            0,
+  [ULS_EDIT_FIELD_SEQ] =        0,
+  [ULS_MOVE_MEMBER] =           0,
+  [ULS_IMPORT_CSV_USERS] =      check_pk_edit_field,
+  [ULS_FETCH_COOKIE] =          0,
+  [ULS_LIST_ALL_GROUPS] =       check_pk_map_contest,
+  [ULS_CREATE_GROUP] =          check_pk_edit_field,
+  [ULS_DELETE_GROUP] =          check_pk_delete_info,
+  [ULS_EDIT_GROUP_FIELD] =      check_pk_edit_field,
+  [ULS_DELETE_GROUP_FIELD] =    check_pk_edit_field,
+  [ULS_LIST_GROUP_USERS] =      check_pk_map_contest,
+  [ULS_CREATE_GROUP_MEMBER] =   check_pk_register_contest,
+  [ULS_DELETE_GROUP_MEMBER] =   check_pk_register_contest,
+  [ULS_GET_GROUPS] =            check_pk_set_user_info,
 
   [ULS_LAST_CMD] 0
 };
@@ -8662,6 +9151,10 @@ process_packet(struct client_state *p, int pkt_len, unsigned char *data)
   packet = (struct userlist_packet *) data;
   if (packet->id<=0 || packet->id>=ULS_LAST_CMD || !cmd_table[packet->id]) {
     bad_packet(p, "request_id = %d, packet_len = %d", packet->id, pkt_len);
+    return;
+  }
+  if (check_table[packet->id]
+      && (*check_table[packet->id])(p, pkt_len, data) < 0) {
     return;
   }
   (*cmd_table[packet->id])(p, pkt_len, data);

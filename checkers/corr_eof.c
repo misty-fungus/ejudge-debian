@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: corr_eof.c 5687 2010-01-19 10:10:15Z cher $ */
+/* $Id: corr_eof.c 5913 2010-06-27 03:52:08Z cher $ */
 
-/* Copyright (C) 2003 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2003-2010 Alexander Chernov <cher@ispras.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,16 +20,19 @@
 void
 checker_corr_eof(void)
 {
-  fscanf(f_corr, " ");
-  if (ferror(f_corr))
-    fatal_CF("Input error from correct output file");
-  if (getc(f_corr) != EOF)
-    fatal_CF("Garbage in correct output file");
-}
+  int c;
 
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */
+  while ((c = getc(f_corr)) != EOF && isspace(c));
+  if (c != EOF) {
+    if (c < ' ') {
+      fatal_CF("%s: invalid control character with code %d",
+               f_arr_names[2], c);
+    } else {
+      fatal_CF("%s: garbage where EOF expected",
+               f_arr_names[2]);
+    }
+  }
+  if (ferror(f_corr)) {
+    fatal_CF("%s: input error", f_arr_names[2]);
+  }
+}

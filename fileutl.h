@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: fileutl.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: fileutl.h 5902 2010-06-18 17:50:49Z cher $ */
 #ifndef __FILEUTL_H__
 #define __FILEUTL_H__
 
@@ -64,5 +64,18 @@ int make_hardlink(const unsigned char *src, const unsigned char *dst);
 int generic_truncate(const char *path, ssize_t size);
 
 const unsigned char * get_tmp_dir(unsigned char *buf, size_t size);
+
+int
+scan_executable_files(
+        const unsigned char *dir,
+        int *p_count,
+        unsigned char ***p_files);
+
+int
+write_tmp_file(
+        unsigned char *path,
+        size_t path_size,
+        const unsigned char *bytes,
+        size_t bytes_count);
 
 #endif /* __FILEUTL_H__ */

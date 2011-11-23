@@ -1,14 +1,14 @@
 # -*- mode: po; coding: koi8-r -*-
 # ejudge messages catalog
-# $Id: ejudge.ru_RU.KOI8-R.po 5754 2010-01-26 07:39:02Z cher $
+# $Id: ejudge.ru_RU.KOI8-R.po 5951 2010-07-16 12:35:18Z cher $
 # Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru>
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: ejudge 2.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2010-01-26 10:36+0300\n"
-"PO-Revision-Date: 2010-01-26 10:36+0300\n"
+"POT-Creation-Date: 2010-07-16 10:19+0400\n"
+"PO-Revision-Date: 2010-07-16 10:44+0400\n"
 "Last-Translator: Alexander Chernov <cher@ejudge.ru>\n"
 "Language-Team: Russian <ru@li.org>\n"
 "MIME-Version: 1.0\n"
@@ -639,6 +639,9 @@ msgstr ""
 "Будьте внимательны и вводите адрес e-mail правильно. Если Вы ошибётесь, Вы "
 "не получите почтовое сообщение с регистрационной информацией и не сможете "
 "завершить регистрацию."
+
+msgid "Binary file is not shown"
+msgstr "Бинарный файл"
 
 msgid "Birth Date"
 msgstr "Дата рождения"
@@ -1341,6 +1344,9 @@ msgstr "Полностью перепроверить отображённые посылки!"
 msgid "Fully rejudge runs"
 msgstr "Полностью перепроверить посылки"
 
+msgid "Further testing information is not available"
+msgstr "Дальнейшая информация о тестировании отсутствует"
+
 msgid "Gender"
 msgstr "Пол"
 
@@ -1994,6 +2000,12 @@ msgstr "Поставить на ожидание"
 msgid "Mark REJECTED"
 msgstr "Отказать в участии"
 
+msgid "Mark displayed runs"
+msgstr "Пометить отображённые посылки"
+
+msgid "Marked?"
+msgstr "Отмечена?"
+
 msgid "Max memory used"
 msgstr "Макс. использованная память"
 
@@ -2535,6 +2547,9 @@ msgstr "Столбец Problem не определен\n"
 msgid "Problem deadline"
 msgstr "Срок окончания сдачи"
 
+msgid "Problem filter expression"
+msgstr "Условие отбора задач"
+
 #, c-format
 msgid "Problem is empty in row %d\n"
 msgstr "В строке %d не определено имя задачи\n"
@@ -2577,6 +2592,12 @@ msgstr "Ошибка протокола"
 
 msgid "READ-ONLY"
 msgstr "ТОЛЬКО ПРОСМОТР"
+
+msgid "REFRESH"
+msgstr "ОБНОВИТЬ"
+
+msgid "REFRESH PAGE MANUALLY!"
+msgstr "ОБНОВЛЯЙТЕ СТРАНИЦУ ВРУЧНУЮ!"
 
 msgid "REGISTERED"
 msgstr "ЗАРЕГИСТРИРОВАН"
@@ -2826,6 +2847,9 @@ msgstr "Роль"
 msgid "Run ID"
 msgstr "Номер решения"
 
+msgid "Run filter expression"
+msgstr "Условие отбора посылок"
+
 msgid "Run is read-only"
 msgstr "Эта посылка не может быть изменена"
 
@@ -2847,8 +2871,14 @@ msgstr "Выполняется..."
 msgid "Runs being processed"
 msgstr "Обрабатываемые посылки"
 
+msgid "STATUS UPDATE FAILED!"
+msgstr "ОШИБКА ОБНОВЛЕНИЯ СТАТУСА!"
+
 msgid "Save"
 msgstr "Сохранить"
+
+msgid "Saved?"
+msgstr "Сохранена?"
 
 msgid "Scheduled end time"
 msgstr "Запланированное время окончания"
@@ -2995,6 +3025,9 @@ msgstr "Установить статус Нарушение_стиля_оформления (STYLE_ERR)"
 
 msgid "Set accepting mode"
 msgstr "Включить режим приёма решений"
+
+msgid "Set filter"
+msgstr "Установить фильтр"
 
 msgid "Set finished flag"
 msgstr "Установить флаг законченности проверки"
@@ -3192,6 +3225,12 @@ msgstr "Переключить язык"
 msgid "System error"
 msgstr "Системная ошибка"
 
+msgid "TESTING COMPLETED"
+msgstr "ТЕСТИРОВАНИЕ ЗАВЕРШЕНО"
+
+msgid "TESTING IN PROGRESS..."
+msgstr "ИДЕТ ТЕСТИРОВАНИЕ..."
+
 msgid "Team ID"
 msgstr "ID Команды"
 
@@ -3213,8 +3252,14 @@ msgstr "Входные данные"
 msgid "Test number"
 msgstr "Номер теста"
 
+msgid "Testing comments"
+msgstr "Комментарии по тестированию"
+
 msgid "Testing is in progress..."
 msgstr "Идёт проверка ответов..."
+
+msgid "Testing messages"
+msgstr "Сообщения при тестировании"
 
 msgid "Testing of participants' submits is suspended"
 msgstr "Проверка решений участников приостановлена"
@@ -3330,6 +3375,12 @@ msgstr "Эта программа уже напечатана"
 msgid "This submit is duplicate of the run %d"
 msgstr "Эта посылка является копией посылки %d"
 
+msgid "This test program is correct, but failed on some tests"
+msgstr "Эта тестовая программа корректна, но не проходит некоторые тесты"
+
+msgid "This test program is incorrect, but passed all tests"
+msgstr "Эта тестовая программа некорректна, но проходит все тесты"
+
 msgid "Time"
 msgstr "Время"
 
@@ -3380,6 +3431,12 @@ msgstr "Всего"
 
 msgid "Total messages"
 msgstr "Всего сообщений"
+
+msgid "Total number of sample programs in the test suite"
+msgstr "Общее количество тестовых программ"
+
+msgid "Total number of submitted tests"
+msgstr "Общее количество предложенных тестов"
 
 msgid "Total priority"
 msgstr "Суммарный приоритет"
@@ -3442,6 +3499,9 @@ msgstr "Не ограничена"
 
 msgid "Unlock"
 msgstr "Открыть"
+
+msgid "Unmark displayed runs"
+msgstr "Разотметить отображённые посылки"
 
 msgid "Update public standings"
 msgstr "Обновить публичную таблицу положения участников"
@@ -3513,6 +3573,9 @@ msgstr "Имя участника"
 
 msgid "User database server is down"
 msgstr "Сервер базы пользователей недоступен"
+
+msgid "User filter expression"
+msgstr "Условие отбора участников"
 
 msgid "User info"
 msgstr "Информация о пользователе"
@@ -3909,6 +3972,9 @@ msgstr "ошибка с кодом 1"
 msgid "generic server error"
 msgstr "неопределённая ошибка сервера"
 
+msgid "group with this name already exists"
+msgstr "группа с таким временем уже существует"
+
 msgid "incomplete registration"
 msgstr "неполная регистрация"
 
@@ -3936,6 +4002,9 @@ msgstr "неверный идентификатор поля"
 msgid "invalid filter expression"
 msgstr "Неверное условие отбора"
 
+msgid "invalid group id"
+msgstr "неверный идентификатор группы"
+
 msgid "invalid language"
 msgstr "неверный идентификатор языка программирования"
 
@@ -3962,6 +4031,9 @@ msgstr "неверный путь к сокету"
 
 msgid "invalid test number"
 msgstr "неверный номер теста"
+
+msgid "invalid user group"
+msgstr "неверная группа пользователей"
 
 msgid "invalid user_id"
 msgstr "неверный идентификатор пользователя"

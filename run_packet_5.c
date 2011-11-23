@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_packet_5.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: run_packet_5.c 5773 2010-02-23 10:14:13Z cher $ */
 
-/* Copyright (C) 2005-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -65,6 +65,7 @@ run_reply_packet_write(
   out_data->score = cvt_host_to_bin_32(in_data->score);
 
   if (in_data->notify_flag) flags |= FLAGS_NOTIFY;
+  if (in_data->marked_flag) flags |= FLAGS_MARKED;
   out_data->flags = cvt_host_to_bin_32(flags);
 
   out_data->ts1 = cvt_host_to_bin_32(in_data->ts1);
@@ -87,7 +88,7 @@ run_reply_packet_write(
   return 0;
 
  failed:
-  err("run_reply_packet_write: error %s, %d", "$Revision: 5675 $", errcode);
+  err("run_reply_packet_write: error %s, %d", "$Revision: 5773 $", errcode);
   xfree(out_data);
   return -1;
 }

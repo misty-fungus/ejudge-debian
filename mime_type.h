@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: mime_type.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: mime_type.h 5964 2010-07-25 19:12:15Z cher $ */
 #ifndef __MIME_TYPE_H__
 #define __MIME_TYPE_H__
 
-/* Copyright (C) 2006-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -39,7 +39,8 @@ enum
   MIME_TYPE_APPL_FLASH,         // application/x-shockwave-flash
   MIME_TYPE_APPL_TAR,           // application/x-tar
   MIME_TYPE_APPL_ZIP,           // application/zip
-  MIME_TYPE_APPL_BZIP2,         // application/zip
+  MIME_TYPE_APPL_BZIP2,         // application/x-bzip2
+  MIME_TYPE_APPL_7ZIP,          // application/x-7zip
   MIME_TYPE_IMAGE_FIRST,
   MIME_TYPE_IMAGE_BMP = MIME_TYPE_IMAGE_FIRST, // image/bmp
   MIME_TYPE_IMAGE_GIF,          // image/gif
@@ -61,5 +62,8 @@ int mime_type_parse_suffix(const unsigned char *str);
 int mime_type_guess(const unsigned char *tmpdir,
                     const unsigned char *bytes,
                     size_t size);
+
+int
+mime_type_guess_file(const unsigned char *path, int check_text);
 
 #endif /* __MIME_TYPE_H__ */

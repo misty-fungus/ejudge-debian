@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 5724 2010-01-23 14:25:59Z cher $ */
+/* $Id: serve_state.h 5955 2010-07-21 05:48:38Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
@@ -56,6 +56,16 @@ struct user_filter_info
   struct filter_tree *prev_tree;
   struct filter_tree_mem *tree_mem;
   unsigned char *error_msgs;
+
+  /* standings filter */
+  unsigned char *stand_user_expr;
+  struct filter_tree *stand_user_tree;
+  unsigned char *stand_prob_expr;
+  struct filter_tree *stand_prob_tree;
+  unsigned char *stand_run_expr;
+  struct filter_tree *stand_run_tree;
+  struct filter_tree_mem *stand_mem;
+  unsigned char *stand_error_msgs;
 };
 
 struct user_state_info
@@ -121,6 +131,23 @@ struct serve_user_results
   int total_score;
 };
 
+/** user group information */
+struct serve_user_group
+{
+  int group_id;
+  unsigned char *group_name;
+  unsigned char *description;
+  int serial;
+  int member_count;
+  int *members;
+};
+
+struct serve_group_member
+{
+  int user_id;
+  unsigned int *group_bitmap;
+};
+
 #define EJ_SERVE_STATE_TOTAL_PROBS 28
 
 struct serve_state
@@ -161,6 +188,17 @@ struct serve_state
   struct section_tester_data **abstr_testers;
   int max_abstr_prob;
   int max_abstr_tester;
+
+  /* user groups */
+  int user_group_count;         /* the total number of the loaded groups */
+  int user_group_map_size;      /* the size of the map */
+  struct serve_user_group *user_groups;
+  int *user_group_map;
+
+  int group_member_count;
+  int group_member_map_size;
+  struct serve_group_member *group_members;
+  int *group_member_map;
 
   time_t load_time;
   time_t current_time;
@@ -235,6 +273,8 @@ serve_state_t serve_state_init(void);
 serve_state_t serve_state_destroy(serve_state_t state,
                                   const struct contest_desc *cnts,
                                   struct userlist_clnt *ul_conn);
+void
+serve_state_destroy_stand_expr(struct user_filter_info *u);
 
 void serve_state_set_config_path(serve_state_t state, const unsigned char *);
 
@@ -304,6 +344,9 @@ serve_compile_request(
         int output_only,
         unsigned char const *sfx,
         char **compiler_env,
+        int style_check_only,
+        const unsigned char *style_checker_cmd,
+        char **style_checker_env,
         int accepting_mode,
         int priority_adjustment,
         int notify_flag,
@@ -326,6 +369,7 @@ serve_run_request(
         int judge_id,
         int accepting_mode,
         int notify_flag,
+        int mime_type,
         const unsigned char *compile_report_dir,
         const struct compile_reply_packet *comp_pkt);
 
@@ -348,6 +392,16 @@ serve_rejudge_by_mask(const struct contest_desc *, serve_state_t state,
                       int user_id, ej_ip_t ip, int ssl_flag,
                       int mask_size, unsigned long *mask,
                       int force_flag, int priority_adjustment);
+
+void
+serve_mark_by_mask(
+        serve_state_t state,
+        int user_id,
+        ej_ip_t ip,
+        int ssl_flag,
+        int mask_size,
+        unsigned long *mask,
+        int mark_value);
 
 void
 serve_rejudge_problem(const struct contest_desc *cnst, serve_state_t state,
@@ -394,6 +448,7 @@ serve_judge_built_in_problem(
         int ssl_flag);
 
 void serve_invoke_start_script(serve_state_t state);
+void serve_invoke_stop_script(serve_state_t state);
 
 void serve_send_run_quit(const serve_state_t state);
 void serve_reset_contest(const struct contest_desc *, serve_state_t state);
@@ -468,5 +523,30 @@ serve_testing_queue_change_priority_all(
 extern const size_t serve_struct_sizes_array[];
 extern const size_t serve_struct_sizes_array_size;
 extern const size_t serve_struct_sizes_array_num;
+
+int
+serve_is_problem_started(
+        const serve_state_t state,
+        int user_id,
+        const struct section_problem_data *prob);
+int
+serve_is_problem_deadlined(
+        const serve_state_t state,
+        int user_id,
+        const unsigned char *user_login,
+        const struct section_problem_data *prob,
+        time_t *p_deadline);
+int
+serve_is_problem_started_2(
+        const serve_state_t state,
+        int user_id,
+        int prob_id);
+int
+serve_is_problem_deadlined_2(
+        const serve_state_t state,
+        int user_id,
+        const unsigned char *user_login,
+        int prob_id,
+        time_t *p_deadline);
 
 #endif /* __SERVE_STATE_H__ */

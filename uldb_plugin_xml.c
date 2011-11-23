@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_plugin_xml.c 5538 2008-12-31 10:40:16Z cher $ */
+/* $Id: uldb_plugin_xml.c 5810 2010-05-28 14:48:51Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -130,6 +130,51 @@ static int set_member_serial_func(void *, int);
 static void unlock_user_func(void *data, const struct userlist_user *u) {}
 static const struct userlist_contest *get_contest_reg_func(void *, int, int);
 static int set_simple_reg_func(void *, int, int, time_t);
+static ptr_iterator_t get_group_iterator_func(void *);
+static const struct userlist_group*
+get_group_by_name_func(
+        void *data,
+        const unsigned char *group_name);
+static int
+try_new_group_name_func(
+        void *data,
+        unsigned char *buf,
+        size_t bufsize,
+        const char *format,
+        int serial,
+        int step);
+static int
+create_group_func(
+        void *data,
+        const unsigned char *group_name,
+        int created_by);
+static int
+remove_group_func(
+        void *data,
+        int group_id);
+static int
+edit_group_field_func(
+        void *data,
+        int group_id,
+        int field,
+        const unsigned char *value);
+static int
+clear_group_field_func(
+        void *data,
+        int group_id,
+        int field);
+static const struct userlist_group*
+get_group_func(
+        void *data,
+        int group_id);
+static ptr_iterator_t
+get_group_user_iterator_func(void *data, int group_id);
+static ptr_iterator_t
+get_group_member_iterator_func(void *data, int group_id);
+static int
+create_group_member_func(void *data, int group_id, int user_id);
+static int
+remove_group_member_func(void *data, int group_id, int user_id);
 
 struct uldb_plugin_iface uldb_plugin_xml =
 {
@@ -219,6 +264,18 @@ struct uldb_plugin_iface uldb_plugin_xml =
   0,
   // set the simple_registration flag
   set_simple_reg_func,
+  get_group_iterator_func,
+  get_group_by_name_func,
+  try_new_group_name_func,
+  create_group_func,
+  remove_group_func,
+  edit_group_field_func,
+  clear_group_field_func,
+  get_group_func,
+  get_group_user_iterator_func,
+  get_group_member_iterator_func,
+  create_group_member_func,
+  remove_group_member_func,
 };
 
 struct uldb_xml_state
@@ -3057,6 +3114,631 @@ set_simple_reg_func(
   u->last_change_time = cur_time;
   state->dirty = 1;
   state->flush_interval /= 2;
+  return 0;
+}
+
+struct group_iterator
+{
+  struct ptr_iterator b;
+
+  struct uldb_xml_state *state;
+  int group_id;
+};
+
+static int
+group_iterator_has_next_func(ptr_iterator_t data)
+{
+  struct group_iterator *iter = (struct group_iterator *) data;
+  struct userlist_list *ul;
+
+  if (!iter->state || !(ul = iter->state->userlist)) return 0;
+  if (ul->group_map_size <= 0) return 0;
+  if (iter->group_id >= ul->group_map_size) return 0;
+  return iter->group_id < ul->group_map_size;
+}
+static const void *
+group_iterator_get_func(ptr_iterator_t data)
+{
+  struct group_iterator *iter = (struct group_iterator *) data;
+  struct userlist_list *ul;
+
+  if (!iter->state || !(ul = iter->state->userlist)) return 0;
+  if (ul->group_map_size <= 0) return 0;
+  if (iter->group_id >= ul->group_map_size) return 0;
+  return ul->group_map[iter->group_id];
+}
+static void
+group_iterator_next_func(ptr_iterator_t data)
+{
+  struct group_iterator *iter = (struct group_iterator *) data;
+  struct userlist_list *ul;
+
+  if (!iter->state || !(ul = iter->state->userlist)) return;
+  if (ul->group_map_size <= 0) return;
+  if (iter->group_id >= ul->group_map_size) return;
+  ++iter->group_id;
+  while (iter->group_id < ul->group_map_size
+         && !ul->group_map[iter->group_id]) {
+    ++iter->group_id;
+  }
+}
+static void
+group_iterator_destroy_func(ptr_iterator_t data)
+{
+  xfree(data);
+}
+
+static struct ptr_iterator group_iterator_funcs =
+{
+  group_iterator_has_next_func,
+  group_iterator_get_func,
+  group_iterator_next_func,
+  group_iterator_destroy_func,
+};
+
+static ptr_iterator_t
+get_group_iterator_func(void *data)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct group_iterator *iter = 0;
+  const struct userlist_list *ul = state->userlist;
+
+  XCALLOC(iter, 1);
+  iter->b = group_iterator_funcs;
+  iter->state = state;
+  iter->group_id = 0;
+
+  while (iter->group_id < ul->group_map_size
+         && !ul->group_map[iter->group_id]) {
+    ++iter->group_id;
+  }
+
+  return (ptr_iterator_t) iter;
+}
+
+static const struct userlist_group*
+get_group_by_name_func(
+        void *data,
+        const unsigned char *group_name)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  const struct userlist_list *ul = state->userlist;
+  const struct userlist_group *grp;
+  int i;
+
+  if (!ul || ul->group_map_size <= 0) return 0;
+  /* FIXME: use hash */
+  for (i = 1; i < ul->group_map_size; ++i) {
+    if ((grp = ul->group_map[i]) && grp->group_name
+        && !strcmp(group_name, grp->group_name))
+      return grp;
+  }
+
+  return 0;
+}
+
+static int
+try_new_group_name_func(
+        void *data,
+        unsigned char *buf,
+        size_t bufsize,
+        const char *format,
+        int serial,
+        int step)
+{
+  serial -= step;
+  do {
+    serial += step;
+    snprintf(buf, bufsize, format, serial);
+  } while (get_group_by_name_func(data, buf));
+  return serial;
+}
+
+static int
+create_group_func(
+        void *data,
+        const unsigned char *group_name,
+        int created_by)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct userlist_list *ul = state->userlist;
+  struct userlist_group *grp;
+  int i, group_id, new_size;
+  struct userlist_group **new_map;
+
+  if (!group_name || !*group_name) return -1;
+  for (i = 1; i < ul->group_map_size; ++i) {
+    if ((grp = ul->group_map[i]) && grp->group_name
+        && !strcmp(group_name, grp->group_name))
+      return -1;
+  }
+
+  for (group_id = 1; group_id < ul->group_map_size; ++group_id) {
+    if (!ul->group_map[group_id])
+      break;
+  }
+
+  if (group_id >= ul->group_map_size) {
+    new_size = 16;
+    if (ul->group_map_size > new_size) new_size = ul->group_map_size;
+    while (group_id >= new_size)
+      new_size *= 2;
+
+    XCALLOC(new_map, new_size);
+    for (i = 1; i < ul->group_map_size; ++i) {
+      new_map[i] = ul->group_map[i];
+    }
+    xfree(ul->group_map);
+    ul->group_map = new_map;
+    ul->group_map_size = new_size;
+  }
+
+  if (!ul->groups_node) {
+    ul->groups_node = userlist_node_alloc(USERLIST_T_USERGROUPS);
+    xml_link_node_last(&ul->b, ul->groups_node);
+  }
+
+  grp = (struct userlist_group*) userlist_node_alloc(USERLIST_T_USERGROUP);
+  xml_link_node_last(&ul->b, &grp->b);
+  grp->group_id = group_id;
+  grp->group_name = xstrdup(group_name);
+  ul->group_map[group_id] = grp;
+
+  state->dirty = 1;
+  state->flush_interval /= 2;
+
+  return group_id;
+}
+
+static int
+remove_group_func(
+        void *data,
+        int group_id)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct userlist_list *ul = state->userlist;
+  struct userlist_group *grp;
+
+  if (ul->group_map_size <= 0 || !ul->group_map) return -1;
+  if (group_id <= 0 || group_id >= ul->group_map_size) return -1;
+  if (!(grp = ul->group_map[group_id])) return -1;
+  xml_unlink_node(&grp->b);
+  userlist_free(&grp->b);
+  ul->group_map[group_id] = 0;
+
+  state->dirty = 1;
+  state->flush_interval /= 2;
+
+  return 0;
+}
+
+static int
+edit_group_field_func(
+        void *data,
+        int group_id,
+        int field,
+        const unsigned char *value)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct userlist_list *ul = state->userlist;
+  struct userlist_group *grp;
+  void *vptr;
+  int i;
+
+  if (ul->group_map_size <= 0 || !ul->group_map) return -1;
+  if (group_id <= 0 || group_id >= ul->group_map_size) return -1;
+  if (!(grp = ul->group_map[group_id])) return -1;
+  if (field <= 0 || field >= USERLIST_GRP_LAST) return -1;
+
+  vptr = userlist_group_get_ptr_nc(grp, field);
+  switch (field) {
+  case USERLIST_GRP_GROUP_NAME:
+    {
+      unsigned char **sptr = (unsigned char**) vptr;
+
+      if (!value || !*value) return -1;
+      for (i = 1; i < ul->group_map_size; ++i) {
+        if (i != group_id && ul->group_map[i] && ul->group_map[i]->group_name
+            && !strcmp(value, ul->group_map[i]->group_name)) {
+          return -1;
+        }
+      }
+
+      xfree(*sptr); *sptr = 0;
+      *sptr = xstrdup(value);
+    }
+    break;
+  case USERLIST_GRP_DESCRIPTION:
+    {
+      unsigned char **sptr = (unsigned char**) vptr;
+
+      if (!value) {
+        if (!*sptr) return 0;
+        xfree(*sptr); *sptr = 0;
+        return 0;
+      }
+      if (*sptr && !strcmp(*sptr, value)) {
+        return 0;
+      }
+      xfree(*sptr); *sptr = 0;
+      *sptr = xstrdup(value);
+      return 0;
+    }
+    break;
+  default:
+    return -1;
+  }
+
+  state->dirty = 1;
+  state->flush_interval /= 2;
+
+  return 0;
+}
+
+static int
+clear_group_field_func(
+        void *data,
+        int group_id,
+        int field)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct userlist_list *ul = state->userlist;
+  struct userlist_group *grp;
+  void *vptr;
+
+  if (ul->group_map_size <= 0 || !ul->group_map) return -1;
+  if (group_id <= 0 || group_id >= ul->group_map_size) return -1;
+  if (!(grp = ul->group_map[group_id])) return -1;
+  if (field != USERLIST_GRP_DESCRIPTION) return -1;
+
+  vptr = userlist_group_get_ptr_nc(grp, field);
+  switch (field) {
+  case USERLIST_GRP_DESCRIPTION:
+    {
+      unsigned char **sptr = (unsigned char**) vptr;
+      if (!*sptr) return 0;
+      xfree(*sptr); *sptr = 0;
+    }
+    break;
+  default:
+    return -1;
+  }
+
+  state->dirty = 1;
+  state->flush_interval /= 2;
+
+  return 0;
+}
+
+static const struct userlist_group*
+get_group_func(
+        void *data,
+        int group_id)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  const struct userlist_list *ul = state->userlist;
+
+  if (!ul || ul->group_map_size <= 0) return 0;
+  if (group_id <= 0 || group_id >= ul->group_map_size) return 0;
+  return ul->group_map[group_id];
+}
+
+struct group_user_iterator
+{
+  struct ptr_iterator b;
+
+  struct uldb_xml_state *state;
+  int group_id;
+  struct userlist_groupmember *cur_member;
+};
+
+static int
+group_user_iterator_has_next_func(ptr_iterator_t data)
+{
+  struct group_user_iterator *iter = (struct group_user_iterator *) data;
+
+  return iter->cur_member != 0;
+}
+static const void *
+group_user_iterator_get_func(ptr_iterator_t data)
+{
+  struct group_user_iterator *iter = (struct group_user_iterator *) data;
+  struct userlist_list *ul;
+
+  if (!iter || !iter->state || !(ul = iter->state->userlist)) return 0;
+  if (!iter->cur_member) return 0;
+  if (iter->cur_member->user_id <= 0) return 0;
+  if (iter->cur_member->user_id >= ul->user_map_size) return 0;
+  return ul->user_map[iter->cur_member->user_id];
+}
+static void
+group_user_iterator_next_func(ptr_iterator_t data)
+{
+  struct group_user_iterator *iter = (struct group_user_iterator *) data;
+
+  if (iter->cur_member) {
+    iter->cur_member = (struct userlist_groupmember*) iter->cur_member->user_next;
+  }
+}
+static void
+group_user_iterator_destroy_func(ptr_iterator_t data)
+{
+  xfree(data);
+}
+
+static struct ptr_iterator group_user_iterator_funcs =
+{
+  group_user_iterator_has_next_func,
+  group_user_iterator_get_func,
+  group_user_iterator_next_func,
+  group_user_iterator_destroy_func,
+};
+
+static ptr_iterator_t
+get_group_user_iterator_func(void *data, int group_id)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct group_user_iterator *iter = 0;
+  const struct userlist_list *ul = state->userlist;
+
+  if (!ul || group_id <= 0 || group_id >= ul->group_map_size)
+    return 0;
+  if (!ul->group_map[group_id])
+    return 0;
+
+  XCALLOC(iter, 1);
+  iter->b = group_user_iterator_funcs;
+  iter->state = state;
+  iter->group_id = group_id;
+  iter->cur_member = (struct userlist_groupmember*) ul->group_map[group_id]->user_first;
+
+  return (ptr_iterator_t) iter;
+}
+
+struct group_member_iterator
+{
+  struct ptr_iterator b;
+
+  struct uldb_xml_state *state;
+  int group_id;
+  struct userlist_groupmember *cur_member;
+};
+
+static int
+group_member_iterator_has_next_func(ptr_iterator_t data)
+{
+  struct group_member_iterator *iter = (struct group_member_iterator *) data;
+
+  return iter->cur_member != 0;
+}
+static const void *
+group_member_iterator_get_func(ptr_iterator_t data)
+{
+  struct group_member_iterator *iter = (struct group_member_iterator *) data;
+  struct userlist_list *ul;
+
+  if (!iter || !iter->state || !(ul = iter->state->userlist)) return 0;
+  if (!iter->cur_member) return 0;
+  return iter->cur_member;
+}
+static void
+group_member_iterator_next_func(ptr_iterator_t data)
+{
+  struct group_member_iterator *iter = (struct group_member_iterator *) data;
+
+  if (iter->cur_member) {
+    iter->cur_member = (struct userlist_groupmember*) iter->cur_member->user_next;
+  }
+}
+static void
+group_member_iterator_destroy_func(ptr_iterator_t data)
+{
+  xfree(data);
+}
+
+static struct ptr_iterator group_member_iterator_funcs =
+{
+  group_member_iterator_has_next_func,
+  group_member_iterator_get_func,
+  group_member_iterator_next_func,
+  group_member_iterator_destroy_func,
+};
+
+static ptr_iterator_t
+get_group_member_iterator_func(void *data, int group_id)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct group_member_iterator *iter = 0;
+  const struct userlist_list *ul = state->userlist;
+
+  if (!ul || group_id <= 0 || group_id >= ul->group_map_size)
+    return 0;
+  if (!ul->group_map[group_id])
+    return 0;
+
+  XCALLOC(iter, 1);
+  iter->b = group_member_iterator_funcs;
+  iter->state = state;
+  iter->group_id = group_id;
+  iter->cur_member = (struct userlist_groupmember*) ul->group_map[group_id]->user_first;
+
+  return (ptr_iterator_t) iter;
+}
+
+static int
+create_group_member_func(void *data, int group_id, int user_id)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct userlist_list *ul = state->userlist;
+  struct userlist_group *grp;
+  struct userlist_user *u;
+  struct xml_tree *t;
+  struct userlist_groupmember *gm = 0;
+  struct userlist_groupmember *gm2, *gm3;
+
+  if (ul->group_map_size <= 0 || !ul->group_map) return -1;
+  if (group_id <= 0 || group_id >= ul->group_map_size) return -1;
+  if (!(grp = ul->group_map[group_id])) return -1;
+  if (ul->user_map_size <= 0 || !ul->user_map) return -1;
+  if (user_id <= 0 || user_id >= ul->user_map_size) return -1;
+  if (!(u = ul->user_map[user_id])) return -1;
+
+  for (t = grp->user_first; t; t = gm->user_next) {
+    ASSERT(t->tag == USERLIST_T_USERGROUPMEMBER);
+    gm = (struct userlist_groupmember*) t;
+    if (gm->group_id == group_id && gm->user_id == user_id) return 0;
+  }
+
+  if (!ul->groupmembers_node) {
+    t = userlist_node_alloc(USERLIST_T_USERGROUPMEMBERS);
+    xml_link_node_last(&ul->b, t);
+    ul->groupmembers_node = t;
+  }
+
+  gm = (struct userlist_groupmember*) userlist_node_alloc(USERLIST_T_USERGROUPMEMBER);
+  xml_link_node_last(ul->groupmembers_node, &gm->b);
+  gm->user_id = user_id;
+  gm->group_id = group_id;
+
+  for (gm2 = (struct userlist_groupmember*) grp->user_first;
+       gm2 && gm2->user_id < user_id;
+       gm2 = (struct userlist_groupmember*) gm2->user_next) {
+  }
+  if (!grp->user_first) {
+    grp->user_first = &gm->b;
+    grp->user_last = &gm->b;
+  } else if (!gm2) {
+    gm3 = (struct userlist_groupmember*) grp->user_last;
+    gm->user_prev = &gm3->b;
+    gm3->user_next = &gm->b;
+    grp->user_last = &gm->b;
+  } else if (&gm2->b == grp->user_first) {
+    ASSERT(gm2->user_id > user_id);
+    gm->user_next = &gm2->b;
+    gm2->user_prev = &gm->b;
+    grp->user_first = &gm->b;
+  } else {
+    ASSERT(gm2->user_id > user_id);
+    gm3 = (struct userlist_groupmember*) gm2->user_prev;
+    gm->user_prev = &gm3->b;
+    gm->user_next = &gm2->b;
+    gm3->user_next = &gm->b;
+    gm2->user_prev = &gm->b;
+  }
+
+  for (gm2 = (struct userlist_groupmember*) u->group_first;
+       gm2 && gm2->group_id < group_id;
+       gm2 = (struct userlist_groupmember*) gm2->group_next) {
+  }
+  if (!u->group_first) {
+    u->group_first = &gm->b;
+    u->group_last = &gm->b;
+  } else if (!gm2) {
+    gm3 = (struct userlist_groupmember*) u->group_last;
+    gm->group_prev = &gm3->b;
+    gm3->group_next = &gm->b;
+    u->group_last = &gm->b;
+  } else if (&gm2->b == u->group_first) {
+    ASSERT(gm2->group_id > group_id);
+    gm->group_next = &gm2->b;
+    gm2->group_prev = &gm->b;
+    u->group_first = &gm->b;
+  } else {
+    ASSERT(gm2->group_id > group_id);
+    gm3 = (struct userlist_groupmember*) gm2->group_prev;
+    gm->group_prev = &gm3->b;
+    gm->group_next = &gm2->b;
+    gm3->group_next = &gm->b;
+    gm2->group_prev = &gm->b;
+  }
+
+  state->dirty = 1;
+  state->flush_interval /= 2;
+
+  return 0;
+}
+
+static int
+remove_group_member_func(void *data, int group_id, int user_id)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct userlist_list *ul = state->userlist;
+  struct userlist_group *grp;
+  struct userlist_user *u;
+  struct xml_tree *t;
+  struct userlist_groupmember *gm = 0;
+  struct userlist_groupmember *gm2, *gm3;
+
+  if (ul->group_map_size <= 0 || !ul->group_map) return -1;
+  if (group_id <= 0 || group_id >= ul->group_map_size) return -1;
+  if (!(grp = ul->group_map[group_id])) return -1;
+  if (ul->user_map_size <= 0 || !ul->user_map) return -1;
+  if (user_id <= 0 || user_id >= ul->user_map_size) return -1;
+  if (!(u = ul->user_map[user_id])) return -1;
+
+  for (gm = (struct userlist_groupmember*) grp->user_first;
+       gm && gm->user_id != user_id;
+       gm = (struct userlist_groupmember*) gm->user_next) {
+    ASSERT(gm->b.tag == USERLIST_T_USERGROUPMEMBER);
+  }
+
+  for (gm2 = (struct userlist_groupmember *) u->group_first;
+       gm2 && gm2->group_id != group_id;
+       gm2 = (struct userlist_groupmember*) gm2->group_next) {
+    ASSERT(gm->b.tag == USERLIST_T_USERGROUPMEMBER);
+  }
+
+  if (!gm && !gm2) {
+    // no such member
+    return 0;
+  }
+  ASSERT(gm == gm2);
+
+  /* remove from the list of group users */
+  gm3 = (struct userlist_groupmember*) gm->user_prev;
+  if (gm3) {
+    gm3->user_next = gm->user_next;
+  } else {
+    grp->user_first = gm->user_next;
+  }
+  gm2 = (struct userlist_groupmember*) gm->user_next;
+  if (gm2) {
+    gm2->user_prev = gm->user_prev;
+  } else {
+    grp->user_last = gm->user_prev;
+  }
+  gm->user_prev = 0;
+  gm->user_next = 0;
+
+  /* remove from the list of user groups */
+  gm3 = (struct userlist_groupmember*) gm->group_prev;
+  if (gm3) {
+    gm3->group_next = gm->group_next;
+  } else {
+    u->group_first = gm->group_next;
+  }
+  gm2 = (struct userlist_groupmember*) gm->group_next;
+  if (gm2) {
+    gm2->group_prev = gm->group_prev;
+  } else {
+    u->group_last = gm->group_prev;
+  }
+  gm->group_prev = 0;
+  gm->group_next = 0;
+
+  xml_unlink_node(&gm->b);
+  userlist_free(&gm->b);
+
+  t = ul->groupmembers_node;
+  if (!t->first_down) {
+    ul->groupmembers_node = 0;
+    xml_unlink_node(t);
+    userlist_free(t);
+  }
+
+  state->dirty = 1;
+  state->flush_interval /= 2;
+
   return 0;
 }
 

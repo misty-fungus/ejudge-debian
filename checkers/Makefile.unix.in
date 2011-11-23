@@ -1,7 +1,7 @@
 # -*- Makefile -*-
-# $Id: Makefile.unix.in 5688 2010-01-19 10:10:41Z cher $
+# $Id: Makefile.unix.in 5913 2010-06-27 03:52:08Z cher $
 
-# Copyright (C) 2003-2007 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2003-2010 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -78,12 +78,13 @@ include files.make
 OFILES=$(CFILES:.c=.o) testinfo.o
 PICOFILES = $(CFILES:%.c=pic/%.o) pic/testinfo.o
 CHKXFILES = $(CHKCFILES:.c=)
+STYLEXFILES = $(STYLECFILES:.c=)
 
 ifndef STATIC
-TARGETS = pic libchecker.a libchecker.so ${CHKXFILES}
+TARGETS = pic libchecker.a libchecker.so ${CHKXFILES} ${STYLEXFILES}
 TARGETSHAREDLIBS = libchecker.so
 else
-TARGETS = libchecker.a ${CHKXFILES}
+TARGETS = libchecker.a ${CHKXFILES} ${STYLEXFILES}
 TARGETSHAREDLIBS =
 endif
 TARGETLIBS = libchecker.a
@@ -91,7 +92,7 @@ TARGETLIBS = libchecker.a
 all : ${TARGETS}
 
 clean :
-	-rm -fr *.o *.a *.so *~ *.bak testinfo.h testinfo.c pic ${CHKXFILES}
+	-rm -fr *.o *.a *.so *~ *.bak testinfo.h testinfo.c pic ${CHKXFILES} ${STYLEXFILES}
 pic :
 	mkdir pic
 
@@ -100,7 +101,7 @@ distclean : clean
 
 install : all
 	mkdir -p "${DESTDIR}${includedir}/ejudge"
-	for i in checker.h checker_internal.h testinfo.h; do install -m 644 $$i "${DESTDIR}${includedir}/ejudge"; done
+	for i in checker.h checker_internal.h checkutils.h testinfo.h; do install -m 644 $$i "${DESTDIR}${includedir}/ejudge"; done
 	mkdir -p "${DESTDIR}${libdir}"
 	install -m 644 libchecker.a "${DESTDIR}${libdir}"
 	if [ x"${STATIC}" = x ]; then install -m 755 libchecker.so "${DESTDIR}${libdir}"; else rm -f "${DESTDIR}${libdir}/libchecker.so"; fi
@@ -110,7 +111,7 @@ install : all
 	for i in symbols.pas testlib.pas; do install -m 644 fpc/$$i "${DESTDIR}${datadir}/ejudge/testlib/fpc"; done
 	install -m 644 delphi/testlib.pas "${DESTDIR}${datadir}/ejudge/testlib/delphi"
 	mkdir -p "${DESTDIR}${libexecdir}/ejudge/checkers"
-	for i in ${CHKXFILES}; do install -m 755 $$i "${DESTDIR}${libexecdir}/ejudge/checkers"; done
+	for i in ${CHKXFILES} ${STYLEXFILES}; do install -m 755 $$i "${DESTDIR}${libexecdir}/ejudge/checkers"; done
 	-cd "${DESTDIR}${datadir}/ejudge/testlib/fpc"; FPC=`"${DESTDIR}${libexecdir}/ejudge"/fpc-version -p`; [ x"$$FPC" != x ] && "$$FPC" testlib.pas
 	-cd "${DESTDIR}${datadir}/ejudge/testlib/delphi"; DCC=`"${DESTDIR}${libexecdir}/ejudge"/dcc-version -p`; [ x"$$DCC" != x ] && "$$DCC" testlib.pas
 
@@ -216,6 +217,9 @@ else
 cmp_% : cmp_%.c checker.h checker_internal.h libchecker.so
 	${CC} ${CFLAGS} ${LDFLAGS} ${RPATHOPT} -L. $< -o $@ -lchecker -lm
 endif
+
+style_% : style_%.c
+	${CC} ${CFLAGS} ${LDFLAGS} -L.. $< ${REUSE_LIB_OPT} -o $@ -lcommon -lplatform -lreuse -lz -lm
 
 pic/%.o : %.c
 	${CC} ${CFLAGS} -fPIC -DPIC -c $< -o $@

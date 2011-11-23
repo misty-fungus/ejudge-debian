@@ -1,5 +1,5 @@
 /* -*- mode: fundamental -*- */
-/* $Id: filter_scan.lex 5757 2010-01-29 11:19:07Z cher $ */
+/* $Id: filter_scan.lex 5948 2010-07-15 09:47:25Z cher $ */
 
 /* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -139,6 +139,10 @@ lett    [A-Za-z_]
 "curhidden" { TT(TOK_CURHIDDEN, FILTER_TYPE_BOOL); }
 "readonly" { TT(TOK_READONLY, FILTER_TYPE_BOOL); }
 "curreadonly" { TT(TOK_CURREADONLY, FILTER_TYPE_BOOL); }
+"marked" { TT(TOK_MARKED, FILTER_TYPE_BOOL); }
+"curmarked" { TT(TOK_CURMARKED, FILTER_TYPE_BOOL); }
+"saved" { TT(TOK_SAVED, FILTER_TYPE_BOOL); }
+"cursaved" { TT(TOK_CURSAVED, FILTER_TYPE_BOOL); }
 "variant" { TT(TOK_VARIANT, FILTER_TYPE_INT); }
 "curvariant" { TT(TOK_CURVARIANT, FILTER_TYPE_INT); }
 "rawvariant" { TT(TOK_RAWVARIANT, FILTER_TYPE_INT); }
@@ -155,6 +159,8 @@ lett    [A-Za-z_]
 "curuserdisqualified" { TT(TOK_CURUSERDISQUALIFIED, FILTER_TYPE_BOOL); }
 "latest" { TT(TOK_LATEST, FILTER_TYPE_BOOL); }
 "curlatest" { TT(TOK_CURLATEST, FILTER_TYPE_BOOL); }
+"latestmarked" { TT(TOK_LATESTMARKED, FILTER_TYPE_BOOL); }
+"curlatestmarked" { TT(TOK_CURLATESTMARKED, FILTER_TYPE_BOOL); }
 "afterok" { TT(TOK_AFTEROK, FILTER_TYPE_BOOL); }
 "curafterok" { TT(TOK_CURAFTEROK, FILTER_TYPE_BOOL); }
 "examinable" { TT(TOK_EXAMINABLE, FILTER_TYPE_BOOL); }
@@ -168,6 +174,7 @@ lett    [A-Za-z_]
 "judge_id" { TT(TOK_JUDGE_ID, FILTER_TYPE_INT); }
 "curjudge_id" { TT(TOK_CURJUDGE_ID, FILTER_TYPE_INT); }
 "total_score" { TT(TOK_TOTAL_SCORE, FILTER_TYPE_INT); }
+"inusergroup" { TT(TOK_INUSERGROUP, FILTER_TYPE_BOOL); }
 
 "int" { TT(TOK_INT, FILTER_TYPE_INT); }
 "string" { TT(TOK_STRING, FILTER_TYPE_STRING); }

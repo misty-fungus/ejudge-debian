@@ -1,5 +1,5 @@
 /* -*- mode: fundamental -*- */
-/* $Id: filter_expr.y 5750 2010-01-26 07:33:40Z cher $ */
+/* $Id: filter_expr.y 5948 2010-07-15 09:47:25Z cher $ */
 
 /* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -43,6 +43,7 @@ typedef struct filter_tree *tree_t;
 
 static tree_t check_int(tree_t p);
 static tree_t check_bool(tree_t p);
+static tree_t check_string(tree_t p);
 
 static tree_t do_int_cast(tree_t q, tree_t p);
 static tree_t do_string_cast(tree_t, tree_t);
@@ -134,6 +135,10 @@ static void *filter_expr_user_data;
 %token TOK_CURHIDDEN "curhidden"
 %token TOK_READONLY  "readonly"
 %token TOK_CURREADONLY "curreadonly"
+%token TOK_MARKED "marked"
+%token TOK_CURMARKED "curmarked"
+%token TOK_SAVED "saved"
+%token TOK_CURSAVED "cursaved"
 %token TOK_VARIANT   "variant"
 %token TOK_CURVARIANT "curvariant"
 %token TOK_RAWVARIANT "rawvariant"
@@ -150,6 +155,8 @@ static void *filter_expr_user_data;
 %token TOK_CURUSERDISQUALIFIED "curuserdisqualified"
 %token TOK_LATEST    "latest"
 %token TOK_CURLATEST "curlatest"
+%token TOK_LATESTMARKED "latestmarked"
+%token TOK_CURLATESTMARKED "curlatestmarked"
 %token TOK_AFTEROK   "afterok"
 %token TOK_CURAFTEROK "curafterok"
 %token TOK_EXAMINABLE "examinable"
@@ -164,6 +171,8 @@ static void *filter_expr_user_data;
 %token TOK_CURJUDGE_ID "curjudge_id"
 %token TOK_TOTAL_SCORE "total_score"
 %token TOK_CURTOTAL_SCORE "curtotal_score"
+%token TOK_INUSERGROUP "inusergroup"
+%token TOK_INUSERGROUPINT
 %token TOK_INT       "int"
 %token TOK_STRING    "string"
 %token TOK_BOOL      "bool"
@@ -318,6 +327,12 @@ exprA :
 | "readonly" { $1->kind = TOK_CURREADONLY; $$ = $1; }
 | "readonly" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
 | "curreadonly" { $$ = $1; }
+| "marked" { $1->kind = TOK_CURMARKED; $$ = $1; }
+| "marked" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
+| "curmarked" { $$ = $1; }
+| "saved" { $1->kind = TOK_CURSAVED; $$ = $1; }
+| "saved" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
+| "cursaved" { $$ = $1; }
 | "variant" { $1->kind = TOK_CURVARIANT; $$ = $1; }
 | "variant" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
 | "curvariant" { $$ = $1; }
@@ -342,6 +357,9 @@ exprA :
 | "latest" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
 | "latest" { $1->kind = TOK_CURLATEST; $$ = $1; }
 | "curlatest" { $$ = $1; }
+| "latestmarked" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
+| "latestmarked" { $1->kind = TOK_CURLATESTMARKED; $$ = $1; }
+| "curlatestmarked" { $$ = $1; }
 | "afterok" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
 | "afterok" { $1->kind = TOK_CURAFTEROK; $$ = $1; }
 | "curafterok" { $$ = $1; }
@@ -361,6 +379,7 @@ exprA :
 | "cypher" { $1->kind = TOK_CURCYPHER; $$ = $1; }
 | "cypher" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
 | "curcypher" { $$ = $1; }
+| "inusergroup" '(' expr0 ')' { $1->v.t[0] = check_string($3); $$ = $1; }
 | "int" '(' expr0 ')' { $$ = do_int_cast($1, $3); }
 | "string" '(' expr0 ')' { $$ = do_string_cast($1, $3); }
 | "bool" '(' expr0 ')' { $$ = do_bool_cast($1, $3); }
@@ -391,7 +410,7 @@ check_int(tree_t p)
 {
   ASSERT(p);
   if (p->type != FILTER_TYPE_INT) {
-    (*filter_expr_parse_err)(filter_expr_user_data, "`int' expression expected");
+    (*filter_expr_parse_err)(filter_expr_user_data, "'int' expression expected");
     yynerrs++;
     return MKINT(0);
   }
@@ -402,9 +421,20 @@ check_bool(tree_t p)
 {
   ASSERT(p);
   if (p->type != FILTER_TYPE_BOOL) {
-    (*filter_expr_parse_err)(filter_expr_user_data, "`bool' expression expected");
+    (*filter_expr_parse_err)(filter_expr_user_data, "'bool' expression expected");
     yynerrs++;
     return MKBOOL(0);
+  }
+  return p;
+}
+static tree_t
+check_string(tree_t p)
+{
+  ASSERT(p);
+  if (p->type != FILTER_TYPE_STRING) {
+    (*filter_expr_parse_err)(filter_expr_user_data, "'string' expression expected");
+    yynerrs++;
+    return MKSTRING("");
   }
   return p;
 }

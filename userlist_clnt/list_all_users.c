@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: list_all_users.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: list_all_users.c 5801 2010-05-23 13:28:20Z cher $ */
 
-/* Copyright (C) 2002-2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,10 +18,11 @@
 #include "userlist_clnt/private.h"
 
 int
-userlist_clnt_list_all_users(struct userlist_clnt *clnt,
-                             int cmd,
-                             int contest_id,
-                             unsigned char **p_info)
+userlist_clnt_list_all_users(
+        struct userlist_clnt *clnt,
+        int cmd,
+        int contest_id,
+        unsigned char **p_info)
 {
   struct userlist_pk_map_contest *out = 0;
   struct userlist_pk_xml_data *in = 0;
@@ -31,9 +32,6 @@ userlist_clnt_list_all_users(struct userlist_clnt *clnt,
   out_size = sizeof(*out);
   out = alloca(out_size);
   memset(out, 0, out_size);
-  if (cmd != ULS_LIST_ALL_USERS && cmd != ULS_LIST_STANDINGS_USERS) {
-    return -ULS_ERR_PROTOCOL;
-  }
   out->request_id = cmd;
   out->contest_id = contest_id;
   if ((r = userlist_clnt_send_packet(clnt, out_size, out)) < 0) return r;

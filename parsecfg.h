@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: parsecfg.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: parsecfg.h 5864 2010-06-12 11:27:48Z cher $ */
 #ifndef __PARSECFG_H__
 #define __PARSECFG_H__
 
@@ -93,6 +93,7 @@ struct generic_section_config *param_alloc_section(const unsigned char *name,
 
 int    sarray_len(char **);
 char **sarray_merge_pf(char **, char **);
+char **sarray_merge_pp(char **, char **);
 char **sarray_free(char **);
 char **sarray_merge_arr(int, char ***);
 char  *sarray_unparse(char **);

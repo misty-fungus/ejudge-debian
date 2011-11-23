@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: tables.inc.c 5279 2008-11-12 18:46:15Z cher $ */
+/* $Id: tables.inc.c 5813 2010-05-29 13:53:40Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -287,6 +287,38 @@ static struct common_mysql_parse_spec member_spec[MEMBER_WIDTH] =
   { 1, 'a', "entry_date", MEMBER_OFFSET(entry_date), 0 },
   //[33]   graduation_date DATE DEFAULT NULL,
   { 1, 'a', "graduation_date", MEMBER_OFFSET(graduation_date), 0 },
+};
+
+enum { USERGROUP_WIDTH = 6 };
+#define USERGROUP_OFFSET(f) XOFFSET(struct userlist_group, f)
+
+static struct common_mysql_parse_spec usergroup_spec[USERGROUP_WIDTH] =
+{
+  //[0] group_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  { 0, 'd', "group_id", USERGROUP_OFFSET(group_id), 0 },
+  //[1] group_name VARCHAR(128) NOT NULL UNIQUE KEY,
+  { 0, 's', "group_name", USERGROUP_OFFSET(group_name), 0 },
+  //[2] description VARCHAR(512) DEFAULT NULL
+  { 1, 's', "description", USERGROUP_OFFSET(description), 0 },
+  //[3] created_by INT NOT NULL,
+  { 0, 'd', "created_by", USERGROUP_OFFSET(created_by), 0 },
+  //[4] create_time DATETIME NOT NULL,
+  { 1, 't', "create_time", USERGROUP_OFFSET(create_time), 0 },
+  //[5] last_change_time DATETIME DEFAULT NULL,
+  { 1, 't', "last_change_time", USERGROUP_OFFSET(last_change_time), 0 },
+};
+
+enum { USERGROUPMEMBER_WIDTH = 3 };
+#define USERGROUPMEMBER_OFFSET(f) XOFFSET(struct userlist_groupmember, f)
+
+static struct common_mysql_parse_spec usergroupmember_spec[] =
+{
+  //[0] group_id INT NOT NULL,
+  { 0, 'd', "group_id", USERGROUPMEMBER_OFFSET(group_id), 0 },
+  //[1] user_id INT NOT NULL,
+  { 0, 'd', "user_id", USERGROUPMEMBER_OFFSET(user_id), 0 },
+  //[2] rights VARCHAR(512) DEFAULT NULL,
+  { 1, 's', "rights", USERGROUPMEMBER_OFFSET(rights), 0 },
 };
 
 /*

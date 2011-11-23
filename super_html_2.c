@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_2.c 5564 2009-05-02 16:25:39Z cher $ */
+/* $Id: super_html_2.c 5933 2010-07-07 19:02:43Z cher $ */
 
-/* Copyright (C) 2005-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1031,6 +1031,8 @@ super_html_commit_contest(FILE *f,
   path_t register_email_path_2 = { 0 };
   path_t contest_start_cmd_path = { 0 };
   path_t contest_start_cmd_path_2 = { 0 };
+  path_t contest_stop_cmd_path = { 0 };
+  path_t contest_stop_cmd_path_2 = { 0 };
   path_t stand_header_path = { 0 };
   path_t stand_header_path_2 = { 0 };
   path_t stand_footer_path = { 0 };
@@ -1047,7 +1049,7 @@ super_html_commit_contest(FILE *f,
   path_t vmap_path_2 = { 0 };
 
   int uhf, uff, rhf, rff, thf, tff, ref;
-  int csf = 0, shf = 0, sff = 0, s2hf = 0, s2ff = 0, phf = 0, pff = 0, sf = 0, vmf = 0, cpf = 0, ihf = 0, iff = 0, tsf = 0, cwf = 0, crwf = 0, t1f = 0, t2f = 0, t3f = 0;
+  int csf = 0, shf = 0, sff = 0, s2hf = 0, s2ff = 0, phf = 0, pff = 0, sf = 0, vmf = 0, cpf = 0, ihf = 0, iff = 0, tsf = 0, cwf = 0, crwf = 0, t1f = 0, t2f = 0, t3f = 0, ctf = 0;
 
   path_t diff_cmdline;
   unsigned char *diff_str = 0, *vcs_str = 0;
@@ -1089,9 +1091,12 @@ super_html_commit_contest(FILE *f,
       for (i = 1; i < sstate->lang_a; i++)
         if (sstate->langs[i]) j++;
     }
+    /*
     if (!j)
       return super_html_report_error(f, session_id, self_url, extra_args,
                                      "No languages activated");
+    */
+
     j = 0;
     if (sstate->probs) {
       for (i = 1; i < sstate->prob_a; i++)
@@ -1307,9 +1312,18 @@ super_html_commit_contest(FILE *f,
 
   if (global) {
     if ((csf = save_conf_file(flog, "contest start command script",
-                              global->contest_start_cmd,sstate->contest_start_cmd_text,
+                              global->contest_start_cmd,
+                              sstate->contest_start_cmd_text,
                               conf_path,
-                              contest_start_cmd_path, contest_start_cmd_path_2)) < 0)
+                              contest_start_cmd_path,
+                              contest_start_cmd_path_2)) < 0)
+      goto failed;
+    if ((ctf = save_conf_file(flog, "contest stop command script",
+                              global->contest_stop_cmd,
+                              sstate->contest_stop_cmd_text,
+                              conf_path,
+                              contest_stop_cmd_path,
+                              contest_stop_cmd_path_2)) < 0)
       goto failed;
     if ((shf = save_conf_file(flog, "standings HTML header file",
                               global->stand_header_file, sstate->stand_header_text,
@@ -1418,6 +1432,8 @@ super_html_commit_contest(FILE *f,
                                                 serve_header, serve_footer,
                                                 serve_audit_rec)) < 0)
       goto failed;
+    xfree(serve_header); serve_header = 0;
+    xfree(serve_footer); serve_footer = 0;
 
     if (sf > 0) {
       // invoke diff on the new and old config files
@@ -1484,6 +1500,11 @@ super_html_commit_contest(FILE *f,
   rename_files(flog, ref, register_email_path, register_email_path_2, file_group, file_mode);
   rename_files(flog, csf, contest_start_cmd_path,contest_start_cmd_path_2,file_group,file_mode);
   if (csf) chmod(contest_start_cmd_path, 0775);
+
+  rename_files(flog, csf, contest_stop_cmd_path,
+               contest_stop_cmd_path_2, file_group,file_mode);
+  if (ctf) chmod(contest_stop_cmd_path, 0775);
+
   rename_files(flog, shf, stand_header_path, stand_header_path_2, file_group, file_mode);
   rename_files(flog, sff, stand_footer_path, stand_footer_path_2, file_group, file_mode);
   rename_files(flog, s2hf, stand2_header_path, stand2_header_path_2, file_group, file_mode);
@@ -1582,10 +1603,10 @@ super_html_commit_contest(FILE *f,
                                  global, sstate->aprob_u, sstate->aprobs,
                                  sstate->prob_a, sstate->probs);
     close_memstream(flog); flog = 0;
-    s = html_armor_string_dup(flog_txt);
-    fprintf(f, "<h2>Further instructions</h2><p><pre>%s</pre>\n", s);
-    xfree(s);
-    xfree(flog_txt);
+    //s = html_armor_string_dup(flog_txt);
+    fprintf(f, "<h2>Further instructions</h2>%s\n", flog_txt);
+    //xfree(s);
+    xfree(flog_txt); flog_txt = 0; flog_size = 0;
   }
 
   fprintf(f, "<table border=\"0\"><tr>");
@@ -1596,6 +1617,8 @@ super_html_commit_contest(FILE *f,
   return 0;
 
  failed:
+  xfree(serve_header);
+  xfree(serve_footer);
   xfree(xml_header);
   xfree(xml_footer);
   if (flog) close_memstream(flog);
@@ -1619,6 +1642,7 @@ super_html_commit_contest(FILE *f,
   if (reg_welcome_path_2[0]) unlink(reg_welcome_path_2);
   if (register_email_path_2[0]) unlink(register_email_path_2);
   if (contest_start_cmd_path_2[0]) unlink(contest_start_cmd_path_2);
+  if (contest_stop_cmd_path_2[0]) unlink(contest_stop_cmd_path_2);
   if (stand_header_path_2[0]) unlink(stand_header_path_2);
   if (stand_footer_path_2[0]) unlink(stand_footer_path_2);
   if (stand2_header_path_2[0]) unlink(stand2_header_path_2);

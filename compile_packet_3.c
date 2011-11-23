@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: compile_packet_3.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: compile_packet_3.c 5881 2010-06-14 11:40:36Z cher $ */
 
 /* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -36,6 +36,7 @@ compile_request_packet_free(struct compile_request_packet *in_data)
   if (!in_data) return 0;
   if (in_data->run_block_len > 0) xfree(in_data->run_block);
   xfree(in_data->style_checker);
+  xfree(in_data->src_sfx);
   if (in_data->env_num > 0 && in_data->env_vars) {
     for (i = 0; i < in_data->env_num; i++) {
       xfree(in_data->env_vars[i]);

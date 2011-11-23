@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: vars.c 5687 2010-01-19 10:10:15Z cher $ */
+/* $Id: vars.c 5913 2010-06-27 03:52:08Z cher $ */
 
-/* Copyright (C) 2003-2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -39,18 +39,11 @@ char *dir_out_path;
 
 const char * const f_arr_names[3] =
 {
-  "input",
-  "output",
-  "correct output"
+  "test input data",
+  "user program output",
+  "test correct output"
 };
 
 struct testinfo_struct;
 int (*testinfo_parse_func)() = 0;
 const char *(*testinfo_strerror_func)() = 0;
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

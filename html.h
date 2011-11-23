@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: html.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: html.h 5950 2010-07-16 12:33:23Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
-/* Copyright (C) 2000-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -61,45 +61,56 @@ void write_standings_header(const serve_state_t state,
                             unsigned char const * header_str,
                             unsigned char const * user_name);
 
-void do_write_kirov_standings(const serve_state_t,
-                              const struct contest_desc *cnts,
-                              FILE *f,
-                              const unsigned char *stand_dir,
-                              int client_flag, int only_table_flag,
-                              const unsigned char *header_str,
-                              unsigned char const *footer_str,
-                              int raw_flag,
-                              int accepting_mode,
-                              int force_fancy_style,
-                              time_t cur_time,
-                              int charset_id);
+struct user_filter_info;
 
-void do_write_standings(const serve_state_t,
-                        const struct contest_desc *cnts,
-                        FILE *f,
-                        int client_flag,
-                        int only_table_flag,
-                        int user_id,
-                        const unsigned char *header_str,
-                        unsigned char const *footer_str,
-                        int raw_flag,
-                        const unsigned char *user_name,
-                        int force_fancy_style,
-                        time_t cur_time);
+void
+do_write_kirov_standings(
+        const serve_state_t,
+        const struct contest_desc *cnts,
+        FILE *f,
+        const unsigned char *stand_dir,
+        int client_flag, int only_table_flag,
+        const unsigned char *header_str,
+        unsigned char const *footer_str,
+        int raw_flag,
+        int accepting_mode,
+        int force_fancy_style,
+        time_t cur_time,
+        int charset_id,
+        struct user_filter_info *u);
 
-void do_write_moscow_standings(const serve_state_t,
-                               const struct contest_desc *cnts,
-                               FILE *f,
-                               const unsigned char *stand_dir,
-                               int client_flag, int only_table_flag,
-                               int user_id,
-                               const unsigned char *header_str,
-                               const unsigned char *footer_str,
-                               int raw_flag,
-                               const unsigned char *user_name,
-                               int force_fancy_style,
-                               time_t cur_time,
-                               int charset_id);
+void
+do_write_standings(
+        const serve_state_t,
+        const struct contest_desc *cnts,
+        FILE *f,
+        int client_flag,
+        int only_table_flag,
+        int user_id,
+        const unsigned char *header_str,
+        unsigned char const *footer_str,
+        int raw_flag,
+        const unsigned char *user_name,
+        int force_fancy_style,
+        time_t cur_time,
+        struct user_filter_info *u);
+
+void
+do_write_moscow_standings(
+        const serve_state_t,
+        const struct contest_desc *cnts,
+        FILE *f,
+        const unsigned char *stand_dir,
+        int client_flag, int only_table_flag,
+        int user_id,
+        const unsigned char *header_str,
+        const unsigned char *footer_str,
+        int raw_flag,
+        const unsigned char *user_name,
+        int force_fancy_style,
+        time_t cur_time,
+        int charset_id,
+        struct user_filter_info *u);
 
 void html_reset_filter(serve_state_t, int user_id, ej_cookie_t session_id);
 void html_reset_clar_filter(serve_state_t, int user_id, ej_cookie_t session_id);
@@ -130,10 +141,31 @@ int write_xml_testing_report(FILE *f, int user_mode, unsigned char const *txt,
                              const int *actions_vector,
                              const unsigned char *class1,
                              const unsigned char *class2);
-int write_xml_team_testing_report(serve_state_t, FILE *f,
-                                  int output_only,
+int
+write_xml_tests_report(
+        FILE *f,
+        int user_mode,
+        unsigned char const *txt,
+        ej_cookie_t sid,
+        unsigned char const *self_url,
+        unsigned char const *extra_args,
+        const unsigned char *class1,
+        const unsigned char *class2);
+
+int write_xml_team_testing_report(serve_state_t,
+                                  const struct section_problem_data *prob,
+                                  FILE *f, int output_only,
                                   const unsigned char *txt,
                                   const unsigned char *table_class);
+
+int
+write_xml_team_tests_report(
+        const serve_state_t state,
+        const struct section_problem_data *prob,
+        FILE *f,
+        const unsigned char *txt,
+        const unsigned char *table_class);
+
 
 void generate_daily_statistics(const serve_state_t, FILE *f,
                                time_t from_time, time_t to_time, int utf8_mode);

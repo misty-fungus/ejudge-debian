@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 5739 2010-01-25 17:47:25Z cher $ */
+/* $Id: super-serve.c 5948 2010-07-15 09:47:25Z cher $ */
 
 /* Copyright (C) 2003-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1769,6 +1769,7 @@ super_serve_clear_edited_contest(struct sid_state *p)
       prepare_free_config(p->extra_cs_cfgs[i]);
       p->extra_cs_cfgs[i] = 0;
     }
+    xfree(p->extra_cs_cfgs);
   }
   p->extra_cs_cfgs = 0;
   p->extra_cs_cfgs_total = 0;
@@ -2075,6 +2076,7 @@ cmd_main_page(struct client_state *p, int len,
   case SSERV_CMD_EDIT_CURRENT_LANG:
   case SSERV_CMD_EDIT_CURRENT_PROB:
   case SSERV_CMD_GLOB_EDIT_CONTEST_START_CMD:
+  case SSERV_CMD_GLOB_EDIT_CONTEST_STOP_CMD:
   case SSERV_CMD_GLOB_EDIT_STAND_HEADER_FILE:
   case SSERV_CMD_GLOB_EDIT_STAND_FOOTER_FILE:
   case SSERV_CMD_GLOB_EDIT_STAND2_HEADER_FILE:
@@ -2222,6 +2224,7 @@ cmd_main_page(struct client_state *p, int len,
   case SSERV_CMD_CNTS_EDIT_REG_WELCOME:
   case SSERV_CMD_CNTS_EDIT_REGISTER_EMAIL_FILE:
   case SSERV_CMD_GLOB_EDIT_CONTEST_START_CMD:
+  case SSERV_CMD_GLOB_EDIT_CONTEST_STOP_CMD:
   case SSERV_CMD_GLOB_EDIT_STAND_HEADER_FILE:
   case SSERV_CMD_GLOB_EDIT_STAND_FOOTER_FILE:
   case SSERV_CMD_GLOB_EDIT_STAND2_HEADER_FILE:
@@ -2831,6 +2834,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_LANG_CLEAR_OPTS:
   case SSERV_CMD_LANG_CHANGE_STYLE_CHECKER_CMD:
   case SSERV_CMD_LANG_CLEAR_STYLE_CHECKER_CMD:
+  case SSERV_CMD_LANG_CHANGE_STYLE_CHECKER_ENV:
+  case SSERV_CMD_LANG_CLEAR_STYLE_CHECKER_ENV:
     r = super_html_lang_cmd(sstate, pkt->b.id, pkt->param1, param2_ptr,
                             pkt->param3, pkt->param4);
     break;
@@ -2867,6 +2872,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_COMBINED_STDIN:
   case SSERV_CMD_PROB_CHANGE_COMBINED_STDOUT:
   case SSERV_CMD_PROB_CHANGE_BINARY_INPUT:
+  case SSERV_CMD_PROB_CHANGE_BINARY:
   case SSERV_CMD_PROB_CHANGE_IGNORE_EXIT_CODE:
   case SSERV_CMD_PROB_CHANGE_OLYMPIAD_MODE:
   case SSERV_CMD_PROB_CHANGE_SCORE_LATEST:
@@ -2903,6 +2909,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_STAND_HIDE_TIME:
   case SSERV_CMD_PROB_CHANGE_ADVANCE_TO_NEXT:
   case SSERV_CMD_PROB_CHANGE_DISABLE_CTRL_CHARS:
+  case SSERV_CMD_PROB_CHANGE_VALUER_SETS_MARKED:
+  case SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED:
   case SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM:
   case SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE:
   case SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN:
@@ -2936,6 +2944,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_STANDARD_CHECKER:
   case SSERV_CMD_PROB_CHANGE_SCORE_BONUS:
   case SSERV_CMD_PROB_CLEAR_SCORE_BONUS:
+  case SSERV_CMD_PROB_CHANGE_OPEN_TESTS:
+  case SSERV_CMD_PROB_CLEAR_OPEN_TESTS:    
   case SSERV_CMD_PROB_CHANGE_CHECK_CMD:
   case SSERV_CMD_PROB_CLEAR_CHECK_CMD:
   case SSERV_CMD_PROB_CHANGE_CHECKER_ENV:
@@ -2948,6 +2958,14 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_INTERACTOR_CMD:
   case SSERV_CMD_PROB_CHANGE_INTERACTOR_ENV:
   case SSERV_CMD_PROB_CLEAR_INTERACTOR_ENV:
+  case SSERV_CMD_PROB_CHANGE_STYLE_CHECKER_CMD:
+  case SSERV_CMD_PROB_CLEAR_STYLE_CHECKER_CMD:
+  case SSERV_CMD_PROB_CHANGE_STYLE_CHECKER_ENV:
+  case SSERV_CMD_PROB_CLEAR_STYLE_CHECKER_ENV:
+  case SSERV_CMD_PROB_CHANGE_TEST_CHECKER_CMD:
+  case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_CMD:
+  case SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV:
+  case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV:
   case SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ:
   case SSERV_CMD_PROB_CLEAR_LANG_TIME_ADJ:
   case SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ_MILLIS:
@@ -3011,6 +3029,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE:
   case SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS:
   case SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE:
+  case SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT:
+  case SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH:
   case SSERV_CMD_GLOB_CHANGE_ALWAYS_SHOW_PROBLEMS:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_LANGUAGE:
@@ -3039,6 +3059,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CLEAR_DESCRIPTION_FILE:
   case SSERV_CMD_GLOB_CHANGE_CONTEST_START_CMD:
   case SSERV_CMD_GLOB_CLEAR_CONTEST_START_CMD:
+  case SSERV_CMD_GLOB_CHANGE_CONTEST_STOP_CMD:
+  case SSERV_CMD_GLOB_CLEAR_CONTEST_STOP_CMD:
   case SSERV_CMD_GLOB_CHANGE_MAX_RUN_SIZE:
   case SSERV_CMD_GLOB_CHANGE_MAX_RUN_TOTAL:
   case SSERV_CMD_GLOB_CHANGE_MAX_RUN_NUM:
@@ -3183,6 +3205,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_DETECT_CPU_BOGOMIPS:
   case SSERV_CMD_GLOB_SAVE_CONTEST_START_CMD:
   case SSERV_CMD_GLOB_CLEAR_CONTEST_START_CMD_TEXT:
+  case SSERV_CMD_GLOB_SAVE_CONTEST_STOP_CMD:
+  case SSERV_CMD_GLOB_CLEAR_CONTEST_STOP_CMD_TEXT:
   case SSERV_CMD_GLOB_SAVE_STAND_HEADER:
   case SSERV_CMD_GLOB_CLEAR_STAND_HEADER_TEXT:
   case SSERV_CMD_GLOB_SAVE_STAND_FOOTER:
@@ -3201,6 +3225,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CLEAR_RUNDB_PLUGIN:
   case SSERV_CMD_GLOB_CHANGE_XUSER_PLUGIN:
   case SSERV_CMD_GLOB_CLEAR_XUSER_PLUGIN:
+  case SSERV_CMD_GLOB_CHANGE_LOAD_USER_GROUP:
+  case SSERV_CMD_GLOB_CLEAR_LOAD_USER_GROUP:
     r = super_html_global_param(sstate, pkt->b.id, config,
                                 pkt->param1, param2_ptr, pkt->param3, pkt->param4);
     break;
@@ -3623,6 +3649,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CHANGE_INVISIBLE] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_MEMBER_DELETE] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_DEADLINE] = { cmd_set_value },
+  [SSERV_CMD_CNTS_CHANGE_SCHED_TIME] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_USERS_HEADER] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_USERS_FOOTER] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_REGISTER_HEADER] = { cmd_set_value },
@@ -3754,6 +3781,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_LANG_CLEAR_OPTS] = { cmd_set_value },
   [SSERV_CMD_LANG_CHANGE_STYLE_CHECKER_CMD] = { cmd_set_value },
   [SSERV_CMD_LANG_CLEAR_STYLE_CHECKER_CMD] = { cmd_set_value },
+  [SSERV_CMD_LANG_CHANGE_STYLE_CHECKER_ENV] = { cmd_set_value },
+  [SSERV_CMD_LANG_CLEAR_STYLE_CHECKER_ENV] = { cmd_set_value },
 
   [SSERV_CMD_EDIT_CURRENT_PROB] = { cmd_main_page },
   [SSERV_CMD_PROB_ADD] = { cmd_set_value },
@@ -3785,6 +3814,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_COMBINED_STDIN] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_COMBINED_STDOUT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_BINARY_INPUT] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_BINARY] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_IGNORE_EXIT_CODE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_OLYMPIAD_MODE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST] = { cmd_set_value },
@@ -3821,6 +3851,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_STAND_HIDE_TIME] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ADVANCE_TO_NEXT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_CTRL_CHARS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_VALUER_SETS_MARKED] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN] = { cmd_set_value },
@@ -3854,6 +3886,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_STANDARD_CHECKER] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SCORE_BONUS] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_SCORE_BONUS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_OPEN_TESTS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_OPEN_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_CHECK_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_CHECK_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_CHECKER_ENV] = { cmd_set_value },
@@ -3866,6 +3900,14 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_INTERACTOR_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_INTERACTOR_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_INTERACTOR_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_STYLE_CHECKER_CMD] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_STYLE_CHECKER_CMD] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_STYLE_CHECKER_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_STYLE_CHECKER_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_CMD] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_TEST_CHECKER_CMD] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_LANG_TIME_ADJ] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ_MILLIS] = { cmd_set_value },
@@ -3925,6 +3967,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_LANGUAGE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_PROBLEM_NAVIGATION] = { cmd_set_value },
@@ -3953,6 +3997,9 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_CONTEST_START_CMD] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_CONTEST_START_CMD] = { cmd_set_value },
   [SSERV_CMD_GLOB_EDIT_CONTEST_START_CMD] = { cmd_main_page },
+  [SSERV_CMD_GLOB_CHANGE_CONTEST_STOP_CMD] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CLEAR_CONTEST_STOP_CMD] = { cmd_set_value },
+  [SSERV_CMD_GLOB_EDIT_CONTEST_STOP_CMD] = { cmd_main_page },
   [SSERV_CMD_GLOB_CHANGE_MAX_RUN_SIZE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_MAX_RUN_TOTAL] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_MAX_RUN_NUM] = { cmd_set_value },
@@ -4087,6 +4134,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CLEAR_STAND_PAGE_ROW_ATTR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_STAND_PAGE_COL_ATTR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_STAND_PAGE_COL_ATTR] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_LOAD_USER_GROUP] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CLEAR_LOAD_USER_GROUP] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_CLARDB_PLUGIN] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_CLARDB_PLUGIN] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_RUNDB_PLUGIN] = { cmd_set_value },
@@ -4109,6 +4158,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_DETECT_CPU_BOGOMIPS] = { cmd_set_value },
   [SSERV_CMD_GLOB_SAVE_CONTEST_START_CMD] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_CONTEST_START_CMD_TEXT] = { cmd_set_value },
+  [SSERV_CMD_GLOB_SAVE_CONTEST_STOP_CMD] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CLEAR_CONTEST_STOP_CMD_TEXT] = { cmd_set_value },
   [SSERV_CMD_GLOB_SAVE_STAND_HEADER] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_STAND_HEADER_TEXT] = { cmd_set_value },
   [SSERV_CMD_GLOB_SAVE_STAND_FOOTER] = { cmd_set_value },

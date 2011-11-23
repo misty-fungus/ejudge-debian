@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.unix.in 5676 2010-01-19 09:54:39Z cher $
+# $Id: Makefile.unix.in 5930 2010-07-07 05:23:04Z cher $
 # @configure_input@
 
 # Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
@@ -35,6 +35,7 @@ LIBICONV=@ac_cv_has_lib_iconv@
 LIBLIBICONV=@ac_cv_has_lib_libiconv@
 LIBINTL=@ac_cv_has_lib_intl@
 
+ICONV=@ICONV@
 XGETTEXT=@XGETTEXT@
 MSGMERGE=@MSGMERGE@
 MSGFMT=@MSGFMT@
@@ -404,7 +405,7 @@ endif
 
 ifneq (${CHARSET}, KOI8-R)
 ejudge.ru_RU.${CHARSET}.po : ejudge.ru_RU.KOI8-R.po
-	sed "s/koi8-r/${CHARSET}/g" < ejudge.ru_RU.KOI8-R.po | iconv -f KOI8-R -t ${CHARSET} > ejudge.ru_RU.${CHARSET}.po
+	sed "s/koi8-r/${CHARSET}/g" < ejudge.ru_RU.KOI8-R.po | ${ICONV} -f KOI8-R -t ${CHARSET} > ejudge.ru_RU.${CHARSET}.po
 endif
 
 ejudge.ru_RU.KOI8-R.po: $(CFILES) ejudge.po

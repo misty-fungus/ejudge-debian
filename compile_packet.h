@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: compile_packet.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: compile_packet.h 5881 2010-06-14 11:40:36Z cher $ */
 #ifndef __COMPILE_PACKET_H__
 #define __COMPILE_PACKET_H__
 
@@ -17,8 +17,6 @@
  * GNU General Public License for more details.
  */
 
-#include "serve_state.h"
-
 #include <stdlib.h>
 
 struct compile_request_packet
@@ -29,13 +27,17 @@ struct compile_request_packet
   int lang_id;
   int locale_id;
   int output_only;
+  int style_check_only;
   int ts1;
   int ts1_us;
   unsigned char *style_checker;
+  unsigned char *src_sfx;
   int run_block_len;
   void *run_block;
   int env_num;
+  int sc_env_num;
   unsigned char **env_vars;
+  unsigned char **sc_env_vars;
 };
 
 struct compile_reply_packet
@@ -58,8 +60,7 @@ struct compile_reply_packet
 };
 
 int
-compile_request_packet_read(const serve_state_t,
-                            size_t in_size, const void *in_data,
+compile_request_packet_read(size_t in_size, const void *in_data,
                             struct compile_request_packet **p_out_data);
 
 int

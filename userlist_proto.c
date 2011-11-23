@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: userlist_proto.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: userlist_proto.c 5802 2010-05-23 13:45:27Z cher $ */
 
-/* Copyright (C) 2002-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -60,6 +60,8 @@ static unsigned char const * const error_map[] =
   _("unspecified error"),
   _("database error"),
   _("user is simple_registered"),
+  _("group with this name already exists"),
+  _("invalid group id"),
 
   0
 };

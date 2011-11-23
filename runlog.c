@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.c 5634 2010-01-11 11:30:23Z cher $ */
+/* $Id: runlog.c 5775 2010-02-23 16:02:43Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -448,6 +448,40 @@ run_change_status(
 
   return state->iface->change_status(state->cnts, runid, newstatus, newtest,
                                      newscore, judge_id);
+}
+
+int
+run_change_status_2(
+        runlog_state_t state,
+        int runid,
+        int newstatus,
+        int newtest,
+        int newscore,
+        int judge_id,
+        int is_marked)
+{
+  if (runid < 0 || runid >= state->run_u) ERR_R("bad runid: %d", runid);
+  if (newstatus < 0 || newstatus > 255) ERR_R("bad newstatus: %d", newstatus);
+  if (newtest < -1) ERR_R("bad newtest: %d", newtest);
+  if (newscore < -1 || newscore > EJ_MAX_SCORE)
+    ERR_R("bad newscore: %d", newscore);
+  if (judge_id < 0 || judge_id > EJ_MAX_JUDGE_ID)
+    ERR_R("bad judge_id: %d", judge_id);
+
+  if (newstatus == RUN_VIRTUAL_START || newstatus == RUN_VIRTUAL_STOP)
+    ERR_R("virtual status cannot be changed that way");
+  if (newstatus == RUN_EMPTY)
+    ERR_R("EMPTY status cannot be set this way");
+  if (state->runs[runid].status == RUN_VIRTUAL_START
+      || state->runs[runid].status == RUN_VIRTUAL_STOP
+      || state->runs[runid].status == RUN_EMPTY)
+    ERR_R("this entry cannot be changed");
+
+  if (state->runs[runid].is_readonly)
+    ERR_R("this entry is read-only");
+
+  return state->iface->change_status_2(state->cnts, runid, newstatus, newtest,
+                                       newscore, judge_id, is_marked);
 }
 
 int
@@ -992,6 +1026,26 @@ run_set_entry(
   }
   if ((mask & RE_IS_EXAMINABLE) && te.is_examinable != in->is_examinable) {
     te.is_examinable = in->is_examinable;
+    f = 1;
+  }
+  if ((mask & RE_IS_MARKED) && te.is_marked != in->is_marked) {
+    te.is_marked = in->is_marked;
+    f = 1;
+  }
+  if ((mask & RE_IS_SAVED) && te.is_saved != in->is_saved) {
+    te.is_saved = in->is_saved;
+    f = 1;
+  }
+  if ((mask & RE_SAVED_STATUS) && te.saved_status != in->saved_status) {
+    te.saved_status = in->saved_status;
+    f = 1;
+  }
+  if ((mask & RE_SAVED_SCORE) && te.saved_score != in->saved_score) {
+    te.saved_score = in->saved_score;
+    f = 1;
+  }
+  if ((mask & RE_SAVED_TEST) && te.saved_test != in->saved_test) {
+    te.saved_test = in->saved_test;
     f = 1;
   }
 

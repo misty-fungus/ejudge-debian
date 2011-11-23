@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_state.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: serve_state.c 5955 2010-07-21 05:48:38Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -38,6 +38,7 @@
 #include "prepare.h"
 #include "prepare_serve.h"
 #include "userlist.h"
+#include "xml_utils.h"
 
 #include <reuse/xalloc.h>
 #include <reuse/osdeps.h>
@@ -48,6 +49,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #include "win32_compat.h"
 
@@ -64,6 +66,21 @@ serve_state_init(void)
   return state;
 }
 
+void
+serve_state_destroy_stand_expr(struct user_filter_info *u)
+{
+  if (!u) return;
+
+  xfree(u->stand_user_expr); u->stand_user_expr = 0;
+  xfree(u->stand_prob_expr); u->stand_prob_expr = 0;
+  xfree(u->stand_run_expr); u->stand_run_expr = 0;
+  xfree(u->stand_error_msgs); u->stand_error_msgs = 0;
+  filter_tree_delete(u->stand_mem); u->stand_mem = 0;
+  u->stand_user_tree = 0;
+  u->stand_prob_tree = 0;
+  u->stand_run_tree = 0;
+}
+
 serve_state_t
 serve_state_destroy(serve_state_t state,
                     const struct contest_desc *cnts,
@@ -71,6 +88,8 @@ serve_state_destroy(serve_state_t state,
 {
   int i, j;
   struct user_filter_info *ufp, *ufp2;
+  struct serve_user_group *srv_grp;
+  struct serve_group_member *srv_gm;
 
   if (!state) return 0;
 
@@ -133,6 +152,27 @@ serve_state_destroy(serve_state_t state,
     plugin_unload((struct ejudge_plugin_iface*) state->contest_plugin);
   }
 
+  if (state->user_group_count > 0) {
+    for (i = 0; i < state->user_group_count; ++i) {
+      srv_grp = &state->user_groups[i];
+      xfree(srv_grp->group_name);
+      xfree(srv_grp->description);
+      xfree(srv_grp->members);
+    }
+  }
+  xfree(state->user_groups);
+  xfree(state->user_group_map);
+
+  if (state->group_member_count) {
+    for (i = 0; i < state->group_member_count; ++i) {
+      srv_gm = &state->group_members[i];
+      xfree(srv_gm->group_bitmap);
+      srv_gm->group_bitmap = 0;
+    }
+  }
+  xfree(state->group_members);
+  xfree(state->group_member_map);
+
   prepare_free_config(state->config);
 
   for (i = 1; i < state->users_a; i++) {
@@ -142,6 +182,7 @@ serve_state_destroy(serve_state_t state,
       xfree(ufp->prev_filter_expr);
       xfree(ufp->error_msgs);
       filter_tree_delete(ufp->tree_mem);
+      serve_state_destroy_stand_expr(ufp);
       xfree(ufp);
     }
     xfree(state->users[i]);
@@ -208,6 +249,305 @@ serve_set_upsolving_mode(serve_state_t state)
     if (state->full_protocol)
       prob->team_show_judge_report = 1;
   }
+}
+
+int
+serve_load_user_groups(
+        int contest_id,
+        serve_state_t state,
+        struct userlist_clnt *ul_conn)
+{
+  const struct section_global_data *global = state->global;
+  int i, j, total_len = 0, len, r;
+  unsigned char *grp_list = 0, *grp_p;
+  unsigned char *xml_text = 0;
+  struct userlist_list *grp_info = 0;
+  struct xml_tree *xml_ptr;
+  const struct userlist_group *grp;
+  const struct userlist_groupmember *gm;
+  struct serve_user_group *srv_grp;
+  struct serve_group_member *srv_gm;
+  int user_group_count, user_group_map_size;
+  int member_map_size = 0, group_member_count = 0;
+  int bs_size;
+
+  if (!global) return 0;
+  if (!global->load_user_group) return 0;
+  if (!ul_conn) {
+    info("load_contest: contest %d groups are not loaded", contest_id);
+    return 0;
+  }
+  for (i = 0; global->load_user_group[i]; ++i) {
+    total_len += strlen(global->load_user_group[i]) + 1;
+  }
+  if (total_len >= 65536) {
+    err("load_contest: contest %d: total group length too high (%d)",
+        contest_id, total_len);
+    return -1;
+  }
+  grp_list = (unsigned char *) alloca(total_len + 10);
+  grp_p = grp_list;
+  for (i = 0; global->load_user_group[i]; ++i) {
+    if (i > 0) {
+      *grp_p++ = ' ';
+    }
+    len = strlen(global->load_user_group[i]);
+    memcpy(grp_p, global->load_user_group[i], len);
+    grp_p += len;
+  }
+  *grp_p = 0;
+
+  r = userlist_clnt_get_xml_by_text(ul_conn, ULS_GET_GROUPS, grp_list,
+                                    &xml_text);
+  if (r < 0) {
+    err("load_contest: contest %d: failed to load groups: %s",
+        contest_id, userlist_strerror(-r));
+    goto failed;
+  }
+  if (!xml_text) {
+    err("load_contest: contest %d: group XML is NULL", contest_id);
+    goto failed;
+  }
+  grp_info = userlist_parse_str(xml_text);
+  if (!grp_info) {
+    err("load_contest: contest %d: XML parse error", contest_id);
+    goto failed;
+  }
+  xfree(xml_text); xml_text = 0;
+
+  if (grp_info->group_map_size <= 0 || !grp_info->group_map) {
+    err("load_contest: contest %d: no groups loaded", contest_id);
+    goto failed;
+  }
+
+  user_group_map_size = grp_info->group_map_size;
+  while (user_group_map_size > 0
+         && !grp_info->group_map[user_group_map_size - 1])
+    user_group_map_size--;
+
+  // find the max group_id and the group counter
+  user_group_count = 0;
+  for (i = 0; i < user_group_map_size; ++i) {
+    if (grp_info->group_map[i]) {
+      ++user_group_count;
+    }
+  }
+
+  if (user_group_count <= 0) {
+    err("load_contest: contest %d: no groups loaded", contest_id);
+    goto failed;
+  }
+
+  state->user_group_count = user_group_count;
+  state->user_group_map_size = user_group_map_size;
+  XCALLOC(state->user_groups, state->user_group_count);
+  XCALLOC(state->user_group_map, state->user_group_map_size);
+  memset(state->user_group_map, -1,
+         sizeof(state->user_group_map[0]) * state->user_group_map_size);
+  for (i = 0, j = 0; i < state->user_group_map_size; ++i) {
+    if (grp_info->group_map[i]) {
+      grp = grp_info->group_map[i];
+      srv_grp = &state->user_groups[j];
+      srv_grp->group_id = grp->group_id;
+      srv_grp->group_name = xstrdup(grp->group_name);
+      srv_grp->description = xstrdup(grp->description);
+      state->user_group_map[i] = j;
+      ++j;
+    }
+  }
+
+  // calculate the member_map_size
+  if (!grp_info->groupmembers_node) goto done;
+  for (xml_ptr = grp_info->groupmembers_node->first_down; xml_ptr;
+       xml_ptr = xml_ptr->right) {
+    ASSERT(xml_ptr->tag == USERLIST_T_USERGROUPMEMBER);
+    gm = (struct userlist_groupmember*) xml_ptr;
+    ASSERT(gm->group_id > 0 && gm->group_id < state->user_group_map_size);
+    ASSERT(state->user_group_map[gm->group_id] >= 0);
+    ASSERT(gm->user_id > 0);
+    if (gm->user_id + 1 > member_map_size) {
+      member_map_size = gm->user_id + 1;
+    }
+    j = state->user_group_map[gm->group_id];
+    ++state->user_groups[j].member_count;
+  }
+  if (member_map_size <= 0) {
+    goto done;
+  }
+
+  state->group_member_map_size = member_map_size;
+  XCALLOC(state->group_member_map, member_map_size);
+  memset(state->group_member_map, -1,
+         member_map_size * sizeof(state->group_member_map[0]));
+
+  for (i = 0; i < state->user_group_count; ++i) {
+    srv_grp = &state->user_groups[i];
+    if (srv_grp->member_count > 0) {
+      XCALLOC(srv_grp->members, srv_grp->member_count);
+    }
+  }
+
+  for (xml_ptr = grp_info->groupmembers_node->first_down; xml_ptr;
+       xml_ptr = xml_ptr->right) {
+    gm = (struct userlist_groupmember*) xml_ptr;
+    ASSERT(gm->user_id < member_map_size);
+    if (state->group_member_map[gm->user_id] < 0) {
+      state->group_member_map[gm->user_id] = group_member_count++;
+    }
+  }
+  if (group_member_count <= 0) goto done;
+
+  state->group_member_count = group_member_count;
+  XCALLOC(state->group_members, group_member_count);
+  bs_size = (user_group_count + 31) / 32;
+  ASSERT(bs_size > 0);
+  for (i = 0; i < group_member_count; ++i) {
+    XCALLOC(state->group_members[i].group_bitmap, bs_size);
+  }
+
+  for (i = 0, xml_ptr = grp_info->groupmembers_node->first_down; xml_ptr;
+       xml_ptr = xml_ptr->right) {
+    gm = (struct userlist_groupmember*) xml_ptr;
+    ASSERT(state->group_member_map[gm->user_id] >= 0);
+    srv_gm = &state->group_members[state->group_member_map[gm->user_id]];
+    srv_gm->user_id = gm->user_id;
+    j = state->user_group_map[gm->group_id];
+    ASSERT(j >= 0 && j < state->user_group_count);
+    srv_gm->group_bitmap[j >> 5] |= (1U << (j & 0x1f));
+    srv_grp = &state->user_groups[j];
+    srv_grp->members[srv_grp->serial++] = gm->user_id;
+  }
+
+  /*
+  // just for debug
+  fprintf(stderr, "user_group_count:      %d\n", state->user_group_count);
+  fprintf(stderr, "user_group_map_size:   %d\n", state->user_group_map_size);
+  fprintf(stderr, "group_member_count:    %d\n", state->group_member_count);
+  fprintf(stderr, "group_member_map_size: %d\n", state->group_member_map_size);
+  */
+
+done:
+  if (grp_info) userlist_free(&grp_info->b);
+  xfree(xml_text);
+  return 0;
+
+failed:
+  if (grp_info) userlist_free(&grp_info->b);
+  xfree(xml_text);
+  return -1;
+}
+
+static int
+parse_group_dates(
+        int contest_id,
+        serve_state_t state,
+        struct section_problem_data *prob,
+        const unsigned char *var_name,
+        struct group_dates *gd,
+        char **strs)
+{
+  int len, i, j;
+  const unsigned char *pcur, *pend;
+  const unsigned char *group_name;
+
+  memset(gd, 0, sizeof(*gd));
+  if (!strs || !strs[0]) return 0;
+  len = sarray_len(strs);
+  XCALLOC(gd->info, len + 1);
+  for (i = 0; i < len + 1; ++i)
+    gd->info[i].group_ind = -2;
+
+  /* "@GROUP_NAME DATE" */
+  for (i = 0; i < len; ++i) {
+    pcur = (const unsigned char*) strs[i];
+    while (isspace(*pcur)) ++pcur;
+    if (!*pcur) {
+      err("contest %d: problem %s: %s: line %d: empty specification",
+          contest_id, prob->short_name, var_name, i + 1);
+      return -1;
+    }
+    if (*pcur == '*') {
+      pend = pcur + 1;
+    } else {
+      if (*pcur != '@') {
+        err("contest %d: problem %s: %s: line %d: '@' expected",
+            contest_id, prob->short_name, var_name, i + 1);
+        return -1;
+      }
+      ++pcur;
+      while (isspace(*pcur)) ++pcur;
+      if (!*pcur) {
+        err("contest %d: problem %s: %s: line %d: group_name expected",
+            contest_id, prob->short_name, var_name, i + 1);
+        return -1;
+      }
+      pend = pcur;
+      while (*pend && !isspace(*pend)) ++pend;
+    }
+
+    group_name = gd->info[i].group_name = xmemdup(pcur, pend - pcur);
+    pcur = pend;
+
+    while (isspace(*pcur)) ++pcur;
+    if (!*pcur) {
+      err("contest %d: problem %s: %s: line %d: date expected",
+          contest_id, prob->short_name, var_name, i + 1);
+      return -1;
+    }
+
+    if (xml_parse_date(NULL, 0, 0, pcur, &gd->info[i].date) < 0) {
+      err("contest %d: problem %s: %s: line %d: invalid date",
+          contest_id, prob->short_name, var_name, i + 1);
+      return -1;
+    }
+
+    if (!strcmp(group_name, "*")) {
+      gd->info[i].group_ind = -1;
+    } else {
+      for (j = 0; j < state->user_group_count; ++j) {
+        if (!strcmp(state->user_groups[j].group_name, group_name)) {
+          break;
+        }
+      }
+      if (j >= state->user_group_count) {
+        err("contest %d: problem %s: %s: line %d: invalid group %s",
+            contest_id, prob->short_name, var_name, i + 1, group_name);
+        return -1;
+      }
+      gd->info[i].group_ind = j;
+    }
+  }
+  gd->count = len;
+
+  /*
+  // barrier entry
+  if (len > 0 && gd->info[len - 1].group_ind >= 0) {
+    gd->info[len].group_name = xstrdup("*");
+    gd->info[len].group_ind = -1;
+    gd->info[len].date = 0;
+    ++gd->count;
+  }
+  */
+
+  return 0;
+}
+
+int
+serve_parse_group_dates(int contest_id, serve_state_t state)
+{
+  int i;
+  struct section_problem_data *prob;
+
+  for (i = 1; i <= state->max_prob; ++i) {
+    if (!(prob = state->probs[i])) continue;
+    if (parse_group_dates(contest_id, state, prob, "group_start_date",
+                          &prob->gsd, prob->group_start_date) < 0)
+      return -1;
+    if (parse_group_dates(contest_id, state, prob, "group_deadline",
+                          &prob->gdl, prob->group_deadline) < 0)
+      return -1;
+  }
+  return 0;
 }
 
 const size_t serve_struct_sizes_array[] =
@@ -360,6 +700,13 @@ serve_state_load_contest(
   if (ul_conn) {
     // ignore error code
     userlist_clnt_notify(ul_conn, ULS_ADD_NOTIFY, contest_id);
+  }
+
+  if (serve_load_user_groups(contest_id, state, ul_conn) < 0) {
+    goto failure;
+  }
+  if (serve_parse_group_dates(contest_id, state) < 0) {
+    goto failure;
   }
 
   // load reporting plugin
