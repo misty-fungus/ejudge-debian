@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: userlist_xml.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: userlist_xml.c 5814 2010-05-29 13:55:19Z cher $ */
 
 /* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -118,6 +118,10 @@ static char const * const elem_map[] =
   "field7",
   "field8",
   "field9",
+  "usergroups",
+  "usergroup",
+  "usergroupmembers",
+  "usergroupmember",
 
   0
 };
@@ -165,6 +169,10 @@ static char const * const attr_map[] =
   "info_create",
   "recovery",
   "team_login",
+  "group_id",
+  "group_name",
+  "description",
+  "user_id",
 
   0
 };
@@ -177,6 +185,8 @@ static size_t const elem_sizes[USERLIST_LAST_TAG] =
   [USERLIST_T_CONTEST] = sizeof(struct userlist_contest),
   [USERLIST_T_MEMBERS] = sizeof(struct userlist_members),
   [USERLIST_T_CNTSINFO] = sizeof(struct userlist_user_info),
+  [USERLIST_T_USERGROUP] = sizeof(struct userlist_group),
+  [USERLIST_T_USERGROUPMEMBER] = sizeof(struct userlist_groupmember),
 };
 
 struct xml_tree *
@@ -196,6 +206,10 @@ elem_free(struct xml_tree *t)
       struct userlist_list *p = (struct userlist_list*) t;
       xfree(p->user_map);
       xfree(p->name);
+      xfree(p->login_hash_table);
+      xfree(p->cookie_hash_table);
+      xfree(p->group_map);
+      xfree(p->group_hash_table);
     }
     break;
   case USERLIST_T_USER:
@@ -280,6 +294,19 @@ elem_free(struct xml_tree *t)
       xfree(p->field7);
       xfree(p->field8);
       xfree(p->field9);
+    }
+    break;
+  case USERLIST_T_USERGROUP:
+    {
+      struct userlist_group *p = (struct userlist_group*) t;
+      xfree(p->group_name);
+      xfree(p->description);
+    }
+    break;
+  case USERLIST_T_USERGROUPMEMBER:
+    {
+      struct userlist_groupmember *p = (struct userlist_groupmember*) t;
+      xfree(p->rights);
     }
     break;
   }
@@ -1177,6 +1204,196 @@ do_parse_user(char const *path, struct userlist_user *usr)
 }
 
 static int
+do_parse_usergroups(
+        const unsigned char *path,
+        struct userlist_list *lst,
+        struct xml_tree *groups)
+{
+  struct xml_tree *t;
+  struct userlist_group *grp;
+  int max_group_id = -1;
+  int group_size = 16;
+
+  if (!groups) return 0;
+  lst->groups_node = groups;
+
+  if (groups->first) return xml_err_attrs(groups);
+  for (t = groups->first_down; t; t = t->right) {
+    int group_id = -1;
+    unsigned char *group_name = 0;
+    unsigned char *description = 0;
+    struct xml_attr *a;
+
+    if (t->tag != USERLIST_T_USERGROUP) {
+      return xml_err_elem_not_allowed(t);
+    }
+    if (t->first_down) {
+      return xml_err_nested_elems(t);
+    }
+    for (a = t->first; a; a = a->next) {
+      switch (a->tag) {
+      case USERLIST_A_GROUP_ID:
+        if (xml_attr_int(a, &group_id) < 0) {
+          xfree(group_name);
+          xfree(description);
+          return -1;
+        }
+        break;
+      case USERLIST_A_GROUP_NAME:
+        xfree(group_name);
+        group_name = a->text;
+        a->text = 0;
+        break;
+      case USERLIST_A_DESCRIPTION:
+        xfree(description);
+        description = a->text;
+        a->text = 0;
+        break;
+      default:
+        return xml_err_attr_not_allowed(t, a);
+      }
+    }
+
+    grp = (struct userlist_group*) t;
+    if (group_id == -1) {
+      xfree(group_name);
+      xfree(description);
+      return xml_err_attr_undefined(t, USERLIST_A_GROUP_ID);
+    }
+    if (group_id <= 0 || group_id >= 1000000) {
+      xfree(group_name);
+      xfree(description);
+      return xml_err_elem_invalid(t);
+    }
+    if (!group_name) {
+      xfree(group_name);
+      xfree(description);
+      return xml_err_attr_undefined(t, USERLIST_A_GROUP_ID);
+    }
+    grp->group_id = group_id;
+    grp->group_name = group_name; group_name = 0;
+    grp->description = description; description = 0;
+    if (group_id > max_group_id) max_group_id = group_id;
+  }
+
+  // no groups
+  if (max_group_id <= 0) return 0;
+
+  /* collect groups, check unuqieness of group_id */
+  while (group_size <= max_group_id) group_size *= 2;
+  lst->group_map_size = group_size;
+  XCALLOC(lst->group_map, group_size);
+  for (t = groups->first_down; t; t = t->right) {
+    grp = (struct userlist_group*) t;
+    ASSERT(grp->group_id > 0 && grp->group_id < group_size);
+    if (lst->group_map[grp->group_id]) {
+      xml_err(t, "duplicated group_id %d", grp->group_id);
+      return -1;
+    }
+    lst->group_map[grp->group_id] = grp;
+  }
+
+  return 0;
+}
+
+static int
+do_parse_usergroupmembers(
+        const unsigned char *path,
+        struct userlist_list *lst,
+        struct xml_tree *groupmembers)
+{
+  struct xml_tree *t;
+  struct userlist_groupmember *gm;
+  struct xml_attr *a;
+
+  if (!groupmembers) return 0;
+  lst->groupmembers_node = groupmembers;
+
+  if (groupmembers->first) return xml_err_attrs(groupmembers);
+  for (t = groupmembers->first_down; t; t = t->right) {
+    int group_id = -1;
+    int user_id = -1;
+
+    if (t->tag != USERLIST_T_USERGROUPMEMBER) {
+      return xml_err_elem_not_allowed(t);
+    }
+    if (t->first_down) {
+      return xml_err_nested_elems(t);
+    }
+    for (a = t->first; a; a = a->next) {
+      switch (a->tag) {
+      case USERLIST_A_GROUP_ID:
+        if (xml_attr_int(a, &group_id) < 0) return -1;
+        break;
+      case USERLIST_A_USER_ID:
+        if (xml_attr_int(a, &user_id) < 0) return -1;
+        break;
+      default:
+        return xml_err_attr_not_allowed(t, a);
+      }
+    }
+
+    gm = (struct userlist_groupmember*) t;
+    if (group_id == -1) {
+      return xml_err_attr_undefined(t, USERLIST_A_GROUP_ID);
+    }
+    if (group_id <= 0 || group_id > 1000000) {
+      return xml_err_elem_invalid(t);
+    }
+    if (user_id == -1) {
+      return xml_err_attr_undefined(t, USERLIST_A_USER_ID);
+    }
+    if (user_id <= 0) {
+      return xml_err_elem_invalid(t);
+    }
+    gm->group_id = group_id;
+    gm->user_id = user_id;
+  }
+
+  return 0;
+}
+
+static void
+collect_usergroups(struct userlist_list *lst)
+{
+  struct xml_tree *t;
+  struct userlist_groupmember *gm;
+  struct userlist_group *g;
+  struct userlist_user *u;
+
+  if (!lst->groupmembers_node) return;
+  for (t = lst->groupmembers_node->first_down; t; t = t->right) {
+    gm = (struct userlist_groupmember*) t;
+
+    if (gm->group_id <= 0 || gm->group_id >= lst->group_map_size
+        || !(g = lst->group_map[gm->group_id]))
+      continue;
+    if (gm->user_id <= 0 || gm->user_id >= lst->user_map_size
+        || !(u = lst->user_map[gm->user_id]))
+      continue;
+
+    /* append to the list of users belonging to the same group */
+    gm->user_next = 0;
+    gm->user_prev = g->user_last;
+    g->user_last = t;
+    if (g->user_first) {
+      ((struct userlist_groupmember*) gm->user_prev)->user_next = t;
+    } else {
+      g->user_first = t;
+    }
+    /* append to the list of groups containing the same user */
+    gm->group_next = 0;
+    gm->group_prev = u->group_last;
+    u->group_last = t;
+    if (u->group_first) {
+      ((struct userlist_groupmember*) gm->group_prev)->group_next = t;
+    } else {
+      u->group_first = t;
+    }
+  }
+}
+
+static int
 do_parse_userlist(char const *path, struct userlist_list *lst)
 {
   struct xml_attr *a;
@@ -1209,29 +1426,41 @@ do_parse_userlist(char const *path, struct userlist_list *lst)
   userlist_free_attrs(&lst->b);
 
   for (t = lst->b.first_down; t; t = t->right) {
-    if (t->tag != USERLIST_T_USER)
+    if (t->tag == USERLIST_T_USERGROUPS) {
+      if (do_parse_usergroups(path, lst, t) < 0)
+        return -1;
+    } else if (t->tag == USERLIST_T_USERGROUPMEMBERS) {
+      if (do_parse_usergroupmembers(path, lst, t) < 0)
+        return -1;
+    } else if (t->tag == USERLIST_T_USER) {
+      if (do_parse_user(path, (struct userlist_user*) t) < 0) return -1;
+    } else {
       return xml_err_elem_not_allowed(t);
-    if (do_parse_user(path, (struct userlist_user*) t) < 0) return -1;
+    }
   }
 
   map_size = 16;
   for (u = (struct userlist_user*) lst->b.first_down; u;
        u = (struct userlist_user*) u->b.right) {
-    ASSERT(u->b.tag == USERLIST_T_USER);
-    ASSERT(u->id > 0);
-    while (u->id >= map_size)
-      map_size *= 2;
+    if (u->b.tag == USERLIST_T_USER) {
+      ASSERT(u->id > 0);
+      while (u->id >= map_size)
+        map_size *= 2;
+    }
   }
   lst->user_map_size = map_size;
   lst->user_map = (struct userlist_user**) xcalloc(map_size, sizeof(lst->user_map[0]));
   for (u = (struct userlist_user*) lst->b.first_down; u;
        u = (struct userlist_user*) u->b.right) {
-    if (lst->user_map[u->id]) {
-      xml_err(&u->b, "duplicated user id %d", u->id);
-      return -1;
+    if (u->b.tag == USERLIST_T_USER) {
+      if (lst->user_map[u->id]) {
+        xml_err(&u->b, "duplicated user id %d", u->id);
+        return -1;
+      }
+      lst->user_map[u->id] = u;
     }
-    lst->user_map[u->id] = u;
   }
+  collect_usergroups(lst);
 
   return 0;
 }
@@ -1481,6 +1710,7 @@ unparse_member(const struct userlist_member *p, FILE *f)
   }
   fprintf(f, "      </%s>\n", elem_map[USERLIST_T_MEMBER]);
 }
+
 static void
 unparse_members(const struct userlist_members *p, FILE *f)
 {
@@ -1650,6 +1880,106 @@ unparse_cntsinfo(const struct userlist_user_info *p, FILE *f)
   unparse_members(p->members, f);
 
   fprintf(f, "    </%s>\n", elem_map[USERLIST_T_CNTSINFO]);
+}
+
+static void
+xml_unparse_text_attr(
+        FILE *fout,
+        const unsigned char *attr_name,
+        const unsigned char *value)
+{
+  size_t alen = 0;
+  unsigned char *astr = 0;
+
+  if (!value) return;
+
+  if (html_armor_needed(value, &alen)) {
+    astr = alloca(alen + 2);
+    html_armor_string(value, astr);
+    value = astr;
+  }
+  fprintf(fout, " %s=\"%s\"", attr_name, value);
+}
+
+void
+userlist_unparse_usergroup(
+        FILE *fout,
+        const struct userlist_group *grp,
+        const unsigned char *prefix,
+        const unsigned char *suffix)
+{
+  fprintf(fout, "%s<%s %s=\"%d\"", prefix,
+          elem_map[USERLIST_T_USERGROUP],
+          attr_map[USERLIST_A_GROUP_ID],
+          grp->group_id);
+  xml_unparse_text_attr(fout, attr_map[USERLIST_A_GROUP_NAME],
+                        grp->group_name);
+  xml_unparse_text_attr(fout, attr_map[USERLIST_A_DESCRIPTION],
+                        grp->description);
+  fprintf(fout, " />%s", suffix);
+}
+
+static void
+unparse_usergroups(
+        FILE *fout,
+        const struct userlist_list *lst)
+{
+  int cnt = 0, i;
+  const struct userlist_group *grp;
+
+  if (lst->group_map_size <= 0) return;
+
+  for (i = 1; i < lst->group_map_size; ++i) {
+    cnt += (lst->group_map[i] != 0);
+  }
+  if (cnt <= 0) return;
+
+  fprintf(fout, "  <%s>\n", elem_map[USERLIST_T_USERGROUPS]);
+  for (i = 1; i < lst->group_map_size; ++i) {
+    if ((grp = lst->group_map[i])) {
+      userlist_unparse_usergroup(fout, grp, "      ", "\n");
+    }
+  }  
+  fprintf(fout, "  </%s>\n", elem_map[USERLIST_T_USERGROUPS]);
+}
+
+void
+userlist_unparse_usergroupmember(
+        FILE *fout,
+        const struct userlist_groupmember *gm,
+        const unsigned char *prefix,
+        const unsigned char *suffix)
+{
+  fprintf(fout, "%s<%s %s=\"%d\" %s=\"%d\" />%s", prefix,
+          elem_map[USERLIST_T_USERGROUPMEMBER],
+          attr_map[USERLIST_A_GROUP_ID], gm->group_id,
+          attr_map[USERLIST_A_USER_ID], gm->user_id,
+          suffix);
+}
+
+static void
+unparse_usergroupmembers(
+        FILE *fout,
+        const struct userlist_list *lst)
+{
+  const struct xml_tree *p;
+  const struct userlist_groupmember *gm;
+
+  if (!lst->groupmembers_node) return;
+  if (!lst->groupmembers_node->first_down) return;
+
+  fprintf(fout, "  <%s>\n", elem_map[USERLIST_T_USERGROUPMEMBERS]);
+  for (p = lst->groupmembers_node->first_down; p; p = p->right) {
+    gm = (const struct userlist_groupmember*) p;
+    if (gm->user_id <= 0 || gm->user_id >= lst->user_map_size
+        || !lst->user_map[gm->user_id])
+      continue;
+    if (gm->group_id <= 0 || gm->group_id >= lst->group_map_size
+        || !lst->group_map[gm->group_id])
+      continue;
+    userlist_unparse_usergroupmember(fout, gm, "      ", "\n");
+  }
+  fprintf(fout, "  </%s>\n", elem_map[USERLIST_T_USERGROUPMEMBERS]);
 }
 
 /* called from `userlist_unparse_short' */
@@ -1915,7 +2245,33 @@ userlist_write_contests_xml_footer(FILE *f)
   fprintf(f, "</%s>\n", elem_map[USERLIST_T_CONTESTS]);
 }
 
+
+void
+userlist_write_groups_header(FILE *f)
+{
+  fprintf(f, "  <%s>\n", elem_map[USERLIST_T_USERGROUPS]);
+}
+
+void
+userlist_write_groups_footer(FILE *f)
+{
+  fprintf(f, "  </%s>\n", elem_map[USERLIST_T_USERGROUPS]);
+}
+
+void
+userlist_write_groupmembers_header(FILE *f)
+{
+  fprintf(f, "  <%s>\n", elem_map[USERLIST_T_USERGROUPMEMBERS]);
+}
+
+void
+userlist_write_groupmembers_footer(FILE *f)
+{
+  fprintf(f, "  </%s>\n", elem_map[USERLIST_T_USERGROUPMEMBERS]);
+}
+
 /*
+ * do full dump of the database
  * called from userlist-server.c:do_backup
  * called from userlist-server.c:flush_database
  *   for complete userlist generation
@@ -1940,6 +2296,9 @@ userlist_unparse(struct userlist_list *p, FILE *f)
   fputs(">\n", f);
   for (i = 1; i < p->user_map_size; i++)
     userlist_real_unparse_user(p->user_map[i], f, 0, -1, USERLIST_SHOW_REG_PASSWD | USERLIST_SHOW_CNTS_PASSWD);
+
+  unparse_usergroups(f, p);
+  unparse_usergroupmembers(f, p);
   fprintf(f, "</%s>\n", elem_map[USERLIST_T_USERLIST]);
 }
 

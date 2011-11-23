@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 5724 2010-01-23 14:25:59Z cher $ */
+/* $Id: new_server_html.c 5973 2010-08-03 20:11:15Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -98,7 +98,8 @@ unpriv_page_header(FILE *fout,
                    struct contest_extra *extra,
                    time_t start_time, time_t stop_time);
 static void
-do_json_user_state(FILE *fout, const serve_state_t cs, int user_id);
+do_json_user_state(FILE *fout, const serve_state_t cs, int user_id,
+                   int need_reload_check);
 static int
 get_register_url(
         unsigned char *buf,
@@ -731,6 +732,7 @@ load_problem_plugin(serve_state_t cs, int prob_id)
   int len, i;
   const unsigned char *f = __FUNCTION__;
   const size_t *sza;
+  path_t plugin_path;
 
   if (prob_id <= 0 || prob_id > cs->max_prob) return;
   if (!(prob = cs->probs[prob_id])) return;
@@ -739,13 +741,20 @@ load_problem_plugin(serve_state_t cs, int prob_id)
   if (!prob->plugin_file[0]) return;
   if (extra->plugin || extra->plugin_error) return;
 
+  if (cs->global->advanced_layout > 0) {
+    get_advanced_layout_path(plugin_path, sizeof(plugin_path), cs->global,
+                             prob, prob->plugin_file, -1);
+  } else {
+    snprintf(plugin_path, sizeof(plugin_path), "%s", prob->plugin_file);
+  }
+
   snprintf(plugin_name, sizeof(plugin_name), "problem_%s", prob->short_name);
   len = strlen(plugin_name);
   for (i = 0; i < len; i++)
     if (plugin_name[i] == '-')
       plugin_name[i] = '_';
 
-  iface = (struct problem_plugin_iface*) plugin_load(prob->plugin_file,
+  iface = (struct problem_plugin_iface*) plugin_load(plugin_path,
                                                      "problem",
                                                      plugin_name);
   if (!iface) {
@@ -1013,11 +1022,13 @@ ns_check_contest_events(serve_state_t cs, const struct contest_desc *cnts)
       /* the contest is over: contest_finish_time is expired! */
       info("CONTEST IS OVER");
       run_stop_contest(cs->runlog_state, finish_time);
+      serve_invoke_stop_script(cs);
     } else if (start_time > 0 && stop_time <= 0 && duration > 0
                && cs->current_time >= start_time + duration){
       /* the contest is over: duration is expired! */
       info("CONTEST IS OVER");
       run_stop_contest(cs->runlog_state, start_time + duration);
+      serve_invoke_stop_script(cs);
     } else if (sched_time > 0 && start_time <= 0
                && cs->current_time >= sched_time) {
       /* it's time to start! */
@@ -2164,6 +2175,7 @@ priv_contest_operation(FILE *fout,
       goto cleanup;
     }
     run_stop_contest(cs->runlog_state, cs->current_time);
+    serve_invoke_stop_script(cs);
     serve_update_status_file(cs, 1);
     break;
 
@@ -2186,6 +2198,7 @@ priv_contest_operation(FILE *fout,
     }
     run_set_finish_time(cs->runlog_state, 0);
     run_stop_contest(cs->runlog_state, 0);
+    serve_invoke_stop_script(cs);
     serve_update_status_file(cs, 1);
     break;
 
@@ -2555,13 +2568,17 @@ priv_submit_run(FILE *fout,
 
   /* get the submission text */
   switch (prob->type) {
+    /*
   case PROB_TYPE_STANDARD:      // "file"
     if (!ns_cgi_param_bin(phr, "file", &run_text, &run_size)) {
       errmsg = "\"file\" parameter is not set";
       goto invalid_param;
     }
     break;
+    */
+  case PROB_TYPE_STANDARD:
   case PROB_TYPE_OUTPUT_ONLY:
+  case PROB_TYPE_TESTS:
     if (prob->enable_text_form > 0) {
       int r1 = ns_cgi_param_bin(phr, "file", &run_text, &run_size);
       int r2 = ns_cgi_param_bin(phr, "text_form", &text_form_text,
@@ -2643,11 +2660,25 @@ priv_submit_run(FILE *fout,
   switch (prob->type) {
   case PROB_TYPE_STANDARD:
     if (!lang->binary && strlen(run_text) != run_size) goto binary_submission;
-    if (prob->disable_ctrl_chars > 0 && has_control_characters(run_text)) goto invalid_characters;
+    if (prob->enable_text_form > 0 && text_form_text
+        && strlen(text_form_text) != text_form_size)
+      goto binary_submission;
+    if (prob->enable_text_form) {
+      if (!run_size) {
+        run_text = text_form_text; text_form_text = 0;
+        run_size = text_form_size; text_form_size = 0;
+        skip_mime_type_test = 1;
+      } else {
+        text_form_text = 0;
+        text_form_size = 0;
+      }
+    }
+    if (prob->disable_ctrl_chars > 0 && has_control_characters(run_text))
+      goto invalid_characters;
     break;
-
   case PROB_TYPE_OUTPUT_ONLY:
-    if (!prob->binary_input && strlen(run_text) != run_size)
+  case PROB_TYPE_TESTS:
+    if (!prob->binary_input && !prob->binary && strlen(run_text) != run_size)
       goto binary_submission;
     if (prob->enable_text_form > 0 && text_form_text
         && strlen(text_form_text) != text_form_size)
@@ -2792,7 +2823,10 @@ priv_submit_run(FILE *fout,
       if (serve_compile_request(cs, run_text, run_size, run_id, phr->user_id,
                                 lang->compile_id, phr->locale_id, 0,
                                 lang->src_sfx,
-                                lang->compiler_env, -1, 0, 0, prob, lang) < 0) {
+                                lang->compiler_env,
+                                0, prob->style_checker_cmd,
+                                prob->style_checker_env,
+                                -1, 0, 0, prob, lang) < 0) {
         ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
         goto cleanup;
       }
@@ -2812,11 +2846,26 @@ priv_submit_run(FILE *fout,
                       "  This problem is checked manually.\n",
                       run_id);
     } else {
-      if (serve_run_request(cs, log_f, run_text, run_size, run_id,
-                            phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                            0, 0) < 0) {
-        ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-        goto cleanup;
+      if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
+        serve_compile_request(cs, run_text, run_size, run_id,
+                              phr->user_id, 0 /* lang_id */,
+                              0 /* locale_id */, 1 /* output_only*/,
+                              mime_type_get_suffix(mime_type),
+                              NULL /* compiler_env */,
+                              1 /* style_check_only */,
+                              prob->style_checker_cmd,
+                              prob->style_checker_env,
+                              0 /* accepting_mode */,
+                              0 /* priority_adjustment */,
+                              0 /* notify flag */,
+                              prob, NULL /* lang */);
+      } else {
+        if (serve_run_request(cs, log_f, run_text, run_size, run_id,
+                              phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
+                              mime_type, 0, 0) < 0) {
+          ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
+          goto cleanup;
+        }
       }
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
@@ -2836,11 +2885,26 @@ priv_submit_run(FILE *fout,
                       run_id);
     } else {
       /* FIXME: check for XML problem */
-      if (serve_run_request(cs, log_f, run_text, run_size, run_id,
-                            phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                            0, 0) < 0) {
-        ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-        goto cleanup;
+      if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
+        serve_compile_request(cs, run_text, run_size, run_id,
+                              phr->user_id, 0 /* lang_id */,
+                              0 /* locale_id */, 1 /* output_only*/,
+                              mime_type_get_suffix(mime_type),
+                              NULL /* compiler_env */,
+                              1 /* style_check_only */,
+                              prob->style_checker_cmd,
+                              prob->style_checker_env,
+                              0 /* accepting_mode */,
+                              0 /* priority_adjustment */,
+                              0 /* notify flag */,
+                              prob, NULL /* lang */);
+      } else {      
+        if (serve_run_request(cs, log_f, run_text, run_size, run_id,
+                              phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
+                              mime_type, 0, 0) < 0) {
+          ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
+          goto cleanup;
+        }
       }
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
@@ -3529,6 +3593,8 @@ priv_clear_run(FILE *fout, FILE *log_f,
  * NEW_SRV_ACTION_CHANGE_RUN_IS_HIDDEN
  * NEW_SRV_ACTION_CHANGE_RUN_IS_EXAMINABLE
  * NEW_SRV_ACTION_CHANGE_RUN_IS_READONLY
+ * NEW_SRV_ACTION_CHANGE_RUN_IS_MARKED
+ * NEW_SRV_ACTION_CHANGE_RUN_IS_SAVED
  * NEW_SRV_ACTION_CHANGE_RUN_TEST
  * NEW_SRV_ACTION_CHANGE_RUN_SCORE
  * NEW_SRV_ACTION_CHANGE_RUN_SCORE_ADJ
@@ -3580,6 +3646,8 @@ priv_edit_run(FILE *fout, FILE *log_f,
   case NEW_SRV_ACTION_CHANGE_RUN_IS_HIDDEN:
   case NEW_SRV_ACTION_CHANGE_RUN_IS_EXAMINABLE:
   case NEW_SRV_ACTION_CHANGE_RUN_IS_READONLY:
+  case NEW_SRV_ACTION_CHANGE_RUN_IS_MARKED:
+  case NEW_SRV_ACTION_CHANGE_RUN_IS_SAVED:
     if (sscanf(s, "%d%n", &param_bool, &n) != 1 || s[n]
         || param_bool < 0 || param_bool > 1) {
       ns_html_err_inv_param(fout, phr, 1, "invalid boolean param");
@@ -3688,6 +3756,14 @@ priv_edit_run(FILE *fout, FILE *log_f,
   case NEW_SRV_ACTION_CHANGE_RUN_IS_READONLY:
     ne.is_readonly = param_bool;
     ne_mask = RE_IS_READONLY;
+    break;
+  case NEW_SRV_ACTION_CHANGE_RUN_IS_MARKED:
+    ne.is_marked = param_bool;
+    ne_mask = RE_IS_MARKED;
+    break;
+  case NEW_SRV_ACTION_CHANGE_RUN_IS_SAVED:
+    ne.is_saved = param_bool;
+    ne_mask = RE_IS_SAVED;
     break;
   }
 
@@ -3950,6 +4026,14 @@ priv_clear_displayed(FILE *fout,
     serve_ignore_by_mask(cs, phr->user_id, phr->ip, phr->ssl_flag,
                          mask_size, mask, RUN_DISQUALIFIED);
     break;
+  case NEW_SRV_ACTION_MARK_DISPLAYED_2:
+    serve_mark_by_mask(cs, phr->user_id, phr->ip, phr->ssl_flag,
+                       mask_size, mask, 1);
+    break;
+  case NEW_SRV_ACTION_UNMARK_DISPLAYED_2:
+    serve_mark_by_mask(cs, phr->user_id, phr->ip, phr->ssl_flag,
+                       mask_size, mask, 0);
+    break;
   default:
     abort();
   }
@@ -4134,6 +4218,7 @@ priv_new_run(FILE *fout,
   }
   switch (prob->type) {
   case PROB_TYPE_STANDARD:      // "file"
+  case PROB_TYPE_TESTS:
   case PROB_TYPE_OUTPUT_ONLY:
   case PROB_TYPE_TEXT_ANSWER:
   case PROB_TYPE_SHORT_ANSWER:
@@ -4155,7 +4240,8 @@ priv_new_run(FILE *fout,
     break;
 
   case PROB_TYPE_OUTPUT_ONLY:
-    if (!prob->binary_input && strlen(run_text) != run_size)
+  case PROB_TYPE_TESTS:
+    if (!prob->binary_input && !prob->binary && strlen(run_text) != run_size)
       FAIL(NEW_SRV_ERR_BINARY_FILE);
     break;
 
@@ -5453,7 +5539,7 @@ priv_standings(FILE *fout,
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
             "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role), phr->name_arm,
             phr->contest_id, extra->contest_arm, _("Current standings"));
-  ns_write_priv_standings(cs, cnts, fout, cs->accepting_mode);
+  ns_write_priv_standings(cs, phr, cnts, fout, cs->accepting_mode);
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
   l10n_setlocale(0);
   
@@ -6005,6 +6091,7 @@ priv_upsolving_operation(
   case NEW_SRV_ACTION_UPSOLVING_CONFIG_3: // stop upsolving
     if (!cs->upsolving_mode) break;
     run_stop_contest(cs->runlog_state, cs->current_time);
+    serve_invoke_stop_script(cs);
     cs->upsolving_mode = 0;
     cs->freeze_standings = 0;
     cs->view_source = 0;
@@ -6510,6 +6597,37 @@ priv_whole_testing_queue_operation(
     break;
   case NEW_SRV_ACTION_TESTING_DOWN_ALL:
     serve_testing_queue_change_priority_all(cnts, cs, 1);
+    break;
+  default:
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+
+ cleanup:
+  return retval;
+}
+
+static int
+priv_stand_filter_operation(
+        FILE *fout,
+        FILE *log_f,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
+{
+  int retval = 0;
+  const serve_state_t cs = extra->serve_state;
+
+  /*
+  if (opcaps_check(phr->caps, OPCAP_CONTROL_CONTEST) < 0)
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  */
+
+  switch (phr->action) {
+  case NEW_SRV_ACTION_SET_STAND_FILTER:
+    ns_set_stand_filter(cs, phr);
+    break;
+  case NEW_SRV_ACTION_RESET_STAND_FILTER:
+    ns_reset_stand_filter(cs, phr);
     break;
   default:
     FAIL(NEW_SRV_ERR_INV_PARAM);
@@ -7054,6 +7172,8 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_CHANGE_RUN_IS_HIDDEN] = priv_edit_run,
   [NEW_SRV_ACTION_CHANGE_RUN_IS_EXAMINABLE] = priv_edit_run,
   [NEW_SRV_ACTION_CHANGE_RUN_IS_READONLY] = priv_edit_run,
+  [NEW_SRV_ACTION_CHANGE_RUN_IS_MARKED] = priv_edit_run,
+  [NEW_SRV_ACTION_CHANGE_RUN_IS_SAVED] = priv_edit_run,
   [NEW_SRV_ACTION_CHANGE_RUN_TEST] = priv_edit_run,
   [NEW_SRV_ACTION_CHANGE_RUN_SCORE] = priv_edit_run,
   [NEW_SRV_ACTION_CHANGE_RUN_SCORE_ADJ] = priv_edit_run,
@@ -7089,6 +7209,8 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_TESTING_DELETE_ALL] = priv_whole_testing_queue_operation,
   [NEW_SRV_ACTION_TESTING_UP_ALL] = priv_whole_testing_queue_operation,
   [NEW_SRV_ACTION_TESTING_DOWN_ALL] = priv_whole_testing_queue_operation,
+  [NEW_SRV_ACTION_SET_STAND_FILTER] = priv_stand_filter_operation,
+  [NEW_SRV_ACTION_RESET_STAND_FILTER] = priv_stand_filter_operation,
 
   /* for priv_generic_page */
   [NEW_SRV_ACTION_VIEW_REPORT] = priv_view_report,
@@ -7149,6 +7271,8 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_VIEW_USER_IPS] = priv_view_user_ips,
   [NEW_SRV_ACTION_VIEW_IP_USERS] = priv_view_ip_users,
   [NEW_SRV_ACTION_VIEW_TESTING_QUEUE] = priv_view_testing_queue,
+  [NEW_SRV_ACTION_MARK_DISPLAYED_2] = priv_clear_displayed,
+  [NEW_SRV_ACTION_UNMARK_DISPLAYED_2] = priv_clear_displayed,
 };
 
 static void
@@ -7527,11 +7651,13 @@ priv_submit_page(
   }
 
   /* solution/answer form */
-  if (!prob || !prob->type) {
+  if (!prob /*|| !prob->type*/) {
     fprintf(fout, "<tr><td%s>%s</td><td%s><input type=\"file\" name=\"file\"/></td></tr>\n", cl, _("File"), cl);
    } else {
     switch (prob->type) {
+    case PROB_TYPE_STANDARD:
     case PROB_TYPE_OUTPUT_ONLY:
+    case PROB_TYPE_TESTS:
       if (prob->enable_text_form > 0) {
         fprintf(fout, "<tr><td colspan=\"2\"%s><textarea name=\"text_form\" rows=\"20\" cols=\"60\"></textarea></td></tr>\n", cl);
       }
@@ -8206,6 +8332,7 @@ priv_main_page(FILE *fout,
       switch (prob->type) {
       case PROB_TYPE_STANDARD:
       case PROB_TYPE_OUTPUT_ONLY:
+      case PROB_TYPE_TESTS:
         fprintf(fout, "<tr><td>%s</td><td><input type=\"file\" name=\"file\"/></td></tr>\n", _("File"));
         break;
       case PROB_TYPE_SHORT_ANSWER:
@@ -8462,6 +8589,8 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_CHANGE_RUN_IS_HIDDEN] = priv_generic_operation,
   [NEW_SRV_ACTION_CHANGE_RUN_IS_EXAMINABLE] = priv_generic_operation,
   [NEW_SRV_ACTION_CHANGE_RUN_IS_READONLY] = priv_generic_operation,
+  [NEW_SRV_ACTION_CHANGE_RUN_IS_MARKED] = priv_generic_operation,
+  [NEW_SRV_ACTION_CHANGE_RUN_IS_SAVED] = priv_generic_operation,
   [NEW_SRV_ACTION_CHANGE_RUN_TEST] = priv_generic_operation,
   [NEW_SRV_ACTION_CHANGE_RUN_SCORE] = priv_generic_operation,
   [NEW_SRV_ACTION_CHANGE_RUN_SCORE_ADJ] = priv_generic_operation,
@@ -8531,6 +8660,10 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_TESTING_DELETE_ALL] = priv_generic_operation,
   [NEW_SRV_ACTION_TESTING_UP_ALL] = priv_generic_operation,
   [NEW_SRV_ACTION_TESTING_DOWN_ALL] = priv_generic_operation,
+  [NEW_SRV_ACTION_MARK_DISPLAYED_2] = priv_generic_operation,
+  [NEW_SRV_ACTION_UNMARK_DISPLAYED_2] = priv_generic_operation,
+  [NEW_SRV_ACTION_SET_STAND_FILTER] = priv_generic_operation,
+  [NEW_SRV_ACTION_RESET_STAND_FILTER] = priv_generic_operation,
 };
 
 static void
@@ -8723,7 +8856,7 @@ unpriv_load_html_style(struct http_request_info *phr,
 #if defined CONF_ENABLE_AJAX && CONF_ENABLE_AJAX
   if (extra->serve_state && phr->user_id > 0) {
     state_json_f = open_memstream(&state_json_txt, &state_json_len);
-    do_json_user_state(state_json_f, extra->serve_state, phr->user_id);
+    do_json_user_state(state_json_f, extra->serve_state, phr->user_id, 0);
     close_memstream(state_json_f); state_json_f = 0;
   } else {
     state_json_txt = xstrdup("");
@@ -8740,9 +8873,15 @@ unpriv_load_html_style(struct http_request_info *phr,
            "  var script_name=\"%s\";\n"
            "  dojo.require(\"dojo.parser\");\n"
            "  var jsonState = %s;\n"
+           "  var updateFailedMessage = \"%s\";\n"
+           "  var testingInProgressMessage = \"%s\";\n"
+           "  var testingCompleted = \"%s\";\n"
+           "  var waitingTooLong = \"%s\";\n"
            "</script>\n", phr->session_id, NEW_SRV_ACTION_JSON_USER_STATE,
            NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY,
-           phr->self_url, phr->script_name, state_json_txt);
+           phr->self_url, phr->script_name, state_json_txt,
+           _("STATUS UPDATE FAILED!"), _("TESTING IN PROGRESS..."),
+           _("TESTING COMPLETED"), _("REFRESH PAGE MANUALLY!"));
   xfree(state_json_txt); state_json_txt = 0;
   phr->script_part = xstrdup(bb);
   snprintf(bb, sizeof(bb), " onload=\"startClock()\"");
@@ -9516,7 +9655,7 @@ unpriv_submit_run(FILE *fout,
   size_t run_size = 0, ans_size, text_form_size = 0;
   unsigned char *ans_buf, *ans_map, *ans_tmp;
   time_t start_time, stop_time, user_deadline = 0;
-  const unsigned char *login, *mime_type_str = 0;
+  const unsigned char *mime_type_str = 0;
   char **lang_list;
   int mime_type = 0;
   ruint32_t shaval[5];
@@ -9556,13 +9695,17 @@ unpriv_submit_run(FILE *fout,
   }
 
   switch (prob->type) {
+    /*
   case PROB_TYPE_STANDARD:      // "file"
     if (!ns_cgi_param_bin(phr, "file", &run_text, &run_size)) {
       ns_error(log_f, NEW_SRV_ERR_FILE_UNSPECIFIED);
       goto done;
     }
     break;
+    */
+  case PROB_TYPE_STANDARD:
   case PROB_TYPE_OUTPUT_ONLY:
+  case PROB_TYPE_TESTS:
     if (prob->enable_text_form > 0) {
       int r1 = ns_cgi_param_bin(phr, "file", &run_text, &run_size);
       int r2 =ns_cgi_param_bin(phr,"text_form",&text_form_text,&text_form_size);
@@ -9644,7 +9787,25 @@ unpriv_submit_run(FILE *fout,
       ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
       goto done;
     }
-    if (!run_size) {
+    if (prob->enable_text_form > 0 && text_form_text
+        && strlen(text_form_text) != text_form_size) {
+      ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
+      goto done;
+    }
+    if (prob->enable_text_form) {
+      if (!run_size && !text_form_size) {
+        ns_error(log_f, NEW_SRV_ERR_SUBMIT_EMPTY);
+        goto done;
+      }
+      if (!run_size) {
+        run_text = text_form_text;
+        run_size = text_form_size;
+        skip_mime_type_test = 1;
+      } else {
+        text_form_text = 0;
+        text_form_size = 0;
+      }
+    } else if (!run_size) {
       ns_error(log_f, NEW_SRV_ERR_SUBMIT_EMPTY);
       goto done;
     }
@@ -9653,9 +9814,9 @@ unpriv_submit_run(FILE *fout,
       goto done;
     }
     break;
-
   case PROB_TYPE_OUTPUT_ONLY:
-    if (!prob->binary_input && strlen(run_text) != run_size) {
+  case PROB_TYPE_TESTS:
+    if (!prob->binary_input && !prob->binary && strlen(run_text) != run_size) {
       ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
       goto done;
     }
@@ -9730,23 +9891,12 @@ unpriv_submit_run(FILE *fout,
     goto done;
   }
   // problem submit start time
-  if (prob->start_date >= 0 && cs->current_time < prob->start_date) {
+  if (!serve_is_problem_started(cs, phr->user_id, prob)) {
     ns_error(log_f, NEW_SRV_ERR_PROB_UNAVAILABLE);
     goto done;
   }
-  // personal deadline
-  if (prob->pd_total > 0) {
-    login = teamdb_get_login(cs->teamdb_state, phr->user_id);
-    for (i = 0; i < prob->pd_total; i++) {
-      if (!strcmp(login, prob->pd_infos[i].login)) {
-        user_deadline = prob->pd_infos[i].deadline;
-        break;
-      }
-    }
-  }
-  // common problem deadline
-  if (user_deadline <= 0) user_deadline = prob->deadline;
-  if (user_deadline > 0 && cs->current_time >= user_deadline) {
+  if (serve_is_problem_deadlined(cs, phr->user_id, phr->login, prob,
+                                 &user_deadline)) {
     ns_error(log_f, NEW_SRV_ERR_PROB_DEADLINE_EXPIRED);
     goto done;
   }
@@ -9924,7 +10074,10 @@ unpriv_submit_run(FILE *fout,
       if (serve_compile_request(cs, run_text, run_size, run_id, phr->user_id,
                                 lang->compile_id, phr->locale_id, 0,
                                 lang->src_sfx,
-                                lang->compiler_env, -1, 0, 1, prob, lang) < 0) {
+                                lang->compiler_env,
+                                0, prob->style_checker_cmd,
+                                prob->style_checker_env,
+                                -1, 0, 1, prob, lang) < 0) {
         ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
         goto done;
       }
@@ -9944,11 +10097,26 @@ unpriv_submit_run(FILE *fout,
                       "  This problem is checked manually.\n",
                       run_id);
     } else {
-      if (serve_run_request(cs, log_f, run_text, run_size, run_id,
-                            phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                            0, 0) < 0) {
-        ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-        goto done;
+      if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
+        serve_compile_request(cs, run_text, run_size, run_id,
+                              phr->user_id, 0 /* lang_id */,
+                              0 /* locale_id */, 1 /* output_only*/,
+                              mime_type_get_suffix(mime_type),
+                              NULL /* compiler_env */,
+                              1 /* style_check_only */,
+                              prob->style_checker_cmd,
+                              prob->style_checker_env,
+                              0 /* accepting_mode */,
+                              0 /* priority_adjustment */,
+                              0 /* notify flag */,
+                              prob, NULL /* lang */);
+      } else {
+        if (serve_run_request(cs, log_f, run_text, run_size, run_id,
+                              phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
+                              mime_type, 0, 0) < 0) {
+          ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
+          goto done;
+        }
       }
 
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
@@ -9987,11 +10155,26 @@ unpriv_submit_run(FILE *fout,
         goto done;
       }
 
-      if (serve_run_request(cs, log_f, run_text, run_size, run_id,
-                            phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                            0, 0) < 0) {
-        ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-        goto done;
+      if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
+        serve_compile_request(cs, run_text, run_size, run_id,
+                              phr->user_id, 0 /* lang_id */,
+                              0 /* locale_id */, 1 /* output_only*/,
+                              mime_type_get_suffix(mime_type),
+                              NULL /* compiler_env */,
+                              1 /* style_check_only */,
+                              prob->style_checker_cmd,
+                              prob->style_checker_env,
+                              0 /* accepting_mode */,
+                              0 /* priority_adjustment */,
+                              0 /* notify flag */,
+                              prob, NULL /* lang */);
+      } else {
+        if (serve_run_request(cs, log_f, run_text, run_size, run_id,
+                              phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
+                              mime_type, 0, 0) < 0) {
+          ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
+          goto done;
+        }
       }
 
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
@@ -10011,7 +10194,7 @@ unpriv_submit_run(FILE *fout,
       if (prob->advance_to_next > 0) {
         for (i++; i <= cs->max_prob; i++) {
           if (!(prob2 = cs->probs[i])) continue;
-          if (prob2->start_date > 0 && prob2->start_date > cs->current_time)
+          if (!serve_is_problem_started(cs, phr->user_id, prob2))
             continue;
           // FIXME: standard applicability checks
           break;
@@ -10465,7 +10648,7 @@ unpriv_command(FILE *fout,
         && global->problem_navigation) {
       for (i = 1; i <= cs->max_prob; i++) {
         if (!(prob = cs->probs[i])) continue;
-        if (prob->start_date > 0 && prob->start_date > cs->current_time)
+        if (!serve_is_problem_started(cs, phr->user_id, prob))
           continue;
         // FIXME: standard applicability checks
         break;
@@ -10825,17 +11008,28 @@ unpriv_view_report(FILE *fout,
     fprintf(fout, "%s", rep_start);
     break;
   case CONTENT_TYPE_XML:
-    if (global->score_system == SCORE_OLYMPIAD && accepting_mode) {
-      write_xml_team_accepting_report(fout, rep_start, run_id, &re, prob,
-                                      new_actions_vector,
-                                      phr->session_id, cnts->exam_mode,
-                                      phr->self_url, "", "b1");
-    } else if (prob->team_show_judge_report) {
-      write_xml_testing_report(fout, 1, rep_start, phr->session_id,
-                               phr->self_url, "", new_actions_vector,"b1","b0");
+    if (prob->type == PROB_TYPE_TESTS) {
+      if (prob->team_show_judge_report) {
+        write_xml_tests_report(fout, 1, rep_start, phr->session_id,
+                                 phr->self_url, "", "b1", "b0"); 
+      } else {
+        write_xml_team_tests_report(cs, prob, fout, rep_start, "b1");
+      }
     } else {
-      write_xml_team_testing_report(cs, fout, prob->type != PROB_TYPE_STANDARD,
-                                    rep_start, "b1");
+      if (global->score_system == SCORE_OLYMPIAD && accepting_mode) {
+        write_xml_team_accepting_report(fout, rep_start, run_id, &re, prob,
+                                        new_actions_vector,
+                                        phr->session_id, cnts->exam_mode,
+                                        phr->self_url, "", "b1");
+      } else if (prob->team_show_judge_report) {
+        write_xml_testing_report(fout, 1, rep_start, phr->session_id,
+                                 phr->self_url, "", new_actions_vector, "b1",
+                                 "b0");
+      } else {
+        write_xml_team_testing_report(cs, prob, fout,
+                                      prob->type != PROB_TYPE_STANDARD,
+                                      rep_start, "b1");
+      }
     }
     break;
   default:
@@ -11086,20 +11280,22 @@ unpriv_view_standings(FILE *fout,
     fprintf(fout, _("<p>Information is not available.</p>"));
   } else if (global->is_virtual) {
     do_write_standings(cs, cnts, fout, 1, 1, phr->user_id, 0, 0, 0, 0, 1,
-                       cur_time);
+                       cur_time, NULL);
   } else if (global->score_system == SCORE_ACM) {
     do_write_standings(cs, cnts, fout, 1, 1, phr->user_id, 0, 0, 0, 0, 1,
-                       cur_time);
+                       cur_time, NULL);
   } else if (global->score_system == SCORE_OLYMPIAD && cs->accepting_mode) {
     fprintf(fout, _("<p>Information is not available.</p>"));
   } else if (global->score_system == SCORE_OLYMPIAD) {
     //fprintf(fout, _("<p>Information is not available.</p>"));
-    do_write_kirov_standings(cs, cnts, fout, 0, 1, 1, 0, 0, 0, 0, 1, cur_time, 0);
+    do_write_kirov_standings(cs, cnts, fout, 0, 1, 1, 0, 0, 0, 0, 1, cur_time,
+                             0, NULL);
   } else if (global->score_system == SCORE_KIROV) {
-    do_write_kirov_standings(cs, cnts, fout, 0, 1, 1, 0, 0, 0, 0, 1, cur_time, 0);
+    do_write_kirov_standings(cs, cnts, fout, 0, 1, 1, 0, 0, 0, 0, 1, cur_time,
+                             0, NULL);
   } else if (global->score_system == SCORE_MOSCOW) {
     do_write_moscow_standings(cs, cnts, fout, 0, 1, 1, phr->user_id,
-                              0, 0, 0, 0, 1, cur_time, 0);
+                              0, 0, 0, 0, 1, cur_time, 0, NULL);
   }
 
  done:
@@ -11119,35 +11315,6 @@ unpriv_view_standings(FILE *fout,
   l10n_setlocale(0);
 }
 
-static int
-is_problem_deadlined(serve_state_t cs,
-                     int problem_id,
-                     const unsigned char *user_login,
-                     time_t *p_deadline)
-{
-  time_t user_deadline = 0;
-  int pdi;
-  struct pers_dead_info *pdinfo;
-
-  if (problem_id <= 0 || problem_id > cs->max_prob) return 1;
-  if (!cs->probs[problem_id]) return 1;
-
-  user_deadline = 0;
-  for (pdi = 0, pdinfo = cs->probs[problem_id]->pd_infos;
-       pdi < cs->probs[problem_id]->pd_total;
-       pdi++, pdinfo++) {
-    if (!strcmp(user_login, pdinfo->login)) {
-      user_deadline = pdinfo->deadline;
-      break;
-    }
-  }
-  if (!user_deadline) user_deadline = cs->probs[problem_id]->deadline;
-  if (p_deadline) *p_deadline = user_deadline;
-
-  if (!user_deadline) return 0;
-  return (cs->current_time >= user_deadline);
-}
-
 static void
 html_problem_selection(serve_state_t cs,
                        FILE *fout,
@@ -11158,10 +11325,9 @@ html_problem_selection(serve_state_t cs,
                        int light_mode,
                        time_t start_time)
 {
-  int i, pdi, dpi, j, k;
+  int i, dpi, j, k;
   time_t user_deadline = 0;
   int user_penalty = 0, variant = 0;
-  struct pers_dead_info *pdinfo;
   unsigned char deadline_str[64];
   unsigned char penalty_str[64];
   unsigned char problem_str[128];
@@ -11176,7 +11342,7 @@ html_problem_selection(serve_state_t cs,
     if (!(prob = cs->probs[i])) continue;
     if (!light_mode && prob->disable_submit_after_ok>0 && solved_flag[i])
       continue;
-    if (prob->start_date > 0 && cs->current_time < prob->start_date)
+    if (!serve_is_problem_started(cs, phr->user_id, prob))
       continue;
     if (start_time <= 0) continue;
     //if (prob->disable_user_submit) continue;
@@ -11187,18 +11353,9 @@ html_problem_selection(serve_state_t cs,
       // try to find personal rules
       user_deadline = 0;
       user_penalty = 0;
-      for (pdi = 0, pdinfo = prob->pd_infos;
-           pdi < prob->pd_total;
-           pdi++, pdinfo++) {
-        if (!strcmp(phr->login, pdinfo->login)) {
-          user_deadline = pdinfo->deadline;
-          break;
-        }
-      }
-      // if no user-specific deadline, try the problem deadline
-      if (!user_deadline) user_deadline = prob->deadline;
-      // if deadline is over, go to the next problem
-      if (user_deadline && cs->current_time >= user_deadline) continue;
+      if (serve_is_problem_deadlined(cs, phr->user_id, phr->login,
+                                     prob, &user_deadline))
+        continue;
 
       // check `require' variable
       if (prob->require) {
@@ -11255,10 +11412,9 @@ html_problem_selection_2(serve_state_t cs,
                          const unsigned char *var_name,
                          time_t start_time)
 {
-  int i, pdi, dpi;
+  int i, dpi;
   time_t user_deadline = 0;
   int variant = 0;
-  struct pers_dead_info *pdinfo;
   unsigned char deadline_str[64];
   unsigned char problem_str[128];
   const unsigned char *problem_ptr = 0;
@@ -11271,24 +11427,13 @@ html_problem_selection_2(serve_state_t cs,
 
   for (i = 1; i <= cs->max_prob; i++) {
     if (!(prob = cs->probs[i])) continue;
-    if (prob->start_date > 0 && cs->current_time < prob->start_date)
+    if (!serve_is_problem_started(cs, phr->user_id, prob))
       continue;
     if (start_time <= 0) continue;
 
-    deadline_str[0] = 0;
-    user_deadline = 0;
-    for (pdi = 0, pdinfo = prob->pd_infos;
-         pdi < prob->pd_total;
-         pdi++, pdinfo++) {
-      if (!strcmp(phr->login, pdinfo->login)) {
-        user_deadline = pdinfo->deadline;
-        break;
-      }
-    }
-    // if no user-specific deadline, try the problem deadline
-    if (!user_deadline) user_deadline = prob->deadline;
-    // if deadline is over, go to the next problem
-    if (user_deadline && cs->current_time >= user_deadline) continue;
+    if (serve_is_problem_deadlined(cs, phr->user_id, phr->login,
+                                   prob, &user_deadline))
+      continue;
 
     // find date penalty
     for (dpi = 0; dpi < prob->dp_total; dpi++)
@@ -11392,6 +11537,7 @@ unpriv_page_header(FILE *fout,
   unsigned char stand_url_buf[1024];
   struct teamdb_export tdb;
   struct sformat_extra_data fe;
+  const unsigned char *visibility;
 
   template_ptr = extra->menu_2_txt;
   if (!template_ptr || !*template_ptr)
@@ -11570,7 +11716,7 @@ unpriv_page_header(FILE *fout,
       } else {
         status_style = "server_status_on";
       }
-      fprintf(fout, "<div class=\"%s\">\n", status_style);
+      fprintf(fout, "<div class=\"%s\" id=\"statusLine\">\n", status_style);
       fprintf(fout, "<div id=\"currentTime\">%s</div>",
               brief_time(time_buf, sizeof(time_buf), cs->current_time));
       if (unread_clars > 0) {
@@ -11649,7 +11795,12 @@ unpriv_page_header(FILE *fout,
                 _("Remaining"), time_buf);
       }
 
-      fprintf(fout, "</div>\n");
+      visibility = "hidden";
+      if (global->disable_auto_refresh > 0) {
+        visibility = "visible";
+      }
+
+      fprintf(fout, "<div id=\"reloadButton\" style=\"visibility: %s\">/ <a class=\"menu\" onclick=\"reloadPage()\"><b>[ %s ]</b></a></div><div id=\"statusString\" style=\"visibility: hidden\"></div></div>\n", visibility, _("REFRESH"));
       break;
 
     default:
@@ -11765,9 +11916,8 @@ get_problem_status(serve_state_t cs, int user_id,
                    unsigned char *pstat)
 {
   const struct section_problem_data *prob;
-  int prob_id, pdi, is_deadlined, k, j;
+  int prob_id, is_deadlined, k, j;
   time_t user_deadline;
-  const struct pers_dead_info *pdinfo;
 
   // nothing before contest start
   if (start_time <= 0) return;
@@ -11776,7 +11926,7 @@ get_problem_status(serve_state_t cs, int user_id,
     if (!(prob = cs->probs[prob_id])) continue;
 
     // the problem is completely disabled before its start_date
-    if (prob->start_date > 0 && prob->start_date > cs->current_time)
+    if (!serve_is_problem_started(cs, user_id, prob))
       continue;
 
     // the problem is completely disabled before requirements are met
@@ -11798,22 +11948,8 @@ get_problem_status(serve_state_t cs, int user_id,
     }
 
     // check problem deadline
-    is_deadlined = 0;
-    if (stop_time > 0 && cs->current_time >= stop_time) {
-      is_deadlined = 1;
-    } else {
-      user_deadline = 0;
-      for (pdi = 0, pdinfo = prob->pd_infos; pdi < prob->pd_total;
-           pdi++, pdinfo++) {
-        if (!strcmp(user_login, pdinfo->login)) {
-          user_deadline = pdinfo->deadline;
-          break;
-        }
-      }
-      if (user_deadline <= 0) user_deadline = prob->deadline;
-      if (user_deadline > 0 && cs->current_time >= user_deadline)
-        is_deadlined = 1;
-    }
+    is_deadlined = serve_is_problem_deadlined(cs, user_id, user_login,
+                                              prob, &user_deadline);
 
     if (prob->restricted_statement <= 0 || !is_deadlined)
       pstat[prob_id] |= PROB_STATUS_VIEWABLE;
@@ -12069,6 +12205,7 @@ unpriv_main_page(FILE *fout,
   unsigned char *pending_flag = 0;
   unsigned char *trans_flag = 0;
   unsigned char *prob_status = 0;
+  time_t *prob_deadline = 0;
   int *best_run = 0;
   int *attempts = 0;
   int *disqualified = 0;
@@ -12096,6 +12233,8 @@ unpriv_main_page(FILE *fout,
   int upper_tab_id = 0, next_prob_id;
   problem_xml_t px;
   unsigned char prev_group_name[256] = { 0 };
+  const unsigned char *li_attr;
+  const unsigned char *div_class;
 
   if (ns_cgi_param(phr, "all_runs", &s) > 0
       && sscanf(s, "%d%n", &v, &n) == 1 && !s[n] && v >= 0 && v <= 1) {
@@ -12123,6 +12262,7 @@ unpriv_main_page(FILE *fout,
   XALLOCAZ(prev_successes, cs->max_prob + 1);
   XALLOCAZ(all_attempts, cs->max_prob + 1);
   XALLOCAZ(prob_status, cs->max_prob + 1);
+  XALLOCAZ(prob_deadline, cs->max_prob + 1);
 
   if (global->is_virtual) {
     start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
@@ -12173,60 +12313,58 @@ unpriv_main_page(FILE *fout,
       prob_id = 0;
 
     fprintf(fout, "<br/>\n");
-    fprintf(fout, "<table class=\"probNav\">\n");
+    fprintf(fout, "<table class=\"probNav\">");
     upper_tab_id = prob_id;
     if (global->vertical_navigation <= 0) {
-      fprintf(fout, "<tr id=\"probNavTopList\">\n");
-      for (i = 1, j = 0; i <= cs->max_prob; i++) {
+      fprintf(fout, "<tr id=\"probNavTopList\"><td width=\"100%%\" class=\"nTopNavList\"><ul class=\"nTopNavList\">");
+      for (i = 1; i <= cs->max_prob; i++) {
         if (!(prob = cs->probs[i])) continue;
         if (!(prob_status[i] & PROB_STATUS_TABABLE)) continue;
 
-        if (j > 0) {
-          fprintf(fout, "<td class=\"probNavSpaceTop\">&nbsp;</td>");
-          j++;
-        }
-        hh = "probNavHidden";
+        li_attr = "";
+        div_class = "nProbBad";
         if (i == prob_id) {
-          cc = "probCurrent";
+          li_attr = "  id=\"nTopNavSelected\"";
+          div_class = "nProbCurrent";
         } else if (prob->disable_user_submit > 0) {
-          cc = "probDisabled";
+          div_class = "nProbDisabled";
         } else if (!all_attempts[i]) {
-          cc = "probEmpty";
+          div_class = "nProbEmpty";
         } else if (pending_flag[i] || trans_flag[i]) {
-          cc = "probTrans";
+          div_class = "nProbTrans";
         } else if (accepted_flag[i] || solved_flag[i]) {
-          cc = "probOk";
+          div_class = "nProbOk";
         } else {
-          cc = "probBad";
+          div_class = "nProbBad";
         }
-        if (i == prob_id) hh = "probNavActiveTop";
         wbuf[0] = 0;
+        /*
         if (global->problem_tab_size > 0)
           snprintf(wbuf, sizeof(wbuf), " width=\"%dpx\"",
                    global->problem_tab_size);
-        fprintf(fout, "<td class=\"%s\" onclick=\"displayProblemSubmitForm(%d, %d)\"%s><div class=\"%s\">", hh, NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT, i, wbuf, cc);
-      //fprintf(fout, "<td class=\"%s\" style=\"background-color: %s\">", hh, cc);
+        */
+        fprintf(fout, "<li%s><div class=\"%s\">", li_attr, div_class);
+
       /*
       if (accepting_mode && accepted_flag[i]) {
         fprintf(fout, "<s>");
       }
       */
         fprintf(fout, "%s%s</a>",
-                ns_aref_2(bb, sizeof(bb), phr, "tab",
-                          NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                          "prob_id=%d", i), prob->short_name);
+                ns_aref(bb, sizeof(bb), phr,
+                        NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
+                        "prob_id=%d", i), prob->short_name);
       /*
       if (accepting_mode && accepted_flag[i]) {
         fprintf(fout, "</s>");
       }
       */
-        fprintf(fout, "</div></td>\n");
-        j++;
+        fprintf(fout, "</div></li>");
       }
-      fprintf(fout, "</tr>");
-      fprintf(fout, "<tr><td colspan=\"%d\" id=\"probNavTaskArea\" valign=\"top\"><div id=\"probNavTaskArea\">\n", j);
+      fprintf(fout, "</ul></td></tr>");
+      fprintf(fout, "<tr><td id=\"probNavTaskArea\" valign=\"top\"><div id=\"probNavTaskArea\">");
     } else {
-      fprintf(fout, "<tr><td class=\"b0\" id=\"probNavTaskArea\" valign=\"top\"><div id=\"probNavTaskArea\">\n");
+      fprintf(fout, "<tr><td class=\"b0\" id=\"probNavTaskArea\" valign=\"top\"><div id=\"probNavTaskArea\">");
     }
   }
 
@@ -12364,8 +12502,9 @@ unpriv_main_page(FILE *fout,
       variant = 0;
       if (prob_id <= 0 || prob_id > cs->max_prob) continue;
       if (!(prob = cs->probs[prob_id])) continue;
-      if (is_problem_deadlined(cs, prob_id, phr->login, 0)) continue;
-      if (prob->start_date > 0 && cs->current_time < prob->start_date)
+      if (!serve_is_problem_started(cs, phr->user_id, prob)) continue;
+      if (serve_is_problem_deadlined(cs, phr->user_id, phr->login,
+                                     prob, &prob_deadline[prob_id]))
         continue;
       if (prob->variant_num > 0
           && (variant = find_variant(cs, phr->user_id, prob_id, 0)) <= 0)
@@ -12390,12 +12529,12 @@ unpriv_main_page(FILE *fout,
             cnts->team_head_style, _("Select another problem"),
             cnts->team_head_style);
     html_start_form(fout, 0, phr->self_url, phr->hidden_vars);
-    fprintf(fout, "<table class=\"b0\">\n");
+    fprintf(fout, "<table class=\"b0\">");
     fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Problem"));
 
     html_problem_selection_2(cs, fout, phr, 0, start_time);
 
-    fprintf(fout, "</td><td class=\"b0\">%s</td></tr></table></form>\n",
+    fprintf(fout, "</td><td class=\"b0\">%s</td></tr></table></form>",
             ns_submit_button(bb, sizeof(bb), 0,
                              NEW_SRV_ACTION_VIEW_PROBLEM_STATEMENTS,
                              _("Select problem")));
@@ -12405,10 +12544,11 @@ unpriv_main_page(FILE *fout,
       && !cs->clients_suspended) {
     if (prob_id > cs->max_prob) prob_id = 0;
     if (prob_id > 0 && !(prob = cs->probs[prob_id])) prob_id = 0;
-    if (prob_id > 0 && is_problem_deadlined(cs, prob_id, phr->login, 0))
+    if (prob_id > 0 && !serve_is_problem_started(cs, phr->user_id, prob))
       prob_id = 0;
-    if (prob_id > 0 && prob->start_date > 0
-        && cs->current_time < prob->start_date)
+    if (prob_id > 0 && serve_is_problem_deadlined(cs, phr->user_id, phr->login,
+                                                  prob,
+                                                  &prob_deadline[prob_id]))
       prob_id = 0;
     //if (prob_id > 0 && prob->disable_user_submit > 0) prob_id = 0;
     if (prob_id > 0 && prob->variant_num > 0
@@ -12421,13 +12561,13 @@ unpriv_main_page(FILE *fout,
               _("View the problem statement and send a submission"),
               cnts->team_head_style);
       html_start_form(fout, 0, phr->self_url, phr->hidden_vars);
-      fprintf(fout, "<table class=\"b0\">\n");
+      fprintf(fout, "<table class=\"b0\">");
       fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Problem"));
 
       html_problem_selection(cs, fout, phr, solved_flag, accepted_flag, 0, 0,
                              start_time);
 
-      fprintf(fout, "</td><td class=\"b0\">%s</td></tr></table></form>\n",
+      fprintf(fout, "</td><td class=\"b0\">%s</td></tr></table></form>",
               ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
                                _("Select problem")));
     } else if (start_time > 0 && stop_time <= 0 && prob_id > 0) {
@@ -12435,9 +12575,10 @@ unpriv_main_page(FILE *fout,
 
       dbuf[0] = 0;
       if ((prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)
-          && prob->deadline > 0) {
+          && prob_deadline[prob_id] > 0) {
         snprintf(dbuf, sizeof(dbuf), "<h3>%s: %s</h3>",
-                 _("Problem deadline"), xml_unparse_date(prob->deadline));
+                 _("Problem deadline"),
+                 xml_unparse_date(prob_deadline[prob_id]));
       }
 
       bb[0] = 0;
@@ -12553,9 +12694,9 @@ unpriv_main_page(FILE *fout,
         if (!skip_start_form) {
           html_start_form(fout, 2, phr->self_url, phr->hidden_vars);
         }
-        fprintf(fout, "<input type=\"hidden\" name=\"prob_id\" value=\"%d\"/>\n",
+        fprintf(fout, "<input type=\"hidden\" name=\"prob_id\" value=\"%d\"/>",
                 prob_id);
-        fprintf(fout, "<table class=\"b0\">\n");
+        fprintf(fout, "<table class=\"b0\">");
         if (!prob->type) {
           for (i = 1; i <= cs->max_lang; i++) {
             if (!cs->langs[i] || cs->langs[i]->disabled
@@ -12577,14 +12718,14 @@ unpriv_main_page(FILE *fout,
 
           if (lang_count == 1) {
             html_hidden(fout, "lang_id", "%d", lang_id);
-            fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s - %s</td></tr>\n",
+            fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s - %s</td></tr>",
                     _("Language"),
                     cs->langs[lang_id]->short_name,
                     cs->langs[lang_id]->long_name);
           } else {
             last_lang_id = get_last_language(cs, phr->user_id);
             fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Language"));
-            fprintf(fout, "<select name=\"lang_id\"><option value=\"\">\n");
+            fprintf(fout, "<select name=\"lang_id\"><option value=\"\">");
             for (i = 1; i <= cs->max_lang; i++) {
               if (!cs->langs[i] || cs->langs[i]->disabled
                   || (cs->langs[i]->insecure && global->secure_run)) continue;
@@ -12601,21 +12742,25 @@ unpriv_main_page(FILE *fout,
               }
               cc = "";
               if (last_lang_id == i) cc = " selected=\"selected\"";
-              fprintf(fout, "<option value=\"%d\"%s>%s - %s</option>\n",
+              fprintf(fout, "<option value=\"%d\"%s>%s - %s</option>",
                       i, cc, cs->langs[i]->short_name, cs->langs[i]->long_name);
             }
-            fprintf(fout, "</select></td></tr>\n");
+            fprintf(fout, "</select></td></tr>");
           }
         }
         switch (prob->type) {
+          /*
         case PROB_TYPE_STANDARD:
-          fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"file\" name=\"file\"/></td></tr>\n", _("File"));
+          fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"file\" name=\"file\"/></td></tr>", _("File"));
           break;
+          */
+        case PROB_TYPE_STANDARD:
         case PROB_TYPE_OUTPUT_ONLY:
+        case PROB_TYPE_TESTS:
           if (prob->enable_text_form > 0) {
-            fprintf(fout, "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"text_form\" rows=\"20\" cols=\"60\"></textarea></td></tr>\n");
+            fprintf(fout, "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"text_form\" rows=\"20\" cols=\"60\"></textarea></td></tr>");
           }
-          fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"file\" name=\"file\"/></td></tr>\n", _("File"));
+          fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"file\" name=\"file\"/></td></tr>", _("File"));
           break;
         case PROB_TYPE_SHORT_ANSWER:
           last_source = 0;
@@ -12623,14 +12768,14 @@ unpriv_main_page(FILE *fout,
             last_source = get_last_source(cs, phr->user_id, prob->id);
           }
           if (last_source) {
-            fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"text\" name=\"file\" value=\"%s\"/></td></tr>\n", _("Answer"), ARMOR(last_source));
+            fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"text\" name=\"file\" value=\"%s\"/></td></tr>", _("Answer"), ARMOR(last_source));
           } else {
-            fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"text\" name=\"file\"/></td></tr>\n", _("Answer"));
+            fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"text\" name=\"file\"/></td></tr>", _("Answer"));
           }
         xfree(last_source); last_source = 0;
           break;
         case PROB_TYPE_TEXT_ANSWER:
-          fprintf(fout, "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"file\" rows=\"20\" cols=\"60\"></textarea></td></tr>\n");
+          fprintf(fout, "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"file\" rows=\"20\" cols=\"60\"></textarea></td></tr>");
           break;
         case PROB_TYPE_SELECT_ONE:
           last_answer = -1;
@@ -12646,8 +12791,8 @@ unpriv_main_page(FILE *fout,
                 next_prob_id++;
                 for (; next_prob_id <= cs->max_prob; next_prob_id++) {
                   if (!(prob2 = cs->probs[next_prob_id])) continue;
-                  if (prob2->start_date > 0
-                      && prob2->start_date > cs->current_time) continue;
+                  if (!serve_is_problem_started(cs, phr->user_id, prob2))
+                    continue;
                   break;
                 }
                 if (next_prob_id > cs->max_prob) next_prob_id = prob->id;
@@ -12669,8 +12814,8 @@ unpriv_main_page(FILE *fout,
                 next_prob_id++;
                 for (; next_prob_id <= cs->max_prob; next_prob_id++) {
                   if (!(prob2 = cs->probs[next_prob_id])) continue;
-                  if (prob2->start_date > 0
-                      && prob2->start_date > cs->current_time) continue;
+                  if (!serve_is_problem_started(cs, phr->user_id, prob2))
+                    continue;
                   break;
                 }
                 if (next_prob_id > cs->max_prob) next_prob_id = prob->id;
@@ -12685,7 +12830,7 @@ unpriv_main_page(FILE *fout,
             for (i = 0; prob->alternative[i]; i++) {
               cc = "";
               if (i + 1 == last_answer) cc = " checked=\"1\"";
-              fprintf(fout, "<tr><td class=\"b0\">%d</td><td class=\"b0\"><input type=\"radio\" name=\"file\" value=\"%d\"%s/></td><td>%s</td></tr>\n", i + 1, i + 1, cc, prob->alternative[i]);
+              fprintf(fout, "<tr><td class=\"b0\">%d</td><td class=\"b0\"><input type=\"radio\" name=\"file\" value=\"%d\"%s/></td><td>%s</td></tr>", i + 1, i + 1, cc, prob->alternative[i]);
             }
           }
           break;
@@ -12694,7 +12839,7 @@ unpriv_main_page(FILE *fout,
             write_alternatives_file(fout, 0, alternatives, -1, 0, 0, 0, "b0");
           } else if (prob->alternative) {
             for (i = 0; prob->alternative[i]; i++) {
-              fprintf(fout, "<tr><td class=\"b0\">%d</td><td class=\"b0\"><input type=\"checkbox\" name=\"ans_%d\"/></td><td>%s</td></tr>\n", i + 1, i + 1, prob->alternative[i]);
+              fprintf(fout, "<tr><td class=\"b0\">%d</td><td class=\"b0\"><input type=\"checkbox\" name=\"ans_%d\"/></td><td>%s</td></tr>", i + 1, i + 1, prob->alternative[i]);
             }
           }
           break;
@@ -12705,15 +12850,15 @@ unpriv_main_page(FILE *fout,
           if (prob->type != PROB_TYPE_SELECT_ONE) {
             cc = "";
             if (prob && (prob->type == PROB_TYPE_SELECT_MANY || prob->type == PROB_TYPE_SELECT_ONE)) cc = "<td class=\"b0\">&nbsp;</td>";
-            fprintf(fout, "<tr>%s<td class=\"b0\">&nbsp;</td><td class=\"b0\">%s</td></tr></table></form>\n", cc,
+            fprintf(fout, "<tr>%s<td class=\"b0\">&nbsp;</td><td class=\"b0\">%s</td></tr></table></form>", cc,
                     ns_submit_button(bb, sizeof(bb), 0,
                                      NEW_SRV_ACTION_SUBMIT_RUN,
                                      _("Submit solution!")));
           } else {
-            fprintf(fout, "</tr></table></form>\n");
+            fprintf(fout, "</tr></table></form>");
           }
         } else {
-          fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\">%s</td></tr></table></form>\n",
+          fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\">%s</td></tr></table></form>",
                   _("Send!"),
                   BUTTON(NEW_SRV_ACTION_SUBMIT_RUN));
         }
@@ -12770,7 +12915,7 @@ unpriv_main_page(FILE *fout,
           */
         }
         html_start_form(fout, 0, phr->self_url, phr->hidden_vars);
-        fprintf(fout, "<table class=\"b0\">\n");
+        fprintf(fout, "<table class=\"b0\">");
         fprintf(fout, "<tr>");
 
         if (global->problem_navigation > 0) {
@@ -12809,7 +12954,7 @@ unpriv_main_page(FILE *fout,
           }
         }
 
-      fprintf(fout, "</tr></table></form>\n");
+      fprintf(fout, "</tr></table></form>");
       }
     }
   }
@@ -12858,11 +13003,11 @@ unpriv_main_page(FILE *fout,
       fprintf(fout, "<table class=\"b0\"><tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Problem"));
       html_problem_selection(cs, fout, phr, solved_flag, accepted_flag, 0, 1,
                              start_time);
-      fprintf(fout, "</td></tr>\n<tr><td class=\"b0\">%s:</td>"
-              "<td class=\"b0\"><input type=\"text\" name=\"subject\"/></td></tr>\n"
-              "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"text\" rows=\"20\" cols=\"60\"></textarea></td></tr>\n"
-              "<tr><td colspan=\"2\" class=\"b0\">%s</td></tr>\n"
-              "</table></form>\n",
+      fprintf(fout, "</td></tr><tr><td class=\"b0\">%s:</td>"
+              "<td class=\"b0\"><input type=\"text\" name=\"subject\"/></td></tr>"
+              "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"text\" rows=\"20\" cols=\"60\"></textarea></td></tr>"
+              "<tr><td colspan=\"2\" class=\"b0\">%s</td></tr>"
+              "</table></form>",
               _("Subject"), BUTTON(NEW_SRV_ACTION_SUBMIT_CLAR));
     }
     if (!global->disable_clars && !global->disable_team_clars
@@ -12876,11 +13021,11 @@ unpriv_main_page(FILE *fout,
       fprintf(fout, "<table class=\"b0\"><tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Problem"));
       html_problem_selection(cs, fout, phr, solved_flag, accepted_flag, 0, 1,
                              start_time);
-      fprintf(fout, "</td></tr>\n<tr><td class=\"b0\">%s:</td>"
-              "<td class=\"b0\"><input type=\"text\" name=\"test\"/></td></tr>\n"
-              "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"text\" rows=\"20\" cols=\"60\"></textarea></td></tr>\n"
-              "<tr><td colspan=\"2\" class=\"b0\">%s</td></tr>\n"
-              "</table></form>\n",
+      fprintf(fout, "</td></tr><tr><td class=\"b0\">%s:</td>"
+              "<td class=\"b0\"><input type=\"text\" name=\"test\"/></td></tr>"
+              "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"text\" rows=\"20\" cols=\"60\"></textarea></td></tr>"
+              "<tr><td colspan=\"2\" class=\"b0\">%s</td></tr>"
+              "</table></form>",
               _("Test number"), BUTTON(NEW_SRV_ACTION_SUBMIT_APPEAL));
     }
   }
@@ -12909,11 +13054,11 @@ unpriv_main_page(FILE *fout,
               cnts->team_head_style);
       html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
 
-      fprintf(fout, "<table class=\"b0\">\n"
-              "<tr><td class=\"b0\">%s:</td><td class=\"b0\"><input type=\"password\" name=\"oldpasswd\" size=\"16\"/></td></tr>\n"
-              "<tr><td class=\"b0\">%s:</td><td class=\"b0\"><input type=\"password\" name=\"newpasswd1\" size=\"16\"/></td></tr>\n"
-              "<tr><td class=\"b0\">%s:</td><td class=\"b0\"><input type=\"password\" name=\"newpasswd2\" size=\"16\"/></td></tr>\n"
-              "<tr><td class=\"b0\" colspan=\"2\"><input type=\"submit\" name=\"action_%d\" value=\"%s\"/></td></tr>\n"
+      fprintf(fout, "<table class=\"b0\">"
+              "<tr><td class=\"b0\">%s:</td><td class=\"b0\"><input type=\"password\" name=\"oldpasswd\" size=\"16\"/></td></tr>"
+              "<tr><td class=\"b0\">%s:</td><td class=\"b0\"><input type=\"password\" name=\"newpasswd1\" size=\"16\"/></td></tr>"
+              "<tr><td class=\"b0\">%s:</td><td class=\"b0\"><input type=\"password\" name=\"newpasswd2\" size=\"16\"/></td></tr>"
+              "<tr><td class=\"b0\" colspan=\"2\"><input type=\"submit\" name=\"action_%d\" value=\"%s\"/></td></tr>"
               "</table></form>",
               _("Old password"),
               _("New password"), _("Retype new password"),
@@ -12929,7 +13074,7 @@ unpriv_main_page(FILE *fout,
       html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
       fprintf(fout, "<table class=\"b0\"><tr><td class=\"b0\">%s</td><td class=\"b0\">", _("Change language"));
       l10n_html_locale_select(fout, phr->locale_id);
-      fprintf(fout, "</td><td class=\"b0\"><input type=\"submit\" name=\"action_%d\" value=\"%s\"/></td></tr></table></form>\n",
+      fprintf(fout, "</td><td class=\"b0\"><input type=\"submit\" name=\"action_%d\" value=\"%s\"/></td></tr></table></form>",
               NEW_SRV_ACTION_CHANGE_LANGUAGE, _("Change"));
     }
 #endif /* CONF_HAS_LIBINTL */
@@ -12938,7 +13083,7 @@ unpriv_main_page(FILE *fout,
   /* new problem navigation */
   if (global->problem_navigation > 0 && global->vertical_navigation > 0
       && start_time > 0 && stop_time <= 0) {
-    fprintf(fout, "</div></td><td class=\"b0\" id=\"probNavRightList\" valign=\"top\">\n");
+    fprintf(fout, "</div></td><td class=\"b0\" id=\"probNavRightList\" valign=\"top\">");
     prev_group_name[0] = 0;
 
     for (i = 1, j = 0; i <= cs->max_prob; i++) {
@@ -12948,7 +13093,7 @@ unpriv_main_page(FILE *fout,
       if (prob->group_name[0] && strcmp(prob->group_name, prev_group_name)) {
         fprintf(fout, "<div class=\"%s\">", "probDisabled");
         fprintf(fout, "%s", prob->group_name);
-        fprintf(fout, "</div>\n");
+        fprintf(fout, "</div>");
         snprintf(prev_group_name, sizeof(prev_group_name),
                  "%s", prob->group_name);
       }
@@ -12981,60 +13126,61 @@ unpriv_main_page(FILE *fout,
         fprintf(fout, "</s>");
       }
       */
-      fprintf(fout, "</div>\n");
+      fprintf(fout, "</div>");
       j++;
     }
-    fprintf(fout, "</td></tr></table>\n");
+    fprintf(fout, "</td></tr></table>");
   } else if (global->problem_navigation > 0
              && start_time > 0 && stop_time <= 0) {
-    fprintf(fout, "</div></td></tr>\n");
-    fprintf(fout, "<tr id=\"probNavBottomList\">\n");
-    for (i = 1, j = 0; i <= cs->max_prob; i++) {
+    fprintf(fout, "</div></td></tr>");
+
+    fprintf(fout, "<tr id=\"probNavBottomList\"><td width=\"100%%\" class=\"nBottomNavList\"><ul class=\"nBottomNavList\">");
+    for (i = 1; i <= cs->max_prob; i++) {
       if (!(prob = cs->probs[i])) continue;
       if (!(prob_status[i] & PROB_STATUS_TABABLE)) continue;
 
-      if (j > 0) {
-        fprintf(fout, "<td class=\"probNavSpaceBottom\">&nbsp;</td>");
-        j++;
-      }
-      hh = "probNavHidden";
-      if (upper_tab_id == i) hh = "probNavActiveBottom";
+      div_class = "nProbBad";
+      li_attr = "";
       if (i == upper_tab_id) {
-        cc = "probCurrent";
+        div_class = "nProbCurrent";
+        li_attr = " id=\"nBottomNavSelected\"";
       } else if (prob->disable_user_submit > 0) {
-        cc = "probDisabled";
+        div_class = "nProbDisabled";
       } else if (!all_attempts[i]) {
-        cc = "probEmpty";
+        div_class = "nProbEmpty";
       } else if (pending_flag[i] || trans_flag[i]) {
-        cc = "probTrans";
+        div_class = "nProbTrans";
       } else if (accepted_flag[i] || solved_flag[i]) {
-        cc = "probOk";
+        div_class = "nProbOk";
       } else {
-        cc = "probBad";
+        div_class = "nProbBad";
       }
       wbuf[0] = 0;
+      /*
       if (global->problem_tab_size > 0)
         snprintf(wbuf, sizeof(wbuf), " width=\"%dpx\"",
                  global->problem_tab_size);
-      fprintf(fout, "<td class=\"%s\" onclick=\"displayProblemSubmitForm(%d, %d)\"%s><div class=\"%s\">", hh, NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT, i, wbuf, cc);
+      */
+
+      fprintf(fout, "<li%s><div class=\"%s\">", li_attr, div_class);
+
       /*
       if (accepting_mode && accepted_flag[i]) {
         fprintf(fout, "<s>");
       }
       */
       fprintf(fout, "%s%s</a>",
-              ns_aref_2(bb, sizeof(bb), phr, "tab",
-                        NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                        "prob_id=%d", i), prob->short_name);
+              ns_aref(bb, sizeof(bb), phr,
+                      NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
+                      "prob_id=%d", i), prob->short_name);
       /*
       if (accepting_mode && accepted_flag[i]) {
         fprintf(fout, "</s>");
       }
       */
-      fprintf(fout, "</div></td>\n");
-      j++;
+      fprintf(fout, "</div></li>");
     }
-    fprintf(fout, "</tr></table>\n");
+    fprintf(fout, "</ul></td></tr></table>");
   }
 
 #if 0
@@ -13076,11 +13222,16 @@ unpriv_logout(FILE *fout,
 }
 
 static void
-do_json_user_state(FILE *fout, const serve_state_t cs, int user_id)
+do_json_user_state(
+        FILE *fout,
+        const serve_state_t cs,
+        int user_id,
+        int need_reload_check)
 {
   const struct section_global_data *global = cs->global;
   struct tm *ptm;
   time_t start_time = 0, stop_time = 0, duration = 0, remaining;
+  int has_transient;
 
   if (global->is_virtual) {
     start_time = run_get_virtual_start_time(cs->runlog_state, user_id);
@@ -13107,13 +13258,19 @@ do_json_user_state(FILE *fout, const serve_state_t cs, int user_id)
     if (remaining < 0) remaining = 0;
     fprintf(fout, ", \"r\": %ld", remaining);
   }
-  if (run_has_transient_user_runs(cs->runlog_state, user_id) ||
-      (global->score_system == SCORE_OLYMPIAD
-       && global->is_virtual
-       && stop_time > 0
-       && global->disable_virtual_auto_judge <= 0
-       && !is_judged_virtual_olympiad(cs, user_id))) {
-    fprintf(fout, ", \"x\": 1");
+  if (global->disable_auto_refresh <= 0) {
+    has_transient = run_has_transient_user_runs(cs->runlog_state, user_id);
+    if (has_transient ||
+        (global->score_system == SCORE_OLYMPIAD
+         && global->is_virtual
+         && stop_time > 0
+         && global->disable_virtual_auto_judge <= 0
+         && !is_judged_virtual_olympiad(cs, user_id))) {
+      fprintf(fout, ", \"x\": 1");
+    }
+    if (need_reload_check && !has_transient) {
+      fprintf(fout, ", \"z\": 1");
+    }
   }
   fprintf(fout, " }");
 }
@@ -13126,10 +13283,13 @@ unpriv_json_user_state(
         struct contest_extra *extra)
 {
   const serve_state_t cs = extra->serve_state;
+  int need_reload_check = 0;
+
+  ns_cgi_param_int_opt(phr, "x", &need_reload_check, 0);
 
   fprintf(fout, "Content-type: text/plain; charset=%s\n"
           "Cache-Control: no-cache\n\n", EJUDGE_CHARSET);
-  do_json_user_state(fout, cs, phr->user_id);
+  do_json_user_state(fout, cs, phr->user_id, need_reload_check);
 }
 
 static void
@@ -13146,7 +13306,7 @@ unpriv_xml_update_answer(
   const unsigned char *s;
   int prob_id = 0, n, ans, i, variant = 0, j, run_id;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  const unsigned char *run_text = 0, *login = 0;
+  const unsigned char *run_text = 0;
   unsigned char *tmp_txt = 0;
   size_t run_size = 0, tmp_size = 0;
   char *eptr;
@@ -13201,22 +13361,13 @@ unpriv_xml_update_answer(
   if (serve_check_user_quota(cs, phr->user_id, run_size) < 0)
     FAIL(NEW_SRV_ERR_RUN_QUOTA_EXCEEDED);
   // problem submit start time
-  if (prob->start_date >= 0 && cs->current_time < prob->start_date)
+  if (!serve_is_problem_started(cs, phr->user_id, prob))
     FAIL(NEW_SRV_ERR_PROB_UNAVAILABLE);
-  // personal deadline
-  if (prob->pd_total > 0) {
-    login = teamdb_get_login(cs->teamdb_state, phr->user_id);
-    for (i = 0; i < prob->pd_total; i++) {
-      if (!strcmp(login, prob->pd_infos[i].login)) {
-        user_deadline = prob->pd_infos[i].deadline;
-        break;
-      }
-    }
-  }
-  // common problem deadline
-  if (user_deadline <= 0) user_deadline = prob->deadline;
-  if (user_deadline > 0 && cs->current_time >= user_deadline)
+
+  if (serve_is_problem_deadlined(cs, phr->user_id, phr->login, prob,
+                                 &user_deadline)) {
     FAIL(NEW_SRV_ERR_PROB_DEADLINE_EXPIRED);
+  }
 
   if (prob->variant_num > 0) {
     if ((variant = find_variant(cs, phr->user_id, prob_id, 0)) <= 0)
@@ -13310,9 +13461,8 @@ unpriv_get_file(
   const serve_state_t cs = extra->serve_state;
   const struct section_global_data *global = cs->global;
   const struct section_problem_data *prob = 0;
-  int retval = 0, prob_id, n, variant = 0, i, mime_type = 0;
+  int retval = 0, prob_id, n, variant = 0, mime_type = 0;
   const unsigned char *s = 0;
-  const unsigned char *login = 0;
   time_t user_deadline = 0, start_time, stop_time;
   path_t fpath, sfx;
   char *file_bytes = 0;
@@ -13340,21 +13490,11 @@ unpriv_get_file(
   if (stop_time > 0 && cs->current_time >= stop_time
       && prob->restricted_statement > 0)
     FAIL(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
-  if (prob->start_date > 0 && prob->start_date > cs->current_time)
+  if (!serve_is_problem_started(cs, phr->user_id, prob))
     FAIL(NEW_SRV_ERR_PROB_UNAVAILABLE);
-      
-  // personal deadline
-  if (prob->pd_total > 0) {
-    login = teamdb_get_login(cs->teamdb_state, phr->user_id);
-    for (i = 0; i < prob->pd_total; i++) {
-      if (!strcmp(login, prob->pd_infos[i].login)) {
-        user_deadline = prob->pd_infos[i].deadline;
-        break;
-      }
-    }
-  }
-  if (user_deadline <= 0) user_deadline = prob->deadline;
-  if (user_deadline > 0 && cs->current_time >= user_deadline
+
+  if (serve_is_problem_deadlined(cs, phr->user_id, phr->login,
+                                 prob, &user_deadline)
       && prob->restricted_statement > 0)
     FAIL(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
 
@@ -13826,6 +13966,8 @@ static const unsigned char * const symbolic_action_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_CHANGE_RUN_IS_HIDDEN] = "CHANGE_RUN_IS_HIDDEN",
   [NEW_SRV_ACTION_CHANGE_RUN_IS_EXAMINABLE] = "CHANGE_RUN_IS_EXAMINABLE",
   [NEW_SRV_ACTION_CHANGE_RUN_IS_READONLY] = "CHANGE_RUN_IS_READONLY",
+  [NEW_SRV_ACTION_CHANGE_RUN_IS_MARKED] = "CHANGE_RUN_IS_MARKED",
+  [NEW_SRV_ACTION_CHANGE_RUN_IS_SAVED] = "CHANGE_RUN_IS_SAVED",
   [NEW_SRV_ACTION_CHANGE_RUN_STATUS] = "CHANGE_RUN_STATUS",
   [NEW_SRV_ACTION_CHANGE_RUN_TEST] = "CHANGE_RUN_TEST",
   [NEW_SRV_ACTION_CHANGE_RUN_SCORE] = "CHANGE_RUN_SCORE",
@@ -13978,6 +14120,10 @@ static const unsigned char * const symbolic_action_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_TESTING_DELETE_ALL] = "TESTING_DELETE_ALL",
   [NEW_SRV_ACTION_TESTING_UP_ALL] = "TESTING_UP_ALL",
   [NEW_SRV_ACTION_TESTING_DOWN_ALL] = "TESTING_DOWN_ALL",
+  [NEW_SRV_ACTION_MARK_DISPLAYED_2] = "MARK_DISPLAYED_2",
+  [NEW_SRV_ACTION_UNMARK_DISPLAYED_2] = "UNMARK_DISPLAYED_2",
+  [NEW_SRV_ACTION_SET_STAND_FILTER] = "SET_STAND_FILTER",
+  [NEW_SRV_ACTION_RESET_STAND_FILTER] = "RESET_STAND_FILTER",
 };
 
 void

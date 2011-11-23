@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 5515 2008-12-27 19:43:16Z cher $ */
+/* $Id: rldb_plugin_file.c 5775 2010-02-23 16:02:43Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -170,6 +170,15 @@ set_entry_func(
         int flags);
 static int
 squeeze_func(struct rldb_plugin_cnts *cdata);
+static int
+change_status_2_func(
+        struct rldb_plugin_cnts *cdata,
+        int run_id,
+        int new_status,
+        int new_test,
+        int new_score,
+        int judge_id,
+        int is_marked);
 
 struct rldb_plugin_iface rldb_plugin_file =
 {
@@ -210,6 +219,9 @@ struct rldb_plugin_iface rldb_plugin_file =
   set_pages_func,
   set_entry_func,
   squeeze_func,
+  NULL, // put_entry
+  NULL, // put_header
+  change_status_2_func,
 };
 
 static struct common_plugin_data *
@@ -1172,6 +1184,21 @@ add_entry_func(
   if ((flags & RE_EXAM_SCORE)) {
     memcpy(de->exam_score, re->exam_score, sizeof(de->exam_score));
   }
+  if ((flags & RE_IS_MARKED)) {
+    de->is_marked = re->is_marked;
+  }
+  if ((flags & RE_IS_SAVED)) {
+    de->is_saved = re->is_saved;
+  }
+  if ((flags & RE_SAVED_STATUS)) {
+    de->saved_status = re->saved_status;
+  }
+  if ((flags & RE_SAVED_SCORE)) {
+    de->saved_score = re->saved_score;
+  }
+  if ((flags & RE_SAVED_TEST)) {
+    de->saved_test = re->saved_test;
+  }
 
   return do_flush_entry(cs, run_id);
 }
@@ -1449,6 +1476,29 @@ squeeze_func(struct rldb_plugin_cnts *cdata)
     ptr += w;
   }
   return retval;
+}
+
+static int
+change_status_2_func(
+        struct rldb_plugin_cnts *cdata,
+        int run_id,
+        int new_status,
+        int new_test,
+        int new_score,
+        int judge_id,
+        int is_marked)
+{
+  struct rldb_file_cnts *cs = (struct rldb_file_cnts*) cdata;
+  struct runlog_state *rls = cs->rl_state;
+
+  ASSERT(run_id >= 0 && run_id < rls->run_u);
+
+  rls->runs[run_id].status = new_status;
+  rls->runs[run_id].test = new_test;
+  rls->runs[run_id].score = new_score;
+  rls->runs[run_id].judge_id = judge_id;
+  rls->runs[run_id].is_marked = is_marked;
+  return do_flush_entry(cs, run_id);
 }
 
 /*

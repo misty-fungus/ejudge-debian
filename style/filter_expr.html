@@ -1,6 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html>
-  <!-- $Id: filter_expr.html 5758 2010-01-29 11:21:13Z cher $ -->
+  <!-- $Id: filter_expr.html 5951 2010-07-16 12:35:18Z cher $ -->
   <head>
     <meta http-equiv="Content-type" content="text/html; charset=KOI8-R">
     <!--<link rel="stylesheet" href=" CONF_STYLE_PREFIX priv.css " type="text/css">-->
@@ -658,6 +658,11 @@ f [ ( expr ) ]
     <td><tt>judge_id</tt></td>
     <td><tt>int</tt></td>
     <td>Идентификационный номер запроса на тестирование (поле <tt>judge_id</tt>). Идентификационный номер изменяется в диапазоне от 1 до 65535. Число 0 означает отсутствие идентификационного номера.</td>
+  </tr>
+  <tr>
+    <td><tt>inusergroup(GRP)</tt></td>
+    <td><tt>bool</tt></td>
+    <td><tt>true</tt>, если этот пользователь принадлежит указанной группе пользователей. Название группы пользователей записывается как строка. Пример: <tt>inusergroup(&quot;Group1&quot;)</tt>.</td>
   </tr>
 </table>
 

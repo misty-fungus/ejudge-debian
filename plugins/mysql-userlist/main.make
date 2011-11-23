@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: main.make 5127 2008-10-01 06:48:13Z cher $
+# $Id: main.make 5806 2010-05-24 09:07:45Z cher $
 
 # Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
 

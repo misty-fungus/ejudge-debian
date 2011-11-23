@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: uldb_plugin.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: uldb_plugin.h 5810 2010-05-28 14:48:51Z cher $ */
 
 #ifndef __ULDB_PLUGIN_H__
 #define __ULDB_PLUGIN_H__
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -202,6 +202,30 @@ struct uldb_plugin_iface
   int (*try_new_login)(void *, unsigned char *, size_t, const char *, int, int);
   // set the simple_registration flag
   int (*set_simple_reg)(void *, int, int, time_t);
+  // get the group iterator
+  ptr_iterator_t (*get_group_iterator)(void *);
+  // get the group by the group name
+  const struct userlist_group*(*get_group_by_name)(void *,const unsigned char*);
+  // pick up a new group name by a template
+  int (*try_new_group_name)(void *, unsigned char *, size_t, const char *, int, int);
+  // create a new group
+  int (*create_group)(void *, const unsigned char *, int created_by);
+  // remove a group
+  int (*remove_group)(void *, int);
+  // edit a group field
+  int (*edit_group_field)(void *, int, int, const unsigned char *value);
+  // clear a group field
+  int (*clear_group_field)(void *, int, int);
+  // get the group by the group id
+  const struct userlist_group *(*get_group)(void *, int);
+  // get the group users iterator
+  ptr_iterator_t (*get_group_user_iterator)(void *, int);
+  // get the group groupmember iterator
+  ptr_iterator_t (*get_group_member_iterator)(void *, int);
+  // create a group member
+  int (*create_group_member)(void *, int group_id, int user_id);
+  // remove a group member
+  int (*remove_group_member)(void *, int group_id, int user_id);
 };
 
 /* default plugin: compiled into userlist-server */

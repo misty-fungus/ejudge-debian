@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: ej_process.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: ej_process.h 5878 2010-06-12 20:42:06Z cher $ */
 
 #ifndef __EJ_PROCESS_H__
 #define __EJ_PROCESS_H__
 
-/* Copyright (C) 2005 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,5 +22,15 @@ unsigned char *read_process_output(const unsigned char *cmd,
                                    const unsigned char *workdir,
                                    int max_ok_code,
                                    int redirect_stderr);
+
+int
+ejudge_invoke_process(
+        char **args,
+        char **envs,
+        const unsigned char *workdir,
+        const unsigned char *stdin_text,
+        int merge_out_flag,
+        unsigned char **stdout_text,
+        unsigned char **stderr_text);
 
 #endif /* __EJ_PROCESS_H__ */

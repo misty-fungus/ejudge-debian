@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files_win32.make 5666 2010-01-17 21:08:07Z cher $
+# $Id: files_win32.make 5899 2010-06-18 17:39:56Z cher $
 
 # Copyright (C) 2009-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -31,6 +31,7 @@ WIN32_COMMON_CFILES=\
  l10n.c\
  lang_config.c\
  meta_generic.c\
+ mime_type.c\
  misctext.c\
  nwrun_packet.c\
  opcaps.c\
@@ -42,6 +43,7 @@ WIN32_COMMON_CFILES=\
  problem_xml.c\
  protocol.c\
  random.c\
+ run_inverse.c\
  runlog.c\
  run_packet_1.c\
  run_packet_3.c\

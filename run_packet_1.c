@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_packet_1.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: run_packet_1.c 5891 2010-06-16 19:02:46Z cher $ */
 
-/* Copyright (C) 2005-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -53,7 +53,7 @@ run_request_packet_read(
   packet_len = cvt_bin_to_host_32(pin->packet_len);
   FAIL_IF(packet_len != in_size);
   version = cvt_bin_to_host_32(pin->version);
-  FAIL_IF(version != 1);
+  FAIL_IF(version != RUN_REQUEST_PACKET_VERSION);
 
   XCALLOC(pout, 1);
 
@@ -75,6 +75,8 @@ run_request_packet_read(
   pout->time_limit_adj_millis = cvt_bin_to_host_32(pin->time_limit_adj_millis);
   FAIL_IF(pout->time_limit_adj_millis < 0 || pout->time_limit_adj_millis > EJ_MAX_TIME_LIMIT_ADJ_MILLIS);
 
+  pout->mime_type = cvt_bin_to_host_32(pin->mime_type);
+
   flags = cvt_bin_to_host_32(pin->flags);
   FAIL_IF(flags != (flags & FLAGS_ALL_MASK));
   pout->scoring_system = FLAGS_GET_SCORING_SYSTEM(flags);
@@ -87,6 +89,7 @@ run_request_packet_read(
   if ((flags & FLAGS_SECURE_RUN)) pout->secure_run = 1;
   if ((flags & FLAGS_SECURITY_VIOLATION)) pout->security_violation = 1;
   if ((flags & FLAGS_NOTIFY)) pout->notify_flag = 1;
+  if ((flags & FLAGS_ADVANCED_LAYOUT)) pout->advanced_layout = 1;
 
   pout->ts1 = cvt_bin_to_host_32(pin->ts1);
   pout->ts1_us = cvt_bin_to_host_32(pin->ts1_us);
@@ -139,7 +142,7 @@ run_request_packet_read(
   return 0;
 
  failed:
-  err("run_request_packet_read: error %s, %d", "$Revision: 5675 $", errcode);
+  err("run_request_packet_read: error %s, %d", "$Revision: 5891 $", errcode);
   run_request_packet_free(pout);
   return -1;
 }

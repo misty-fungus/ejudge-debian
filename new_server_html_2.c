@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 5734 2010-01-25 11:51:10Z cher $ */
+/* $Id: new_server_html_2.c 5955 2010-07-21 05:48:38Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -47,6 +47,7 @@
 #include "charsets.h"
 #include "compat.h"
 #include "run_packet.h"
+#include "prepare_dflt.h"
 
 #include <reuse/xalloc.h>
 #include <reuse/logger.h>
@@ -120,6 +121,8 @@ ns_write_priv_all_runs(
   unsigned char *prob_str;
   const unsigned char *imported_str;
   const unsigned char *examinable_str;
+  const unsigned char *marked_str;
+  const unsigned char *saved_str;
   const unsigned char *rejudge_dis_str;
   unsigned long *displayed_mask = 0;
   int displayed_size = 0;
@@ -473,6 +476,14 @@ ns_write_priv_all_runs(
       if (pe->is_examinable) {
         examinable_str = "!";
       }
+      marked_str = "";
+      if (pe->is_marked) {
+        marked_str = "@";
+      }
+      saved_str = "";
+      if (pe->is_saved) {
+        saved_str = "+";
+      }
       start_time = env.rhead.start_time;
       if (global->is_virtual) {
         start_time = run_get_virtual_start_time(cs->runlog_state, pe->user_id);
@@ -487,7 +498,8 @@ ns_write_priv_all_runs(
         html_start_form(f, 1, phr->self_url, phr->hidden_vars);
       }
       */
-      fprintf(f, "<td%s>%d%s%s</td>", cl, rid, imported_str, examinable_str);
+      fprintf(f, "<td%s>%d%s%s%s%s</td>", cl, rid, imported_str, examinable_str,
+              marked_str, saved_str);
       fprintf(f, "<td%s>%s</td>", cl, durstr);
       fprintf(f, "<td%s>%u</td>", cl, pe->size);
       fprintf(f, "<td%s>%s</td>", cl, xml_unparse_ip(pe->a.ip));
@@ -671,6 +683,10 @@ ns_write_priv_all_runs(
       fprintf(f, "%lx", displayed_mask[i]);
     }
     fprintf(f, "\"/>\n");
+    fprintf(f, "<table><tr>");
+    fprintf(f, "<td>%s</td>", BUTTON(NEW_SRV_ACTION_MARK_DISPLAYED_2));
+    fprintf(f, "<td>%s</td>", BUTTON(NEW_SRV_ACTION_UNMARK_DISPLAYED_2));
+    fprintf(f, "</tr></table><br/>\n");
     fprintf(f, "<table><tr>");
     fprintf(f, "<td>%s</td>", BUTTON(NEW_SRV_ACTION_CLEAR_DISPLAYED_1));
     fprintf(f, "<td>%s</td>", BUTTON(NEW_SRV_ACTION_IGNORE_DISPLAYED_1));
@@ -1038,6 +1054,10 @@ ns_write_priv_source(const serve_state_t state,
   const unsigned char *run_charset = 0;
   int charset_id = 0;
   const unsigned char *cl = 0;
+  int txt_flags = 0;
+  path_t txt_path = { 0 };
+  char *txt_text = 0;
+  size_t txt_size = 0;
 
   if (ns_cgi_param(phr, "run_charset", &ss) > 0 && ss && *ss)
     run_charset = ss;
@@ -1329,6 +1349,38 @@ ns_write_priv_source(const serve_state_t state,
     fprintf(f, "%s</tr>\n", nbsp);
   }
 
+  // is_marked
+  if (editable) {
+    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
+    html_hidden(f, "run_id", "%d", run_id);
+  }
+  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
+          _("Marked?"),
+          html_unparse_bool(bb, sizeof(bb), info.is_marked));
+  if (editable) {
+    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
+            html_select_yesno(bt, sizeof(bt), "param", info.is_marked),
+            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_IS_MARKED));
+  } else {
+    fprintf(f, "%s</tr>\n", nbsp);
+  }
+
+  // is_saved
+  if (editable) {
+    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
+    html_hidden(f, "run_id", "%d", run_id);
+  }
+  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
+          _("Saved?"),
+          html_unparse_bool(bb, sizeof(bb), info.is_saved));
+  if (editable) {
+    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
+            html_select_yesno(bt, sizeof(bt), "param", info.is_saved),
+            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_IS_SAVED));
+  } else {
+    fprintf(f, "%s</tr>\n", nbsp);
+  }
+
   // is_readonly
   // special editable rules!
   if (phr->role==USER_ROLE_ADMIN && opcaps_check(phr->caps,OPCAP_EDIT_RUN)>=0){
@@ -1588,6 +1640,17 @@ ns_write_priv_source(const serve_state_t state,
                      "run_id=%d&no_disp=1", run_id));
     } else {
       fprintf(f, "<p>The submission is binary and thus is not shown.</p>\n");
+      /* try to load text description of the archive */
+      txt_flags = archive_make_read_path(state, txt_path, sizeof(txt_path),
+                                         global->report_archive_dir,
+                                         run_id, 0, 0);
+      if (txt_flags >= 0) {
+        if (generic_read_file(&txt_text, 0, &txt_size, txt_flags, 0,
+                              txt_path, 0) >= 0) {
+          fprintf(f, "<pre>%s</pre>\n", ARMOR(txt_text));
+          xfree(txt_text); txt_text = 0; txt_size = 0;
+        }
+      }
     }
   } else if (lang && lang->binary) {
     fprintf(f, "<p>The submission is binary and thus is not shown.</p>\n");
@@ -1680,6 +1743,7 @@ ns_write_priv_report(const serve_state_t cs,
   struct run_entry re;
   const struct section_global_data *global = cs->global;
   const unsigned char *report_dir = global->report_archive_dir;
+  const struct section_problem_data *prob = 0;
 
   static const int new_actions_vector[] =
   {
@@ -1711,6 +1775,11 @@ ns_write_priv_report(const serve_state_t cs,
   }
   if (!run_is_report_available(re.status)) {
     ns_error(log_f, NEW_SRV_ERR_REPORT_UNAVAILABLE);
+    goto done;
+  }
+  if (re.prob_id <= 0 || re.prob_id > cs->max_prob
+      || !(prob = cs->probs[re.prob_id])) {
+    ns_error(log_f, NEW_SRV_ERR_INV_PROB_ID);
     goto done;
   }
 
@@ -1771,11 +1840,20 @@ ns_write_priv_report(const serve_state_t cs,
     fprintf(f, "%s", start_ptr);
     break;
   case CONTENT_TYPE_XML:
-    if (team_report_flag) {
-      write_xml_team_testing_report(cs, f, 0, start_ptr, "b1");
+    if (prob->type == PROB_TYPE_TESTS) {
+      if (team_report_flag) {
+        write_xml_team_tests_report(cs, prob, f, start_ptr, "b1");
+      } else {
+        write_xml_tests_report(f, 0, start_ptr, phr->session_id, phr->self_url,
+                               "", "b1", 0);
+      }
     } else {
-      write_xml_testing_report(f, 0, start_ptr, phr->session_id,phr->self_url,
-                               "", new_actions_vector, "b1", 0);
+      if (team_report_flag) {
+        write_xml_team_testing_report(cs, prob, f, 0, start_ptr, "b1");
+      } else {
+        write_xml_testing_report(f, 0, start_ptr, phr->session_id,phr->self_url,
+                                 "", new_actions_vector, "b1", 0);
+      }
     }
     break;
   default:
@@ -1979,16 +2057,21 @@ ns_write_priv_clar(const serve_state_t cs,
 
 
 static void
-write_from_contest_dir(FILE *log_f, FILE *fout,
-                       int flag1,
-                       int flag2,
-                       int test_num,
-                       int variant,
-                       const unsigned char *dir,
-                       const unsigned char *suffix,
-                       const unsigned char *pattern,
-                       int has_digest,
-                       const unsigned char *digest_ptr)
+write_from_contest_dir(
+        FILE *log_f,
+        FILE *fout,
+        int flag1,
+        int flag2,
+        int test_num,
+        int variant,
+        const struct section_global_data *global,
+        const struct section_problem_data *prb,
+        const unsigned char *entry,
+        const unsigned char *dir,
+        const unsigned char *suffix,
+        const unsigned char *pattern,
+        int has_digest,
+        const unsigned char *digest_ptr)
 {
   path_t path1;
   path_t path2;
@@ -2008,10 +2091,14 @@ write_from_contest_dir(FILE *log_f, FILE *fout,
     snprintf(path2, sizeof(path2), "%03d%s", test_num, suffix);
   }
 
-  if (variant > 0) {
-    snprintf(path1, sizeof(path1), "%s-%d/%s", dir, variant, path2);
+  if (global->advanced_layout > 0) {
+    get_advanced_layout_path(path1, sizeof(path1), global, prb, entry, variant);
   } else {
-    snprintf(path1, sizeof(path1), "%s/%s", dir, path2);
+    if (variant > 0) {
+      snprintf(path1, sizeof(path1), "%s-%d/%s", dir, variant, path2);
+    } else {
+      snprintf(path1, sizeof(path1), "%s/%s", dir, path2);
+    }
   }
 
   if (has_digest && digest_ptr) {
@@ -2177,18 +2264,21 @@ ns_write_tests(const serve_state_t cs, FILE *fout, FILE *log_f,
   switch (action) {
   case NEW_SRV_ACTION_VIEW_TEST_INPUT:
     write_from_contest_dir(log_f, fout, 1, 1, test_num, r->variant,
+                           cs->global, prb, DFLT_P_TEST_DIR,
                            prb->test_dir, prb->test_sfx, prb->test_pat,
                            t->has_input_digest, t->input_digest);
     goto done;
   case NEW_SRV_ACTION_VIEW_TEST_ANSWER:
     write_from_contest_dir(log_f, fout, prb->use_corr, r->correct_available,
                            test_num, r->variant,
+                           cs->global, prb, DFLT_P_CORR_DIR,
                            prb->corr_dir, prb->corr_sfx, prb->corr_pat,
                            t->has_correct_digest, t->correct_digest);
     goto done;
   case NEW_SRV_ACTION_VIEW_TEST_INFO:
     write_from_contest_dir(log_f, fout, prb->use_info, r->info_available,
                            test_num, r->variant,
+                           cs->global, prb, DFLT_P_INFO_DIR,
                            prb->info_dir, prb->info_sfx, prb->info_pat,
                            t->has_info_digest, t->info_digest);
     goto done;
@@ -3159,20 +3249,221 @@ ns_new_run_form(
   return 0;
 }
 
-void
-ns_write_priv_standings(const serve_state_t state,
-                        const struct contest_desc *cnts,
-                        FILE *f, int accepting_mode)
+static void
+stand_parse_error_func(void *data, unsigned char const *format, ...)
 {
+  va_list args;
+  unsigned char buf[1024];
+  int l;
+  struct serve_state *state = (struct serve_state*) data;
+
+  va_start(args, format);
+  l = vsnprintf(buf, sizeof(buf) - 24, format, args);
+  va_end(args);
+  strcpy(buf + l, "\n");
+  state->cur_user->stand_error_msgs = xstrmerge1(state->cur_user->stand_error_msgs, buf);
+  filter_expr_nerrs++;
+}
+
+#define READ_PARAM(name) do { \
+  if (ns_cgi_param(phr, #name, &s) <= 0 || !s) return; \
+  len = strlen(s); \
+  if (len > 128 * 1024) return; \
+  name = (unsigned char*) alloca(len + 1); \
+  strcpy(name, s); \
+  while (isspace(*name)) name++; \
+  len = strlen(name); \
+  while (len > 0 && isspace(name[len - 1])) len--; \
+  name[len] = 0; \
+  } while (0)
+
+#define IS_EQUAL(name) ((((!u->name || !*u->name) && !*name) || (u->name && !strcmp(u->name, name))))
+
+void
+ns_set_stand_filter(
+        const serve_state_t state,
+        struct http_request_info *phr)
+{
+  const unsigned char *s = 0;
+  int len, r;
+  unsigned char *stand_user_expr = 0;
+  unsigned char *stand_prob_expr = 0;
+  unsigned char *stand_run_expr = 0;
+  struct user_filter_info *u = 0;
+
+  u = user_filter_info_allocate(state, phr->user_id, phr->session_id);
+  if (!u) return;
+
+  READ_PARAM(stand_user_expr);
+  READ_PARAM(stand_prob_expr);
+  READ_PARAM(stand_run_expr);
+
+  if (!*stand_user_expr && !*stand_prob_expr && !*stand_run_expr) {
+    // all cleared
+    serve_state_destroy_stand_expr(u);
+    return;
+  }
+
+  if (IS_EQUAL(stand_user_expr) && IS_EQUAL(stand_prob_expr)
+      && IS_EQUAL(stand_run_expr)) {
+    // nothing to do
+    return;
+  }
+
+  if (!IS_EQUAL(stand_user_expr)) {
+    if (!*stand_user_expr) {
+      u->stand_user_expr = 0;
+      u->stand_user_tree = 0;
+    } else {
+      u->stand_user_expr = xstrdup(stand_user_expr);
+      if (!u->stand_mem) {
+        u->stand_mem = filter_tree_new();
+      }
+      u->stand_user_tree = 0;
+      filter_expr_set_string(stand_user_expr, u->stand_mem,
+                             stand_parse_error_func, state);
+      filter_expr_init_parser(u->stand_mem, stand_parse_error_func, state);
+      filter_expr_nerrs = 0;
+      r = filter_expr_parse();
+      if (r + filter_expr_nerrs != 0 || !filter_expr_lval) {
+        stand_parse_error_func(state, "user filter expression parsing failed");
+      } else if (filter_expr_lval->type != FILTER_TYPE_BOOL) {
+        stand_parse_error_func(state, "user boolean expression expected");
+      } else {
+        u->stand_user_tree = filter_expr_lval;
+      }
+    }
+  }
+
+  if (!IS_EQUAL(stand_prob_expr)) {
+    if (!*stand_prob_expr) {
+      u->stand_prob_expr = 0;
+      u->stand_prob_tree = 0;
+    } else {
+      u->stand_prob_expr = xstrdup(stand_prob_expr);
+      if (!u->stand_mem) {
+        u->stand_mem = filter_tree_new();
+      }
+      u->stand_prob_tree = 0;
+      filter_expr_set_string(stand_prob_expr, u->stand_mem,
+                             stand_parse_error_func, state);
+      filter_expr_init_parser(u->stand_mem, stand_parse_error_func, state);
+      filter_expr_nerrs = 0;
+      r = filter_expr_parse();
+      if (r + filter_expr_nerrs != 0 || !filter_expr_lval) {
+        stand_parse_error_func(state, "problem filter expression parsing failed");
+      } else if (filter_expr_lval->type != FILTER_TYPE_BOOL) {
+        stand_parse_error_func(state, "problem boolean expression expected");
+      } else {
+        u->stand_prob_tree = filter_expr_lval;
+      }
+    }
+  }
+
+  if (!IS_EQUAL(stand_run_expr)) {
+    if (!*stand_run_expr) {
+      u->stand_run_expr = 0;
+      u->stand_run_tree = 0;
+    } else {
+      u->stand_run_expr = xstrdup(stand_run_expr);
+      if (!u->stand_mem) {
+        u->stand_mem = filter_tree_new();
+      }
+      u->stand_run_tree = 0;
+      filter_expr_set_string(stand_run_expr, u->stand_mem,
+                             stand_parse_error_func, state);
+      filter_expr_init_parser(u->stand_mem, stand_parse_error_func, state);
+      filter_expr_nerrs = 0;
+      r = filter_expr_parse();
+      if (r + filter_expr_nerrs != 0 || !filter_expr_lval) {
+        stand_parse_error_func(state, "run filter expression parsing failed");
+      } else if (filter_expr_lval->type != FILTER_TYPE_BOOL) {
+        stand_parse_error_func(state, "run boolean expression expected");
+      } else {
+        u->stand_run_tree = filter_expr_lval;
+      }
+    }
+  }
+
+  if (!u->stand_user_tree && !u->stand_prob_tree && !u->stand_run_tree) {
+    u->stand_mem = filter_tree_delete(u->stand_mem);
+  }
+}
+
+void
+ns_reset_stand_filter(
+        const serve_state_t state,
+        struct http_request_info *phr)
+{
+  struct user_filter_info *u = 0;
+
+  u = user_filter_info_allocate(state, phr->user_id, phr->session_id);
+  if (!u) return;
+
+  serve_state_destroy_stand_expr(u);
+}
+
+void
+ns_write_priv_standings(
+        const serve_state_t state,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        FILE *f,
+        int accepting_mode)
+{
+  struct user_filter_info *u = 0;
+  unsigned char *stand_user_expr = 0;
+  unsigned char *stand_prob_expr = 0;
+  unsigned char *stand_run_expr = 0;
+  unsigned char bb[1024];
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+
   //write_standings_header(state, cnts, f, 1, 0, 0, 0);
+  u = user_filter_info_allocate(state, phr->user_id, phr->session_id);
+
+  stand_user_expr = u->stand_user_expr;
+  if (!stand_user_expr) stand_user_expr = "";
+  stand_prob_expr = u->stand_prob_expr;
+  if (!stand_prob_expr) stand_prob_expr = "";
+  stand_run_expr = u->stand_run_expr;
+  if (!stand_run_expr) stand_run_expr = "";
+
+  html_start_form(f, 1, phr->self_url, phr->hidden_vars);
+  fprintf(f, "<table border=\"0\">");
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("User filter expression"),
+          html_input_text(bb, sizeof(bb), "stand_user_expr", 64,
+                          "%s", ARMOR(stand_user_expr)));
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("Problem filter expression"),
+          html_input_text(bb, sizeof(bb), "stand_prob_expr", 64,
+                          "%s", ARMOR(stand_prob_expr)));
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("Run filter expression"),
+          html_input_text(bb, sizeof(bb), "stand_run_expr", 64,
+                          "%s", ARMOR(stand_run_expr)));
+  fprintf(f, "<tr><td>&nbsp;</td><td>");
+  fprintf(f, "%s", BUTTON(NEW_SRV_ACTION_SET_STAND_FILTER));
+  fprintf(f, "%s", BUTTON(NEW_SRV_ACTION_RESET_STAND_FILTER));
+  fprintf(f, "</td></tr>");
+  fprintf(f, "<tr><td>&nbsp;</td><td><a href=\"%sfilter_expr.html\" target=\"_blank\">%s</a></td></tr>",
+          CONF_STYLE_PREFIX, _("Help"));
+  fprintf(f, "</table>");
+  fprintf(f, "</form><br/>\n");
+
+  if (u->stand_error_msgs) {
+    fprintf(f, "<h2>Filter expression errors</h2>\n");
+    fprintf(f, "<p><pre><font color=\"red\">%s</font></pre></p>\n",
+            ARMOR(u->stand_error_msgs));
+  }
 
   if (state->global->score_system == SCORE_KIROV
       || state->global->score_system == SCORE_OLYMPIAD)
-    do_write_kirov_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0 /*accepting_mode*/, 1, 0, 0);
+    do_write_kirov_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0 /*accepting_mode*/, 1, 0, 0, u);
   else if (state->global->score_system == SCORE_MOSCOW)
-    do_write_moscow_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0);
+    do_write_moscow_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+                              u);
   else
-    do_write_standings(state, cnts, f, 1, 0, 0, 0, 0, 0, 0, 1, 0);
+    do_write_standings(state, cnts, f, 1, 0, 0, 0, 0, 0, 0, 1, 0, u);
+
+  html_armor_free(&ab);
 }
 
 void
@@ -4282,6 +4573,7 @@ get_source(
   case PROB_TYPE_OUTPUT_ONLY:
   case PROB_TYPE_TEXT_ANSWER:
   case PROB_TYPE_CUSTOM:
+  case PROB_TYPE_TESTS:
     goto cleanup;
   case PROB_TYPE_SHORT_ANSWER:
   case PROB_TYPE_SELECT_ONE:
@@ -4839,6 +5131,7 @@ ns_get_user_problems_summary(
   struct run_entry re;
   struct section_problem_data *cur_prob = 0;
   unsigned char *user_flag = 0;
+  unsigned char *marked_flag = 0;
 
   if (global->is_virtual) {
     start_time = run_get_virtual_start_time(cs->runlog_state, user_id);
@@ -4850,6 +5143,7 @@ ns_get_user_problems_summary(
 
   memset(best_run, -1, sizeof(best_run[0]) * (cs->max_prob + 1));
   XCALLOC(user_flag, (cs->max_prob + 1) * total_teams);
+  XALLOCAZ(marked_flag, cs->max_prob + 1);
 
   for (run_id = 0; run_id < total_runs; run_id++) {
     if (run_get_entry(cs->runlog_state, run_id, &re) < 0) continue;
@@ -5021,7 +5315,10 @@ ns_get_user_problems_summary(
       }
     } else if (global->score_system == SCORE_KIROV) {
       // KIROV contest
-      if (solved_flag[re.prob_id]) continue;
+      if (solved_flag[re.prob_id] && cur_prob->score_latest <= 0) continue;
+      if (marked_flag[re.prob_id] && cur_prob->ignore_unmarked > 0
+          && !re.is_marked) continue;
+      if (!marked_flag[re.prob_id]) marked_flag[re.prob_id] = re.is_marked;
 
       switch (re.status) {
       case RUN_OK:
@@ -5031,7 +5328,7 @@ ns_get_user_problems_summary(
                                      disqualified[re.prob_id],
                                      prev_successes[re.prob_id], 0, 0);
 
-        if (cur_score >= best_score[re.prob_id]) {
+        if (cur_score >= best_score[re.prob_id] || cur_prob->score_latest > 0) {
           best_score[re.prob_id] = cur_score;
           best_run[re.prob_id] = run_id;
         }
@@ -5040,9 +5337,11 @@ ns_get_user_problems_summary(
       case RUN_COMPILE_ERR:
       case RUN_STYLE_ERR:
         if (!cur_prob->ignore_compile_errors) {
+          solved_flag[re.prob_id] = 0;
           attempts[re.prob_id]++;
           cur_score = 0;
-          if (cur_score >= best_score[re.prob_id]) {
+          if (cur_score >= best_score[re.prob_id]
+              || cur_prob->score_latest > 0) {
             best_score[re.prob_id] = cur_score;
             best_run[re.prob_id] = run_id;
           }
@@ -5059,13 +5358,14 @@ ns_get_user_problems_summary(
         break;
 
       case RUN_PARTIAL:
+        solved_flag[re.prob_id] = 0;
         cur_score = calc_kirov_score(0, 0, &re, cur_prob,
                                      attempts[re.prob_id],
                                      disqualified[re.prob_id],
                                      prev_successes[re.prob_id], 0, 0);
 
         attempts[re.prob_id]++;
-        if (cur_score >= best_score[re.prob_id]) {
+        if (cur_score >= best_score[re.prob_id] || cur_prob->score_latest > 0) {
           best_score[re.prob_id] = cur_score;
           best_run[re.prob_id] = run_id;
         }
@@ -5221,7 +5521,6 @@ ns_write_user_problems_summary(
   unsigned char url_buf[1024];
   unsigned char status_str[128];
   unsigned char score_buf[128];
-  time_t current_time = time(0);
   int act_status;
   unsigned char *cl = "";
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
@@ -5270,7 +5569,7 @@ ns_write_user_problems_summary(
 
   for (prob_id = 1; prob_id <= cs->max_prob; prob_id++) {
     if (!(cur_prob = cs->probs[prob_id])) continue;
-    if (cur_prob->start_date && current_time < cur_prob->start_date)
+    if (!serve_is_problem_started(cs, user_id, cur_prob))
       continue;
     if (cur_prob->hidden > 0) continue;
     s = "";

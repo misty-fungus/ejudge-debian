@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: rldb_plugin.h 5309 2008-11-15 14:01:43Z cher $ */
+/* $Id: rldb_plugin.h 5775 2010-02-23 16:02:43Z cher $ */
 
 #ifndef __RLDB_PLUGIN_H__
 #define __RLDB_PLUGIN_H__
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -128,6 +128,14 @@ struct rldb_plugin_iface
   int (*put_entry)(struct rldb_plugin_cnts *, const struct run_entry *);
   // insert the whole header
   int (*put_header)(struct rldb_plugin_cnts *, const struct run_header *);
+  // change the status (extended version)
+  int (*change_status_2)(struct rldb_plugin_cnts *,
+                         int run_id,
+                         int new_status,
+                         int new_test,
+                         int new_score,
+                         int judge_id,
+                         int is_marked);
 };
 
 /* default plugin: compiled into new-server */

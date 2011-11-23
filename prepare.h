@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 5738 2010-01-25 17:05:39Z cher $ */
+/* $Id: prepare.h 5972 2010-08-03 19:48:42Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -79,6 +79,20 @@ struct penalty_info
   int penalty;
 };
 
+struct group_date_info
+{
+  unsigned char *group_name;
+  int group_ind;
+  time_t date;
+  int penalty;
+};
+
+struct group_dates
+{
+  int count;
+  struct group_date_info *info;
+};
+
 struct variant_map;
 
 struct pers_dead_info
@@ -97,7 +111,7 @@ struct user_adjustment_info
 };
 struct user_adjustment_map;
 
-/* sizeof(struct section_global_data) == 345884 */
+/* sizeof(struct section_global_data) == 350012 */
 struct section_global_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -143,6 +157,8 @@ struct section_global_data
   ejintbool_t detect_violations;
   /** enable support for memory limit detection */
   ejintbool_t enable_memory_limit_error;
+  /** enable advanced problem layout */
+  ejintbool_t advanced_layout;
 
   /** do not show submits after this time in the standings */
   time_t stand_ignore_after;
@@ -210,6 +226,8 @@ struct section_global_data
   ejintbool_t notify_status_change;
   /** memoize the user results for use in filter expressions */
   ejintbool_t memoize_user_results;
+  /** disable standings auto-refresh */
+  ejintbool_t disable_auto_refresh;
 
   /** @deprecated the name of the contest */
   unsigned char name[256];
@@ -248,6 +266,8 @@ struct section_global_data
   /* ====== CONFIGURATION FILES/DIRECTORIES SETUP ====== */
   /** configuration dir */
   path_t conf_dir;
+  /** directory with problem files (for advanced_layout) */
+  path_t problems_dir;
   /** default location of the compile and run scripts */
   path_t script_dir;
   /** directory with the tests */
@@ -276,6 +296,8 @@ struct section_global_data
   path_t ejudge_checkers_dir;
   /** command to run when the contest starts */
   path_t contest_start_cmd;
+  /** command to run when the contest stops */
+  unsigned char *contest_stop_cmd;
   /** path to the HTML file with the contest description */
   path_t description_file;
   /** path to the contest plugin */
@@ -650,6 +672,9 @@ struct section_global_data
   /** HTML attribute for `warnings' column of the standings */
   unsigned char stand_warn_number_attr[256];
 
+  /** the user groups to load */
+  char **load_user_group;
+
   /** INTERNAL: text with unhandled variables */
   unsigned char *unhandled_vars;
 
@@ -659,7 +684,26 @@ struct section_global_data
   ejintbool_t disable_passed_tests META_ATTRIB((meta_private));
 };
 
-/* sizeof(struct section_problem_data) == 60496 */
+/* paths depending on advanced_layout */
+/*
+  +path_t test_dir;
+  +path_t corr_dir;
+  +path_t info_dir;
+  +path_t tgz_dir;
+  path_t statement_file;
+  path_t alternatives_file;
+  +path_t plugin_file;
+  +path_t xml_file;
+  +path_t source_header;
+  +path_t source_footer;
+  +path_t check_cmd;
+  +path_t valuer_cmd;
+  +path_t interactor_cmd;
+  +path_t style_checker_cmd;
+  +path_t test_checker_cmd;
+ */
+
+/* sizeof(struct section_problem_data) == 64916 */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -689,6 +733,8 @@ struct section_problem_data
   ejintbool_t combined_stdout;
   /** input data for problem is binary */
   ejintbool_t binary_input;
+  /** submit is binary */
+  ejintbool_t binary;
   /** do not treat non-zero exit code as run-time error */
   ejintbool_t ignore_exit_code;
   /** for KIROV contests: handle problem in the olympiad mode*/
@@ -833,6 +879,10 @@ struct section_problem_data
   path_t source_header;
   /** file to insert at the end of source file */
   path_t source_footer;
+  /** if the valuer also sets the marked flag */
+  ejintbool_t valuer_sets_marked;
+  /** ignore unmarked submits in scoring */
+  ejintbool_t ignore_unmarked;
 
   /** printf pattern for the test files */
   unsigned char test_pat[32];
@@ -867,6 +917,14 @@ struct section_problem_data
   int dp_total META_ATTRIB((meta_private));
   struct penalty_info *dp_infos META_ATTRIB((meta_private));
 
+  /** group-specific start date for this problem */
+  char **group_start_date;
+  /** group-specific deadline for this problem */
+  char **group_deadline;
+
+  struct group_dates gsd META_ATTRIB((meta_private));
+  struct group_dates gdl META_ATTRIB((meta_private));
+
   char **disable_language;
   char **enable_language;
   char **require;
@@ -876,12 +934,20 @@ struct section_problem_data
   ejenvlist_t valuer_env;
   /** environment variables for the problem interactor */
   ejenvlist_t interactor_env;
+  /** environment variables for the style checker */
+  ejenvlist_t style_checker_env;
+  /** environment variables for the test checker */
+  ejenvlist_t test_checker_env;
   /** checker program */
   path_t check_cmd;
   /** valuer program */
   path_t valuer_cmd;
   /** interactor program */
   path_t interactor_cmd;
+  /** style checker program */
+  path_t style_checker_cmd;
+  /** test checker program */
+  unsigned char *test_checker_cmd;
   /** time limit adjustments depending on language */
   char **lang_time_adj;
   /** time limit milliseconds adjustments depending on language (priority over lang_time_adj) */
@@ -900,6 +966,10 @@ struct section_problem_data
   int score_bonus_total META_ATTRIB((meta_private));
   /** parsed: score_bonus values */
   int *score_bonus_val META_ATTRIB((meta_private));
+
+  /** number of tests, open for unprivileged users */
+  unsigned char open_tests[256];
+  int *open_tests_val META_ATTRIB((meta_private));
 
   /** max virtual size limit  */
   size_t max_vm_size;
@@ -924,7 +994,7 @@ struct section_problem_data
   } xml META_ATTRIB((meta_hidden));
 };
 
-/* sizeof(struct section_language_data) == 33660 */
+/* sizeof(struct section_language_data) == 33664 */
 struct section_language_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -962,6 +1032,8 @@ struct section_language_data
   path_t cmd;
   /** style checker */
   path_t style_checker_cmd;
+  /** environment to pass to the style checker */
+  ejenvlist_t style_checker_env;
 
   /** do not test this language automatically */
   ejintbool_t disable_auto_testing;
@@ -1110,11 +1182,16 @@ struct generic_section_config * prepare_parse_config_file(const unsigned char *p
                                                           int *p_cond_count);
 void prepare_set_global_defaults(struct section_global_data *global);
 
-void prepare_global_free_func(struct generic_section_config *gp);
-void prepare_language_free_func(struct generic_section_config *gp);
-void prepare_problem_free_func(struct generic_section_config *gp);
-void prepare_tester_free_func(struct generic_section_config *gp);
 struct generic_section_config *prepare_free_config(struct generic_section_config *cfg);
+
+struct section_global_data *
+prepare_global_free(struct section_global_data *global);
+struct section_language_data *
+prepare_language_free(struct section_language_data *lang);
+struct section_problem_data *
+prepare_problem_free(struct section_problem_data *prob);
+struct section_tester_data *
+prepare_tester_free(struct section_tester_data *tester);
 
 struct section_global_data *prepare_alloc_global(void);
 struct section_language_data *prepare_alloc_language(void);
@@ -1123,8 +1200,8 @@ struct section_tester_data *prepare_alloc_tester(void);
 
 void prepare_problem_init_func(struct generic_section_config *gp);
 
-void prepare_copy_problem(struct section_problem_data *out,
-                          const struct section_problem_data *in);
+struct section_problem_data *
+prepare_copy_problem(const struct section_problem_data *in);
 
 void prepare_set_prob_value(int field, struct section_problem_data *out,
                             const struct section_problem_data *abstr,
@@ -1237,5 +1314,14 @@ cntsprob_is_settable_field(int f_id);
 
 int
 cntsprob_is_inheritable_field(int f_id);
+
+const unsigned char*
+get_advanced_layout_path(
+        unsigned char *buf,
+        size_t bufsize,
+        const struct section_global_data *global,
+        const struct section_problem_data *prob,
+        const unsigned char *entry,
+        int variant);
 
 #endif /* __PREPARE_H__ */

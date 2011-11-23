@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: misctext.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: misctext.c 5959 2010-07-23 18:57:30Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1570,6 +1570,266 @@ c_armor_buf(struct html_armor_buffer *pb, const unsigned char *s)
   c_armor_string(s, pb->buf);
   return pb->buf;
 }
+
+int
+text_read_file(
+        const unsigned char *path,
+        int reserve,
+        unsigned char **out,
+        size_t *out_len)
+{
+  unsigned char read_buf[512];
+  unsigned char *buf = 0;
+  size_t buf_len = 0, read_len = 0;
+  FILE *f = 0;
+
+  if (reserve <= 0) reserve = 1;
+
+  if (!(f = fopen(path, "r"))) {
+    return -1;
+  }
+
+  while (1) {
+    read_len = fread(read_buf, 1, sizeof(read_buf), f);
+    if (!read_len) break;
+    if (!buf_len) {
+      buf = (unsigned char*) xcalloc(read_len + reserve, 1);
+      memcpy(buf, read_buf, read_len);
+      buf_len = read_len;
+    } else {
+      buf = (unsigned char*) xrealloc(buf, buf_len + reserve + read_len);
+      memcpy(buf + buf_len, read_buf, read_len);
+      buf_len += read_len;
+      buf[buf_len] = 0;
+    }
+  }
+  if (ferror(f)) {
+    xfree(buf);
+    fclose(f);
+    return -1;
+  }
+  if (!buf_len) {
+    buf = (unsigned char*) xmalloc(reserve);
+    buf[0] = 0;
+    buf_len = 0;
+  }
+  if (out) *out = buf;
+  if (out_len) *out_len = buf_len;
+  return (int) buf_len;
+}
+
+int
+text_is_valid_char(int c)
+{
+  if (c == 0177) return 0;
+  if (c < 0 || c >= ' ' || c == '\t' || c == '\n' || c == '\r') return 1;
+  return 0;
+}
+
+int
+text_is_binary(const unsigned char *text, size_t size)
+{
+  size_t i;
+
+  for (i = 0; i < size; ++i) {
+    if (!text_is_valid_char(text[i])) return 1;
+    if (text[i] == '\r' && text[i + 1] != '\n') return 1;
+  }
+  return 0;
+}
+
+size_t
+text_normalize_buf(
+        unsigned char *in_text,
+        size_t in_size,
+        int op_mask,
+        size_t *p_count,
+        int *p_done_mask)
+{
+  size_t i = 0, j = 0;
+  int done_mask = 0;
+  size_t count = 0;
+  unsigned char *out_text;
+
+  if (!in_size) {
+    if (p_count) *p_count = 0;
+    if (p_done_mask) *p_done_mask = 0;
+    return 0;
+  }
+
+  out_text = in_text;
+  while (in_text[i]) {
+    if (in_text[i] == '\n') {
+      if (j > 0 && out_text[j - 1] == '\r' && (op_mask & TEXT_FIX_CR)) {
+        done_mask |= TEXT_FIX_CR;
+        ++count;
+        --j;
+      }
+      if ((op_mask & TEXT_FIX_TR_SP)) {
+        while (j > 0 && out_text[j - 1] != '\n' && isspace(out_text[j - 1])) {
+          done_mask |= TEXT_FIX_TR_SP;
+          ++count;
+          --j;
+        }
+      }
+      out_text[j++] = '\n';
+      ++i;
+    } else {
+      out_text[j++] = in_text[i++];
+    }
+  }
+  if ((op_mask & TEXT_FIX_TR_SP)) {
+    while (j > 0 && out_text[j - 1] != '\n' && isspace(out_text[j - 1])) {
+      done_mask |= TEXT_FIX_TR_SP;
+      ++count;
+      --j;
+    }
+  }
+  if (i > 0 && in_text[i - 1] != '\n' && (op_mask & TEXT_FIX_FINAL_NL)) {
+    done_mask |= TEXT_FIX_FINAL_NL;
+    ++count;
+    out_text[j++] = '\n';
+  }
+  if ((op_mask & TEXT_FIX_TR_NL)) {
+    while (j > 2 && out_text[j - 1] == '\n' && out_text[j - 2] == '\n') {
+      done_mask |= TEXT_FIX_TR_NL;
+      --j;
+      ++count;
+    }
+    if (j == 1 && out_text[j - 1] == '\n') {
+      done_mask |= TEXT_FIX_TR_NL;
+      --j;
+      ++count;
+    }
+  }
+  out_text[j] = 0;
+
+  if (p_count) *p_count = count;
+  if (p_done_mask) *p_done_mask = done_mask;
+  return j;
+}
+
+size_t
+text_normalize_dup(
+        const unsigned char *in_text,
+        size_t in_size,
+        int op_mask,
+        unsigned char **p_out_text,
+        size_t *p_count,
+        int *p_done_mask)
+{
+  unsigned char *out_text = 0;
+
+  if (!in_size) {
+    *p_out_text = xstrdup("");
+    if (p_count) *p_count = 0;
+    return 0;
+  }
+  out_text = (unsigned char*) xmalloc(in_size + 2);
+  memcpy(out_text, in_text, in_size + 1);
+  return text_normalize_buf(out_text, in_size, op_mask, p_count, p_done_mask);
+}
+
+void
+html_print_by_line(
+        FILE *f,
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        unsigned char const *s,
+        size_t size)
+{
+  const unsigned char *p = s;
+  const unsigned char * const * trans_table;
+
+  if (max_file_length > 0 && size > max_file_length) {
+    fprintf(f, "(%s, %s = %" EJ_PRINTF_ZSPEC "u)\n",
+            "file is too long", "size", EJ_PRINTF_ZCAST(size));
+    return;
+  }
+
+  if (!s) {
+    fprintf(f, "(%s)\n", "file is missing");
+    return;
+  }
+
+  trans_table = html_get_armor_table();
+
+  while (*s) {
+    while (*s && *s != '\r' && *s != '\n') s++;
+    if (max_line_length > 0 && s - p > max_line_length) {
+      fprintf(f, "(%s, %s = %" EJ_PRINTF_TSPEC "d)\n",
+              "line is too long", "size", EJ_PRINTF_TCAST(s - p));
+    } else {
+      if (utf8_mode) {
+        while (p != s) {
+          if (*p <= 0x7f) {
+            if (trans_table[*p]) {
+              fputs(trans_table[*p++], f);
+            } else {
+              putc(*p++, f);
+            }
+          } else if (*p <= 0xbf) {
+            // middle of multibyte sequence
+            putc('?', f);
+            p++;
+          } else if (*p <= 0xc1) {
+            // reserved
+            putc('?', f);
+            p++;
+          } else if (*p <= 0xdf) {
+            // two bytes: 0x80-0x7ff
+            if (p + 1 < s && p[1] >= 0x80 && p[1] <= 0xbf && (((s[0] & 0x1f) << 6) | (s[1] & 0x3f)) >= 0x80) {
+              putc(*p++, f);
+              putc(*p++, f);
+            } else {
+              putc('?', f);
+              p++;
+            }
+          } else if (*p <= 0xef) {
+            // three bytes: 0x800-0xffff
+            if (p + 2 < s && p[1] >= 0x80 && p[1] <= 0xbf && p[2] >= 0x80 && p[2] <= 0xbf && (((s[0] & 0x0f) << 12) | ((s[1] & 0x3f) << 6) | (s[2] & 0x3f)) >= 0x800) {
+              putc(*p++, f);
+              putc(*p++, f);
+              putc(*p++, f);
+            } else {
+              putc('?', f);
+              p++;
+            }
+          } else if (*p <= 0xf7) {
+            // four bytes: 0x10000-0x10ffff
+            if (p + 3 < s && p[1] >= 0x80 && p[1] <= 0xbf && p[2] >= 0x80 && p[2] <= 0xbf && p[3] >= 0x80 && p[3] <= 0xbf && (((s[0] & 0x07) << 18) | ((s[1] & 0x3f) << 12) | ((s[2] & 0x3f) << 6) | (s[3] & 0x3f)) >= 0x10000) {
+              putc(*p++, f);
+              putc(*p++, f);
+              putc(*p++, f);
+              putc(*p++, f);
+            } else {
+              putc('?', f);
+              p++;
+            }
+          } else {
+            // reserved
+            putc('?', f);
+            p++;
+          }
+        }
+      } else {
+        while (p != s)
+          if (trans_table[*p]) {
+            fputs(trans_table[*p], f);
+            p++;
+          } else {
+            putc(*p++, f);
+          }
+      }
+    }
+    while (*s == '\r' || *s == '\n')
+      putc(*s++, f);
+    p = s;
+  }
+  putc('\n', f);
+}
+
 
 /*
  * Local variables:

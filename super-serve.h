@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super-serve.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: super-serve.h 5932 2010-07-07 09:00:22Z cher $ */
 #ifndef __SUPER_SERVE_H__
 #define __SUPER_SERVE_H__
 
@@ -83,6 +83,7 @@ struct section_language_data;
 struct section_problem_data;
 struct section_tester_data;
 
+/* sizeof(struct sid_state) == 416 */
 struct sid_state
 {
   struct sid_state *next;
@@ -194,6 +195,7 @@ struct sid_state
   ejintbool_t prob_show_adv;
 
   unsigned char *contest_start_cmd_text;
+  unsigned char *contest_stop_cmd_text;
   unsigned char *stand_header_text;
   unsigned char *stand_footer_text;
   unsigned char *stand2_header_text;

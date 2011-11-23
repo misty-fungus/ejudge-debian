@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 5533 2008-12-31 10:25:36Z cher $ */
+/* $Id: rldb_mysql.c 5856 2010-06-12 06:14:27Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -102,6 +102,7 @@ struct rldb_plugin_iface plugin_rldb_mysql =
   squeeze_func,
   put_entry_func,
   put_header_func,
+  change_status_2_func,
 };
 
 static struct common_plugin_data *
@@ -161,7 +162,7 @@ do_create(struct rldb_mysql_state *state)
   if (mi->simple_fquery(md, create_runs_query, md->table_prefix) < 0)
     db_error_fail(md);
   if (mi->simple_fquery(md,
-                        "INSERT INTO %sconfig VALUES ('run_version', '1') ;",
+                        "INSERT INTO %sconfig VALUES ('run_version', '2') ;",
                         md->table_prefix) < 0)
     db_error_fail(md);
   return 0;
@@ -192,9 +193,27 @@ do_open(struct rldb_mysql_state *state)
   if (!md->row[0] || mi->parse_int(md, md->row[0], &run_version) < 0)
     db_error_inv_value_fail(md, "config_val");
   mi->free_res(md);
-  if (run_version != 1) {
+  if (run_version == 1) {
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN is_marked TINYINT NOT NULL DEFAULT 0 AFTER last_change_nsec",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN is_saved TINYINT NOT NULL DEFAULT 0 AFTER is_marked",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN saved_status INT NOT NULL DEFAULT 0 AFTER is_saved",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN saved_score INT NOT NULL DEFAULT 0 AFTER saved_status",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN saved_test INT NOT NULL DEFAULT 0 AFTER saved_score",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '2' WHERE config_key = 'run_version' ;", md->table_prefix) < 0)
+      return -1;
+  } else if (run_version != 2) {
     err("run_version == %d is not supported", run_version);
-    goto fail;
+    return -1;
   }
   return 0;
 
@@ -417,6 +436,11 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->exam_score[0] = ri.exam_score0;
     re->exam_score[1] = ri.exam_score1;
     re->exam_score[2] = ri.exam_score2;
+    re->is_marked = ri.is_marked;
+    re->is_saved = ri.is_saved;
+    re->saved_status = ri.saved_status;
+    re->saved_score = ri.saved_score;
+    re->saved_test = ri.saved_test;
   }
   return 1;
 
@@ -719,8 +743,7 @@ get_insert_run_id(
             (rls->run_u - run_id - 1) * sizeof(rls->runs[0]));
     for (i = run_id + 1; i < rls->run_u; ++i)
       rls->runs[i].run_id = i;
-    // FIXME: does it work???
-    if (mi->simple_fquery(md, "UPDATE %sruns SET run_id = run_id + 1 WHERE contest_id = %d AND run_id >= %d ;", md->table_prefix, cs->contest_id, run_id) < 0)
+    if (mi->simple_fquery(md, "UPDATE %sruns SET run_id = run_id + 1 WHERE contest_id = %d AND run_id >= %d ORDER BY run_id DESC;", md->table_prefix, cs->contest_id, run_id) < 0)
       goto fail;
   }
   re = &rls->runs[run_id];
@@ -870,6 +893,26 @@ generate_update_entry_clause(
     fprintf(f, "%sexam_score1 = %d", sep, re->exam_score[1]);
     fprintf(f, "%sexam_score2 = %d", sep, re->exam_score[2]);
   }
+  if ((flags & RE_IS_MARKED)) {
+    fprintf(f, "%sis_marked = %d", sep, re->is_marked);
+    sep = comma;
+  }
+  if ((flags & RE_IS_SAVED)) {
+    fprintf(f, "%sis_saved = %d", sep, re->is_saved);
+    sep = comma;
+  }
+  if ((flags & RE_SAVED_STATUS)) {
+    fprintf(f, "%ssaved_status = %d", sep, re->saved_status);
+    sep = comma;
+  }
+  if ((flags & RE_SAVED_SCORE)) {
+    fprintf(f, "%ssaved_score = %d", sep, re->saved_score);
+    sep = comma;
+  }
+  if ((flags & RE_SAVED_TEST)) {
+    fprintf(f, "%ssaved_test = %d", sep, re->saved_test);
+    sep = comma;
+  }
 
   gettimeofday(&curtime, 0);
   fprintf(f, "%slast_change_time = ", sep);
@@ -950,6 +993,21 @@ update_entry(
   }
   if ((flags & RE_EXAM_SCORE)) {
     memcpy(dst->exam_score, src->exam_score, sizeof(dst->exam_score));
+  }
+  if ((flags & RE_IS_MARKED)) {
+    dst->is_marked = src->is_marked;
+  }
+  if ((flags & RE_IS_SAVED)) {
+    dst->is_saved = src->is_saved;
+  }
+  if ((flags & RE_SAVED_STATUS)) {
+    dst->saved_status = src->saved_status;
+  }
+  if ((flags & RE_SAVED_SCORE)) {
+    dst->saved_score = src->saved_score;
+  }
+  if ((flags & RE_SAVED_TEST)) {
+    dst->saved_test = src->saved_test;
   }
 }
 
@@ -1424,6 +1482,11 @@ put_entry_func(
   ri.exam_score2 = re->exam_score[2];
   ri.last_change_time = curtime.tv_sec;
   ri.last_change_nsec = curtime.tv_usec * 1000;
+  ri.is_marked = re->is_marked;
+  ri.is_saved = re->is_saved;
+  ri.saved_status = re->saved_status;
+  ri.saved_score = re->saved_score;
+  ri.saved_test = re->saved_test;
 
   cmd_f = open_memstream(&cmd_t, &cmd_z);
   fprintf(cmd_f, "INSERT INTO %sruns VALUES ( ", state->md->table_prefix);
@@ -1451,6 +1514,30 @@ put_header_func(
   struct rldb_mysql_cnts *cs = (struct rldb_mysql_cnts *) cdata;
 
   return do_update_header(cs, rh, RH_ALL);
+}
+
+static int
+change_status_2_func(
+        struct rldb_plugin_cnts *cdata,
+        int run_id,
+        int new_status,
+        int new_test,
+        int new_score,
+        int new_judge_id,
+        int new_is_marked)
+{
+  struct rldb_mysql_cnts *cs = (struct rldb_mysql_cnts *) cdata;
+  struct run_entry te;
+
+  memset(&te, 0, sizeof(te));
+  te.status = new_status;
+  te.test = new_test;
+  te.score = new_score;
+  te.judge_id = new_judge_id;
+  te.is_marked = new_is_marked;
+
+  return do_update_entry(cs, run_id, &te,
+                         RE_STATUS | RE_TEST | RE_SCORE | RE_JUDGE_ID | RE_IS_MARKED);
 }
 
 /*

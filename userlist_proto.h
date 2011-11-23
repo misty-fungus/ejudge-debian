@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: userlist_proto.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: userlist_proto.h 5948 2010-07-15 09:47:25Z cher $ */
 
 #ifndef __USERLIST_PROTO_H__
 #define __USERLIST_PROTO_H__
 
-/* Copyright (C) 2002-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -99,6 +99,15 @@ enum
     ULS_MOVE_MEMBER,
     ULS_IMPORT_CSV_USERS,
     ULS_FETCH_COOKIE,
+    ULS_LIST_ALL_GROUPS,
+    ULS_CREATE_GROUP,
+    ULS_DELETE_GROUP,
+    ULS_EDIT_GROUP_FIELD,
+    ULS_DELETE_GROUP_FIELD,
+    ULS_LIST_GROUP_USERS,
+    ULS_CREATE_GROUP_MEMBER,
+    ULS_DELETE_GROUP_MEMBER,
+    ULS_GET_GROUPS,
 
     ULS_LAST_CMD
   };
@@ -159,6 +168,8 @@ enum
     ULS_ERR_UNSPECIFIED_ERROR,
     ULS_ERR_DB_ERROR,
     ULS_ERR_SIMPLE_REGISTERED,
+    ULS_ERR_GROUP_NAME_USED,
+    ULS_ERR_BAD_GROUP_ID,
 
     ULS_ERR_LAST
   };

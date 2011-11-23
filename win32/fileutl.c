@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: fileutl.c 5741 2010-01-25 20:17:49Z cher $ */
+/* $Id: fileutl.c 5902 2010-06-18 17:50:49Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -977,6 +977,27 @@ int
 make_hardlink(const unsigned char *oldname, const unsigned char *newname)
 {
   return fast_copy_file(oldname, newname);
+}
+
+int
+scan_executable_files(
+        const unsigned char *dir,
+        int *p_count,
+        unsigned char ***p_files)
+{
+  abort();
+  return -1;
+}
+
+int
+write_tmp_file(
+        unsigned char *path,
+        size_t path_size,
+        const unsigned char *bytes,
+        size_t bytes_count)
+{
+  abort();
+  return -1;
 }
 
 /*

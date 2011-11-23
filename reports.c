@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: reports.c 5753 2010-01-26 07:35:54Z cher $ */
+/* $Id: reports.c 5844 2010-06-04 21:58:59Z cher $ */
 
 /* Copyright (C) 2007-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -2166,6 +2166,9 @@ ns_olympiad_final_user_report(
   const unsigned char *td1 = "<td class=\"b1\">";
   const unsigned char *th1 = "<th class=\"b1\">";
 
+  enum { SELECT_ONE_COLUMNS = 1 };
+  enum { SHORT_ANSWER_COLUMNS = 1 };
+
   if (global->score_system != SCORE_OLYMPIAD) return -1;
 
   if (teamdb_export_team(cs->teamdb_state, user_id, &tdb) < 0) {
@@ -2194,8 +2197,7 @@ ns_olympiad_final_user_report(
         fprintf(log_f, "Invalid problem %d in run %d\n", re.prob_id, run_id);
         goto cleanup;
       }
-      if (prob->type == PROB_TYPE_OUTPUT_ONLY
-          || prob->type == PROB_TYPE_SELECT_MANY
+      if (prob->type == PROB_TYPE_SELECT_MANY
           || prob->type == PROB_TYPE_CUSTOM) {
         fprintf(log_f,"Problem type `%s' for problem %s is not yet supported\n",
                 problem_unparse_type(prob->type), prob->short_name);
@@ -2443,6 +2445,7 @@ ns_olympiad_final_user_report(
       break;
 
     case PROB_TYPE_TEXT_ANSWER:
+    case PROB_TYPE_OUTPUT_ONLY:
       fprintf(fout, "<br/><table class=\"b1\"><tr>%s%s</th>%s%s</th></tr>\n",
               th1, _("Problem"), th1, _("Comment"));
       i = f_id;
@@ -2481,8 +2484,9 @@ ns_olympiad_final_user_report(
         goto cleanup;
       }
       if (strlen(src_txt) != src_len) {
-        fprintf(log_f, "Source file %s is binary\n", src_path);
-        goto cleanup;
+        fprintf(fout, "%s<i>%s</i></td></tr></table>\n", td1,
+                _("Binary file is not shown"));
+        break;
       }
       while (src_len > 0 && isspace(src_txt[src_len - 1])) src_len--;
       src_txt[src_len] = 0;
@@ -2509,13 +2513,15 @@ ns_olympiad_final_user_report(
       break;
 
     case PROB_TYPE_SHORT_ANSWER:
-      fprintf(fout, "<br/><table class=\"b1\">\n"
-              "<tr>%s%s</th>%s%s</th>%s%s</th>%s%s</th></tr>\n",
-              th1, _("Problem"), th1, _("Answer"),
-              th1, _("Problem"), th1, _("Answer"));
+      fprintf(fout, "<br/><table class=\"b1\">\n<tr>");
+      for (i = 0; i < SHORT_ANSWER_COLUMNS; ++i) {
+        fprintf(fout, "%s%s</th>%s%s</th>",
+                th1, _("Problem"), th1, _("Answer"));
+      }
+      fprintf(fout, "</tr>\n");
       for (i = f_id, k = 0; i < l_id; i++, k++) {
         if (!(prob = cs->probs[i])) continue;
-        if (!(k % 2)) fprintf(fout, "<tr>");
+        if (!(k % SHORT_ANSWER_COLUMNS)) fprintf(fout, "<tr>");
         if (!prob->long_name[0] || !strcmp(prob->long_name, prob->short_name)) {
           fprintf(fout, "%s%s</td>", td1, ARMOR(prob->short_name));
         } else {
@@ -2524,7 +2530,8 @@ ns_olympiad_final_user_report(
         }
         if ((run_id = run_ids[i]) < 0) {
           fprintf(fout, "%s<i>%s</i></td>", td1, _("No answer"));
-          if ((k % 2) == 1) fprintf(fout, "</tr>\n");
+          if ((k % SHORT_ANSWER_COLUMNS) == SHORT_ANSWER_COLUMNS - 1)
+            fprintf(fout, "</tr>\n");
           continue;
         }
         if (run_get_entry(cs->runlog_state, run_ids[i], &re) < 0) abort();
@@ -2572,10 +2579,15 @@ ns_olympiad_final_user_report(
         */
         xfree(src_txt); src_txt = 0;
         src_len = 0;
-        if ((k % 2) == 1) fprintf(fout, "</tr>\n");
+        if ((k % SHORT_ANSWER_COLUMNS) == SHORT_ANSWER_COLUMNS - 1)
+          fprintf(fout, "</tr>\n");
       }
-      if (k % 2 == 1) fprintf(fout, "%s&nbsp;</td>%s&nbsp;</td></tr>",
-                              td1, td1);
+      if (k > 0) {
+        for (i = k; i < SHORT_ANSWER_COLUMNS; ++i) {
+          fprintf(fout, "%s&nbsp;</td>%s&nbsp;</td>", td1, td1);
+        }
+        fprintf(fout, "</tr>\n");
+      }
       fprintf(fout, "</table>\n");
       /*
       fprintf(fout, "\\noindent{}%s\n\n",
@@ -2584,14 +2596,15 @@ ns_olympiad_final_user_report(
       break;
 
     case PROB_TYPE_SELECT_ONE:
-      fprintf(fout, "<br/><table class=\"b1\">\n"
-              "<tr>%s%s</th>%s%s</th>%s%s</th>%s%s</th>%s%s</th>%s%s</th></tr>\n",
-              th1, _("Problem"), th1, _("Answer code"),
-              th1, _("Problem"), th1, _("Answer code"),
-              th1, _("Problem"), th1, _("Answer code"));
+      fprintf(fout, "<br/><table class=\"b1\">\n<tr>");
+      for (i = 0; i < SELECT_ONE_COLUMNS; ++i) {
+        fprintf(fout, "%s%s</th>%s%s</th>",
+                th1, _("Problem"), th1, _("Answer code"));
+      }
+      fprintf(fout, "</tr>\n");
       for (i = f_id, k = 0; i < l_id; i++, k++) {
         if (!(prob = cs->probs[i])) continue;
-        if (!(k % 3)) fprintf(fout, "<tr>");
+        if (!(k % SELECT_ONE_COLUMNS)) fprintf(fout, "<tr>");
         if (!prob->long_name[0] || !strcmp(prob->long_name, prob->short_name)) {
           fprintf(fout, "%s%s</td>", td1, ARMOR(prob->short_name));
         } else {
@@ -2600,7 +2613,8 @@ ns_olympiad_final_user_report(
         }
         if ((run_id = run_ids[i]) < 0) {
           fprintf(fout, "%s<i>%s</i></td>", td1, _("No answer"));
-          if ((k % 3) == 2) fprintf(fout, "</tr>\n");
+          if ((k % SELECT_ONE_COLUMNS) == SELECT_ONE_COLUMNS - 1)
+            fprintf(fout, "</tr>\n");
           continue;
         }
         if (run_get_entry(cs->runlog_state, run_ids[i], &re) < 0) abort();
@@ -2687,17 +2701,19 @@ ns_olympiad_final_user_report(
         }
         //fprintf(fout, "%d & %s\\\\\n", answer, ans_txt);
         fprintf(fout, "%s%d</td>", td1, answer);
-        if ((k % 3) == 2) fprintf(fout, "</tr>\n");
+        if ((k % SELECT_ONE_COLUMNS) == SELECT_ONE_COLUMNS - 1)
+          fprintf(fout, "</tr>\n");
       }
-      if ((k % 3) == 1)
-        fprintf(fout, "%s&nbsp;</td>%s&nbsp;</td>%s&nbsp;</td>%s&nbsp;</td></tr>\n", td1, td1, td1, td1);
-      if ((k % 3) == 2)
-        fprintf(fout, "%s&nbsp;</td>%s&nbsp;</td></tr>\n", td1, td1);
+      if (k > 0) {
+        for (i = k; i < SELECT_ONE_COLUMNS; ++i) {
+          fprintf(fout, "%s&nbsp;</td>%s&nbsp;</td>", td1, td1);
+        }
+        fprintf(fout, "</tr>\n");
+      }
       fprintf(fout, "</table>\n");
       break;
 
     default:
-      //case PROB_TYPE_OUTPUT_ONLY:
       //case PROB_TYPE_SELECT_MANY:
       //case PROB_TYPE_CUSTOM:
       abort();

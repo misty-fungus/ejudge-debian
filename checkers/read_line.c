@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: read_line.c 5687 2010-01-19 10:10:15Z cher $ */
+/* $Id: read_line.c 5914 2010-06-28 05:05:55Z cher $ */
 
-/* Copyright (C) 2003-2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,26 +18,29 @@
 #include "checker_internal.h"
 
 int
-checker_read_line(int ind, const char *name,
-                  int eof_error_flag,
-                  char **out_str)
+checker_read_line(
+        int ind,
+        const char *name,
+        int eof_error_flag,
+        char **out_str)
 {
   int c;
   unsigned char *buf = 0;
   size_t buf_a = 0, buf_u = 0;
 
   if (!name) name = "";
-  c = getc(f_arr[ind]);
+  c = getc_unlocked(f_arr[ind]);
   if (c == EOF) {
-    if (ferror(f_arr[ind]))
-      fatal_CF("Input error while reading %s", name);
+    if (ferror_unlocked(f_arr[ind])) {
+      fatal_CF("%s: %s: input error", f_arr_names[ind], name);
+    }
     if (!eof_error_flag) return -1;
-    if (ind == 1)
-      fatal_PE("Unexpected EOF while reading %s", name);
-    else
-      fatal_CF("Unexpected EOF while reading %s", name);
+    fatal_read(ind, "%s: unexpected EOF", name);
   }
   while (c != EOF) {
+    if (!isspace(c) && c < ' ') {
+      fatal_read(ind, "%s: invalid control character with code %d", name, c);
+    }
     if (buf_u == buf_a) {
       if (!buf_a) buf_a = 128;
       buf_a *= 2;
@@ -45,10 +48,11 @@ checker_read_line(int ind, const char *name,
     }
     buf[buf_u++] = c;
     if (c == '\n') break;
-    c = getc(f_arr[ind]);
+    c = getc_unlocked(f_arr[ind]);
   }
-  if (c == EOF && ferror(f_arr[ind]))
-    fatal_CF("Input error while reading %s", name);
+  if (c == EOF && ferror_unlocked(f_arr[ind])) {
+    fatal_CF("%s: %s: input error", f_arr_names[ind], name);
+  }
 
   if (buf_u == buf_a) {
     if (!buf_a) buf_a = 128;

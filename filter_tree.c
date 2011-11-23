@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: filter_tree.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: filter_tree.c 5948 2010-07-15 09:47:25Z cher $ */
 
 /* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -353,6 +353,7 @@ static unsigned char const * const errmsg[] =
   _("range error"),
   _("invalid argument"),
   _("invalid argument type"),
+  _("invalid user group"),
 };
 #undef _
 unsigned char const *

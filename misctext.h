@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: misctext.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: misctext.h 5904 2010-06-23 02:34:01Z cher $ */
 #ifndef __MISCTEXT_H__
 #define __MISCTEXT_H__
 
@@ -187,5 +187,58 @@ int
 c_armor_needed_bin(const unsigned char *str, size_t sz, size_t *psz);
 const unsigned char *
 c_armor_buf(struct html_armor_buffer *pb, const unsigned char *s);
+
+int
+text_read_file(
+        const unsigned char *path,
+        int reserve,
+        unsigned char **out,
+        size_t *out_len);
+
+int
+text_is_valid_char(int c);
+
+int
+text_is_binary(const unsigned char *text, size_t size);
+
+enum
+{
+  TEXT_FIX_CR = 1,              /* dos2unix conversion */
+  TEXT_FIX_TR_SP = 2,           /* trailing space removal */
+  TEXT_FIX_FINAL_NL = 4,        /* final newline append */
+  TEXT_FIX_TR_NL = 8            /* trailing newline removal */
+};
+
+/**
+ * Normalizes the text buffer according to the given normalization flags.
+ * \returns the new string length
+ */
+size_t
+text_normalize_buf(
+        unsigned char *in_text,
+        size_t in_size,
+        int op_mask,
+        size_t *p_count,
+        int *p_done_mask);
+
+/**
+ */
+size_t
+text_normalize_dup(
+        const unsigned char *in_text,
+        size_t in_size,
+        int op_mask,
+        unsigned char **p_out_text,
+        size_t *p_count,
+        int *p_done_mask);
+
+void
+html_print_by_line(
+        FILE *f,
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        unsigned char const *s,
+        size_t size);
 
 #endif /* __MISCTEXT_H__ */

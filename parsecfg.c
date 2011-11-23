@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: parsecfg.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: parsecfg.c 5868 2010-06-12 12:29:17Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1095,6 +1095,16 @@ copy_param(void *cfg, const struct config_parse_info *params,
     if (parsecfg_state.charset_id > 0) {
       charset_decode_buf(parsecfg_state.charset_id, ptr, param_size);
     }
+  } else if (!strcmp(params[i].type, "S")) {
+    // string allocated on heap
+    char **pptr;
+
+    pptr = (char**) ((char*) cfg + params[i].offset);
+    if (parsecfg_state.charset_id > 0) {
+      *pptr = charset_decode_to_heap(parsecfg_state.charset_id, varvalue);
+    } else {
+      *pptr = xstrdup(varvalue);
+    }
   } else if (!strcmp(params[i].type, "x")) {
     char ***ppptr = 0;
     char **pptr = 0;
@@ -1391,6 +1401,25 @@ char **sarray_merge_pf(char **a1, char **a2)
   }
   xfree(a2);
   return pptr;
+}
+
+char **
+sarray_merge_pp(char **a1, char **a2)
+{
+  int newlen = 0, i = 0, j;
+  char **aa = 0;
+
+  newlen = sarray_len(a1) + sarray_len(a2);
+  XCALLOC(aa, newlen + 1);
+  if (a1) {
+    for (j = 0; a1[j]; ++j)
+      aa[i++] = xstrdup(a1[j]);
+  }
+  if (a2) {
+    for (j = 0; a2[j]; ++j)
+      aa[i++] = xstrdup(a2[j]);
+  }
+  return aa;
 }
 
 char **sarray_merge_arr(int n, char ***pa)

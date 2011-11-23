@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files.make 5676 2010-01-19 09:54:39Z cher $
+# $Id: files.make 5950 2010-07-16 12:33:23Z cher $
 
 # Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -39,6 +39,7 @@ USERLIST_CLNT_CFILES=\
  userlist_clnt/get_param.c\
  userlist_clnt/get_uid_by_pid.c\
  userlist_clnt/get_uid_by_pid_2.c\
+ userlist_clnt/get_xml_by_text.c\
  userlist_clnt/import_csv_users.c\
  userlist_clnt/list_all_users.c\
  userlist_clnt/list_users.c\
@@ -166,6 +167,7 @@ COMMON_CFILES=\
  random.c\
  reports.c\
  rldb_plugin_file.c\
+ run_inverse.c\
  runlog.c\
  runlog_import.c\
  runlog_static.c\
@@ -192,6 +194,7 @@ COMMON_CFILES=\
  super_proto.c\
  sha.c\
  teamdb.c\
+ teamdb_2.c\
  team_extra.c\
  team_extra_xml.c\
  testinfo.c\
@@ -381,6 +384,7 @@ HFILES=\
  protocol.h\
  random.h\
  rldb_plugin.h\
+ run.h\
  runlog.h\
  runlog_state.h\
  run_packet.h\
@@ -398,6 +402,7 @@ HFILES=\
  super-serve.h\
  sha.h\
  teamdb.h\
+ teamdb_priv.h\
  team_extra.h\
  testinfo.h\
  testing_report_xml.h\

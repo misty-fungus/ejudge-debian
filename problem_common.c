@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: problem_common.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: problem_common.c 5884 2010-06-14 20:03:31Z cher $ */
 
-/* Copyright (C) 2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -30,6 +30,7 @@ const unsigned char * const problem_type_str[] =
   [PROB_TYPE_SELECT_ONE] = "select-one",
   [PROB_TYPE_SELECT_MANY] = "select-many",
   [PROB_TYPE_CUSTOM] = "custom",
+  [PROB_TYPE_TESTS] = "tests",
 
   [PROB_TYPE_LAST] = 0,
 };

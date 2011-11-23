@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_2.c 5724 2010-01-23 14:25:59Z cher $ */
+/* $Id: serve_2.c 5955 2010-07-21 05:48:38Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -39,6 +39,8 @@
 #include "misctext.h"
 #include "charsets.h"
 #include "compat.h"
+#include "varsubst.h"
+#include "mime_type.h"
 
 #include <reuse/logger.h>
 #include <reuse/xalloc.h>
@@ -939,6 +941,9 @@ serve_compile_request(
         int output_only,
         unsigned char const *sfx,
         char **compiler_env,
+        int style_check_only,
+        const unsigned char *style_checker_cmd,
+        char **style_checker_env,
         int accepting_mode,
         int priority_adjustment,
         int notify_flag,
@@ -959,15 +964,22 @@ serve_compile_request(
   unsigned char *src_out_text = 0;
   size_t src_out_size = 0;
   int prio = 0;
+  char **sc_env_mem = 0;
+  const unsigned char *compile_src_dir = 0;
+  const unsigned char *compile_queue_dir = 0;
 
   if (prob->source_header[0]) {
     sformat_message(tmp_path, sizeof(tmp_path), 0, prob->source_header,
                     global, prob, lang, 0, 0, 0, 0, 0);
-    if (os_IsAbsolutePath(tmp_path))
+    if (os_IsAbsolutePath(tmp_path)) {
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s", tmp_path);
-    else
+    } else if (global->advanced_layout > 0) {
+      get_advanced_layout_path(tmp_path_2, sizeof(tmp_path_2),
+                               global, prob, tmp_path, -1);
+    } else {
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s/%s",
                global->statement_dir, tmp_path);
+    }
     if (generic_read_file(&src_header_text, 0, &src_header_size, 0, 0,
                           tmp_path_2, "") < 0)
       goto failed;
@@ -975,11 +987,15 @@ serve_compile_request(
   if (prob->source_footer[0]) {
     sformat_message(tmp_path, sizeof(tmp_path), 0, prob->source_footer,
                     global, prob, lang, 0, 0, 0, 0, 0);
-    if (os_IsAbsolutePath(tmp_path))
+    if (os_IsAbsolutePath(tmp_path)) {
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s", tmp_path);
-    else
+    } else if (global->advanced_layout > 0) {
+      get_advanced_layout_path(tmp_path_2, sizeof(tmp_path_2),
+                               global, prob, tmp_path, -1);
+    } else {
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s/%s",
                global->statement_dir, tmp_path);
+    }
     if (generic_read_file(&src_footer_text, 0, &src_footer_size, 0, 0,
                           tmp_path_2, "") < 0)
       goto failed;
@@ -988,6 +1004,34 @@ serve_compile_request(
   if (accepting_mode == -1) accepting_mode = state->accepting_mode;
 
   if (!state->compile_request_id) state->compile_request_id++;
+
+  if (style_checker_cmd && style_checker_cmd[0]) {
+    sformat_message(tmp_path, sizeof(tmp_path), 0, style_checker_cmd,
+                    global, prob, lang, 0, 0, 0, 0, 0);
+    config_var_substitute_buf(tmp_path, sizeof(tmp_path));
+    if (os_IsAbsolutePath(tmp_path)) {
+      style_checker_cmd = tmp_path;
+    } else if (global->advanced_layout > 0) {
+      get_advanced_layout_path(tmp_path_2, sizeof(tmp_path_2),
+                               global, prob, tmp_path, -1);
+      style_checker_cmd = tmp_path_2;
+    } else {
+      snprintf(tmp_path_2, sizeof(tmp_path_2), "%s/%s",
+               global->checker_dir, tmp_path);
+      style_checker_cmd = tmp_path_2;
+    }
+  }
+
+  if ((!style_checker_cmd || !style_checker_cmd[0]) && lang) {
+    style_checker_cmd = lang->style_checker_cmd;
+  }
+  if (style_checker_env && style_checker_env[0] && lang
+      && lang->style_checker_env && lang->style_checker_env[0]) {
+    sc_env_mem = sarray_merge_pp(lang->style_checker_env, style_checker_env);
+    style_checker_env = sc_env_mem;
+  } else if (lang && lang->style_checker_env && lang->style_checker_env[0]) {
+    style_checker_env = lang->style_checker_env;
+  }
 
   memset(&cp, 0, sizeof(cp));
   cp.judge_id = state->compile_request_id++;
@@ -1001,9 +1045,13 @@ serve_compile_request(
   cp.run_block = &rx;
   cp.env_num = -1;
   cp.env_vars = (unsigned char**) compiler_env;
-  if (lang->style_checker_cmd[0]) {
-    cp.style_checker = (unsigned char*) lang->style_checker_cmd;
+  cp.style_check_only = !!style_check_only;
+  if (style_checker_cmd && style_checker_cmd[0]) {
+    cp.style_checker = (unsigned char*) style_checker_cmd;
   }
+  cp.src_sfx = (unsigned char*) sfx;
+  cp.sc_env_num = -1;
+  cp.sc_env_vars = (unsigned char**) style_checker_env;
 
   memset(&rx, 0, sizeof(rx));
   rx.accepting_mode = accepting_mode;
@@ -1022,6 +1070,15 @@ serve_compile_request(
   prio += priority_adjustment;
   if (prob && prob->id < EJ_SERVE_STATE_TOTAL_PROBS)
     prio += state->prob_prio[prob->id];
+
+  compile_src_dir = global->compile_src_dir;
+  if (lang && lang->compile_src_dir && lang->compile_src_dir[0]) {
+    compile_src_dir = lang->compile_src_dir;
+  }
+  compile_queue_dir = global->compile_queue_dir;
+  if (lang && lang->compile_queue_dir && lang->compile_queue_dir[0]) {
+    compile_queue_dir = lang->compile_queue_dir;
+  }
 
   if (!sfx) sfx = "";
   serve_packet_name(run_id, prio, pkt_name);
@@ -1047,7 +1104,7 @@ serve_compile_request(
       memcpy(src_out_text + src_header_size + len, src_footer_text,
              src_footer_size);
     if (generic_write_file(src_out_text, src_out_size, 0,
-                           global->compile_src_dir, pkt_name, sfx) < 0)
+                           compile_src_dir, pkt_name, sfx) < 0)
       goto failed;
   } else if (len < 0) {
     // copy from archive
@@ -1055,17 +1112,17 @@ serve_compile_request(
                                         global->run_archive_dir, run_id, 0,0);
     if (arch_flags < 0) goto failed;
     if (generic_copy_file(arch_flags, 0, run_arch, "",
-                          0, lang->compile_src_dir, pkt_name, sfx) < 0)
+                          0, compile_src_dir, pkt_name, sfx) < 0)
       goto failed;
   } else {
     // write from memory
     if (generic_write_file(str, len, 0,
-                           lang->compile_src_dir, pkt_name, sfx) < 0)
+                           compile_src_dir, pkt_name, sfx) < 0)
       goto failed;
   }
 
   if (generic_write_file(pkt_buf, pkt_len, SAFE,
-                         lang->compile_queue_dir, pkt_name, "") < 0) {
+                         compile_queue_dir, pkt_name, "") < 0) {
     goto failed;
   }
 
@@ -1074,6 +1131,7 @@ serve_compile_request(
     goto failed;
   }
 
+  sarray_free(sc_env_mem);
   xfree(pkt_buf);
   xfree(src_header_text);
   xfree(src_footer_text);
@@ -1082,6 +1140,7 @@ serve_compile_request(
   return 0;
 
  failed:
+  sarray_free(sc_env_mem);
   xfree(pkt_buf);
   xfree(src_header_text);
   xfree(src_footer_text);
@@ -1105,6 +1164,7 @@ serve_run_request(
         int judge_id,
         int accepting_mode,
         int notify_flag,
+        int mime_type,
         const unsigned char *compile_report_dir,
         const struct compile_reply_packet *comp_pkt)
 {
@@ -1122,6 +1182,9 @@ serve_run_request(
   void *run_pkt_out = 0;
   size_t run_pkt_out_size = 0;
   struct userlist_user_info *ui = 0;
+
+  path_t run_exe_dir;
+  path_t run_queue_dir;
 
   if (prob_id <= 0 || prob_id > state->max_prob 
       || !(prob = state->probs[prob_id])) {
@@ -1148,6 +1211,18 @@ serve_run_request(
     fprintf(errf, "no appropriate checker for <%s>, <%s>\n",
             prob->short_name, arch);
     return -1;
+  }
+
+  if (state->testers[cn]->run_dir[0]) {
+    snprintf(run_exe_dir, sizeof(run_exe_dir),
+             "%s/exe", state->testers[cn]->run_dir);
+    snprintf(run_queue_dir, sizeof(run_queue_dir),
+             "%s/queue", state->testers[cn]->run_dir);
+  } else {
+    snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/exe", 
+             state->global->run_dir);
+    snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/queue",
+             state->global->run_dir);
   }
 
   if (prob->variant_num <= 0 && variant > 0) {
@@ -1222,8 +1297,10 @@ serve_run_request(
   run_pkt->memory_limit = state->global->enable_memory_limit_error;
   run_pkt->secure_run = state->global->secure_run;
   run_pkt->notify_flag = notify_flag;
+  run_pkt->advanced_layout = state->global->advanced_layout;
+  run_pkt->mime_type = mime_type;
   if (run_pkt->secure_run && prob->disable_security) run_pkt->secure_run = 0;
-  if (run_pkt->secure_run && lang->disable_security) run_pkt->secure_run = 0;
+  if (run_pkt->secure_run && lang && lang->disable_security) run_pkt->secure_run = 0;
   run_pkt->security_violation = state->global->detect_violations;
   get_current_time(&run_pkt->ts4, &run_pkt->ts4_us);
   if (comp_pkt) {
@@ -1474,16 +1551,17 @@ serve_notify_user_run_status_change(
 }
 
 int
-serve_read_compile_packet(serve_state_t state,
-                          const struct contest_desc *cnts,
-                          const unsigned char *compile_status_dir,
-                          const unsigned char *compile_report_dir,
-                          const unsigned char *pname)
+serve_read_compile_packet(
+        serve_state_t state,
+        const struct contest_desc *cnts,
+        const unsigned char *compile_status_dir,
+        const unsigned char *compile_report_dir,
+        const unsigned char *pname)
 {
   unsigned char rep_path[PATH_MAX];
   int  r, rep_flags = 0;
   struct run_entry re;
-
+  const struct section_global_data *global = state->global;
   char *comp_pkt_buf = 0;       /* need char* for generic_read_file */
   size_t comp_pkt_size = 0;
   struct compile_reply_packet *comp_pkt = 0;
@@ -1492,7 +1570,11 @@ serve_read_compile_packet(serve_state_t state,
   unsigned char *team_name = 0;
   struct compile_run_extra *comp_extra = 0;
   struct section_problem_data *prob = 0;
-  struct section_language_data *lang = 0;
+  int arch_flags;
+  path_t run_arch_path;
+  char *run_text = 0;
+  size_t run_size = 0;
+  path_t pkt_name;
 
   if ((r = generic_read_file(&comp_pkt_buf, 0, &comp_pkt_size, SAFE | REMOVE,
                              compile_status_dir, pname, "")) <= 0)
@@ -1539,12 +1621,12 @@ serve_read_compile_packet(serve_state_t state,
     }
 
     rep_flags = archive_make_write_path(state, rep_path, sizeof(rep_path),
-                                        state->global->xml_report_archive_dir,
+                                        global->xml_report_archive_dir,
                                         comp_pkt->run_id, report_size, 0);
     if (rep_flags < 0) {
       snprintf(errmsg, sizeof(errmsg),
                "archive_make_write_path: %s, %d, %ld failed\n",
-               state->global->xml_report_archive_dir, comp_pkt->run_id,
+               global->xml_report_archive_dir, comp_pkt->run_id,
                report_size);
       goto report_check_failed;
     }
@@ -1555,7 +1637,7 @@ serve_read_compile_packet(serve_state_t state,
     if (run_change_status(state->runlog_state, comp_pkt->run_id,
                           RUN_CHECK_FAILED, 0, -1, 0) < 0)
       goto non_fatal_error;
-    if (archive_dir_prepare(state, state->global->xml_report_archive_dir,
+    if (archive_dir_prepare(state, global->xml_report_archive_dir,
                             comp_pkt->run_id, 0, 0) < 0)
       goto non_fatal_error;
     if (generic_copy_file(REMOVE, compile_report_dir, pname, "",
@@ -1576,10 +1658,10 @@ serve_read_compile_packet(serve_state_t state,
                           comp_pkt->status, 0, -1, 0) < 0)
       goto non_fatal_error;
 
-    if (archive_dir_prepare(state, state->global->xml_report_archive_dir,
+    if (archive_dir_prepare(state, global->xml_report_archive_dir,
                             comp_pkt->run_id, 0, 0) < 0) {
       snprintf(errmsg, sizeof(errmsg), "archive_dir_prepare: %s, %d failed\n",
-               state->global->xml_report_archive_dir, comp_pkt->run_id);
+               global->xml_report_archive_dir, comp_pkt->run_id);
       goto report_check_failed;
     }
     if (generic_copy_file(REMOVE, compile_report_dir, pname, "",
@@ -1589,7 +1671,7 @@ serve_read_compile_packet(serve_state_t state,
       goto report_check_failed;
     }
     serve_update_standings_file(state, cnts, 0);
-    if (state->global->notify_status_change > 0 && !re.is_hidden
+    if (global->notify_status_change > 0 && !re.is_hidden
         && comp_extra->notify_flag) {
       serve_notify_user_run_status_change(cnts, state, re.user_id,
                                           comp_pkt->run_id, comp_pkt->status);
@@ -1603,11 +1685,13 @@ serve_read_compile_packet(serve_state_t state,
     snprintf(errmsg, sizeof(errmsg), "invalid problem %d\n", re.prob_id);
     goto report_check_failed;
   }
+  /*
   if (re.lang_id < 1 || re.lang_id > state->max_lang
       || !(lang = state->langs[re.lang_id])) {
     snprintf(errmsg, sizeof(errmsg), "invalid language %d\n", re.lang_id);
     goto report_check_failed;
   }
+  */
   if (!(team_name = teamdb_get_name(state->teamdb_state, re.user_id))) {
     snprintf(errmsg, sizeof(errmsg), "invalid team %d\n", re.user_id);
     goto report_check_failed;
@@ -1616,7 +1700,7 @@ serve_read_compile_packet(serve_state_t state,
     if (run_change_status(state->runlog_state, comp_pkt->run_id, RUN_ACCEPTED,
                           0, -1, comp_pkt->judge_id) < 0)
       goto non_fatal_error;
-    if (state->global->notify_status_change > 0 && !re.is_hidden
+    if (global->notify_status_change > 0 && !re.is_hidden
         && comp_extra->notify_flag) {
       serve_notify_user_run_status_change(cnts, state, re.user_id,
                                           comp_pkt->run_id, RUN_ACCEPTED);
@@ -1632,15 +1716,47 @@ serve_read_compile_packet(serve_state_t state,
    * so far compilation is successful, and now we prepare a run packet
    */
 
-  if (serve_run_request(state, stderr, 0, 0, comp_pkt->run_id, re.user_id,
-                        re.prob_id, re.lang_id, 0,
+  if (prob && prob->type > 0 && prob->style_checker_cmd
+      && prob->style_checker_cmd[0]) {
+    // copy textual representation
+    snprintf(pkt_name, sizeof(pkt_name), "%06d", comp_pkt->run_id);
+    snprintf(run_arch_path, sizeof(run_arch_path), "%s/%s",
+             compile_report_dir, pkt_name);
+    if (generic_read_file(&run_text, 0, &run_size, 0, 0, run_arch_path, 0)>=0){
+      arch_flags = archive_make_write_path(state,
+                                           run_arch_path, sizeof(run_arch_path),
+                                           global->report_archive_dir,
+                                           comp_pkt->run_id, run_size, 0);
+      if (arch_flags >= 0) {
+        if (archive_dir_prepare(state, global->report_archive_dir,
+                                comp_pkt->run_id, 0, 1) >= 0) {
+          generic_write_file(run_text, run_size, arch_flags,
+                             0, run_arch_path, 0);
+        }
+      }
+      xfree(run_text); run_text = 0; run_size = 0;
+    }
+
+    arch_flags = archive_make_read_path(state, run_arch_path,
+                                        sizeof(run_arch_path),
+                                        state->global->run_archive_dir,
+                                        comp_pkt->run_id, 0, 0);
+    if (arch_flags < 0) goto report_check_failed;
+    if (generic_read_file(&run_text, 0, &run_size, arch_flags,
+                          0, run_arch_path, 0) < 0)
+      goto report_check_failed;
+  }
+
+  if (serve_run_request(state, stderr, run_text, run_size, comp_pkt->run_id,
+                        re.user_id, re.prob_id, re.lang_id, 0,
                         comp_extra->priority_adjustment,
                         comp_pkt->judge_id, comp_extra->accepting_mode,
-                        comp_extra->notify_flag, compile_report_dir,
-                        comp_pkt) < 0) {
+                        comp_extra->notify_flag, re.mime_type,
+                        compile_report_dir, comp_pkt) < 0) {
     snprintf(errmsg, sizeof(errmsg), "failed to write run packet\n");
     goto report_check_failed;
   }
+  xfree(run_text); run_text = 0; run_size = 0;
 
  success:
   xfree(comp_pkt_buf);
@@ -1648,6 +1764,7 @@ serve_read_compile_packet(serve_state_t state,
   return 1;
 
  report_check_failed:
+  xfree(run_text); run_text = 0; run_size = 0;
   serve_send_check_failed_email(cnts, comp_pkt->run_id);
 
   /* this is error recover, so if error happens again, we cannot do anything */
@@ -1873,9 +1990,11 @@ serve_read_run_packet(serve_state_t state,
   }
   if (reply_pkt->status == RUN_CHECK_FAILED)
     serve_send_check_failed_email(cnts, reply_pkt->run_id);
-  if (run_change_status(state->runlog_state, reply_pkt->run_id,
-                        reply_pkt->status, reply_pkt->failed_test,
-                        reply_pkt->score, 0) < 0) goto failed;
+  if (reply_pkt->marked_flag < 0) reply_pkt->marked_flag = 0;
+  if (run_change_status_2(state->runlog_state, reply_pkt->run_id,
+                          reply_pkt->status, reply_pkt->failed_test,
+                          reply_pkt->score, 0, reply_pkt->marked_flag) < 0)
+    goto failed;
   serve_update_standings_file(state, cnts, 0);
   if (state->global->notify_status_change > 0 && !re.is_hidden
       && reply_pkt->notify_flag) {
@@ -2226,6 +2345,24 @@ serve_rejudge_run(
       return;
     }
 
+    if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
+      serve_compile_request(state, 0 /* str*/, -1 /* len*/,
+                            run_id, re.user_id, 0 /* lang_id */,
+                            0 /* locale_id */, 1 /* output_only*/,
+                            mime_type_get_suffix(re.mime_type),
+                            NULL /* compiler_env */,
+                            1 /* style_check_only */,
+                            prob->style_checker_cmd,
+                            prob->style_checker_env,
+                            0 /* accepting_mode */,
+                            0 /* priority_adjustment */,
+                            1 /* notify flag */,
+                            prob, NULL /* lang */);
+      serve_audit_log(state, run_id, user_id, ip, ssl_flag,
+                      "Command: Rejudge\n");
+      return;
+    }
+
     arch_flags = archive_make_read_path(state, run_arch_path,
                                         sizeof(run_arch_path),
                                         state->global->run_archive_dir, run_id,
@@ -2237,7 +2374,7 @@ serve_rejudge_run(
 
     serve_run_request(state, stderr, run_text, run_size, run_id,
                       re.user_id, re.prob_id, 0, 0, priority_adjustment,
-                      -1, accepting_mode, 1, 0, 0);
+                      -1, accepting_mode, 1, re.mime_type, 0, 0);
     xfree(run_text);
 
     serve_audit_log(state, run_id, user_id, ip, ssl_flag, "Command: Rejudge\n");
@@ -2255,10 +2392,12 @@ serve_rejudge_run(
   }
 
   serve_compile_request(state, 0, -1, run_id, re.user_id,
-                        state->langs[re.lang_id]->compile_id, re.locale_id,
+                        lang->compile_id, re.locale_id,
                         (prob->type > 0),
-                        state->langs[re.lang_id]->src_sfx,
-                        state->langs[re.lang_id]->compiler_env,
+                        lang->src_sfx,
+                        lang->compiler_env,
+                        0, prob->style_checker_cmd,
+                        prob->style_checker_env,
                         accepting_mode, priority_adjustment, 1, prob, lang);
 
   serve_audit_log(state, run_id, user_id, ip, ssl_flag, "Command: Rejudge\n");
@@ -2272,6 +2411,24 @@ serve_invoke_start_script(serve_state_t state)
   if (!state->global->contest_start_cmd[0]) return;
   if (!(tsk = task_New())) return;
   task_AddArg(tsk, state->global->contest_start_cmd);
+  task_SetPathAsArg0(tsk);
+  if (task_Start(tsk) < 0) {
+    task_Delete(tsk);
+    return;
+  }
+  task_Wait(tsk);
+  task_Delete(tsk);
+}
+
+void
+serve_invoke_stop_script(serve_state_t state)
+{
+  tpTask tsk = 0;
+
+  if (!state->global->contest_stop_cmd) return;
+  if (!state->global->contest_stop_cmd[0]) return;
+  if (!(tsk = task_New())) return;
+  task_AddArg(tsk, state->global->contest_stop_cmd);
   task_SetPathAsArg0(tsk);
   if (task_Start(tsk) < 0) {
     task_Delete(tsk);
@@ -3077,6 +3234,41 @@ serve_ignore_by_mask(serve_state_t state,
   }
 }
 
+void
+serve_mark_by_mask(
+        serve_state_t state,
+        int user_id,
+        ej_ip_t ip,
+        int ssl_flag,
+        int mask_size,
+        unsigned long *mask,
+        int mark_value)
+{
+  int total_runs, r;
+  struct run_entry re;
+
+  ASSERT(mask_size > 0);
+  mark_value = !!mark_value;
+
+  total_runs = run_get_total(state->runlog_state);
+  if (total_runs > mask_size * BITS_PER_LONG) {
+    total_runs = mask_size * BITS_PER_LONG;
+  }
+
+  for (r = total_runs - 1; r >= 0; r--) {
+    if (!(mask[r / BITS_PER_LONG] & (1L << (r % BITS_PER_LONG)))
+        || run_is_readonly(state->runlog_state, r))
+      continue;
+    if (run_get_entry(state->runlog_state, r, &re) < 0) continue;
+    if (!run_is_valid_status(re.status)) continue;
+    if (re.status > RUN_MAX_STATUS) continue;
+    if (re.is_marked == mark_value) continue;
+
+    re.is_marked = mark_value;
+    run_set_entry(state->runlog_state, r, RE_IS_MARKED, &re);
+  }
+}
+
 static int
 testing_queue_unlock_entry(
         const unsigned char *run_queue_dir,
@@ -3325,9 +3517,140 @@ serve_testing_queue_change_priority_all(
   return 0;
 }
 
+/**
+ * returns 0, if 'start_date' has not yet come, 1 otherwise
+ */
+int
+serve_is_problem_started(
+        const serve_state_t state,
+        int user_id,
+        const struct section_problem_data *prob)
+{
+  int i, user_ind, group_ind;
+  const unsigned int *bm;
+
+  if (prob->start_date <= 0 && !prob->gsd.count) {
+    return 1;
+  } else if (prob->start_date > 0 && !prob->gsd.count) {
+    return (state->current_time >= prob->start_date);
+  } else {
+    user_ind = -1;
+    if (user_id > 0 && user_id < state->group_member_map_size) {
+      user_ind = state->group_member_map[user_id];
+    }
+    if (user_ind >= 0) {
+      bm = state->group_members[user_ind].group_bitmap;
+      for (i = 0; i < prob->gsd.count; ++i) {
+        if ((group_ind = prob->gsd.info[i].group_ind) < 0) break;
+        if ((bm[group_ind >> 5] & (1U << (group_ind & 0x1f))))
+          break;
+      }
+    } else {
+      for (i = 0; i < prob->gsd.count; ++i) {
+        if (prob->gsd.info[i].group_ind < 0) break;
+      }
+    }
+    if (i < prob->gsd.count) {
+      return (state->current_time >= prob->gsd.info[i].date);
+    }
+    if (prob->start_date <= 0) return 1;
+    return (state->current_time >= prob->start_date);
+  }
+
+  return 1;
+}
+
+int
+serve_is_problem_started_2(
+        const serve_state_t state,
+        int user_id,
+        int prob_id)
+{
+  const struct section_problem_data *prob;
+
+  if (prob_id <= 0 || prob_id > state->max_prob) return 0;
+  if (!(prob = state->probs[prob_id])) return 0;
+  return serve_is_problem_started(state, user_id, prob);
+}
+
+/**
+ * returns 0, if 'deadline' has not yet come, 1 otherwise
+ */
+int
+serve_is_problem_deadlined(
+        const serve_state_t state,
+        int user_id,
+        const unsigned char *user_login,
+        const struct section_problem_data *prob,
+        time_t *p_deadline)
+{
+  int i, user_ind, group_ind;
+  const unsigned int *bm;
+  struct pers_dead_info *pdinfo;
+
+  if (p_deadline) *p_deadline = 0;
+
+  /* personal deadlines */
+  if (prob->pd_total > 0) {
+    for (i = 0, pdinfo = prob->pd_infos; i < prob->pd_total; i++, pdinfo++) {
+      if (!strcmp(user_login, pdinfo->login) && pdinfo->deadline > 0) {
+        if (p_deadline) *p_deadline = pdinfo->deadline;
+        return (state->current_time >= pdinfo->deadline);
+      }
+    }
+  }
+
+  /* group deadlines */
+  if (prob->gdl.count > 0) {
+    user_ind = -1;
+    if (user_id > 0 && user_id < state->group_member_map_size) {
+      user_ind = state->group_member_map[user_id];
+    }
+    if (user_ind >= 0) {
+      bm = state->group_members[user_ind].group_bitmap;
+      for (i = 0; i < prob->gdl.count; ++i) {
+        if ((group_ind = prob->gdl.info[i].group_ind) < 0) break;
+        if ((bm[group_ind >> 5] & (1U << (group_ind & 0x1f))))
+          break;
+      }
+    } else {
+      for (i = 0; i < prob->gdl.count; ++i) {
+        if (prob->gdl.info[i].group_ind < 0) break;
+      }
+    }
+    if (i < prob->gdl.count) {
+      if (p_deadline) *p_deadline = prob->gdl.info[i].date;
+      return (state->current_time >= prob->gdl.info[i].date);
+    }
+  }
+
+  if (prob->deadline > 0) {
+      if (p_deadline) *p_deadline = prob->deadline;
+      return (state->current_time >= prob->deadline);
+  }
+
+  return 0;
+}
+
+int
+serve_is_problem_deadlined_2(
+        const serve_state_t state,
+        int user_id,
+        const unsigned char *user_login,
+        int prob_id,
+        time_t *p_deadline)
+{
+  const struct section_problem_data *prob;
+
+  if (prob_id <= 0 || prob_id > state->max_prob) return 0;
+  if (!(prob = state->probs[prob_id])) return 0;
+
+  return serve_is_problem_deadlined(state, user_id, user_login, prob,
+                                    p_deadline);
+}
+
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

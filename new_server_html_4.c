@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 5640 2010-01-12 20:32:42Z cher $ */
+/* $Id: new_server_html_4.c 5955 2010-07-21 05:48:38Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -323,6 +323,7 @@ cmd_operation(
     if (stop_time > 0) return -NEW_SRV_ERR_CONTEST_ALREADY_FINISHED;
     if (start_time <= 0) return -NEW_SRV_ERR_CONTEST_NOT_STARTED;
     run_stop_contest(cs->runlog_state, cs->current_time);
+    serve_invoke_stop_script(cs);
     serve_update_status_file(cs, 1);
     break;
   case NEW_SRV_ACTION_CONTINUE_CONTEST:
@@ -334,6 +335,7 @@ cmd_operation(
       return -NEW_SRV_ERR_INSUFFICIENT_DURATION;
     run_set_finish_time(cs->runlog_state, 0);
     run_stop_contest(cs->runlog_state, 0);
+    serve_invoke_stop_script(cs);
     serve_update_status_file(cs, 1);
     break;
   case NEW_SRV_ACTION_SUSPEND:
@@ -649,8 +651,7 @@ cmd_submit_run(
   size_t run_size_2 = 0;
   FILE *ans_f = 0;
   unsigned char ans_map[65536];
-  time_t start_time = 0, stop_time = 0, user_deadline = 0;
-  const unsigned char *login = 0;
+  time_t start_time = 0, stop_time = 0;
   char **lang_list;
   int mime_type = 0;
   const unsigned char *mime_type_str = 0;
@@ -753,7 +754,8 @@ cmd_submit_run(
       FAIL(NEW_SRV_ERR_BINARY_FILE);
     break;
   case PROB_TYPE_OUTPUT_ONLY:
-    if (!prob->binary_input && strlen(run_text) != run_size) 
+  case PROB_TYPE_TESTS:
+    if (!prob->binary_input && !prob->binary && strlen(run_text) != run_size) 
       FAIL(NEW_SRV_ERR_BINARY_FILE);
     break;
   case PROB_TYPE_TEXT_ANSWER:
@@ -826,21 +828,11 @@ cmd_submit_run(
       FAIL(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
     if (serve_check_user_quota(cs, phr->user_id, run_size) < 0)
       FAIL(NEW_SRV_ERR_RUN_QUOTA_EXCEEDED);
-    if (prob->start_date >= 0 && cs->current_time < prob->start_date)
+    if (!serve_is_problem_started(cs, phr->user_id, prob))
       FAIL(NEW_SRV_ERR_PROB_UNAVAILABLE);
-    if (prob->pd_total > 0) {
-      login = teamdb_get_login(cs->teamdb_state, phr->user_id);
-      for (i = 0; i < prob->pd_total; i++) {
-        if (!strcmp(login, prob->pd_infos[i].login)) {
-          user_deadline = prob->pd_infos[i].deadline;
-          break;
-        }
-      }
-    }
-    // common problem deadline
-    if (user_deadline <= 0) user_deadline = prob->deadline;
-    if (user_deadline > 0 && cs->current_time >= user_deadline)
+    if (serve_is_problem_deadlined(cs, phr->user_id, phr->login, prob, 0)) {
       FAIL(NEW_SRV_ERR_PROB_DEADLINE_EXPIRED);
+    }
   }
 
   /* check for disabled languages */
@@ -965,7 +957,10 @@ cmd_submit_run(
       if (serve_compile_request(cs, run_text, run_size, run_id, phr->user_id,
                                 lang->compile_id, phr->locale_id, 0,
                                 lang->src_sfx,
-                                lang->compiler_env, -1, 0, 0, prob, lang) < 0)
+                                lang->compiler_env,
+                                0, prob->style_checker_cmd,
+                                prob->style_checker_env,
+                                -1, 0, 0, prob, lang) < 0)
         FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
@@ -983,10 +978,26 @@ cmd_submit_run(
                       "  This problem is checked manually.\n",
                       run_id);
     } else {
-      if (serve_run_request(cs, stderr, run_text, run_size, run_id,
-                            phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                            0, 0) < 0)
-        FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
+      if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
+        if (serve_compile_request(cs, run_text, run_size, run_id,
+                                  phr->user_id, 0 /* lang_id */,
+                                  0 /* locale_id */, 1 /* output_only*/,
+                                  mime_type_get_suffix(mime_type),
+                                  NULL /* compiler_env */,
+                                  1 /* style_check_only */,
+                                  prob->style_checker_cmd,
+                                  prob->style_checker_env,
+                                  0 /* accepting_mode */,
+                                  0 /* priority_adjustment */,
+                                  0 /* notify flag */,
+                                  prob, NULL /* lang */) < 0)
+          FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
+      } else {
+        if (serve_run_request(cs, stderr, run_text, run_size, run_id,
+                              phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
+                              mime_type, 0, 0) < 0)
+          FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
+      }
 
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
@@ -1004,10 +1015,26 @@ cmd_submit_run(
                       "  Testing disabled for this problem\n",
                       run_id);
     } else {
-      if (serve_run_request(cs, stderr, run_text, run_size, run_id,
-                            phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                            0, 0) < 0)
-        FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
+      if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
+        if (serve_compile_request(cs, run_text, run_size, run_id,
+                                  phr->user_id, 0 /* lang_id */,
+                                  0 /* locale_id */, 1 /* output_only*/,
+                                  mime_type_get_suffix(mime_type),
+                                  NULL /* compiler_env */,
+                                  1 /* style_check_only */,
+                                  prob->style_checker_cmd,
+                                  prob->style_checker_env,
+                                  0 /* accepting_mode */,
+                                  0 /* priority_adjustment */,
+                                  0 /* notify flag */,
+                                  prob, NULL /* lang */) < 0)
+          FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
+      } else {
+        if (serve_run_request(cs, stderr, run_text, run_size, run_id,
+                              phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
+                              mime_type, 0, 0) < 0)
+          FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
+      }
 
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"

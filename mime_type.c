@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: mime_type.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: mime_type.c 5964 2010-07-25 19:12:15Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,6 +20,7 @@
 #include "mime_type.h"
 #include "pathutl.h"
 #include "errlog.h"
+#include "fileutl.h"
 
 #include <reuse/osdeps.h>
 
@@ -30,6 +31,7 @@
 
 #if HAVE_FGETS_UNLOCKED - 0 == 0
 #define fgets_unlocked(a,b,c) fgets(a,b,c)
+#define getc_unlocked(a) getc(a)
 #endif
 
 struct mime_type_info
@@ -77,6 +79,8 @@ static const struct mime_type_info mime_types[MIME_TYPE_LAST] =
   { "application/zip", ".zip", "Zip archive data" },
   [MIME_TYPE_APPL_BZIP2] =
   { "application/x-bzip2", ".bz2", "bzip2 compressed data" },
+  [MIME_TYPE_APPL_7ZIP] =
+  { "application/x-7zip", ".7z", "7-zip archive data" },
   [MIME_TYPE_IMAGE_BMP] =
   { "image/bmp", ".bmp", "PC bitmap data" },
   [MIME_TYPE_IMAGE_GIF] =
@@ -121,43 +125,77 @@ mime_type_parse(const unsigned char *str)
 }
 
 int
+mime_type_guess_file(const unsigned char *path, int check_text)
+{
+  unsigned char cmdline[1024];
+  FILE *ff = 0;
+  unsigned char fbuf[1024];
+  size_t flen;
+  int i, c;
+  int binary_flag = 1;
+
+  snprintf(cmdline, sizeof(cmdline), "/usr/bin/file -b \"%s\"", path);
+  if (!(ff = popen(cmdline, "r"))) {
+    err("mime_type_guess: popen() failed: %s", os_ErrorMsg());
+    goto failed;
+  }
+  if (!fgets_unlocked(fbuf, sizeof(fbuf), ff)) {
+    err("mime_type_guess: unexpected EOF from pipe");
+    goto failed;
+  }
+  if (getc_unlocked(ff) != EOF) {
+    err("mime_type_guess: garbage in pipe");
+    while (getc_unlocked(ff) != EOF);
+    goto failed;
+  }
+  pclose(ff); ff = 0;
+  if ((flen = strlen(fbuf)) > sizeof(fbuf) - 10) {
+    err("mime_type_guess: string is too long");
+    goto failed;
+  }
+  while (flen > 0 && isspace(fbuf[flen - 1])) fbuf[--flen] = 0;
+  if (flen > 0) {
+    for (i = 0; i < MIME_TYPE_LAST; i++)
+      if (mime_types[i].file_output[0]
+          && strstr(fbuf, mime_types[i].file_output))
+        return i;
+  }
+
+  if (check_text > 0) {
+    if (!(ff = fopen(path, "r"))) {
+      return MIME_TYPE_BINARY;
+    }
+    while ((c = getc_unlocked(ff)) != EOF) {
+      if (c == 0 || c == 26 || c == 27) {
+        binary_flag = 1;
+        break;
+      }
+    }
+    fclose(ff); ff = 0;
+    if (!binary_flag) return MIME_TYPE_TEXT;
+  }
+  return MIME_TYPE_BINARY;
+
+failed:
+  if (ff) pclose(ff);
+  return -1;
+}
+
+int
 mime_type_guess(const unsigned char *tmpdir,
                 const unsigned char *bytes,
                 size_t size)
 {
   path_t tmppath;
-  int fd = -1, i;
-  size_t w;
-  ssize_t r;
-  const unsigned char *p;
+  int i;
   FILE *ff = 0;
   unsigned char fbuf[1024];
   path_t cmdline;
   size_t flen;
 
-  if (!tmpdir) tmpdir = getenv("TMPDIR");
-#if defined P_tmpdir
-  if (!tmpdir) tmpdir = P_tmpdir;
-#endif
-  if (!tmpdir) tmpdir = "/tmp";
-  snprintf(tmppath, sizeof(tmppath), "%s/ejf_XXXXXX", tmpdir);
-  if ((fd = mkstemp(tmppath)) < 0) {
-    err("mime_type_guess: mkstemp() failed: %s", os_ErrorMsg());
-    return -1;
-  }
-  p = bytes; w = size;
-  while (w > 0) {
-    if ((r = write(fd, p, w)) <= 0) {
-      err("mime_type_guess: write() error: %s", os_ErrorMsg());
-      goto failed;
-    }
-    w -= r; p += r;
-  }
-  if (close(fd) < 0) {
-    err("mime_type_guess: close() failed: %s", os_ErrorMsg());
+  tmppath[0] = 0;
+  if (write_tmp_file(tmppath, sizeof(tmppath), bytes, size) < 0)
     goto failed;
-  }
-  fd = -1;
 
   snprintf(cmdline, sizeof(cmdline), "/usr/bin/file -b \"%s\"", tmppath);
   if (!(ff = popen(cmdline, "r"))) {
@@ -192,9 +230,8 @@ mime_type_guess(const unsigned char *tmpdir,
   return MIME_TYPE_TEXT;
 
  failed:
-  if (fd >= 0) close(fd);
   if (ff) pclose(ff);
-  unlink(tmppath);
+  if (tmppath[0]) unlink(tmppath);
   return -1;
 }
 

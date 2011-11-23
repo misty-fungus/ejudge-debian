@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_mysql.c 5557 2009-04-03 13:42:05Z cher $ */
+/* $Id: uldb_mysql.c 5826 2010-06-02 04:30:22Z cher $ */
 
-/* Copyright (C) 2006-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -204,6 +204,30 @@ struct uldb_plugin_iface plugin_uldb_mysql =
   try_new_login_func,
   // set the simple_registration flag
   set_simple_reg_func,
+  // get the group iterator
+  get_group_iterator_func,
+  // get the group by the group name
+  get_group_by_name_func,
+  // pick up a new group name by a template
+  try_new_group_name_func,
+  // create a new group
+  create_group_func,
+  // remove a group
+  remove_group_func,
+  // edit a group field
+  edit_group_field_func,
+  // clear a group field
+  clear_group_field_func,
+  // get the group by the group id
+  get_group_func,
+  // get the group users iterator
+  get_group_user_iterator_func,
+  // get the group groupmember iterator
+  get_group_member_iterator_func,
+  // create a group member
+  create_group_member_func,
+  // remove a group member
+  remove_group_member_func,
 };
 
 // the size of the cookies pool, must be power of 2
@@ -221,6 +245,9 @@ enum { USER_INFO_POOL_SIZE = 1024 };
 
 // the size of the member pool
 enum { MEMBERS_POOL_SIZE = 1024 };
+
+// the size of the usergroups pool
+enum { GROUPS_POOL_SIZE = 1024 };
 
 // the maintenance interval
 enum { MAINT_INTERVAL = 10 * 60 };
@@ -272,6 +299,14 @@ struct members_cache
   struct members_container *first, *last;
 };
 
+struct groups_cache
+{
+  int size;                     /* the size of the group map */
+  int count;                    /* the total count of entries in the cache */
+  struct userlist_group **group_map;
+  struct xml_tree *first, *last;
+};
+
 struct uldb_mysql_state
 {
   int cache_queries;
@@ -294,6 +329,9 @@ struct uldb_mysql_state
 
   // members cache
   struct members_cache members;
+
+  // groups cache
+  struct groups_cache groups;
 
   time_t last_maint_time;
   time_t maint_interval;
@@ -486,8 +524,15 @@ check_func(void *data)
     err("invalid 'version' key value");
     return -1;
   }
-  // current version is 1, so cannot handle future version
-  if (version > 1) {
+  // current version is 2, so cannot handle future version
+  if (version == 1) {
+    if (state->mi->simple_fquery(state->md, "CREATE TABLE %sgroups(group_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, group_name VARCHAR(128) NOT NULL UNIQUE KEY, description VARCHAR(512) DEFAULT NULL, created_by INT NOT NULL, create_time DATETIME NOT NULL, last_change_time DATETIME DEFAULT NULL, FOREIGN KEY (created_by) REFERENCES %slogins(user_id));", state->md->table_prefix, state->md->table_prefix) < 0)
+      return -1;
+    if (state->mi->simple_fquery(state->md, "CREATE TABLE %sgroupmembers(group_id INT NOT NULL, user_id INT NOT NULL, rights VARCHAR(512) DEFAULT NULL, PRIMARY KEY (group_id, user_id), FOREIGN KEY g(group_id) REFERENCES %sgroups(group_id), FOREIGN KEY u(user_id) REFERENCES %slogins(user_id));", state->md->table_prefix, state->md->table_prefix, state->md->table_prefix) < 0)
+      return -1;
+    if (state->mi->simple_fquery(state->md, "UPDATE %sconfig SET config_val = '2' WHERE config_key = 'version' ;", state->md->table_prefix) < 0)
+      return -1;
+  } else if (version != 2) {
     err("cannot handle database version %d", version);
     return -1;
   }
@@ -835,6 +880,8 @@ insert_func(void *data, const struct userlist_user *user, int *p_member_serial)
 #include "logins.inc.c"
 #include "user_infos.inc.c"
 #include "members.inc.c"
+#include "groups.inc.c"
+#include "groupmembers.inc.c"
 
 static int
 close_func(void *data)
@@ -4080,6 +4127,687 @@ set_simple_reg_func(
   if (cmd_f) fclose(cmd_f);
   xfree(cmd_t);
   return -1;
+}
+
+struct group_iterator
+{
+  struct ptr_iterator b;
+
+  int group_count;
+  int cur_group;
+  struct userlist_group **groups;
+};
+
+static int
+group_iterator_has_next_func(ptr_iterator_t data)
+{
+  struct group_iterator *iter = (struct group_iterator*) data;
+  if (!iter || iter->cur_group >= iter->group_count) return 0;
+  return 1;
+}
+
+static const void *
+group_iterator_get_func(ptr_iterator_t data)
+{
+  struct group_iterator *iter = (struct group_iterator*) data;
+
+  if (!iter || iter->cur_group >= iter->group_count) return 0;
+  return iter->groups[iter->cur_group];
+}
+
+static void
+group_iterator_next_func(ptr_iterator_t data)
+{
+  struct group_iterator *iter = (struct group_iterator*) data;
+
+  if (!iter || iter->cur_group >= iter->group_count) return;
+  ++iter->cur_group;
+}
+
+static void
+group_iterator_destroy_func(ptr_iterator_t data)
+{
+  struct group_iterator *iter = (struct group_iterator*) data;
+  int i;
+
+  if (!data) return;
+  if (iter->group_count > 0) {
+    for (i = 0; i < iter->group_count; ++i) {
+      userlist_free((struct xml_tree*) iter->groups[i]);
+    }
+  }
+  xfree(iter->groups);
+  memset(iter, 0, sizeof(*iter));
+  xfree(iter);
+}
+
+static struct ptr_iterator group_iterator_funcs =
+{
+  group_iterator_has_next_func,
+  group_iterator_get_func,
+  group_iterator_next_func,
+  group_iterator_destroy_func,
+};
+
+static ptr_iterator_t
+get_group_iterator_func(void *data)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  FILE *cmd_f = 0;
+  struct group_iterator *iter = 0;
+  int i;
+
+  XCALLOC(iter, 1);
+  iter->b = group_iterator_funcs;
+
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f, "SELECT * FROM %sgroups WHERE 1 ORDER BY group_id ;",
+          state->md->table_prefix);
+  fclose(cmd_f); cmd_f = 0;
+  if (state->mi->query(state->md, cmd_t, cmd_z, USERGROUP_WIDTH) < 0)
+    goto fail;
+  xfree(cmd_t); cmd_t = 0; cmd_z = 0;
+  iter->group_count = state->md->row_count;
+  if (iter->group_count <= 0) {
+    state->mi->free_res(state->md);
+    return (ptr_iterator_t) iter;
+  }
+  XCALLOC(iter->groups, iter->group_count);
+  for (i = 0; i < iter->group_count; ++i) {
+    if (!(state->md->row = mysql_fetch_row(state->md->res)))
+      db_error_no_data_fail(state->md);
+    state->md->lengths = mysql_fetch_lengths(state->md->res);
+    iter->groups[i] = (struct userlist_group*) userlist_node_alloc(USERLIST_T_USERGROUP);
+    if (parse_group(state, state->md->field_count, state->md->row,
+                    state->md->lengths, iter->groups[i]) < 0) goto fail;
+  }
+
+  state->mi->free_res(state->md);
+  return (ptr_iterator_t) iter;
+
+fail:
+  state->mi->free_res(state->md);
+  group_iterator_destroy_func((ptr_iterator_t) iter);
+  if (cmd_f) fclose(cmd_f);
+  xfree(cmd_t);
+  return 0;
+}
+
+static const struct userlist_group*
+get_group_by_name_func(
+        void *data,
+        const unsigned char *group_name)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  struct xml_tree *p;
+  struct userlist_group *grp = 0;
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  FILE *cmd_f = 0;
+
+  if (!state) return 0;
+  if (!group_name) return 0;
+  for (p = state->groups.first; p; p = p->right) {
+    ASSERT(p->tag == USERLIST_T_USERGROUP);
+    grp = (struct userlist_group*) p;
+    if (!strcmp(grp->group_name, group_name)) {
+      MOVE_TO_FRONT(p, state->groups.first, state->groups.last, left, right);
+      return grp;
+    }
+  }
+
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f, "SELECT * FROM %sgroups WHERE group_name = ",
+          state->md->table_prefix);
+  state->mi->write_escaped_string(state->md, cmd_f, 0, group_name);
+  fprintf(cmd_f, " ;");
+  fclose(cmd_f); cmd_f = 0;
+  if (state->mi->query_one_row(state->md, cmd_t, cmd_z, USERGROUP_WIDTH) < 0)
+    goto fail;
+  xfree(cmd_t); cmd_t = 0;
+
+  grp = (struct userlist_group*) userlist_node_alloc(USERLIST_T_USERGROUP);
+  if (parse_group(state, state->md->field_count, state->md->row,
+                  state->md->lengths, grp) < 0) goto fail;
+
+  if (state->groups.count >= GROUPS_POOL_SIZE) {
+    group_cache_remove(state, (struct userlist_group*) state->groups.last);
+  }
+  group_cache_add(state, grp);
+  state->mi->free_res(state->md);
+
+  return grp;
+
+fail:
+  state->mi->free_res(state->md);
+  userlist_free((struct xml_tree*) grp);
+  if (cmd_f) fclose(cmd_f);
+  xfree(cmd_t);
+  return 0;
+}
+
+static int
+try_new_group_name_func(
+        void *data,
+        unsigned char *buf,
+        size_t bufsize,
+        const char *format,
+        int serial,
+        int step)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  int fmt_len = strlen(format);
+  unsigned char *sql_patt = (unsigned char*) malloc(fmt_len + 10);
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  FILE *cmd_f = 0;
+  int group_name_count = 0, i;
+  unsigned char **group_names = 0;
+
+  convert_to_pattern(sql_patt, format);
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f, "SELECT group_name FROM %sgroups WHERE group_name LIKE(",
+          state->md->table_prefix);
+  state->mi->write_escaped_string(state->md, cmd_f, 0, sql_patt);
+  fprintf(cmd_f, ") ;");
+  close_memstream(cmd_f); cmd_f = 0;
+  xfree(sql_patt); sql_patt = 0;
+  if (state->mi->query(state->md, cmd_t, cmd_z, 1) < 0) goto fail;
+  xfree(cmd_t); cmd_t = 0; cmd_z = 0;
+  if (state->md->row_count <= 0) {
+    snprintf(buf, bufsize, format, serial);
+    state->mi->free_res(state->md);
+    return serial;
+  }
+
+  group_name_count = state->md->row_count;
+  XCALLOC(group_names, group_name_count);
+  for (i = 0; i < group_name_count; ++i) {
+    if (state->mi->next_row(state->md) < 0) goto fail;
+    group_names[i] = xstrdup(state->md->row[0]);
+  }
+  state->mi->free_res(state->md);
+
+  serial -= step;
+  do {
+    serial += step;
+    snprintf(buf, bufsize, format, serial);
+    for (i = 0; i < group_name_count; i++)
+      if (!strcmp(buf, group_names[i]))
+        break;
+  } while (i < group_name_count);
+
+  if (group_names) {
+    for (i = 0; i < group_name_count; ++i)
+      xfree(group_names[i]);
+    xfree(group_names);
+    group_names = 0;
+  }
+  return serial;
+
+fail:
+  if (group_names) {
+    for (i = 0; i < group_name_count; ++i)
+      xfree(group_names[i]);
+    xfree(group_names);
+  }
+  state->mi->free_res(state->md);
+  xfree(sql_patt);
+  if (cmd_f) fclose(cmd_f);
+  xfree(cmd_t);
+  return -1;
+}
+
+static int
+create_group_func(
+        void *data,
+        const unsigned char *group_name,
+        int created_by)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  FILE *cmd_f = 0;
+  int group_id = 0;
+
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f, "INSERT INTO %sgroups(group_name, created_by, create_time) VALUES(", state->md->table_prefix);
+  state->mi->write_escaped_string(state->md, cmd_f, 0, group_name);
+  fprintf(cmd_f, ", %d, NOW()) ;", created_by);
+  close_memstream(cmd_f); cmd_f = 0;
+  if (state->mi->simple_query(state->md, cmd_t, cmd_z) < 0) goto fail;
+  xfree(cmd_t); cmd_t = 0; cmd_z = 0;
+  group_id = mysql_insert_id(state->md->conn);
+  if (group_id <= 0) goto fail;
+  state->mi->free_res(state->md);
+  return group_id;
+
+fail:
+  state->mi->free_res(state->md);
+  xfree(cmd_t);
+  return -1;
+}
+
+static int
+remove_group_func(
+        void *data,
+        int group_id)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+
+  state->mi->simple_fquery(state->md,
+                           "DELETE FROM %sgroupmembers WHERE group_id = %d;",
+                           state->md->table_prefix, group_id);
+  state->mi->free_res(state->md);
+  state->mi->simple_fquery(state->md,
+                           "DELETE FROM %sgroups WHERE group_id = %d;",
+                           state->md->table_prefix, group_id);
+  state->mi->free_res(state->md);
+  group_cache_drop(state);
+  return 0;
+}
+
+static int
+edit_group_field_func(
+        void *data,
+        int group_id,
+        int field,
+        const unsigned char *value)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  struct userlist_group *grp = 0;
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  FILE *cmd_f = 0;
+
+  if (group_id <= 0) return -1;
+  if (field != USERLIST_GRP_DESCRIPTION && field != USERLIST_GRP_GROUP_NAME)
+    return -1;
+
+  if ((grp = group_cache_try_get(state, group_id))) {
+    switch (field) {
+    case USERLIST_GRP_GROUP_NAME:
+      if (!value || !*value) return -1;
+      if (!strcmp(grp->group_name, value))
+        return 0;
+      break;
+    case USERLIST_GRP_DESCRIPTION:
+      if (!grp->description && !value) return 0;
+      if (grp->description && value && !strcmp(grp->description, value))
+        return 0;
+      break;
+    default:
+      abort();
+    }
+  }
+
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f, "UPDATE %sgroups SET ", state->md->table_prefix);
+  switch (field) {
+  case USERLIST_GRP_GROUP_NAME:
+    fprintf(cmd_f, " group_name = ");
+    break;
+  case USERLIST_GRP_DESCRIPTION:
+    fprintf(cmd_f, " description = ");
+    break;
+  default:
+    abort();
+  }
+  if (!value) {
+    fprintf(cmd_f, " NULL ");
+  } else {
+    state->mi->write_escaped_string(state->md, cmd_f, 0, value);
+  }
+  fprintf(cmd_f, ", last_change_time = NOW() WHERE group_id = %d ;", group_id);
+  fclose(cmd_f); cmd_f = 0;
+  if (state->mi->simple_query(state->md, cmd_t, cmd_z) < 0) goto fail;
+  xfree(cmd_t); cmd_t = 0; cmd_z = 0;
+  group_cache_remove_by_id(state, group_id);
+  return 0;
+
+fail:
+  if (cmd_f) fclose(cmd_f);
+  xfree(cmd_t);
+  return -1;
+}
+
+static int
+clear_group_field_func(
+        void *data,
+        int group_id,
+        int field)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  struct userlist_group *grp = 0;
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  FILE *cmd_f = 0;
+
+  if (group_id <= 0) return -1;
+  if (field != USERLIST_GRP_DESCRIPTION) return -1;
+
+  if ((grp = group_cache_try_get(state, group_id))) {
+    switch (field) {
+    case USERLIST_GRP_DESCRIPTION:
+      if (!grp->description) return 0;
+      break;
+    default:
+      abort();
+    }
+  }
+
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f, "UPDATE %sgroups SET ", state->md->table_prefix);
+  switch (field) {
+  case USERLIST_GRP_DESCRIPTION:
+    fprintf(cmd_f, " description = NULL ");
+    break;
+  default:
+    abort();
+  }
+  fprintf(cmd_f, ", last_change_time = NOW() WHERE group_id = %d ;", group_id);
+  fclose(cmd_f); cmd_f = 0;
+  if (state->mi->simple_query(state->md, cmd_t, cmd_z) < 0) goto fail;
+  xfree(cmd_t); cmd_t = 0; cmd_z = 0;
+  group_cache_remove_by_id(state, group_id);
+  return 0;
+
+fail:
+  if (cmd_f) fclose(cmd_f);
+  xfree(cmd_t);
+  return -1;
+}
+
+static const struct userlist_group*
+get_group_func(
+        void *data,
+        int group_id)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  struct userlist_group *grp = 0;
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  FILE *cmd_f = 0;
+
+  if (!state) return 0;
+  if (group_id <= 0) return 0;
+  if ((grp = group_cache_try_get(state, group_id))) {
+    MOVE_TO_FRONT(&grp->b,state->groups.first,state->groups.last,left,right);
+    return grp;
+  }
+
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f, "SELECT * FROM %sgroups WHERE group_id = %d ;",
+          state->md->table_prefix, group_id);
+  fclose(cmd_f); cmd_f = 0;
+  if (state->mi->query_one_row(state->md, cmd_t, cmd_z, USERGROUP_WIDTH) < 0)
+    goto fail;
+  xfree(cmd_t); cmd_t = 0;
+
+  grp = (struct userlist_group*) userlist_node_alloc(USERLIST_T_USERGROUP);
+  if (parse_group(state, state->md->field_count, state->md->row,
+                  state->md->lengths, grp) < 0) goto fail;
+
+  if (state->groups.count >= GROUPS_POOL_SIZE) {
+    group_cache_remove(state, (struct userlist_group*) state->groups.last);
+  }
+  group_cache_add(state, grp);
+  state->mi->free_res(state->md);
+
+  return grp;
+
+fail:
+  state->mi->free_res(state->md);
+  userlist_free((struct xml_tree*) grp);
+  if (cmd_f) fclose(cmd_f);
+  xfree(cmd_t);
+  return 0;
+}
+
+struct group_user_iterator
+{
+  struct ptr_iterator b;
+
+  int user_count;
+  int cur_user;
+  struct userlist_user **users;
+};
+
+static int
+group_user_iterator_has_next_func(ptr_iterator_t data)
+{
+  struct group_user_iterator *iter = (struct group_user_iterator*) data;
+
+  if (!iter || iter->cur_user >= iter->user_count) return 0;
+  return 1;
+}
+
+static const void *
+group_user_iterator_get_func(ptr_iterator_t data)
+{
+  struct group_user_iterator *iter = (struct group_user_iterator*) data;
+
+  if (!iter || iter->cur_user >= iter->user_count) return 0;
+  return iter->users[iter->cur_user];
+}
+
+static void
+group_user_iterator_next_func(ptr_iterator_t data)
+{
+  struct group_user_iterator *iter = (struct group_user_iterator*) data;
+
+  if (!iter || iter->cur_user >= iter->user_count) return;
+  ++iter->cur_user;
+}
+
+static void
+group_user_iterator_destroy_func(ptr_iterator_t data)
+{
+  struct group_user_iterator *iter = (struct group_user_iterator*) data;
+  int i;
+
+  if (!data) return;
+  if (iter->user_count > 0) {
+    for (i = 0; i < iter->user_count; ++i) {
+      userlist_free((struct xml_tree*) iter->users[i]);
+    }
+  }
+  xfree(iter->users);
+  memset(iter, 0, sizeof(*iter));
+  xfree(iter);
+}
+
+static struct ptr_iterator group_user_iterator_funcs =
+{
+  group_user_iterator_has_next_func,
+  group_user_iterator_get_func,
+  group_user_iterator_next_func,
+  group_user_iterator_destroy_func,
+};
+
+static ptr_iterator_t
+get_group_user_iterator_func(void *data, int group_id)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  struct group_user_iterator *iter = 0;
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  FILE *cmd_f = 0;
+  int i;
+
+  XCALLOC(iter, 1);
+  iter->b = group_user_iterator_funcs;
+
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f,
+          "SELECT %slogins.* FROM %sgroupmembers, %slogins WHERE %slogins.user_id = %sgroupmembers.user_id AND %sgroupmembers.group_id = %d ORDER BY user_id;",
+          state->md->table_prefix,
+          state->md->table_prefix, state->md->table_prefix,
+          state->md->table_prefix, state->md->table_prefix,
+          state->md->table_prefix, group_id);
+  fclose(cmd_f); cmd_f = 0;
+  if (state->mi->query(state->md, cmd_t, cmd_z, LOGIN_WIDTH) < 0) goto fail;
+  xfree(cmd_t); cmd_t = 0; cmd_z = 0;
+  iter->user_count = state->md->row_count;
+  if (iter->user_count <= 0) {
+    state->mi->free_res(state->md);
+    return (ptr_iterator_t) iter;
+  }
+  XCALLOC(iter->users, iter->user_count);
+  for (i = 0; i < iter->user_count; ++i) {
+    if (!(state->md->row = mysql_fetch_row(state->md->res)))
+      db_error_no_data_fail(state->md);
+    state->md->lengths = mysql_fetch_lengths(state->md->res);
+    iter->users[i] = (struct userlist_user*) userlist_node_alloc(USERLIST_T_USER);
+    if (parse_login(state, state->md->field_count, state->md->row,
+                    state->md->lengths, iter->users[i]) < 0)
+      goto fail;
+  }
+  state->mi->free_res(state->md);
+
+  return (ptr_iterator_t) iter;
+
+fail:
+  state->mi->free_res(state->md);
+  group_user_iterator_destroy_func((ptr_iterator_t) iter);
+  if (cmd_f) fclose(cmd_f);
+  xfree(cmd_t);
+  return 0;
+}
+
+struct group_member_iterator
+{
+  struct ptr_iterator b;
+
+  int member_count;
+  int cur_member;
+  struct userlist_groupmember **members;
+};
+
+static int
+group_member_iterator_has_next_func(ptr_iterator_t data)
+{
+  struct group_member_iterator *iter = (struct group_member_iterator*) data;
+
+  if (!iter || iter->cur_member >= iter->member_count) return 0;
+  return 1;
+}
+
+static const void *
+group_member_iterator_get_func(ptr_iterator_t data)
+{
+  struct group_member_iterator *iter = (struct group_member_iterator*) data;
+
+  if (!iter || iter->cur_member >= iter->member_count) return 0;
+  return iter->members[iter->cur_member];
+}
+
+static void
+group_member_iterator_next_func(ptr_iterator_t data)
+{
+  struct group_member_iterator *iter = (struct group_member_iterator*) data;
+
+  if (!iter || iter->cur_member >= iter->member_count) return;
+  ++iter->cur_member;
+}
+
+static void
+group_member_iterator_destroy_func(ptr_iterator_t data)
+{
+  struct group_member_iterator *iter = (struct group_member_iterator*) data;
+  int i;
+
+  if (!data) return;
+  if (iter->member_count > 0) {
+    for (i = 0; i < iter->member_count; ++i) {
+      userlist_free((struct xml_tree*) iter->members[i]);
+    }
+  }
+  xfree(iter->members);
+  memset(iter, 0, sizeof(*iter));
+  xfree(iter);
+}
+
+static struct ptr_iterator group_member_iterator_funcs =
+{
+  group_member_iterator_has_next_func,
+  group_member_iterator_get_func,
+  group_member_iterator_next_func,
+  group_member_iterator_destroy_func,
+};
+
+static ptr_iterator_t
+get_group_member_iterator_func(void *data, int group_id)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  struct group_member_iterator *iter = 0;
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  FILE *cmd_f = 0;
+  int i;
+
+  if (group_id <= 0) return 0;
+
+  XCALLOC(iter, 1);
+  iter->b = group_member_iterator_funcs;
+
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f,
+          "SELECT * FROM %sgroupmembers WHERE group_id = %d ORDER BY user_id;",
+          state->md->table_prefix, group_id);
+  fclose(cmd_f); cmd_f = 0;
+  if (state->mi->query(state->md, cmd_t, cmd_z, USERGROUPMEMBER_WIDTH) < 0)
+    goto fail;
+  xfree(cmd_t); cmd_t = 0; cmd_z = 0;
+
+  iter->member_count = state->md->row_count;
+  if (iter->member_count <= 0) {
+    state->mi->free_res(state->md);
+    return (ptr_iterator_t) iter;
+  }
+  XCALLOC(iter->members, iter->member_count);
+  for (i = 0; i < iter->member_count; ++i) {
+    if (!(state->md->row = mysql_fetch_row(state->md->res)))
+      db_error_no_data_fail(state->md);
+    state->md->lengths = mysql_fetch_lengths(state->md->res);
+    iter->members[i] = (struct userlist_groupmember*) userlist_node_alloc(USERLIST_T_USERGROUPMEMBER);
+    if (parse_groupmember(state, state->md->field_count, state->md->row,
+                          state->md->lengths, iter->members[i]) < 0) goto fail;
+  }
+  state->mi->free_res(state->md);
+
+  return (ptr_iterator_t) iter;
+
+fail:
+  state->mi->free_res(state->md);
+  group_member_iterator_destroy_func((ptr_iterator_t) iter);
+  if (cmd_f) fclose(cmd_f);
+  xfree(cmd_t);
+  return 0;
+}
+
+static int
+create_group_member_func(void *data, int group_id, int user_id)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+
+  if (group_id <= 0 || user_id <= 0) return -1;
+
+  return state->mi->simple_fquery(state->md, "INSERT INTO %sgroupmembers(group_id, user_id) VALUES(%d, %d) ;", state->md->table_prefix, group_id, user_id);
+}
+
+static int
+remove_group_member_func(void *data, int group_id, int user_id)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+
+  if (group_id <= 0 || user_id <= 0) return -1;
+
+  state->mi->simple_fquery(state->md, "DELETE FROM %sgroupmembers WHERE group_id = %d AND user_id = %d ;",
+                           state->md->table_prefix, group_id, user_id);
+  return 0;
 }
 
 /*
