@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.c 6229 2011-04-07 08:49:11Z cher $ */
+/* $Id: prepare.c 6345 2011-05-23 04:20:49Z cher $ */
 
 /* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -3058,7 +3058,7 @@ set_defaults(
       }
     }
 
-    if (lang->style_checker_cmd[0] && lang->style_checker_cmd[0] != '@') {
+    if (lang->style_checker_cmd[0] && lang->style_checker_cmd[0] != '@' && lang->style_checker_cmd[0] != '%') {
       pathmake2(lang->style_checker_cmd, g->ejudge_checkers_dir,
                 "/", lang->style_checker_cmd, NULL);
     }

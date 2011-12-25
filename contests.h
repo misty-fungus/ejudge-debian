@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: contests.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: contests.h 6349 2011-05-24 05:20:31Z cher $ */
 
 #ifndef __CONTESTS_H__
 #define __CONTESTS_H__
 
-/* Copyright (C) 2002-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -116,6 +116,8 @@ enum
     CONTEST_SLAVE_RULES,
     CONTEST_RUN_MANAGED_ON,
     CONTEST_USER_CONTEST,
+    CONTEST_LOGO_URL,
+    CONTEST_CSS_URL,
 
     CONTEST_LAST_TAG
   };
@@ -368,6 +370,8 @@ struct contest_desc
   unsigned char *default_locale;
   unsigned char *welcome_file;
   unsigned char *reg_welcome_file;
+  unsigned char *logo_url;
+  unsigned char *css_url;
 
   struct xml_tree *slave_rules;
 

@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-setup.c 6224 2011-04-04 17:56:50Z cher $ */
+/* $Id: ejudge-setup.c 6347 2011-05-23 19:06:12Z cher $ */
 
 /* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1097,9 +1097,12 @@ is_valid_id_var(int idx)
   case ID_LINE_RETURN:
   case ID_LINE_SETTINGS:
     return 1;
+  case ID_LINE_EMAIL:
+    if (!is_valid_email_address(id_edit_items[idx].buf)) return 0;
+    if (id_edit_items[idx].buf[0]) return 1;
+    return 0;
   case ID_LINE_USER_ID:
   case ID_LINE_LOGIN:
-  case ID_LINE_EMAIL:
   case ID_LINE_NAME:
     if (id_edit_items[idx].buf[0]) return 1;
     return 0;
@@ -1117,6 +1120,21 @@ valid_id_str(int idx)
   int res = is_valid_id_var(idx);
   if (res) return " ";
   return "!";
+}
+
+static void
+make_sha1_passwd(unsigned char *out_buf, const unsigned char *str)
+{
+  unsigned char buf2[64];
+  int len, j;
+
+  if (!str) str = "";
+  len = strlen(str);
+  memset(buf2, 0, sizeof(buf2));
+  sha_buffer(str, len, buf2);
+  for (j = 0; j < 20; j++) {
+    sprintf(out_buf + j * 2, "%02x", buf2[j]);
+  }
 }
 
 static int
@@ -1289,10 +1307,7 @@ do_identity_menu(int *p_cur_item)
 
         memset(config_password_txt, '*', j);
         config_password_txt[j] = 0;
-        sha_buffer(buf1, j, buf2);
-        for (j = 0; j < 20; j++) {
-          sprintf(config_password_sha1 + j * 2, "%02x", buf2[j]);
-        }
+        make_sha1_passwd(config_password_sha1, buf1);
         ncurses_msgbox("\\begin{center}\nNOTICE!\n\nThe password sha1 hash is %s!\n\\end{center}\n", config_password_sha1);
 
         cur_item = i;
@@ -1336,6 +1351,10 @@ do_identity_menu(int *p_cur_item)
       case ID_LINE_EMAIL:
         if (strspn(buf1, email_accept_chars) != strlen(buf1)) {
           ncurses_errbox("\\begin{center}\nERROR!\n\nThe administrator e-mail contains invalid characters!\n\\end{center}\n");
+          continue;
+        }
+        if (!is_valid_email_address(buf1)) {
+          ncurses_errbox("\\begin{center}\nERROR!\n\nThe administrator e-mail is invalid!\n\\end{center}\n");
           continue;
         }
         snprintf(config_email, sizeof(config_email), "%s", buf1);
@@ -1541,7 +1560,7 @@ initialize_setting_var(int idx)
              system_group);
     break;
   case SET_LINE_DEFAULT_CLARDB_PLUGIN:
-#if CONF_HAS_MYSQL - 0 == 1
+#if 0 //CONF_HAS_MYSQL - 0 == 1
     snprintf(config_default_clardb_plugin, sizeof(config_default_clardb_plugin), "%s",
              "mysql");
 #else
@@ -1549,7 +1568,7 @@ initialize_setting_var(int idx)
 #endif
     break;
   case SET_LINE_DEFAULT_RUNDB_PLUGIN:
-#if CONF_HAS_MYSQL - 0 == 1
+#if 0 // CONF_HAS_MYSQL - 0 == 1
     snprintf(config_default_rundb_plugin, sizeof(config_default_rundb_plugin), "%s",
              "mysql");
 #else
@@ -1558,7 +1577,7 @@ initialize_setting_var(int idx)
     break;
   case SET_LINE_WORKDISK_FLAG:
     snprintf(config_workdisk_flag, sizeof(config_workdisk_flag),
-             "%s", "yes");
+             "%s", "no");
     break;
   case SET_LINE_INSTALL_FLAG:
     snprintf(config_install_flag, sizeof(config_install_flag),
@@ -1593,8 +1612,11 @@ is_valid_setting_var(int idx)
   case SET_LINE_DEFAULT_CLARDB_PLUGIN:
   case SET_LINE_DEFAULT_RUNDB_PLUGIN:
     return 1;
-  case SET_LINE_CHARSET:
   case SET_LINE_REG_EMAIL:
+    if (!is_valid_email_address(set_edit_items[idx].buf)) return 0;
+    if (set_edit_items[idx].buf[0]) return 1;
+    return 0;
+  case SET_LINE_CHARSET:
   case SET_LINE_REG_URL:
   case SET_LINE_SER_KEY:
   case SET_LINE_SERVER_NAME:
@@ -2260,6 +2282,7 @@ generate_serve_cfg(FILE *f)
   } else {
     fprintf(f, "charset = \"%s\"\n", cur->buf);
   }
+  fprintf(f, "advanced_layout\n");
 
   if (nbuiltin) {
     fprintf(f, "# The built-in variables are as follows\n");
@@ -2641,8 +2664,8 @@ generate_serve_cfg(FILE *f)
         "use_corr = 1\n"
         "corr_dir = \"%Ps\"\n"
         "real_time_limit = 5\n"
-        "check_cmd = \"check_%lPs\"\n"
-        "xml_file = \"%Ps.xml\"\n"
+        "check_cmd = \"check\"\n"
+        "xml_file = \"statement.xml\"\n"
         "max_vm_size = 64M\n"
         "max_stack_size = 64M\n"
         "max_file_size = 64M\n"
@@ -2852,24 +2875,12 @@ generate_contest_xml(FILE *f)
           "  <name>Test contest</name>\n"
           "  <name_en>Test contest</name_en>\n"
           "\n"
-          "  <register_access default=\"deny\">\n"
-          "    <ip allow=\"yes\">127.</ip>\n"
-          "  </register_access>\n"
-          "  <users_access default=\"deny\">\n"
-          "    <ip allow=\"yes\">127.</ip>\n"
-          "  </users_access>\n"
-          "  <team_access default=\"deny\">\n"
-          "    <ip allow=\"yes\">127.</ip>\n"
-          "  </team_access>\n"
-          "  <judge_access default=\"deny\">\n"
-          "    <ip allow=\"yes\">127.</ip>\n"
-          "  </judge_access>\n"
-          "  <master_access default=\"deny\">\n"
-          "    <ip allow=\"yes\">127.</ip>\n"
-          "  </master_access>\n"
-          "  <serve_control_access default=\"deny\">\n"
-          "    <ip allow=\"yes\">127.</ip>\n"
-          "  </serve_control_access>\n"
+          "  <register_access default=\"allow\" />\n"
+          "  <users_access default=\"allow\" />\n"
+          "  <team_access default=\"allow\" />\n"
+          "  <judge_access default=\"allow\" />\n"
+          "  <master_access default=\"allow\" />\n"
+          "  <serve_control_access default=\"allow\" />\n"
           "\n"
           "  <caps>\n"
           "    <cap login=\"%s\">MASTER_SET,</cap>\n"
@@ -3034,8 +3045,8 @@ generate_ejudge_xml(FILE *f)
   if (config_var_dir[0]) {
     fprintf(f, "  <var_dir>%s</var_dir>\n", config_var_dir);
     // FIXME: should make configurable paths?
-    fprintf(f, "  <userlist_log>userlist.log</userlist_log>\n");
-    fprintf(f, "  <super_serve_log>super_serve.log</super_serve_log>\n");
+    fprintf(f, "  <userlist_log>ej-users.log</userlist_log>\n");
+    fprintf(f, "  <super_serve_log>ej-super-server.log</super_serve_log>\n");
     //fprintf(f, "  <compile_log>%s</compile_log>\n");
   }
 
@@ -3230,7 +3241,7 @@ do_preview_menu(void)
   snprintf(script_dir, sizeof(script_dir), "%s/lang",
            tmp_work_dir);
   lang_configure_screen(script_dir, script_in_dirs, 0,
-                        tmp_work_dir, 0, 0, preview_header);
+                        tmp_work_dir, 0, 0, preview_header, 0);
 
   while (1) {
     mvwprintw(stdscr, 0, 0, "Ejudge %s configurator > File preview",
@@ -3409,77 +3420,8 @@ gen_check_retcode(FILE *f, const unsigned char *path)
 
 // solutions and tests for the sample contest 1
 const unsigned char b64_contest1_tgz[] =
-"begin-base64 664 contest-1.tar.gz\n"
-"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\n"
-"EAgEAoFAIC4e/g/ULtleAMgAAA==\n"
-"====\n";
+#include "contest-1/contest-1.c"
+  ;
 
 static void
 generate_install_script(FILE *f)
@@ -3522,6 +3464,23 @@ generate_install_script(FILE *f)
   fprintf(f, "#! /bin/sh\n");
   fprintf(f, "# Generated by ejudge-setup, version %s\n", compile_version);
   fprintf(f, "# Generation date: %s\n\n", date_buf);
+
+  fprintf(f,
+          "echo \"This script will ERASE the exising user database and contests!\"\n"
+          "echo \"Are you sure to proseed (yes/no)?\"\n"
+          "read confirm\n"
+          "if [ \"${confirm}\" != \"yes\" ];\n"
+          "then\n"
+          "  echo \"Operation is not confirmed\"\n"
+          "  exit 0\n"
+          "fi\n"
+          "uid=`id -u`\n"
+          "if [ \"${uid}\" != 0 ]\n"
+          "then\n"
+          "  echo \"This script must be run by ROOT user\" >&2\n"
+          "  exit 1\n"
+          "fi\n"
+          "");
 
   // create all the necessary directories
   fprintf(f, "# create all necessary directories\n");
@@ -3910,7 +3869,7 @@ preview_install_script(void)
   script_in_dirs[1] = 0;
   snprintf(script_dir, sizeof(script_dir), "%s/lang", tmp_work_dir);
   lang_configure_screen(script_dir, script_in_dirs, 0,
-                        tmp_work_dir, 0, 0, header);
+                        tmp_work_dir, 0, 0, header, 0);
 
   /*
   snprintf(script_dir, sizeof(script_dir), "%s/lang",
@@ -3928,7 +3887,7 @@ preview_install_script(void)
 }
 
 static void
-save_install_script(void)
+save_install_script(int batch_mode, const unsigned char *output_name)
 {
   FILE *f = 0;
   char *txt_ptr = 0, *p;
@@ -3948,7 +3907,7 @@ save_install_script(void)
   script_in_dirs[1] = 0;
   snprintf(script_dir, sizeof(script_dir), "%s/lang", tmp_work_dir);
   lang_configure_screen(script_dir, script_in_dirs, 0, tmp_work_dir,
-                        0, 0, header);
+                        0, 0, header, batch_mode);
 
   if (check_install_script_validity() < 0) return;
 
@@ -3956,11 +3915,18 @@ save_install_script(void)
   generate_install_script(f);
   close_memstream(f); f = 0;
 
-  snprintf(filepath, sizeof(filepath), "ejudge-install.sh");
-  j = ncurses_edit_string(LINES/2, COLS, "Setup script name",
-                          filepath, sizeof(filepath), utf8_mode);
-  if (j < 0) {
-    goto cleanup;
+  if (output_name && *output_name) {
+    snprintf(filepath, sizeof(filepath), "%s", output_name);
+  } else {
+    snprintf(filepath, sizeof(filepath), "ejudge-install.sh");
+  }
+
+  if (!batch_mode) {
+    j = ncurses_edit_string(LINES/2, COLS, "Setup script name",
+                            filepath, sizeof(filepath), utf8_mode);
+    if (j < 0) {
+      goto cleanup;
+    }
   }
 
   if ((fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0770)) < 0) {
@@ -4062,7 +4028,7 @@ do_main_menu(void)
       preview_install_script();
       break;
     case 6:
-      save_install_script();
+      save_install_script(0, NULL);
       break;
     }
   }
@@ -4187,6 +4153,7 @@ main(int argc, char **argv)
   int answer = 1;
   int cur_arg = 1;
   const unsigned char *user = 0, *group = 0, *workdir = 0;
+  int batch_mode = 0;
 
   while (cur_arg < argc) {
     if (!strcmp(argv[cur_arg], "-u")) {
@@ -4201,6 +4168,9 @@ main(int argc, char **argv)
       if (cur_arg + 1 >= argc) arg_expected(argv[0]);
       workdir = argv[cur_arg + 1];
       cur_arg += 2;
+    } else if (!strcmp(argv[cur_arg], "-b")) {
+      batch_mode = 1;
+      cur_arg += 1;
     } else {
       break;
     }
@@ -4228,9 +4198,19 @@ main(int argc, char **argv)
            EJUDGE_SERVER_BIN_PATH);
   initialize_config_vars();
   initialize_setting_vars();
-  //answer = ncurses_yesno(0, initial_warning);
-  if (answer == 1) {
-    do_main_menu();
+
+  if (batch_mode) {
+    snprintf(config_user_id, sizeof(config_user_id), "%d", 1);
+    snprintf(config_login, sizeof(config_login), "%s", "ejudge");
+    snprintf(config_email, sizeof(config_email), "%s", "ejudge@localhost");
+    snprintf(config_name, sizeof(config_name), "%s", "ejudge administrator");
+    make_sha1_passwd(config_password_sha1, "ejudge");
+    save_install_script(1, "ejudge-install.sh");
+  } else {
+    //answer = ncurses_yesno(0, initial_warning);
+    if (answer == 1) {
+      do_main_menu();
+    }
   }
 
   ncurses_shutdown();

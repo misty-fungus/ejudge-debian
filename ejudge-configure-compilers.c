@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-configure-compilers.c 6135 2011-03-26 09:30:42Z cher $ */
+/* $Id: ejudge-configure-compilers.c 6325 2011-05-09 06:47:13Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -345,7 +345,7 @@ visual_setup(unsigned char **keys, unsigned char **vals)
   script_in_dirs[1] = script_in_dir1;
   script_in_dirs[2] = 0;
   lang_configure_screen(script_dir, script_in_dirs,
-                        config_dir, tmp_work_dir, keys, vals, header);
+                        config_dir, tmp_work_dir, keys, vals, header, 0);
   while (lang_config_menu(script_dir, script_in_dirs, tmp_work_dir,
                           header, utf8_mode, &cur_item));
 

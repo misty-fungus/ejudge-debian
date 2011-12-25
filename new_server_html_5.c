@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_5.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: new_server_html_5.c 6353 2011-05-28 07:35:10Z cher $ */
 
 /* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -106,7 +106,7 @@ anon_select_contest_page(FILE *fout, struct http_request_info *phr)
   const int *cntslist = 0;
   int cntsnum = 0;
   const unsigned char *cl;
-  const struct contest_desc *cnts;
+  const struct contest_desc *cnts = NULL;
   time_t curtime = time(0);
   int row = 0, i, orig_locale_id, j;
   const unsigned char *s;
@@ -121,7 +121,7 @@ anon_select_contest_page(FILE *fout, struct http_request_info *phr)
 
   // even don't know about the contest specific settings
   l10n_setlocale(phr->locale_id);
-  ns_header(fout, ns_fancy_header, 0, 0, 0, 0, phr->locale_id,
+  ns_header(fout, ns_fancy_header, 0, 0, 0, 0, phr->locale_id, NULL,
             _("Contest selection"));
 
   html_start_form(fout, 1, phr->self_url, "");
@@ -140,7 +140,7 @@ anon_select_contest_page(FILE *fout, struct http_request_info *phr)
 
   fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td></tr></table></div>\n");
 
-  fprintf(fout, "%s", ns_fancy_separator);
+  ns_separator(fout, ns_fancy_separator, cnts);
 
   fprintf(fout, "<h2>%s</h2>\n", _("Select one of available contests"));
 
@@ -231,7 +231,7 @@ login_page(
     s = _("Log in to edit registration data");
     break;
   }
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s]", s, extra->contest_arm);
 
   html_start_form(fout, 1, phr->self_url, "");
@@ -282,7 +282,7 @@ login_page(
     fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td>");
   fprintf(fout, "</tr></table></div>\n");
 
-  fprintf(fout, "%s", extra->separator_txt);
+  ns_separator(fout, extra->separator_txt, cnts);
 
   if (phr->action == NEW_SRV_ACTION_REG_ACCOUNT_CREATED_PAGE) {
     fprintf(fout, "<%s>%s</%s>\n", head_style,
@@ -394,7 +394,7 @@ create_autoassigned_account_page(
   if (!email) email = "";
 
   l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s]", _("Create user account"),
             extra->contest_arm);
 
@@ -430,7 +430,7 @@ create_autoassigned_account_page(
     fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td>");
   fprintf(fout, "</tr></table></div>\n");
 
-  fprintf(fout, "%s", extra->separator_txt);
+  ns_separator(fout, extra->separator_txt, cnts);
 
   if (reg_error || reg_ul_error) {
     if (reg_error < 0) reg_error = -reg_error;
@@ -541,7 +541,7 @@ create_account_page(
   if (!email) email = "";
 
   l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s]", _("Create user account"),
             extra->contest_arm);
 
@@ -577,7 +577,7 @@ create_account_page(
     fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td>");
   fprintf(fout, "</tr></table></div>\n");
 
-  fprintf(fout, "%s", extra->separator_txt);
+  ns_separator(fout, extra->separator_txt, cnts);
 
   if (reg_error || reg_ul_error) {
     if (reg_error < 0) reg_error = -reg_error;
@@ -683,6 +683,8 @@ create_account(
   if (r < 0) FAIL2(NEW_SRV_ERR_EMAIL_BINARY);
   if (!r || !email) FAIL2(NEW_SRV_ERR_EMAIL_UNSPECIFIED);
   if (check_str(email, email_accept_chars) < 0)
+    FAIL2(NEW_SRV_ERR_EMAIL_INV_CHARS);
+  if (!is_valid_email_address(email))
     FAIL2(NEW_SRV_ERR_EMAIL_INV_CHARS);
 
   // if neither login nor email are specified, just change the locale
@@ -1671,7 +1673,7 @@ main_page(
   n = phr->name;
   if (!n || !*n) n = phr->login;
 
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s, %s]", title, ARMOR(n), extra->contest_arm);
 
   shown_items = 0;
@@ -1719,7 +1721,7 @@ main_page(
     fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td>");
   fprintf(fout, "</tr></table></div>\n");
   if (extra->separator_txt && *extra->separator_txt) {
-    fprintf(fout, "%s", extra->separator_txt);
+    ns_separator(fout, extra->separator_txt, cnts);
   }
 
   // status row
@@ -2296,7 +2298,7 @@ edit_page(
   n = phr->name;
   if (!n || !*n) n = phr->login;
 
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s, %s]", s, ARMOR(n), extra->contest_arm);
 
   fprintf(fout, "<div class=\"user_actions\"><table class=\"menu\"><tr>");
@@ -2309,7 +2311,7 @@ edit_page(
   fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td>");
   fprintf(fout, "</tr></table></div>\n");
   if (extra->separator_txt && *extra->separator_txt) {
-    fprintf(fout, "%s", extra->separator_txt);
+    ns_separator(fout, extra->separator_txt, cnts);
   }
 
   // status row
@@ -2395,7 +2397,7 @@ action_error_page(
   s = _("Operation errors");
   n = phr->name;
   if (!n || !*n) n = phr->login;
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s, %s]", s, ARMOR(n), extra->contest_arm);
 
   fprintf(fout, "<div class=\"user_actions\"><table class=\"menu\"><tr>");
@@ -2408,7 +2410,7 @@ action_error_page(
   fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td>");
   fprintf(fout, "</tr></table></div>\n");
   if (extra->separator_txt && *extra->separator_txt) {
-    fprintf(fout, "%s", extra->separator_txt);
+    ns_separator(fout, extra->separator_txt, cnts);
   }
 
   fprintf(fout, "<br><font color=\"red\"><pre>%s</pre></font><br>\n",

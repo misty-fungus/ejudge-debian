@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: lang_config_vis.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: lang_config_vis.h 6325 2011-05-09 06:47:13Z cher $ */
 #ifndef __LANG_CONFIG_VIS_H__
 #define __LANG_CONFIG_VIS_H__
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -47,7 +47,8 @@ lang_configure_screen(
         const unsigned char *working_dir,
         unsigned char **keys,
         unsigned char **values,
-        const unsigned char *header);
+        const unsigned char *header,
+        int batch_mode);
 void
 lang_configure_batch(
         const unsigned char *script_dir,

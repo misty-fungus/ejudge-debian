@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: userlist_proto.h 5948 2010-07-15 09:47:25Z cher $ */
+/* $Id: userlist_proto.h 6377 2011-06-19 19:49:48Z cher $ */
 
 #ifndef __USERLIST_PROTO_H__
 #define __USERLIST_PROTO_H__
 
-/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -108,6 +108,20 @@ enum
     ULS_CREATE_GROUP_MEMBER,
     ULS_DELETE_GROUP_MEMBER,
     ULS_GET_GROUPS,
+    ULS_LIST_ALL_USERS_2,
+    ULS_GET_USER_COUNT,
+    ULS_LIST_ALL_GROUPS_2,
+    ULS_GET_GROUP_COUNT,
+    ULS_PRIV_SET_REG_PASSWD_PLAIN,
+    ULS_PRIV_SET_REG_PASSWD_SHA1,
+    ULS_PRIV_SET_CNTS_PASSWD_PLAIN,
+    ULS_PRIV_SET_CNTS_PASSWD_SHA1,
+    ULS_CREATE_USER_2,
+    ULS_PREV_USER,
+    ULS_NEXT_USER,
+    ULS_LIST_ALL_USERS_3,
+    ULS_LIST_ALL_USERS_4,
+    ULS_GET_GROUP_INFO,
 
     ULS_LAST_CMD
   };
@@ -128,6 +142,7 @@ enum
     ULS_TEXT_DATA,
     ULS_NEW_PASSWORD,
     ULS_TEXT_DATA_FAILURE,
+    ULS_COUNT,
   };
 
 /* various error codes */
@@ -373,6 +388,54 @@ struct userlist_pk_dump_database
   int   html_flag;
 };
 
+struct userlist_pk_list_users_2
+{
+  short request_id;
+  int   contest_id;
+  int   group_id;
+  int   user_id;
+  int   filter_len;
+  int   offset;
+  int   count;
+  unsigned char data[1];
+};
+
+struct userlist_pk_create_user_2
+{
+  short request_id;
+  int login_len;
+  int email_len;
+  int send_email_flag;
+  int confirm_email_flag;
+  int random_password_flag;
+  int reg_password_len;
+  int use_sha1_flag;
+  int is_privileged_flag;
+  int is_invisible_flag;
+  int is_banned_flag;
+  int is_locked_flag;
+  int show_login_flag;
+  int show_email_flag;
+  int read_only_flag;
+  int never_clean_flag;
+  int simple_registration_flag;
+  int contest_id;
+  int cnts_status;
+  int cnts_is_invisible_flag;
+  int cnts_is_banned_flag;
+  int cnts_is_locked_flag;
+  int cnts_is_incomplete_flag;
+  int cnts_is_disqualified_flag;
+  int cnts_use_reg_passwd_flag;
+  int cnts_set_null_passwd_flag;
+  int cnts_random_password_flag;
+  int cnts_password_len;
+  int cnts_use_sha1_flag;
+  int cnts_name_len;
+  int group_id;
+  unsigned char data[5];
+};
+
 /* server->client replies */
 struct userlist_pk_login_ok
 {
@@ -443,6 +506,12 @@ struct userlist_pk_new_password
   int         name_len;
   int         passwd_len;
   char        data[3];
+};
+
+struct userlist_pk_count
+{
+  short reply_id;
+  long long count;
 };
 
 #endif /* __USERLIST_PROTO_H__ */

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: userlist.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: userlist.c 6314 2011-05-08 07:01:11Z cher $ */
 
 /* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1274,6 +1274,10 @@ static const int primes[] =
   262147,
   524309,
   1048583,
+  2097169,
+  4194319,
+  8388617,
+  16777259,
   0,
 };
 
@@ -1322,7 +1326,11 @@ userlist_build_login_hash(struct userlist_list *p)
     p->login_hash_table[j] = u;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
 
   info("login hashtable: size = %" EJ_PRINTF_ZSPEC "u, shift = %" EJ_PRINTF_ZSPEC "u, thresh = %" EJ_PRINTF_ZSPEC "u, current = %" EJ_PRINTF_ZSPEC "u",
        EJ_PRINTF_ZCAST(p->login_hash_size), EJ_PRINTF_ZCAST(p->login_hash_step),
@@ -1409,7 +1417,11 @@ userlist_build_cookie_hash(struct userlist_list *p)
   }
 
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
 
   info("cookie hashtable: size = %" EJ_PRINTF_ZSPEC "u, step = %" EJ_PRINTF_ZSPEC "u, thresh = %" EJ_PRINTF_ZSPEC "u, current = %" EJ_PRINTF_ZSPEC "u",
        EJ_PRINTF_ZCAST(p->cookie_hash_size), EJ_PRINTF_ZCAST(p->cookie_hash_step),

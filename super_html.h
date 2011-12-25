@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: super_html.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: super_html.h 6379 2011-06-24 18:47:55Z cher $ */
 #ifndef __SUPER_HTML_H__
 #define __SUPER_HTML_H__
 
-/* Copyright (C) 2004-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -484,6 +484,34 @@ enum
   S_ERR_INV_PACKAGE,
   S_ERR_ITEM_EXISTS,
   S_ERR_OPERATION_FAILED,
+  S_ERR_INV_USER_ID,
+  S_ERR_NO_CONNECTION,
+  S_ERR_DB_ERROR,
+  S_ERR_UNSPEC_PASSWD1,
+  S_ERR_UNSPEC_PASSWD2,
+  S_ERR_INV_PASSWD1,
+  S_ERR_INV_PASSWD2,
+  S_ERR_PASSWDS_DIFFER,
+  S_ERR_UNSPEC_LOGIN,
+  S_ERR_DUPLICATED_LOGIN,
+  S_ERR_INV_GROUP_ID,
+  S_ERR_INV_FIRST_SERIAL,
+  S_ERR_INV_LAST_SERIAL,
+  S_ERR_INV_RANGE,
+  S_ERR_INV_LOGIN_TEMPLATE,
+  S_ERR_INV_REG_PASSWORD_TEMPLATE,
+  S_ERR_INV_CNTS_PASSWORD_TEMPLATE,
+  S_ERR_INV_CNTS_NAME_TEMPLATE,
+  S_ERR_INV_CSV_FILE,
+  S_ERR_INV_CHARSET,
+  S_ERR_INV_SEPARATOR,
+  S_ERR_DATA_READ_ONLY,
+  S_ERR_TOO_MANY_MEMBERS,
+  S_ERR_INV_SERIAL,
+  S_ERR_INV_EMAIL,
+  S_ERR_INV_GROUP_NAME,
+  S_ERR_INV_DESCRIPTION,
+  S_ERR_GROUP_CREATION_FAILED,
 
   S_ERR_LAST
 };
@@ -493,6 +521,17 @@ ss_cgi_param(
         const struct super_http_request_info *phr,
         const unsigned char *param,
         const unsigned char **p_value);
+int
+ss_cgi_param_int(
+        struct super_http_request_info *phr,
+        const unsigned char *name,
+        int *p_val);
+int
+ss_cgi_param_int_opt(
+        struct super_http_request_info *phr,
+        const unsigned char *name,
+        int *p_val,
+        int default_value);
 
 void
 ss_write_html_header(

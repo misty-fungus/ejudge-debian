@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 6214 2011-04-01 20:03:14Z cher $ */
+/* $Id: super-serve.c 6359 2011-06-10 20:04:28Z cher $ */
 
 /* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -466,7 +466,7 @@ prepare_run_serving(const struct contest_desc *cnts,
     return;
   }
 
-  snprintf(run_log_path, sizeof(run_log_path), "%s/run_messages",
+  snprintf(run_log_path, sizeof(run_log_path), "%s/ej-run-messages.log",
            extra->var_dir);
 
   if ((queue_dir_fd = open(run_queue_dir, O_RDONLY, 0)) < 0) {
@@ -1627,6 +1627,8 @@ sid_state_clear(struct sid_state *p)
   super_serve_clear_edited_contest(p);
   xfree(p->user_login);
   xfree(p->user_name);
+  xfree(p->user_filter);
+  bitset_free(&p->marked);
   XMEMZERO(p, 1);
 }
 static struct sid_state*
@@ -2640,6 +2642,8 @@ cmd_simple_top_command(struct client_state *p, int len,
   case SSERV_CMD_CNTS_CLEAR_TEAM_URL:
   case SSERV_CMD_CNTS_CLEAR_STANDINGS_URL:
   case SSERV_CMD_CNTS_CLEAR_PROBLEMS_URL:
+  case SSERV_CMD_CNTS_CLEAR_LOGO_URL:
+  case SSERV_CMD_CNTS_CLEAR_CSS_URL:
   case SSERV_CMD_CNTS_CLEAR_ROOT_DIR:
   case SSERV_CMD_CNTS_CLEAR_CONF_DIR:
   case SSERV_CMD_CNTS_CLEAR_DIR_MODE:
@@ -2774,6 +2778,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_CNTS_CHANGE_TEAM_URL:
   case SSERV_CMD_CNTS_CHANGE_STANDINGS_URL:
   case SSERV_CMD_CNTS_CHANGE_PROBLEMS_URL:
+  case SSERV_CMD_CNTS_CHANGE_LOGO_URL:
+  case SSERV_CMD_CNTS_CHANGE_CSS_URL:
   case SSERV_CMD_CNTS_CHANGE_ROOT_DIR:
   case SSERV_CMD_CNTS_CHANGE_CONF_DIR:
   case SSERV_CMD_CNTS_CHANGE_DIR_MODE:
@@ -3483,6 +3489,7 @@ cmd_http_request(
   hr.ip = p->ip;
   hr.ssl_flag = p->ssl;
   hr.system_login = userlist_login;
+  hr.userlist_clnt = userlist_clnt;
 
   hr.ss = sid_state_get(p->cookie, p->user_id, p->login, p->name);
   hr.config = config;
@@ -3633,6 +3640,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CLEAR_TEAM_URL] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_STANDINGS_URL] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_PROBLEMS_URL] = { cmd_simple_top_command },
+  [SSERV_CMD_CNTS_CLEAR_LOGO_URL] = { cmd_simple_top_command },
+  [SSERV_CMD_CNTS_CLEAR_CSS_URL] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_ROOT_DIR] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_CONF_DIR] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_DIR_MODE] = { cmd_simple_top_command },
@@ -3708,6 +3717,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CHANGE_TEAM_URL] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_STANDINGS_URL] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_PROBLEMS_URL] = { cmd_set_value },
+  [SSERV_CMD_CNTS_CHANGE_LOGO_URL] = { cmd_set_value },
+  [SSERV_CMD_CNTS_CHANGE_CSS_URL] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_ROOT_DIR] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_CONF_DIR] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_DIR_MODE] = { cmd_set_value },
@@ -3883,6 +3894,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_MAX_STACK_SIZE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_MAX_CORE_SIZE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_MAX_FILE_SIZE] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_MAX_OPEN_FILE_COUNT] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_MAX_PROCESS_COUNT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_INPUT_FILE] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_INPUT_FILE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_OUTPUT_FILE] = { cmd_set_value },
@@ -4263,7 +4276,7 @@ contest_mngmt_cmd(const struct contest_desc *cnts,
     snprintf(log_path, sizeof(log_path), "%s/var/messages", cnts->root_dir);
     goto do_truncate_log;
   case SSERV_CMD_RUN_LOG_TRUNC:
-    snprintf(log_path, sizeof(log_path), "%s/var/run_messages", cnts->root_dir);
+    snprintf(log_path, sizeof(log_path), "%s/var/ej-run-messages.log", cnts->root_dir);
     goto do_truncate_log;
 
   do_truncate_log:
@@ -4277,7 +4290,7 @@ contest_mngmt_cmd(const struct contest_desc *cnts,
     snprintf(log_path, sizeof(log_path), "%s/var/messages", cnts->root_dir);
     goto do_dev_null;
   case SSERV_CMD_RUN_LOG_DEV_NULL:
-    snprintf(log_path, sizeof(log_path), "%s/var/run_messages", cnts->root_dir);
+    snprintf(log_path, sizeof(log_path), "%s/var/ej-run-messages.log", cnts->root_dir);
     goto do_dev_null;
 
   do_dev_null:
@@ -4295,7 +4308,7 @@ contest_mngmt_cmd(const struct contest_desc *cnts,
     snprintf(log_path, sizeof(log_path), "%s/var/messages", cnts->root_dir);
     goto do_file;
   case SSERV_CMD_RUN_LOG_FILE:
-    snprintf(log_path, sizeof(log_path), "%s/var/run_messages", cnts->root_dir);
+    snprintf(log_path, sizeof(log_path), "%s/var/ej-run-messages.log", cnts->root_dir);
     goto do_file;
 
   do_file:

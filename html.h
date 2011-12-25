@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: html.h 6111 2011-03-14 20:55:17Z cher $ */
+/* $Id: html.h 6343 2011-05-22 21:20:22Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
@@ -84,7 +84,9 @@ do_write_kirov_standings(
         const struct contest_desc *cnts,
         FILE *f,
         const unsigned char *stand_dir,
-        int client_flag, int only_table_flag,
+        int client_flag,
+        int only_table_flag,
+        int user_id,
         const unsigned char *header_str,
         unsigned char const *footer_str,
         int raw_flag,
@@ -188,7 +190,11 @@ write_xml_team_testing_report(
         int output_only,
         int is_marked,
         const unsigned char *txt,
-        const unsigned char *table_class);
+        const unsigned char *table_class,
+        ej_cookie_t sid,
+        const unsigned char *self_url,
+        const unsigned char *extra_args,
+        const int *action_vec);
 
 int
 write_xml_team_tests_report(

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: misctext.c 6237 2011-04-08 18:47:35Z cher $ */
+/* $Id: misctext.c 6347 2011-05-23 19:06:12Z cher $ */
 
 /* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include "win32_compat.h"
 
@@ -1351,6 +1352,7 @@ is_empty_string(const unsigned char *s)
   return !*s;
 }
 
+#define SIZE_T (1024L * 1024L * 1024L * 1024L)
 #define SIZE_G (1024 * 1024 * 1024)
 #define SIZE_M (1024 * 1024)
 #define SIZE_K (1024)
@@ -1381,6 +1383,120 @@ size_t_to_size_str(
   else if (!(num % SIZE_K)) snprintf(buf, buf_size, "%" EJ_PRINTF_ZSPEC "uK", EJ_PRINTF_ZCAST(num / SIZE_K));
   else snprintf(buf, buf_size, "%" EJ_PRINTF_ZSPEC "u", EJ_PRINTF_ZCAST(num));
   return buf;
+}
+
+/*
+  parse an integral value in range -2147483648...2147483647 checking for overflow
+ */
+int
+size_str_to_num(const unsigned char *str, int *p_num)
+{
+  const unsigned char *s;
+  long value;
+  char *eptr = 0;
+  int suffix = 0;
+
+  if (!str) return -1;
+  s = str;
+  while (*s && isspace(*s)) ++s;
+  if (!*s) return -1;
+
+  errno = 0;
+  value = strtol(str, &eptr, 10);
+  if (errno) return -1;
+#if LONG_MAX != INT_MAX
+  if (value < INT_MIN || value > INT_MAX) return -1;
+#endif
+  s = (const unsigned char *) eptr;
+  if (*s && !isspace(*s)) {
+    suffix = toupper(*s);
+    if (suffix != 'K' && suffix != 'M' && suffix != 'G' && suffix != 'T')
+      return -1;
+    ++s; 
+  }
+  while (*s && isspace(*s)) ++s;
+  if (*s) return -1;
+  if (suffix == 'T') {
+    return -1;
+  } else if (suffix == 'G') {
+    if (value < -2 || value > 1) return -1;
+    value *= SIZE_G;
+  } else if (suffix == 'M') {
+    if (value < -2048 || value > 2047) return -1;
+    value *= SIZE_M;
+  } else if (suffix == 'K') {
+    if (value < -2097152 || value > 2097151) return -1;
+    value *= SIZE_K;
+  }
+
+  if (p_num) *p_num = (int) value;
+
+  return 0;
+}
+
+/*
+  parse an integral value in range LONG_MIN ... LONG_MAX checking for overflow 
+ */
+int
+size_str_to_size_t(const unsigned char *str, size_t *p_size)
+{
+  const unsigned char *s;
+  long value;
+  char *eptr = 0;
+  int suffix = 0;
+
+  if (!str) return -1;
+  s = str;
+  while (*s && isspace(*s)) ++s;
+  if (!*s) return -1;
+
+  errno = 0;
+  value = strtol(str, &eptr, 10);
+  if (errno) return -1;
+  s = (const unsigned char *) eptr;
+  if (*s && !isspace(*s)) {
+    suffix = toupper(*s);
+    if (suffix != 'K' && suffix != 'M' && suffix != 'G' && suffix != 'T')
+      return -1;
+    ++s; 
+  }
+  while (*s && isspace(*s)) ++s;
+  if (*s) return -1;
+
+#if INT_MAX == LONG_MAX
+  // 32-bit architecture
+  if (suffix == 'T') {
+    return -1;
+  } else if (suffix == 'G') {
+    if (value < -2 || value > 1) return -1;
+    value *= SIZE_G;
+  } else if (suffix == 'M') {
+    if (value < -2048 || value > 2047) return -1;
+    value *= SIZE_M;
+  } else if (suffix == 'K') {
+    if (value < -2097152 || value > 2097151) return -1;
+    value *= SIZE_K;
+  }
+#else
+  // 64-bit architecture. Note, this will not work for MSVC...
+  if (suffix == 'T') {
+    if (value < -8388608L || value > 8388607L) return -1;
+    value *= SIZE_T;
+  } else if (suffix == 'G') {
+    if (value < -8589934592L || value > 8589934591L) return -1;
+    value *= SIZE_G;
+  } else if (suffix == 'M') {
+    if (value < -8796093022208L || value > 8796093022207L) return -1;
+    value *= SIZE_M;
+  } else if (suffix == 'K') {
+    if (value < -9007199254740992L || value > 9007199254740991L) return -1;
+    value *= SIZE_K;
+  }
+#endif
+
+  if (p_size) *p_size = (size_t) value;
+
+  return 0;
 }
 
 int
@@ -1927,6 +2043,47 @@ ucs2_to_utf8(
   *u8p = 0;
   *pu8str = u8o;
   return out_count;
+}
+
+/*
+  returns: 0 - address invalid, 1 - valid
+ */
+int
+is_valid_email_address(const unsigned char *email_address)
+{
+  if (!email_address || !*email_address) return 0;
+  const unsigned char *p;
+  const unsigned char *at_ptr = 0;
+  for (p = email_address; *p; ++p) {
+    if (*p <= ' ' || *p >= 127 || *p == '\\' || *p == '\'' || *p == '\"')
+      return 0;
+    if (*p == '@') {
+      if (at_ptr) return 0;
+      at_ptr = p;
+    }
+  }
+  if (!at_ptr) return 0;
+  if (at_ptr == email_address || !at_ptr[1]) return 0;
+  // check domain part
+  for (p = at_ptr + 1; *p; ++p) {
+    if (!isalnum(*p) && *p != '-' && *p != '_' && *p != '.')
+      return 0;
+    if (*p == '.' && (p[-1] == '@' || !p[1] || p[1] == '.')) return 0;
+  }
+  // check local part
+  for (p = email_address; p < at_ptr; ++p) {
+    if (*p == '.') {
+      if (p == email_address || p[1] == '@' || p[1] == '.') return 0;
+    } else if (isalnum(*p)) {
+      // do nothing
+    } else if (*p == '!' || *p == '#' || *p == '+' || *p == '-' || *p == '/' || *p == '=' || *p == '?'
+               || *p == '^' || *p == '_' || *p == '~') {
+      // All valid chars: ! # $ % & * + - / = ? ^ _ ` { | } ~
+    } else {
+      return 0;
+    }
+  }
+  return 1;
 }
 
 /*

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: new_server_html_2.c 6393 2011-07-04 20:54:33Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1089,7 +1089,7 @@ ns_write_priv_source(const serve_state_t state,
   if (info.lang_id > 0 && info.lang_id <= state->max_lang)
     lang = state->langs[info.lang_id];
 
-  ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+  ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s, %s]: %s %d", ns_unparse_role(phr->role),
             phr->name_arm, extra->contest_arm,
             _("Viewing run"), run_id);
@@ -1643,17 +1643,6 @@ ns_write_priv_source(const serve_state_t state,
                      "run_id=%d&no_disp=1", run_id));
     } else {
       fprintf(f, "<p>The submission is binary and thus is not shown.</p>\n");
-      /* try to load text description of the archive */
-      txt_flags = archive_make_read_path(state, txt_path, sizeof(txt_path),
-                                         global->report_archive_dir,
-                                         run_id, 0, 0);
-      if (txt_flags >= 0) {
-        if (generic_read_file(&txt_text, 0, &txt_size, txt_flags, 0,
-                              txt_path, 0) >= 0) {
-          fprintf(f, "<pre>%s</pre>\n", ARMOR(txt_text));
-          xfree(txt_text); txt_text = 0; txt_size = 0;
-        }
-      }
     }
   } else if (lang && lang->binary) {
     fprintf(f, "<p>The submission is binary and thus is not shown.</p>\n");
@@ -1694,6 +1683,18 @@ ns_write_priv_source(const serve_state_t state,
                       _("Main page"), 0, 0, 0, _("Refresh"), _("View report"),
                       _("View team report"));
     */
+  }
+
+    /* try to load text description of the archive */
+  txt_flags = archive_make_read_path(state, txt_path, sizeof(txt_path),
+                                     global->report_archive_dir,
+                                     run_id, 0, 0);
+  if (txt_flags >= 0) {
+    if (generic_read_file(&txt_text, 0, &txt_size, txt_flags, 0,
+                          txt_path, 0) >= 0) {
+      fprintf(f, "<h2>%s</h2>\n<pre>%s</pre>\n", "Style checker output", ARMOR(txt_text));
+      xfree(txt_text); txt_text = 0; txt_size = 0;
+    }
   }
 
   fprintf(f, "<h2>%s</h2>\n", _("Send a message about this run"));
@@ -1815,7 +1816,7 @@ ns_write_priv_report(const serve_state_t cs,
     content_type = get_content_type(rep_text, &start_ptr);
   }
 
-  ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+  ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s, %s]: %s %d", ns_unparse_role(phr->role),
             phr->name_arm, extra->contest_arm,
             team_report_flag?_("Viewing user report"):_("Viewing report"),
@@ -1852,7 +1853,8 @@ ns_write_priv_report(const serve_state_t cs,
       }
     } else {
       if (team_report_flag) {
-        write_xml_team_testing_report(cs, prob, f, 0, re.is_marked, start_ptr, "b1");
+        write_xml_team_testing_report(cs, prob, f, 0, re.is_marked, start_ptr, "b1", phr->session_id, phr->self_url, "",
+                                      new_actions_vector);
       } else {
         write_xml_testing_report(f, 0, start_ptr, phr->session_id,phr->self_url,
                                  "", new_actions_vector, "b1", 0);
@@ -1917,7 +1919,7 @@ ns_write_audit_log(const serve_state_t cs,
   }
   audit_html = html_armor_string_dup(audit_text);
 
-  ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+  ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s, %s]: %s %d", ns_unparse_role(phr->role),
             phr->name_arm, extra->contest_arm,
             _("Viewing audit log for"), run_id);
@@ -3461,7 +3463,7 @@ ns_write_priv_standings(
 
   if (state->global->score_system == SCORE_KIROV
       || state->global->score_system == SCORE_OLYMPIAD)
-    do_write_kirov_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0 /*accepting_mode*/, 1, 0, 0, u, 0 /* user_mode */);
+    do_write_kirov_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0, 0 /*accepting_mode*/, 1, 0, 0, u, 0 /* user_mode */);
   else if (state->global->score_system == SCORE_MOSCOW)
     do_write_moscow_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0,
                               u);
