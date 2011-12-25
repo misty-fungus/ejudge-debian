@@ -1,8 +1,17 @@
-Index: ejudge-2.3.15/configure
+Index: ejudge-debian/configure
 ===================================================================
---- ejudge-2.3.15.orig/configure	2010-09-16 17:19:57.886948740 +0400
-+++ ejudge-2.3.15/configure	2010-09-16 17:20:37.423444727 +0400
-@@ -8466,7 +8466,7 @@
+--- ejudge-debian.orig/configure	2011-11-23 21:25:53.000000000 +0300
++++ ejudge-debian/configure	2011-11-23 21:29:41.000000000 +0300
+@@ -3542,7 +3542,7 @@
+ 
+ fi
+ 
+-if ! which --help > /dev/null 2>/dev/null
++if ! which which > /dev/null 2>/dev/null
+ then
+   echo "'which' program is not found, please install it." >&2
+   echo "The package is probably called 'which'." >&2
+@@ -8921,7 +8921,7 @@
        case "$xx" in
          -L*)
            [ x"${ac_cv_mysql_lib_opt}" != x ] && ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt} "
@@ -11,7 +20,7 @@ Index: ejudge-2.3.15/configure
            ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt}${xx} ${tmp_rpath}"
            ;;
          -l*)
-@@ -10697,8 +10697,8 @@
+@@ -11194,8 +11194,8 @@
    ac_cv_ejudge_server_bin_path="${actual_libexecdir}/ejudge/bin"
    ac_cv_ejudge_server_bin_path_m="${libexecdir}/ejudge/bin"
  else
@@ -22,11 +31,11 @@ Index: ejudge-2.3.15/configure
  fi
  ac_cv_ejudge_serve_path="${ac_cv_ejudge_server_bin_path}/ej-serve"
  ac_cv_ejudge_run_path="${ac_cv_ejudge_server_bin_path}/ej-run"
-Index: ejudge-2.3.15/configure.ac
+Index: ejudge-debian/configure.ac
 ===================================================================
---- ejudge-2.3.15.orig/configure.ac	2010-09-16 17:20:13.226942503 +0400
-+++ ejudge-2.3.15/configure.ac	2010-09-16 17:20:31.847457794 +0400
-@@ -585,7 +585,7 @@
+--- ejudge-debian.orig/configure.ac	2011-11-23 21:25:54.000000000 +0300
++++ ejudge-debian/configure.ac	2011-11-23 21:29:10.000000000 +0300
+@@ -608,7 +608,7 @@
        case "$xx" in
          -L*)
            [[ x"${ac_cv_mysql_lib_opt}" != x ]] && ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt} "
@@ -35,7 +44,7 @@ Index: ejudge-2.3.15/configure.ac
            ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt}${xx} ${tmp_rpath}"
            ;;
          -l*)
-@@ -965,8 +965,8 @@
+@@ -993,8 +993,8 @@
    ac_cv_ejudge_server_bin_path="${actual_libexecdir}/ejudge/bin"
    ac_cv_ejudge_server_bin_path_m="${libexecdir}/ejudge/bin"
  else
