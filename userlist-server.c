@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: userlist-server.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: userlist-server.c 6377 2011-06-19 19:49:48Z cher $ */
 
 /* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -42,6 +42,7 @@
 #include "csv.h"
 #include "sock_op.h"
 #include "compat.h"
+#include "bitset.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -554,7 +555,7 @@ link_client_state(struct client_state *p)
 #define default_sync() dflt_iface->sync(uldb_default->data)
 #define default_forced_sync() dflt_iface->forced_sync(uldb_default->data)
 #define default_get_login(a) dflt_iface->get_login(uldb_default->data, a)
-#define default_new_user(a,b,c,d) dflt_iface->new_user(uldb_default->data, a, b, c, d)
+#define default_new_user(a,b,c,d,e,f,g,h,i,j,k,l,m) dflt_iface->new_user(uldb_default->data, a, b, c, d, e, f, g, h, i, j, k, l, m)
 #define default_remove_user(a) dflt_iface->remove_user(uldb_default->data, a)
 #define default_get_cookie(a, b) dflt_iface->get_cookie(uldb_default->data, a, b)
 #define default_new_cookie(a, b, c, d, e, f, g, h, i, j, k, l) dflt_iface->new_cookie(uldb_default->data, a, b, c, d, e, f, g, h, i, j, k, l)
@@ -578,7 +579,7 @@ link_client_state(struct client_state *p)
 #define default_check_user(a) dflt_iface->check_user(uldb_default->data, a)
 #define default_set_reg_passwd(a, b, c, d) dflt_iface->set_reg_passwd(uldb_default->data, a, b, c, d)
 #define default_set_team_passwd(a, b, c, d, e, f) dflt_iface->set_team_passwd(uldb_default->data, a, b, c, d, e, f)
-#define default_register_contest(a, b, c, d, e) dflt_iface->register_contest(uldb_default->data, a, b, c, d, e)
+#define default_register_contest(a, b, c, d, e, f) dflt_iface->register_contest(uldb_default->data, a, b, c, d, e, f)
 #define default_remove_member(a, b, c, d, e) dflt_iface->remove_member(uldb_default->data, a, b, c, d, e)
 #define default_is_read_only(a, b) dflt_iface->is_read_only(uldb_default->data, a, b)
 #define default_get_info_list_iterator(a, b) dflt_iface->get_info_list_iterator(uldb_default->data, a, b)
@@ -604,6 +605,10 @@ link_client_state(struct client_state *p)
 #define default_get_contest_reg(a, b) dflt_iface->get_contest_reg(uldb_default->data, a, b)
 #define default_try_new_login(a, b, c, d, e) dflt_iface->try_new_login(uldb_default->data, a, b, c, d, e)
 #define default_set_simple_reg(a, b, c) dflt_iface->set_simple_reg(uldb_default->data, a, b, c)
+#define default_get_brief_list_iterator_2(a, b, c, d, e) dflt_iface->get_brief_list_iterator_2(uldb_default->data, a, b, c, d, e)
+#define default_get_user_count(a, b, c, d) dflt_iface->get_user_count(uldb_default->data, a, b, c, d)
+#define default_get_group_iterator_2(a, b, c) dflt_iface->get_group_iterator_2(uldb_default->data, a, b, c)
+#define default_get_group_count(a, b) dflt_iface->get_group_count(uldb_default->data, a, b)
 
 static void
 update_all_user_contests(int user_id)
@@ -1228,6 +1233,117 @@ check_pk_set_user_info(
 }
 
 static int
+check_pk_list_users_2(
+        struct client_state *p,
+        int pkt_len,
+        const struct userlist_pk_list_users_2 *data)
+{
+  int filter_len, exp_len;
+
+  if (pkt_len < sizeof(*data)) {
+    CONN_BAD("packet too small: %d instead of %d",
+             pkt_len, (int) sizeof(*data));
+    return -1;
+  }
+  if (pkt_len > (128*1024*1024)) {
+    CONN_BAD("packet too big: %d", pkt_len);
+    return -1;
+  }
+  if (data->filter_len < 0 || data->filter_len > (128*1024*1024)) {
+    CONN_BAD("filter_len is invalid: %d", data->filter_len);
+    return -1;
+  }
+  filter_len = strlen(data->data);
+  if (filter_len != data->filter_len) {
+    CONN_BAD("filter_len mismatch: %d instead of %d",
+             filter_len, data->filter_len);
+    return -1;
+  }
+  exp_len = sizeof(*data) + filter_len;
+  if (exp_len != pkt_len) {
+    CONN_BAD("pkt_len mismatch: %d instead of %d", pkt_len, exp_len);
+    return -1;
+  }
+
+  return 0;
+}
+
+static int
+check_pk_create_user_2(
+        struct client_state *p,
+        int pkt_len,
+        const struct userlist_pk_create_user_2 *data)
+{
+  if (pkt_len < sizeof(*data)) {
+    CONN_BAD("packet too small: %d instead of %d", pkt_len, (int) sizeof(*data));
+    return -1;
+  }
+  if (pkt_len > (128*1024*1024)) {
+    CONN_BAD("packet too big: %d", pkt_len);
+    return -1;
+  }
+
+  if (data->login_len < 0 || data->login_len > 65535) {
+    CONN_BAD("login_len is invalid: %d", data->login_len);
+    return -1;
+  }
+  if (data->email_len < 0 || data->email_len > 65535) {
+    CONN_BAD("email_len is invalid: %d", data->email_len);
+    return -1;
+  }
+  if (data->reg_password_len < 0 || data->reg_password_len > 65535) {
+    CONN_BAD("reg_password_len is invalid: %d", data->reg_password_len);
+    return -1;
+  }
+  if (data->cnts_password_len < 0 || data->cnts_password_len > 65535) {
+    CONN_BAD("cnts_password_len is invalid: %d", data->cnts_password_len);
+    return -1;
+  }
+  if (data->cnts_name_len < 0 || data->cnts_name_len > 65535) {
+    CONN_BAD("cnts_name_len is invalid: %d", data->cnts_name_len);
+    return -1;
+  }
+  int exp_len = sizeof(*data) + data->login_len + data->email_len + data->reg_password_len + data->cnts_password_len + data->cnts_name_len;
+  if (exp_len != pkt_len) {
+    CONN_BAD("pkt_len mismatch: %d instead of %d", pkt_len, exp_len);
+    return -1;
+  }
+
+  const unsigned char *str = data->data;
+  int len = strlen(str);
+  if (len != data->login_len) {
+    CONN_BAD("login_len mismatch: %d instead of %d", len, data->login_len);
+    return -1;
+  }
+  str += len + 1;
+  len = strlen(str);
+  if (len != data->email_len) {
+    CONN_BAD("email_len mismatch: %d instead of %d", len, data->email_len);
+    return -1;
+  }
+  str += len + 1;
+  len = strlen(str);
+  if (len != data->reg_password_len) {
+    CONN_BAD("reg_password_len mismatch: %d instead of %d", len, data->reg_password_len);
+    return -1;
+  }
+  str += len + 1;
+  len = strlen(str);
+  if (len != data->cnts_password_len) {
+    CONN_BAD("cnts_password_len mismatch: %d instead of %d", len, data->cnts_password_len);
+    return -1;
+  }
+  str += len + 1;
+  len = strlen(str);
+  if (len != data->cnts_name_len) {
+    CONN_BAD("cnts_name_len mismatch: %d instead of %d", len, data->cnts_name_len);
+    return -1;
+  }
+
+  return 0;
+}
+
+static int
 full_get_contest(
         struct client_state *p,
         const unsigned char *pfx,
@@ -1367,6 +1483,159 @@ get_email_sender(const struct contest_desc *cnts)
   return ppwd->pw_name;
 }
 
+static int
+send_registration_email(
+        const struct contest_desc *cnts,
+        const struct userlist_user *u,
+        int locale_id,
+        const unsigned char *self_url,
+        int confirm_action)
+{
+  struct sformat_extra_data sformat_data;
+  path_t email_template_path;
+  path_t email_template_locale_0_path;
+  char *email_template = 0;
+  size_t email_template_size = 0;
+
+  memset(&sformat_data, 0, sizeof(sformat_data));
+  sformat_data.locale_id = locale_id;
+  sformat_data.server_name = config->server_name;
+  sformat_data.server_name_en = config->server_name_en;
+
+  // load the registration letter template file
+  if (cnts && cnts->register_email_file) {
+    sformat_message(email_template_path, sizeof(email_template_path), 0,
+                    cnts->register_email_file, 0, 0, 0, 0, 0,
+                    u, cnts, &sformat_data);
+    if (generic_read_file(&email_template, 0, &email_template_size, 0, "", email_template_path, "") < 0) {
+      // the template file for the given locale_id does not exist, so try locale_id = 0
+      sformat_data.locale_id = 0;
+      sformat_message(email_template_locale_0_path, sizeof(email_template_locale_0_path), 0,
+                      cnts->register_email_file, 0, 0, 0, 0, 0,
+                      u, cnts, &sformat_data);
+      if (strcmp(email_template_path, email_template_locale_0_path) != 0) {
+        strcpy(email_template_path, email_template_locale_0_path);
+        if (generic_read_file(&email_template, 0, &email_template_size, 0, "", email_template_path, "") < 0) {
+          email_template = 0;
+          email_template_size = 0;
+        }
+      } else {
+        email_template = 0;
+        email_template_size = 0;
+      }
+    }
+  }
+  sformat_data.locale_id = locale_id;
+
+  // sanity checks
+  if (email_template_size > 1 * 1024 * 1024) {
+    xfree(email_template); email_template = 0;
+    email_template_size = 0;
+  }
+  if (email_template && strlen(email_template) != email_template_size) {
+    xfree(email_template); email_template = 0;
+    email_template_size = 0;
+  }
+  if (email_template && is_empty_string(email_template)) {
+    xfree(email_template); email_template = 0;
+    email_template_size = 0;
+  }
+
+  unsigned char contest_id_str[64] = { 0 };
+  if (cnts) {
+    snprintf(contest_id_str, sizeof(contest_id_str), "&contest_id=%d", cnts->id);
+  }
+  unsigned char locale_id_str[64] = { 0 };
+  if (locale_id > 0) {
+    snprintf(locale_id_str, sizeof(locale_id_str), "&locale_id=%d", locale_id);
+  }
+  const unsigned char *base_url = 0;
+  if (self_url && *self_url) {
+    base_url = self_url;
+  } else if (cnts && cnts->register_url) {
+    base_url = cnts->register_url;
+  } else if (config->register_url) {
+    base_url = config->register_url;
+  } else {
+    base_url = "http://localhost/cgi-bin/register";
+  }
+  if (confirm_action <= 0 && cnts && cnts->force_registration) confirm_action = 4;
+  if (confirm_action <= 0) confirm_action = 3;
+  unsigned char confirm_url_buf[1024];
+  snprintf(confirm_url_buf, sizeof(confirm_url_buf), "%s?action=%d&login=%s%s%s",
+           base_url, confirm_action, u->login, contest_id_str, locale_id_str);
+  sformat_data.url = confirm_url_buf;
+
+  unsigned char contest_main_url[1024] = { 0 };
+  if (cnts && cnts->main_url) {
+    snprintf(contest_main_url, sizeof(contest_main_url), " (%s)", cnts->main_url);
+  } else if (config->server_main_url) {
+    snprintf(contest_main_url, sizeof(contest_main_url), " (%s)", config->server_main_url);
+  }
+  sformat_data.str1 = contest_main_url;
+
+  l10n_setlocale(locale_id);
+  if (!email_template && cnts) {
+    email_template =
+      _("Hello,\n"
+        "\n"
+        "Somebody (probably you) have specified this e-mail address (%Ue)\n"
+        "when registering an account to participate in %LCn%V1.\n"
+        "\n"
+        "To confirm registration, you should enter the provided login\n"
+        "and password on the login page of the server at the\n"
+        "following url: %Vu.\n"
+        "\n"
+        "Note, that if you do not do this in 24 hours from the moment\n"
+        "of sending this letter, registration will be void.\n"
+        "\n"
+        "login:    %Ul\n"
+        "password: %Uz\n"
+          "\n"
+        "Regards,\n"
+        "The ejudge contest administration system (www.ejudge.ru)\n");
+    email_template = xstrdup(email_template);
+    email_template_size = strlen(email_template);
+  }
+  if (!email_template) {
+    email_template =
+      _("Hello,\n"
+        "\n"
+        "Somebody (probably you) have specified this e-mail address (%Ue)\n"
+        "when registering an account on the %LVn%V1.\n"
+        "\n"
+        "To confirm registration, you should enter the provided login\n"
+        "and password on the login page of the server at the\n"
+        "following url: %Vu.\n"
+        "\n"
+        "Note, that if you do not do this in 24 hours from the moment\n"
+        "of sending this letter, registration will be void.\n"
+        "\n"
+        "login:    %Ul\n"
+        "password: %Uz\n"
+        "\n"
+        "Regards,\n"
+        "The ejudge contest administration system (www.ejudge.ru)\n");
+    email_template = xstrdup(email_template);
+    email_template_size = strlen(email_template);
+  }
+
+  size_t email_text_size = email_template_size * 4;
+  if (email_text_size < 4096) email_text_size = 4096;
+  unsigned char *email_text = (unsigned char *) xcalloc(email_text_size, 1);
+  sformat_message(email_text, email_text_size, 0, email_template,
+                  0, 0, 0, 0, 0, u, cnts, &sformat_data);
+  unsigned char *email_subject = _("You have been registered");
+  l10n_setlocale(0);
+
+  const unsigned char *sender_address = get_email_sender(cnts);
+  int retval = send_email_message(u->email, sender_address, NULL, email_subject, email_text);
+  xfree(email_text); email_text = 0;
+  xfree(email_template); email_template = 0;
+
+  return retval;
+}
+
 static void
 cmd_register_new_2(struct client_state *p,
                    int pkt_len,
@@ -1486,7 +1755,8 @@ cmd_register_new_2(struct client_state *p,
 
   generate_random_password(8, passwd_buf);
   passwd_len = strlen(passwd_buf);
-  user_id = default_new_user(login, email, passwd_buf, 1);
+  user_id = default_new_user(login, email, USERLIST_PWD_PLAIN, passwd_buf,
+                             0, 0, 0, 0, 0, 0, 0, 0, 0);
 
   login_len = strlen(login);
   out_size = sizeof(*out) + login_len + passwd_len;
@@ -1762,7 +2032,7 @@ cmd_register_new(struct client_state *p,
   }
 
   generate_random_password(8, passwd_buf);
-  user_id = default_new_user(login, email, passwd_buf, 0);
+  user_id = default_new_user(login, email, USERLIST_PWD_PLAIN, passwd_buf, 0, 0, 0, 0, 0, 0, 0, 0, 0);
   if (default_get_user_info_1(user_id, &u) < 0 || !u) {
     send_reply(p, -ULS_ERR_DB_ERROR);
     err("%s -> database error", logbuf);
@@ -2362,7 +2632,11 @@ cmd_login(struct client_state *p,
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
   if (ui) name = ui->name;
   if (!name || !*name) name = u->login;
   if (!name) name = "";
@@ -2477,7 +2751,11 @@ cmd_check_user(
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
   if (ui) name = ui->name;
   if (!name || !*name) name = u->login;
   if (!name) name = "";
@@ -2619,7 +2897,11 @@ cmd_team_login(struct client_state *p, int pkt_len,
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
   if (ui) name = ui->name;
   if (!name || !*name) name = u->login;
   if (!name) name = "";
@@ -2786,7 +3068,11 @@ cmd_team_check_user(struct client_state *p, int pkt_len,
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
   if (ui) name = ui->name;
   if (!name || !*name) name = u->login;
   if (!name) name = "";
@@ -2969,7 +3255,11 @@ cmd_priv_login(struct client_state *p, int pkt_len,
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
 
   if (!u) {
     err("%s -> WRONG LOGIN", logbuf);
@@ -3187,7 +3477,11 @@ cmd_priv_check_user(struct client_state *p, int pkt_len,
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
 
   if (!u) {
     err("%s -> WRONG LOGIN", logbuf);
@@ -3295,7 +3589,11 @@ cmd_check_cookie(struct client_state *p,
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
 
   if (data->contest_id < 0) data->contest_id = cookie->contest_id;
   orig_contest_id = data->contest_id;
@@ -3437,7 +3735,11 @@ cmd_team_check_cookie(
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
 
   if (data->contest_id < 0) data->contest_id = cookie->contest_id;
   orig_contest_id = data->contest_id;
@@ -3600,7 +3902,11 @@ cmd_priv_check_cookie(struct client_state *p,
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
 
   if (data->contest_id < 0) data->contest_id = cookie->contest_id;
   orig_contest_id = data->contest_id;
@@ -3784,7 +4090,11 @@ cmd_priv_cookie_login(struct client_state *p,
     return;
   }
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
 
   if (default_get_user_info_3(cookie->user_id,data->contest_id,&u,&ui,&c) < 0
       || !u) {
@@ -4623,7 +4933,7 @@ cmd_register_contest(
 
   if (c->autoregister) status = USERLIST_REG_OK;
   errcode = default_register_contest(data->user_id, data->contest_id,
-                                     status, cur_time, &r);
+                                     status, 0, cur_time, &r);
   if (errcode < 0) {
     err("%s -> registration failed", logbuf);
     send_reply(p, -ULS_ERR_UNSPECIFIED_ERROR);
@@ -4697,7 +5007,7 @@ cmd_register_contest_2(
 
   if (c->autoregister) status = USERLIST_REG_OK;
   errcode = default_register_contest(data->user_id, data->contest_id,
-                                     status, cur_time, &r);
+                                     status, 0, cur_time, &r);
   if (errcode < 0) {
     err("%s -> registration failed", logbuf);
     send_reply(p, -ULS_ERR_UNSPECIFIED_ERROR);
@@ -4710,9 +5020,7 @@ cmd_register_contest_2(
 
   default_check_user_reg_data(data->user_id, data->contest_id);
   r = default_get_contest_reg(data->user_id, data->contest_id);
-  if (r && r->status == USERLIST_REG_OK) {
-    update_userlist_table(data->contest_id);
-  }
+  update_userlist_table(data->contest_id);
   info("%s -> OK", logbuf);
   send_reply(p, ULS_OK);
   return;
@@ -4748,7 +5056,7 @@ cmd_priv_register_contest(
   if (is_cnts_capable(p, c, bit, logbuf) < 0) return;
 
   if (c->autoregister) status = USERLIST_REG_OK;
-  status = default_register_contest(data->user_id, data->contest_id, status,
+  status = default_register_contest(data->user_id, data->contest_id, status, 0,
                                     cur_time, &r);
   if (status < 0) {
     err("%s -> registration failed", logbuf);
@@ -4760,7 +5068,7 @@ cmd_priv_register_contest(
     return;
   }
 
-  if (r->status == USERLIST_REG_OK) {
+  if (r && r->status == USERLIST_REG_OK) {
     update_userlist_table(data->contest_id);
   }
   info("%s -> OK", logbuf);
@@ -4816,6 +5124,7 @@ cmd_delete_member(struct client_state *p, int pkt_len,
     return send_reply(p, -ULS_ERR_UNSPECIFIED_ERROR);
   }
 
+  update_userlist_table(data->contest_id);
   if (cloned_flag) reply_code = ULS_CLONED;
   info("%s -> OK", logbuf);
   send_reply(p, reply_code);
@@ -6312,7 +6621,7 @@ cmd_edit_registration(struct client_state *p, int pkt_len,
     send_reply(p, -ULS_ERR_PROTOCOL);
     return;
   }
-  if (data->flags_cmd < 0 || data->flags_cmd > 3) {
+  if (data->flags_cmd < 0 || data->flags_cmd > 4) {
     err("%s -> invalid flags command", logbuf);
     send_reply(p, -ULS_ERR_PROTOCOL);
     return;
@@ -6788,7 +7097,7 @@ cmd_create_user(
     login_ptr = buf;
   }
 
-  if ((user_id = default_new_user(login_ptr, "N/A", NULL, 0)) <= 0) {
+  if ((user_id = default_new_user(login_ptr, "N/A", USERLIST_PWD_PLAIN, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0)) <= 0) {
     err("%s -> cannot create user", logbuf);
     send_reply(p, -ULS_ERR_NO_PERMS);
     return;
@@ -7378,7 +7687,11 @@ cmd_get_cookie(struct client_state *p,
   if (default_get_cookie(data->cookie, &cookie) < 0 || !cookie)
     FAIL(ULS_ERR_NO_COOKIE, "no such cookie");
   rdtscll(tsc2);
-  tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
 
   new_contest_id = cookie->contest_id;
   if (cookie->contest_id > 0) {
@@ -7700,6 +8013,120 @@ cmd_priv_set_passwd(
   info("%s -> OK, %d", logbuf, cloned_flag);
 }
 
+static void
+cmd_priv_set_passwd_2(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_set_password *data)
+{
+  const unsigned char *old_pwd, *new_pwd;
+  unsigned char logbuf[1024];
+  struct passwd_internal newint;
+  const struct userlist_user *u = 0;
+  const struct contest_desc *cnts = 0;
+  const struct userlist_user_info *ui = 0;
+  const struct userlist_contest *c = 0;
+  int reply_code = ULS_OK, cloned_flag = 0, contest_id = 0;
+
+  old_pwd = data->data;
+  new_pwd = old_pwd + data->old_len + 1;
+
+  if (!data->user_id) data->user_id = p->user_id;
+  snprintf(logbuf, sizeof(logbuf), "PRIV_SET_PASSWD_2: %d, %d, %d",
+           data->request_id, data->user_id, data->contest_id);
+
+  if (is_admin(p, logbuf) < 0) return;
+
+  if (data->new_len <= 0) {
+    err("%s -> new password is empty", logbuf);
+    send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+    return;
+  }
+  if (passwd_convert_to_internal(new_pwd, &newint) < 0) {
+    err("%s -> new password is invalid", logbuf);
+    send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+    return;
+  }
+
+  switch (data->request_id) {
+  case ULS_PRIV_SET_REG_PASSWD_PLAIN:
+  case ULS_PRIV_SET_REG_PASSWD_SHA1:
+    if (default_get_user_info_1(data->user_id, &u) < 0 || !u) {
+      err("%s -> invalid user", logbuf);
+      send_reply(p, -ULS_ERR_BAD_UID);
+      return;
+    }
+    if (data->user_id != p->user_id) {
+      if (is_privileged_user(u) >= 0) {
+        if (is_db_capable(p, OPCAP_PRIV_EDIT_PASSWD, logbuf) < 0) return;
+      } else {
+        if (is_db_capable(p, OPCAP_EDIT_PASSWD, logbuf) < 0) return;
+      }
+    }
+
+    if (data->request_id == ULS_PRIV_SET_REG_PASSWD_PLAIN) {
+      default_set_reg_passwd(u->id, USERLIST_PWD_PLAIN,
+                             newint.pwds[USERLIST_PWD_PLAIN], cur_time);
+    } else if (data->request_id == ULS_PRIV_SET_REG_PASSWD_SHA1) {
+      default_set_reg_passwd(u->id, USERLIST_PWD_SHA1,
+                             newint.pwds[USERLIST_PWD_SHA1], cur_time);
+    } else {
+      abort();
+    }
+    break;
+
+  case ULS_PRIV_SET_CNTS_PASSWD_PLAIN:
+  case ULS_PRIV_SET_CNTS_PASSWD_SHA1:
+    contest_id = data->contest_id;
+    if (contest_id > 0) {
+      if (full_get_contest(p, logbuf, &contest_id, &cnts) < 0) return;
+      if (cnts->disable_team_password) {
+        err("%s -> team password is disabled", logbuf);
+        send_reply(p, -ULS_ERR_NO_PERMS);
+        return;
+      }
+    }
+
+    if (default_get_user_info_3(data->user_id, contest_id, &u, &ui, &c) < 0
+        || !u) {
+      err("%s -> invalid user", logbuf);
+      send_reply(p, -ULS_ERR_BAD_UID);
+      return;
+    }
+    if (data->user_id != p->user_id) {
+      if (is_privileged_cnts_user(u, cnts) >= 0) {
+        if (is_dbcnts_capable(p, cnts, OPCAP_PRIV_EDIT_PASSWD, logbuf) < 0)
+          return;
+      } else {
+        if (is_dbcnts_capable(p, cnts, OPCAP_EDIT_PASSWD, logbuf) < 0) return;
+      }
+    }
+    if (contest_id > 0 && (!c || c->status != USERLIST_REG_OK)) {
+      err("%s -> not registered", logbuf);
+      send_reply(p, -ULS_ERR_NOT_REGISTERED);
+      return;
+    }
+
+    if (data->request_id == ULS_PRIV_SET_CNTS_PASSWD_PLAIN) {
+      default_set_team_passwd(data->user_id, contest_id, USERLIST_PWD_PLAIN,
+                              newint.pwds[USERLIST_PWD_PLAIN], cur_time,
+                              &cloned_flag);
+    } else if (data->request_id == ULS_PRIV_SET_CNTS_PASSWD_SHA1) {
+      default_set_team_passwd(data->user_id, contest_id, USERLIST_PWD_SHA1,
+                              newint.pwds[USERLIST_PWD_SHA1], cur_time,
+                              &cloned_flag);
+    }
+    if (cloned_flag) reply_code = ULS_CLONED;
+    break;
+
+  default:
+    abort();
+  }
+
+  default_remove_user_cookies(data->user_id);
+  send_reply(p, reply_code);
+  info("%s -> OK, %d", logbuf, cloned_flag);
+}
 
 static void
 do_get_database(FILE *f, int contest_id, const struct contest_desc *cnts)
@@ -8958,6 +9385,618 @@ cleanup:
   xfree(xml_text);
 }
 
+static void
+cmd_list_all_users_2(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_list_users_2 *data)
+{
+  FILE *f = 0;
+  char *xml_ptr = 0;
+  size_t xml_size = 0;
+  struct userlist_pk_xml_data *out = 0;
+  size_t out_size = 0;
+  const struct contest_desc *cnts = 0;
+  unsigned char logbuf[1024];
+  ptr_iterator_t iter;
+  const struct userlist_user *u;
+
+  snprintf(logbuf, sizeof(logbuf), "LIST_ALL_USERS_2: %d, %d, %d, %d, %d",
+           p->user_id, data->contest_id, data->group_id, data->offset, data->count);
+
+  if (is_judge(p, logbuf) < 0) return;
+  if (data->contest_id > 0) {
+    if (full_get_contest(p, logbuf, &data->contest_id, &cnts) < 0) return;
+  }
+  if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
+
+  f = open_memstream(&xml_ptr, &xml_size);
+  userlist_write_xml_header(f);
+  iter = default_get_brief_list_iterator_2(data->contest_id, data->group_id, data->data, data->offset, data->count);
+  if (iter) {
+    for (; iter->has_next(iter); iter->next(iter)) {
+      if (!(u = (const struct userlist_user*) iter->get(iter))) continue;
+      userlist_unparse_user_short(u, f, data->contest_id);
+      default_unlock_user(u);
+    }
+  }
+  userlist_write_xml_footer(f);
+  if (iter) iter->destroy(iter);
+  close_memstream(f); f = 0;
+  ASSERT(xml_size == strlen(xml_ptr));
+  out_size = sizeof(*out) + xml_size;
+  out = (struct userlist_pk_xml_data*) xmalloc(out_size);
+  memset(out, 0, out_size);
+  out->reply_id = ULS_XML_DATA;
+  out->info_len = xml_size;
+  memcpy(out->data, xml_ptr, xml_size + 1);
+  xfree(xml_ptr); xml_ptr = 0;
+  enqueue_reply_to_client(p, out_size, out);
+  info("%s -> OK, size = %zu", logbuf, xml_size); 
+  xfree(out); out = 0;
+}
+
+static void
+cmd_get_user_count(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_list_users_2 *data)
+{
+  struct userlist_pk_count out;
+  const struct contest_desc *cnts = 0;
+  unsigned char logbuf[1024];
+  long long count = -1;
+  int r;
+
+  snprintf(logbuf, sizeof(logbuf), "GET_USER_COUNT: %d, %d",
+           p->user_id, data->contest_id);
+
+  if (is_judge(p, logbuf) < 0) return;
+  if (data->contest_id) {
+    if (full_get_contest(p, logbuf, &data->contest_id, &cnts) < 0) return;
+  }
+  if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
+
+  r = default_get_user_count(data->contest_id, data->group_id, data->data, &count);
+  if (r < 0) {
+    err("%s -> database error %d", logbuf, -r);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;
+  }
+  if (count < 0) {
+    err("%s -> invalid value of count %lld", logbuf, count);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;    
+  }
+
+  memset(&out, 0, sizeof(out));
+  out.reply_id = ULS_COUNT;
+  out.count = count;
+  enqueue_reply_to_client(p, sizeof(out), &out);
+  info("%s -> OK, %lld", logbuf, out.count); 
+}
+
+static void
+cmd_list_all_groups_2(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_list_users_2 *data)
+{
+  FILE *fout = 0;
+  char *xml_ptr = 0;
+  size_t xml_size = 0;
+  struct userlist_pk_xml_data *out = 0;
+  size_t out_size = 0;
+  unsigned char logbuf[1024];
+  ptr_iterator_t iter;
+  const struct userlist_group *grp;
+
+  snprintf(logbuf, sizeof(logbuf), "LIST_ALL_GROUPS_2: %d, %d, %d",
+           p->user_id, data->offset, data->count);
+
+  if (is_judge(p, logbuf) < 0) return;
+  if (is_dbcnts_capable(p, NULL, OPCAP_LIST_USERS, logbuf) < 0) return;
+
+  fout = open_memstream(&xml_ptr, &xml_size);
+  userlist_write_xml_header(fout);
+  userlist_write_groups_header(fout);
+  iter = default_get_group_iterator_2(data->data, data->offset, data->count);
+  if (iter) {
+    for (; iter->has_next(iter); iter->next(iter)) {
+      grp = (const struct userlist_group*) iter->get(iter);
+      if (grp) {
+        userlist_unparse_usergroup(fout, grp, "      ", "\n");
+        // plugin_call1(unlock_group, grp);
+      }
+    }
+    iter->destroy(iter); iter = 0;
+  }
+  userlist_write_groups_footer(fout);
+  userlist_write_xml_footer(fout);
+  fclose(fout); fout = 0;
+
+  ASSERT(xml_size == strlen(xml_ptr));
+  out_size = sizeof(*out) + xml_size;
+  out = (struct userlist_pk_xml_data*) xmalloc(out_size);
+  memset(out, 0, out_size);
+  out->reply_id = ULS_XML_DATA;
+  out->info_len = xml_size;
+  memcpy(out->data, xml_ptr, xml_size + 1);
+  xfree(xml_ptr); xml_ptr = 0;
+  enqueue_reply_to_client(p, out_size, out);
+  info("%s -> OK, size = %zu", logbuf, xml_size); 
+  xfree(out); out = 0;
+}
+
+static void
+cmd_get_group_count(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_list_users_2 *data)
+{
+  struct userlist_pk_count out;
+  unsigned char logbuf[1024];
+  long long count = -1;
+  int r;
+
+  snprintf(logbuf, sizeof(logbuf), "GET_GROUP_COUNT: %d", p->user_id);
+
+  if (is_judge(p, logbuf) < 0) return;
+  if (is_dbcnts_capable(p, NULL, OPCAP_LIST_USERS, logbuf) < 0) return;
+
+  r = default_get_group_count(data->data, &count);
+  if (r < 0) {
+    err("%s -> database error %d", logbuf, -r);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;
+  }
+  if (count < 0) {
+    err("%s -> invalid value of count %lld", logbuf, count);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;    
+  }
+
+  memset(&out, 0, sizeof(out));
+  out.reply_id = ULS_COUNT;
+  out.count = count;
+  enqueue_reply_to_client(p, sizeof(out), &out);
+  info("%s -> OK, %lld", logbuf, out.count); 
+}
+
+static void
+cmd_create_user_2(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_create_user_2 *data)
+{
+  unsigned char logbuf[1024];
+  const unsigned char *login_str = data->data;
+  const unsigned char *email_str = login_str + data->login_len + 1;
+  const unsigned char *reg_password_str = email_str + data->email_len + 1;
+  const unsigned char *cnts_password_str = reg_password_str + data->reg_password_len + 1;
+  const unsigned char *cnts_name_str = cnts_password_str + data->cnts_password_len + 1;
+  int user_id = 0;
+  unsigned char random_reg_password_buf[64];
+  int reg_password_len = data->reg_password_len;
+  unsigned char sha1_reg_password_buf[128];
+  int reg_password_method = USERLIST_PWD_PLAIN;
+  const struct contest_desc *cnts = 0;
+  int login_len = data->login_len;
+  unsigned char auto_login_buf[64];
+  const struct userlist_contest *cnts_reg = 0;
+  const struct userlist_group *ul_group = 0;
+  int cnts_password_len = data->cnts_password_len;
+  int cnts_password_method = USERLIST_PWD_PLAIN;
+  unsigned char random_cnts_password_buf[64];
+  unsigned char sha1_cnts_password_buf[64];
+  int cloned_flag = 0;
+  int send_email_flag = data->send_email_flag;
+
+  snprintf(logbuf, sizeof(logbuf), "CREATE_USER_2: %d", p->user_id);
+
+  if (p->user_id < 0) {
+    err("%s -> not authentificated", logbuf);
+    send_reply(p, -ULS_ERR_NO_PERMS);
+    return;
+  }
+  ASSERT(p->user_id > 0);
+  if (is_db_capable(p, OPCAP_CREATE_USER, logbuf) < 0) return;
+
+  if (data->contest_id != 0) {
+    if (contests_get(data->contest_id, &cnts) < 0 || !cnts) {
+      err("%s -> invalid contest %d", logbuf, data->contest_id);
+      send_reply(p, -ULS_ERR_BAD_CONTEST_ID);
+      return;
+    }
+  }
+  if (data->group_id != 0) {
+    ul_group = plugin_call(get_group, data->contest_id);
+    if (!ul_group) {
+      err("%s -> invalid group %d", logbuf, data->group_id);
+      send_reply(p, -ULS_ERR_BAD_GROUP_ID);
+      return;
+    }
+  }
+
+  if (!login_len && cnts && cnts->assign_logins && cnts->login_template) {
+    int serial = 0;
+    int serial_step = 1;
+    int n = 0;
+    if (cnts->login_template_options
+        && sscanf(cnts->login_template_options, "%d%d%n",
+                  &serial, &serial_step, &n) == 2
+        && !cnts->login_template_options[n] && serial_step != 0) {
+      serial -= serial_step;
+    } else {
+      serial = 0;
+      serial_step = 1;
+    }
+    if (dflt_iface->try_new_login) {
+      serial += serial_step;
+      if (default_try_new_login(auto_login_buf, sizeof(auto_login_buf), cnts->login_template, serial, serial_step) < 0) {
+        send_reply(p, -ULS_ERR_DB_ERROR);
+        err("%s -> database error", logbuf);
+        return;
+      }
+    } else {
+      while (1) {
+        serial += serial_step;
+        snprintf(auto_login_buf, sizeof(auto_login_buf), cnts->login_template, serial);
+        if ((user_id = default_get_user_by_login(auto_login_buf)) < 0) break;
+      }
+    }
+    login_str = auto_login_buf;
+    login_len = strlen(login_str);
+  }
+
+  if (!login_len) {
+    err("%s -> empty login", logbuf);
+    send_reply(p, -ULS_ERR_INVALID_LOGIN);
+    return;
+  }
+  if (default_get_user_by_login(login_str) >= 0) {
+    err("%s -> login already exists", logbuf);
+    send_reply(p, -ULS_ERR_LOGIN_USED);
+    return;
+  }
+
+  if (data->random_password_flag) {
+    generate_random_password(16, random_reg_password_buf);
+    reg_password_str = random_reg_password_buf;
+    reg_password_len = strlen(reg_password_str);
+  }
+  if (!reg_password_len) {
+    err("%s -> empty password", logbuf);
+    send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+    return;
+  }
+  if (data->use_sha1_flag) {
+    make_sha1_ascii(reg_password_str, reg_password_len, sha1_reg_password_buf);
+    reg_password_method = USERLIST_PWD_SHA1;
+    reg_password_str = sha1_reg_password_buf;
+    reg_password_len = strlen(reg_password_str);
+  }
+
+  user_id = default_new_user(login_str,
+                             email_str,
+                             reg_password_method,
+                             reg_password_str,
+                             data->is_privileged_flag,
+                             data->is_invisible_flag,
+                             data->is_banned_flag,
+                             data->is_locked_flag,
+                             data->show_login_flag,
+                             data->show_email_flag,
+                             data->read_only_flag,
+                             data->never_clean_flag,
+                             data->simple_registration_flag);
+  if (user_id <= 0) {
+    err("%s -> cannot create user", logbuf);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;
+  }
+
+  if (data->contest_id) {
+    int cnts_flags = 0;
+    if (data->cnts_is_invisible_flag) cnts_flags |= USERLIST_UC_INVISIBLE;
+    if (data->cnts_is_banned_flag) cnts_flags |= USERLIST_UC_BANNED;
+    if (data->cnts_is_locked_flag) cnts_flags |= USERLIST_UC_LOCKED;
+    if (data->cnts_is_incomplete_flag) cnts_flags |= USERLIST_UC_INCOMPLETE;
+    if (data->cnts_is_disqualified_flag) cnts_flags |= USERLIST_UC_DISQUALIFIED;
+    if (default_register_contest(user_id, data->contest_id, data->cnts_status, cnts_flags,
+                                 cur_time, &cnts_reg) < 0) {
+      err("%s -> cannot register user", logbuf);
+      send_reply(p, -ULS_ERR_DB_ERROR);
+      return;
+    }
+  }
+
+  if (cnts && !cnts->disable_team_password) {
+    if (data->cnts_use_reg_passwd_flag) {
+      default_set_team_passwd(user_id, data->contest_id, reg_password_method, reg_password_str,
+                              cur_time, &cloned_flag);
+    } else if (data->cnts_set_null_passwd_flag) {
+      // do nothing...
+    } else {
+      if (data->cnts_random_password_flag) {
+        generate_random_password(16, random_cnts_password_buf);
+        cnts_password_str = random_cnts_password_buf;
+        cnts_password_len = strlen(cnts_password_str);
+      }
+      if (data->cnts_use_sha1_flag) {
+        make_sha1_ascii(cnts_password_str, cnts_password_len, sha1_cnts_password_buf);
+        cnts_password_method = USERLIST_PWD_SHA1;
+        cnts_password_str = sha1_cnts_password_buf;
+        cnts_password_len = strlen(cnts_password_str);
+      }
+      default_set_team_passwd(user_id, data->contest_id, cnts_password_method, cnts_password_str,
+                              cur_time, &cloned_flag);
+    }
+  }
+
+  if (cnts && cnts_name_str && *cnts_name_str) {
+    if (default_set_user_info_field(user_id, data->contest_id,
+                                    USERLIST_NC_NAME, cnts_name_str,
+                                    cur_time, &cloned_flag) < 0) {
+      err("%s -> cannot set user name", logbuf);
+      send_reply(p, -ULS_ERR_DB_ERROR);
+      return;
+    }
+    if (default_set_user_info_field(user_id, 0,
+                                    USERLIST_NC_NAME, cnts_name_str,
+                                    cur_time, &cloned_flag) < 0) {
+      err("%s -> cannot set user name", logbuf);
+      send_reply(p, -ULS_ERR_DB_ERROR);
+      return;
+    }
+  }
+
+  if (ul_group) {
+    if (plugin_call(create_group_member, data->group_id, user_id) < 0) {
+      err("%s -> cannot add user to a group", logbuf);
+      send_reply(p, -ULS_ERR_DB_ERROR);
+      return;
+    }
+  }
+
+  const struct userlist_user *u = 0;
+  if (default_get_user_info_1(user_id, &u) < 0 || !u) {
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    err("%s -> database error", logbuf);
+    return;
+  }
+
+  if (!email_str || !*email_str) send_email_flag = 0;
+  /* FIXME: check other conditions when email is not send */
+
+  if (send_email_flag) {
+    send_registration_email(cnts, u, 0, NULL, 0);
+  }
+
+  if (!send_email_flag || !data->confirm_email_flag) {
+    default_touch_login_time(user_id, 0, cur_time);
+  }
+
+  struct userlist_pk_login_ok out;
+  memset(&out, 0, sizeof(out));
+  out.reply_id = ULS_LOGIN_OK;
+  out.user_id = user_id;
+  enqueue_reply_to_client(p, sizeof(out), &out);
+  info("%s -> OK, %d", logbuf, user_id); 
+}
+
+static void
+cmd_next_user(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_list_users_2 *data)
+{
+  unsigned char logbuf[1024];
+  const struct contest_desc *cnts = 0;
+  int user_id = 0;
+
+  snprintf(logbuf, sizeof(logbuf), "NEXT_USER: %d, %d, %d, %d", p->user_id,
+           data->user_id, data->contest_id, data->group_id);
+
+  if (is_judge(p, logbuf) < 0) return;
+  if (data->contest_id) {
+    if (full_get_contest(p, logbuf, &data->contest_id, &cnts) < 0) return;
+  }
+  if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
+
+  int (*func)(void *, int contest_id, int group_id, int user_id, const unsigned char *filter, int *p_user_id);
+  switch (data->request_id) {
+  case ULS_PREV_USER:
+    func = plugin_func(get_prev_user_id);
+    break;
+  case ULS_NEXT_USER:
+    func = plugin_func(get_next_user_id);
+    break;
+  default:
+    send_reply(p, -ULS_ERR_PROTOCOL);
+    err("%s -> invalid request", logbuf);
+    return;
+  }
+
+  struct userlist_pk_login_ok out;
+  memset(&out, 0, sizeof(out));
+
+  if (!func) {
+    out.reply_id = ULS_LOGIN_OK;
+    out.user_id = 0;
+    enqueue_reply_to_client(p, sizeof(out), &out);
+    info("%s -> not implemented, %d", logbuf, 0); 
+    return;
+  }
+
+  if (func(uldb_default->data, data->contest_id, data->group_id, data->user_id, data->data, &user_id) < 0) {
+    err("%s -> database error", logbuf);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;
+  }
+
+  out.reply_id = ULS_LOGIN_OK;
+  out.user_id = user_id;
+  enqueue_reply_to_client(p, sizeof(out), &out);
+  info("%s -> OK, %d", logbuf, user_id); 
+}
+
+static void
+cmd_list_all_users_3(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_list_users_2 *data)
+{
+  FILE *f = 0;
+  char *xml_ptr = 0;
+  size_t xml_size = 0;
+  struct userlist_pk_xml_data *out = 0;
+  size_t out_size = 0;
+  const struct contest_desc *cnts = 0;
+  unsigned char logbuf[1024];
+  const struct userlist_user *u = 0;
+  bitset_t marked = BITSET_INITIALIZER;
+  int user_id;
+
+  snprintf(logbuf, sizeof(logbuf), "LIST_ALL_USERS_3: %d, %d, %d, %d, %d",
+           p->user_id, data->contest_id, data->group_id, data->offset, data->count);
+
+  if (is_judge(p, logbuf) < 0) return;
+  if (data->contest_id > 0) {
+    if (full_get_contest(p, logbuf, &data->contest_id, &cnts) < 0) return;
+  }
+  if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
+
+  bitset_url_decode(data->data, &marked);
+  f = open_memstream(&xml_ptr, &xml_size);
+  userlist_write_xml_header(f);
+  if (marked.size > 0) {
+    for (user_id = 1; user_id < marked.size; ++user_id) {
+      if (bitset_get(&marked, user_id)) {
+        if (default_get_user_info_4(user_id, data->contest_id, &u) >= 0 && u) {
+          userlist_unparse_user_short(u, f, data->contest_id);
+          default_unlock_user(u);
+        }
+      }
+    }
+  }
+  userlist_write_xml_footer(f);
+  close_memstream(f); f = 0;
+  ASSERT(xml_size == strlen(xml_ptr));
+  out_size = sizeof(*out) + xml_size;
+  out = (struct userlist_pk_xml_data*) xmalloc(out_size);
+  memset(out, 0, out_size);
+  out->reply_id = ULS_XML_DATA;
+  out->info_len = xml_size;
+  memcpy(out->data, xml_ptr, xml_size + 1);
+  xfree(xml_ptr); xml_ptr = 0;
+  enqueue_reply_to_client(p, out_size, out);
+  info("%s -> OK, size = %zu", logbuf, xml_size); 
+  xfree(out); out = 0;
+  bitset_free(&marked);
+}
+
+static void
+cmd_list_all_users_4(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_list_users_2 *data)
+{
+  FILE *f = 0;
+  char *xml_ptr = 0;
+  size_t xml_size = 0;
+  struct userlist_pk_xml_data *out = 0;
+  size_t out_size = 0;
+  const struct contest_desc *cnts = 0;
+  unsigned char logbuf[1024];
+  const struct userlist_user *u = 0;
+  bitset_t marked = BITSET_INITIALIZER;
+  int user_id;
+
+  snprintf(logbuf, sizeof(logbuf), "LIST_ALL_USERS_4: %d, %d, %d, %d, %d",
+           p->user_id, data->contest_id, data->group_id, data->offset, data->count);
+
+  if (is_judge(p, logbuf) < 0) return;
+  if (data->contest_id > 0) {
+    if (full_get_contest(p, logbuf, &data->contest_id, &cnts) < 0) return;
+  }
+  if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
+
+  bitset_url_decode(data->data, &marked);
+  f = open_memstream(&xml_ptr, &xml_size);
+  userlist_write_xml_header(f);
+  if (marked.size > 0) {
+    for (user_id = 1; user_id < marked.size; ++user_id) {
+      if (bitset_get(&marked, user_id)) {
+        if (default_get_user_info_5(user_id, data->contest_id, &u) >= 0 && u) {
+          userlist_real_unparse_user(u, f, USERLIST_MODE_ALL, data->contest_id,
+                                     USERLIST_SHOW_REG_PASSWD | USERLIST_SHOW_CNTS_PASSWD);
+          default_unlock_user(u);
+        }
+      }
+    }
+  }
+  userlist_write_xml_footer(f);
+  close_memstream(f); f = 0;
+  ASSERT(xml_size == strlen(xml_ptr));
+  out_size = sizeof(*out) + xml_size;
+  out = (struct userlist_pk_xml_data*) xmalloc(out_size);
+  memset(out, 0, out_size);
+  out->reply_id = ULS_XML_DATA;
+  out->info_len = xml_size;
+  memcpy(out->data, xml_ptr, xml_size + 1);
+  xfree(xml_ptr); xml_ptr = 0;
+  enqueue_reply_to_client(p, out_size, out);
+  info("%s -> OK, size = %zu", logbuf, xml_size); 
+  xfree(out); out = 0;
+  bitset_free(&marked);
+}
+
+static void
+cmd_get_group_info(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_map_contest *data)
+{
+  unsigned char logbuf[1024];
+  const struct userlist_group *grp;
+  char *xml_ptr = 0;
+  size_t xml_size = 0;
+  FILE *fout = 0;
+  struct userlist_pk_xml_data *out = 0;
+  size_t out_size;
+
+  snprintf(logbuf, sizeof(logbuf), "GET_GROUP_INFO: %d, %d",
+           p->user_id, data->contest_id);
+
+  if (is_admin(p, logbuf) < 0) return;
+
+  grp = plugin_call(get_group, data->contest_id);
+  if (!grp) {
+    err("%s -> invalid group %d", logbuf, data->contest_id);
+    send_reply(p, -ULS_ERR_BAD_GROUP_ID);
+    return;
+  }
+
+  fout = open_memstream(&xml_ptr, &xml_size);
+  userlist_write_xml_header(fout);
+  userlist_write_groups_header(fout);
+  userlist_unparse_usergroup(fout, grp, "      ", "\n");
+  userlist_write_groups_footer(fout);
+  userlist_write_xml_footer(fout);
+  fclose(fout); fout = 0;
+
+  out_size = sizeof(*out) + xml_size;
+  out = alloca(out_size);
+  memset(out, 0, out_size);
+  out->reply_id = ULS_XML_DATA;
+  out->info_len = xml_size;
+  memcpy(out->data, xml_ptr, xml_size + 1);
+  xfree(xml_ptr); xml_ptr = 0;
+  enqueue_reply_to_client(p, out_size, out);
+  info("%s -> OK, size = %zu", logbuf, xml_size); 
+}
+
 static void (*cmd_table[])() =
 {
   [ULS_REGISTER_NEW] =          cmd_register_new,
@@ -9044,6 +10083,20 @@ static void (*cmd_table[])() =
   [ULS_CREATE_GROUP_MEMBER] =   cmd_create_group_member,
   [ULS_DELETE_GROUP_MEMBER] =   cmd_delete_group_member,
   [ULS_GET_GROUPS] =            cmd_get_groups,
+  [ULS_LIST_ALL_USERS_2] =      cmd_list_all_users_2,
+  [ULS_GET_USER_COUNT] =        cmd_get_user_count,
+  [ULS_LIST_ALL_GROUPS_2] =     cmd_list_all_groups_2,
+  [ULS_GET_GROUP_COUNT] =       cmd_get_group_count,
+  [ULS_PRIV_SET_REG_PASSWD_PLAIN] = cmd_priv_set_passwd_2,
+  [ULS_PRIV_SET_REG_PASSWD_SHA1] = cmd_priv_set_passwd_2,
+  [ULS_PRIV_SET_CNTS_PASSWD_PLAIN] = cmd_priv_set_passwd_2,
+  [ULS_PRIV_SET_CNTS_PASSWD_SHA1] = cmd_priv_set_passwd_2,
+  [ULS_CREATE_USER_2] =         cmd_create_user_2,
+  [ULS_PREV_USER] =             cmd_next_user,
+  [ULS_NEXT_USER] =             cmd_next_user,
+  [ULS_LIST_ALL_USERS_3] =      cmd_list_all_users_3,
+  [ULS_LIST_ALL_USERS_4] =      cmd_list_all_users_4,
+  [ULS_GET_GROUP_INFO] =        cmd_get_group_info,
 
   [ULS_LAST_CMD] 0
 };
@@ -9134,6 +10187,20 @@ static int (*check_table[])() =
   [ULS_CREATE_GROUP_MEMBER] =   check_pk_register_contest,
   [ULS_DELETE_GROUP_MEMBER] =   check_pk_register_contest,
   [ULS_GET_GROUPS] =            check_pk_set_user_info,
+  [ULS_LIST_ALL_USERS_2] =      check_pk_list_users_2,
+  [ULS_GET_USER_COUNT] =        check_pk_list_users_2,
+  [ULS_LIST_ALL_GROUPS_2] =     check_pk_list_users_2,
+  [ULS_GET_GROUP_COUNT] =       check_pk_list_users_2,
+  [ULS_PRIV_SET_REG_PASSWD_PLAIN] = check_pk_set_password,
+  [ULS_PRIV_SET_REG_PASSWD_SHA1] = check_pk_set_password,
+  [ULS_PRIV_SET_CNTS_PASSWD_PLAIN] = check_pk_set_password,
+  [ULS_PRIV_SET_CNTS_PASSWD_SHA1] = check_pk_set_password,
+  [ULS_CREATE_USER_2] =         check_pk_create_user_2,
+  [ULS_PREV_USER] =             check_pk_list_users_2,
+  [ULS_NEXT_USER] =             check_pk_list_users_2,
+  [ULS_LIST_ALL_USERS_3] =      check_pk_list_users_2,
+  [ULS_LIST_ALL_USERS_4] =      check_pk_list_users_2,
+  [ULS_GET_GROUP_INFO] =        check_pk_map_contest,
 
   [ULS_LAST_CMD] 0
 };

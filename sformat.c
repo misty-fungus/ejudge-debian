@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: sformat.c 6185 2011-03-27 15:16:29Z cher $ */
+/* $Id: sformat.c 6345 2011-05-23 04:20:49Z cher $ */
 
 /* Copyright (C) 2001-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -37,6 +37,7 @@
 /**
  * Valid format conversions as follows:
  *  G - global data
+ *   Gr - contest root directory
  *  P - problem data
  *   Pi - problem id
  *   Ps - problem short name
@@ -297,8 +298,13 @@ sformat_message(
       /* read specification */
       switch (*pf) {
       case 'G':
+        /*
+         * Gr - contest root directory
+         */
         pf++;
         switch (*pf) {
+        case 'r':
+          break;
         case 0:
           is_invalid = 1;
           break;
@@ -310,6 +316,9 @@ sformat_message(
         if (!is_invalid && !glob_data) is_invalid = 1;
         if (!is_invalid) {
           switch (*pf) {
+          case 'r':
+            papp = glob_data->root_dir;
+            break;
           default:
             abort();
           }

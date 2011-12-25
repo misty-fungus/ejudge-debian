@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: uldb_plugin.h 5810 2010-05-28 14:48:51Z cher $ */
+/* $Id: uldb_plugin.h 6314 2011-05-08 07:01:11Z cher $ */
 
 #ifndef __ULDB_PLUGIN_H__
 #define __ULDB_PLUGIN_H__
 
-/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -74,10 +74,20 @@ struct uldb_plugin_iface
   // get login by the user_id, login allocated on heap
   unsigned char *(*get_login)(void *, int);
   // create a new user
-  int (*new_user)(void *, const unsigned char *login,
+  int (*new_user)(void *,
+                  const unsigned char *login,
                   const unsigned char *email,
+                  int passwd_method,
                   const unsigned char *reg_passwd,
-                  int simple_reg_flag);
+                  int is_privileged,
+                  int is_invisible,
+                  int is_banned,
+                  int is_locked,
+                  int show_login,
+                  int show_email,
+                  int read_only,
+                  int never_clean,
+                  int simple_registration);
   // remove a user
   int (*remove_user)(void *, int);
   // find a cookie
@@ -133,7 +143,7 @@ struct uldb_plugin_iface
   // set the team password
   int (*set_team_passwd)(void *, int, int, int, const unsigned char *, time_t, int *);
   // register a user for contest
-  int (*register_contest)(void *, int, int, int, time_t, const struct userlist_contest**);
+  int (*register_contest)(void *, int, int, int, int, time_t, const struct userlist_contest**);
   // remove a particular member from a user
   int (*remove_member)(void *, int, int, int, time_t, int *);
   // check if the user is read-only
@@ -226,6 +236,18 @@ struct uldb_plugin_iface
   int (*create_group_member)(void *, int group_id, int user_id);
   // remove a group member
   int (*remove_group_member)(void *, int group_id, int user_id);
+  // list users
+  ptr_iterator_t (*get_brief_list_iterator_2)(void *, int contest_id, int group_id, const unsigned char *filter, int offset, int count);
+  // get the total count of users for the given filter
+  int (*get_user_count)(void *, int contest_id, int group_id, const unsigned char *filter, long long *p_count);
+  // get the group iterator
+  ptr_iterator_t (*get_group_iterator_2)(void *, const unsigned char *filter, int offset, int count);
+  // get the total number of groups to display
+  int (*get_group_count)(void *, const unsigned char *filter, long long *p_count);
+  // get the previous user
+  int (*get_prev_user_id)(void *, int contest_id, int group_id, int user_id, const unsigned char *filter, int *p_user_id);
+  // get the next user
+  int (*get_next_user_id)(void *, int contest_id, int group_id, int user_id, const unsigned char *filter, int *p_user_id);
 };
 
 /* default plugin: compiled into userlist-server */

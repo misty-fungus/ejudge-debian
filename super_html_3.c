@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 6240 2011-04-09 04:50:34Z cher $ */
+/* $Id: super_html_3.c 6351 2011-05-24 19:28:45Z cher $ */
 
 /* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -72,9 +72,6 @@ static const unsigned char * const form_row_attrs[]=
   " bgcolor=\"#d0d0d0\"",
   " bgcolor=\"#e0e0e0\"",
 };
-
-static int
-num_suffix(const unsigned char *str);
 
 static void
 html_submit_button(FILE *f,
@@ -251,6 +248,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CHANGE_TEAM_URL] = "Contest.xml:team_url",
   [SSERV_CMD_CNTS_CHANGE_STANDINGS_URL] = "Contest.xml:standings_url",
   [SSERV_CMD_CNTS_CHANGE_PROBLEMS_URL] = "Contest.xml:problems_url",
+  [SSERV_CMD_CNTS_CHANGE_LOGO_URL] = "Contest.xml:logo_url",
   [SSERV_CMD_CNTS_CHANGE_ROOT_DIR] = "Contest.xml:root_dir",
   [SSERV_CMD_CNTS_CHANGE_CONF_DIR] = "Contest.xml:conf_dir",
   [SSERV_CMD_CNTS_CHANGE_DIR_MODE] = "Contest.xml:dir_mode",
@@ -2768,7 +2766,7 @@ super_html_global_param(struct sid_state *sstate, int cmd,
                         int param3, int param4)
 {
   struct section_global_data *global = sstate->global;
-  int hh, mm, n, val, default_val, mult;
+  int hh, mm, n, val, default_val;
   unsigned char *s;
   int *p_int;
   unsigned char *p_str;
@@ -3097,16 +3095,8 @@ super_html_global_param(struct sid_state *sstate, int cmd,
     p_size = &global->compile_max_vm_size;
 
   handle_size_t:
-    if (!param2) return -SSERV_ERR_INVALID_PARAMETER;
-    if (sscanf(param2, "%d%n", &val, &n) == 1 && !param2[n] && val == -1) {
-      *p_size = -1L;
-      return 0;
-    }
-    if (sscanf(param2, "%zu%n", &zval, &n) != 1)
-      return -SSERV_ERR_INVALID_PARAMETER;
-    if (!(mult = num_suffix(param2 + n))) return -SSERV_ERR_INVALID_PARAMETER;
-    // FIXME: check for overflow
-    zval *= mult;
+    zval = 0;
+    if (size_str_to_size_t(param2, &zval) < 0) return -SSERV_ERR_INVALID_PARAMETER;
     *p_size = zval;
     return 0;
 
@@ -4470,7 +4460,7 @@ super_html_lang_cmd(struct sid_state *sstate, int cmd,
                     int param3, int param4)
 {
   struct section_language_data *pl_old, *pl_new;
-  int val, n, mult;
+  int val, n;
   int *p_int;
   size_t *p_size, zval;
   char **tmp_env = 0;
@@ -4587,16 +4577,8 @@ super_html_lang_cmd(struct sid_state *sstate, int cmd,
     p_size = &pl_new->max_vm_size;
 
   handle_size_t:
-    if (!param2) return -SSERV_ERR_INVALID_PARAMETER;
-    if (sscanf(param2, "%d%n", &val, &n) == 1 && !param2[n] && val == -1) {
-      *p_size = -1L;
-      return 0;
-    }
-    if (sscanf(param2, "%zu%n", &zval, &n) != 1)
-      return -SSERV_ERR_INVALID_PARAMETER;
-    if (!(mult = num_suffix(param2 + n))) return -SSERV_ERR_INVALID_PARAMETER;
-    // FIXME: check for overflow
-    zval *= mult;
+    zval = 0;
+    if (size_str_to_size_t(param2, &zval) < 0) return -SSERV_ERR_INVALID_PARAMETER;
     *p_size = zval;
     return 0;
 
@@ -7373,24 +7355,13 @@ super_html_prob_cmd(struct sid_state *sstate, int cmd,
 #define PROB_ASSIGN_STRING(f) snprintf(prob->f, sizeof(prob->f), "%s", param2)
 #define PROB_CLEAR_STRING(f) prob->f[0] = 0
 
-static int
-num_suffix(const unsigned char *str)
-{
-  if (!str[0]) return 1;
-  if (str[1]) return 0; 
-  if (str[0] == 'k' || str[0] == 'K') return 1024;
-  if (str[0] == 'm' || str[0] == 'M') return 1024 * 1024;
-  if (str[0] == 'g' || str[0] == 'G') return 1024 * 1024 * 1024;
-  return 0;
-}
-
 int
 super_html_prob_param(struct sid_state *sstate, int cmd,
                       int prob_id, const unsigned char *param2,
                       int param3, int param4)
 {
   struct section_problem_data *prob;
-  int i, n, val, mult;
+  int i, n, val;
   int *p_int;
   char **tmp_env = 0;
   size_t *p_size, zval;
@@ -7758,16 +7729,8 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     p_size = &prob->max_vm_size;
 
   handle_size_t:
-    if (!param2) return -SSERV_ERR_INVALID_PARAMETER;
-    if (sscanf(param2, "%d%n", &val, &n) == 1 && !param2[n] && val == -1) {
-      *p_size = -1L;
-      return 0;
-    }
-    if (sscanf(param2, "%zu%n", &zval, &n) != 1)
-      return -SSERV_ERR_INVALID_PARAMETER;
-    if (!(mult = num_suffix(param2 + n))) return -SSERV_ERR_INVALID_PARAMETER;
-    // FIXME: check for overflow
-    zval *= mult;
+    zval = 0;
+    if (size_str_to_size_t(param2, &zval) < 0) return -SSERV_ERR_INVALID_PARAMETER;
     *p_size = zval;
     return 0;
 

@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 6234 2011-04-08 17:43:28Z cher $ */
+/* $Id: reuse_exec.c 6367 2011-06-18 18:54:53Z cher $ */
 
 /* Copyright (C) 1998-2011 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1998-01-21 14:33:28 cher> */
@@ -2282,7 +2282,7 @@ linux_set_secure_exec_supported_flag(void)
 
   if (!pid) {
     if (ptrace(0x4281, 0, 0, 0) < 0) _exit(1);
-    if (dup(0) >= 0) _exit(1);
+    //if (dup(0) >= 0) _exit(1);
     _exit(0);
   }
 

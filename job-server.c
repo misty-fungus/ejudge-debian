@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: job-server.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: job-server.c 6347 2011-05-23 19:06:12Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -25,6 +25,7 @@
 #include "fileutl.h"
 #include "startstop.h"
 #include "compat.h"
+#include "misctext.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -76,7 +77,7 @@ prepare_config_vars(void)
         return -1;
     }
   } else {
-    if (make_path_in_var_dir(job_server_log_path, "job_server.log") < 0)
+    if (make_path_in_var_dir(job_server_log_path, "ej-jobs.log") < 0)
       return -1;
   }
 
@@ -449,6 +450,23 @@ handle_mail_packet(int uid, int argc, char **argv)
   }
   if (argv[1][0]) charset = argv[1];
   if (!charset) charset = EJUDGE_CHARSET;
+
+  if (!argv[3] || !*argv[3]) {
+    err("mail: source email address is empty");
+    goto cleanup;
+  }
+  if (!is_valid_email_address(argv[3])) {
+    err("mail: source email address is invalid");
+    goto cleanup;
+  }
+  if (!argv[4] || !*argv[4]) {
+    err("mail: destination email address is empty");
+    goto cleanup;
+  }
+  if (!is_valid_email_address(argv[4])) {
+    err("mail: destination email address is invalid");
+    goto cleanup;
+  }
 
   cur_time = time(0);
   ptm = localtime(&cur_time);

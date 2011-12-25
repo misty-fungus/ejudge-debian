@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: mischtml.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: mischtml.h 6343 2011-05-22 21:20:22Z cher $ */
 #ifndef __MISCHTML_H__
 #define __MISCHTML_H__
 
-/* Copyright (C) 2005-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -29,6 +29,15 @@ unsigned char *html_hyperref(unsigned char *buf, size_t size,
                              const unsigned char *extra_args,
                              const char *format, ...)
   __attribute__((format(printf, 6, 7)));
+unsigned char *html_hyperref_attr(
+        unsigned char *buf,
+        size_t size,
+        ej_cookie_t session_id,
+        const unsigned char *self_url,
+        const unsigned char *extra_args,
+        const unsigned char *attrs,
+        const char *format, ...)
+  __attribute__((format(printf, 7, 8)));
 
 void html_start_form(FILE *f, int mode,
                      unsigned char const *self_url,
@@ -50,6 +59,15 @@ unsigned char *html_input_text(unsigned char *buf, size_t size,
                                int text_size, const char *format,
                                ...)
   __attribute__((format(printf, 5, 6)));
+unsigned char *html_input_text_js(
+        unsigned char *buf,
+        size_t size,
+        const unsigned char *var_name,
+        int text_size,
+        const unsigned char *onchange,
+        const char *format,
+        ...)
+  __attribute__((format(printf, 6, 7)));
 unsigned char *html_input_password(unsigned char *buf, size_t size,
                                    const unsigned char *var_name,
                                    int text_size, const char *format,

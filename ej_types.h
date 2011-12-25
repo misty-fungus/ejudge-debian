@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_types.h 6172 2011-03-27 12:40:30Z cher $ */
+/* $Id: ej_types.h 6302 2011-05-04 04:22:17Z cher $ */
 #ifndef __EJ_TYPES_H__
 #define __EJ_TYPES_H__
 
@@ -33,6 +33,14 @@ typedef int ejintbool_t;
 typedef int ejintsize_t;
 typedef char **ejstrlist_t;
 typedef char **ejenvlist_t;
+
+/* for CGI param parser */
+typedef int ej_checkbox_t;
+typedef int ej_int_opt_0_t;
+typedef int ej_int_opt_1_t;
+typedef int ej_int_opt_m1_t;
+typedef unsigned char *ej_textbox_t;
+typedef unsigned char *ej_textbox_opt_t;
 
 /* privilege level */
 enum priv_level

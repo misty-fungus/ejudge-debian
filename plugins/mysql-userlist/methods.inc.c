@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: methods.inc.c 5811 2010-05-28 15:14:24Z cher $ */
+/* $Id: methods.inc.c 6313 2011-05-08 06:57:00Z cher $ */
 
-/* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -56,8 +56,17 @@ new_user_func(
         void *data,
         const unsigned char *login,
         const unsigned char *email,
+        int passwd_method,
         const unsigned char *passwd,
-        int simple_reg_flag);
+        int is_privileged,
+        int is_invisible,
+        int is_banned,
+        int is_locked,
+        int show_login,
+        int show_email,
+        int read_only,
+        int never_clean,
+        int simple_registration);
 static int
 remove_user_func(
         void *data,
@@ -189,6 +198,7 @@ register_contest_func(
         int user_id,
         int contest_id,
         int status,
+        int flags,
         time_t cur_time,
         const struct userlist_contest **p_c);
 static int
@@ -435,6 +445,48 @@ static int
 create_group_member_func(void *data, int group_id, int user_id);
 static int
 remove_group_member_func(void *data, int group_id, int user_id);
+static ptr_iterator_t
+get_brief_list_iterator_2_func(
+        void *data,
+        int contest_id,
+        int group_id,
+        const unsigned char *filter,
+        int offset,
+        int count);
+static int
+get_user_count_func(
+        void *data,
+        int contest_id,
+        int group_id,
+        const unsigned char *filter,
+        long long *p_count);
+static ptr_iterator_t
+get_group_iterator_2_func(
+        void *data,
+        const unsigned char *filter,
+        int offset,
+        int count);
+static int
+get_group_count_func(
+        void *data,
+        const unsigned char *filter,
+        long long *p_count);
+static int
+get_prev_user_id_func(
+        void *data,
+        int contest_id,
+        int group_id,
+        int user_id,
+        const unsigned char *filter,
+        int *p_user_id);
+static int
+get_next_user_id_func(
+        void *data,
+        int contest_id,
+        int group_id,
+        int user_id,
+        const unsigned char *filter,
+        int *p_user_id);
 
 /*
  * Local variables:

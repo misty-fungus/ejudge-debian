@@ -1,9 +1,9 @@
-dnl $Id: configure.ac 6189 2011-03-27 15:59:42Z cher $
+dnl $Id: configure.ac 6388 2011-06-30 11:49:25Z cher $
 dnl Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru>
 
 AC_INIT(ejudge,2.3)
 AC_PREREQ(2.59)
-AC_REVISION($Revision: 6189 $)
+AC_REVISION($Revision: 6388 $)
 
 AC_PREFIX_DEFAULT([$HOME/inst-ejudge])
 AC_PROG_INSTALL
@@ -747,6 +747,44 @@ AC_MSG_RESULT([no])
 ac_cv_has___int64=""
 ])
 
+AC_MSG_CHECKING([for -m32 support])
+saved_CC="${CC}"
+CC="${CC} -m32 -fPIC -DPIC"
+AC_RUN_IFELSE([[
+#include <string.h>
+#include <stdio.h>
+int main(void)
+{
+  printf("");
+  return 0;
+}
+]],[
+AC_MSG_RESULT([yes])
+ac_cv_need_32=1
+],[
+AC_MSG_RESULT([no])
+])
+CC="${saved_CC}"
+
+AC_MSG_CHECKING([for -m64 support])
+saved_CC="${CC}"
+CC="${CC} -m64 -fPIC -DPIC"
+AC_RUN_IFELSE([[
+#include <string.h>
+#include <stdio.h>
+int main(void)
+{
+  printf("");
+  return 0;
+}
+]],[
+AC_MSG_RESULT([yes])
+ac_cv_need_64=1
+],[
+AC_MSG_RESULT([no])
+])
+CC="${saved_CC}"
+
 dnl localization stuff
 
 if [[ x"${ac_cv_nls}" = xno ]]
@@ -970,6 +1008,8 @@ AC_SUBST(ac_cv_has_lib_libiconv)
 AC_SUBST(ac_cv_has_lib_intl)
 AC_SUBST(ac_cv_has_lib_libzip)
 AC_SUBST(ac_cv_meta_cc)
+AC_SUBST(ac_cv_need_32)
+AC_SUBST(ac_cv_need_64)
 
 AC_SUBST(ac_cv_festival_home)
 AC_SUBST(ac_cv_libcap_link)

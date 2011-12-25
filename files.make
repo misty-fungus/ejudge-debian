@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files.make 6185 2011-03-27 15:16:29Z cher $
+# $Id: files.make 6356 2011-06-05 07:47:18Z cher $
 
 # Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -23,6 +23,7 @@ USERLIST_CLNT_CFILES=\
  userlist_clnt/copy_user_info.c\
  userlist_clnt/create_member.c\
  userlist_clnt/create_user.c\
+ userlist_clnt/create_user_2.c\
  userlist_clnt/delete_cookie.c\
  userlist_clnt/delete_field.c\
  userlist_clnt/delete_info.c\
@@ -33,16 +34,19 @@ USERLIST_CLNT_CFILES=\
  userlist_clnt/generate_team_passwd.c\
  userlist_clnt/get_contests.c\
  userlist_clnt/get_cookie.c\
+ userlist_clnt/get_count.c\
  userlist_clnt/get_database.c\
  userlist_clnt/get_fd.c\
  userlist_clnt/get_info.c\
  userlist_clnt/get_param.c\
+ userlist_clnt/get_prev_user_id.c\
  userlist_clnt/get_uid_by_pid.c\
  userlist_clnt/get_uid_by_pid_2.c\
  userlist_clnt/get_xml_by_text.c\
  userlist_clnt/import_csv_users.c\
  userlist_clnt/list_all_users.c\
  userlist_clnt/list_users.c\
+ userlist_clnt/list_users_2.c\
  userlist_clnt/login.c\
  userlist_clnt/logout.c\
  userlist_clnt/lookup_cookie.c\
@@ -116,6 +120,7 @@ COMMON_CFILES=\
  allowed_list.c\
  archive_paths.c\
  base64.c\
+ bitset.c\
  cgi.c\
  charsets.c\
  clarlog.c\
@@ -212,6 +217,7 @@ COMMON_CFILES=\
  super_html_3.c\
  super_html_4.c\
  super_html_5.c\
+ super_html_6.c\
  super_proto.c\
  sha.c\
  t3m_dir_listener.c\
@@ -462,6 +468,7 @@ CFILES=\
 HFILES=\
  archive_paths.h\
  base64.h\
+ bitset.h\
  cgi.h\
  charsets.h\
  clarlog.h\

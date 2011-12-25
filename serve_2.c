@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_2.c 6229 2011-04-07 08:49:11Z cher $ */
+/* $Id: serve_2.c 6393 2011-07-04 20:54:33Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1615,9 +1615,10 @@ serve_read_compile_packet(
   struct compile_reply_packet *comp_pkt = 0;
   long report_size = 0;
   unsigned char errmsg[1024] = { 0 };
-  unsigned char *team_name = 0;
+  //unsigned char *team_name = 0;
   struct compile_run_extra *comp_extra = 0;
   struct section_problem_data *prob = 0;
+  struct section_language_data *lang = 0;
   int arch_flags;
   path_t run_arch_path;
   char *run_text = 0;
@@ -1733,6 +1734,9 @@ serve_read_compile_packet(
     snprintf(errmsg, sizeof(errmsg), "invalid problem %d\n", re.prob_id);
     goto report_check_failed;
   }
+  if (re.lang_id > 1 && re.lang_id <= state->max_lang) {
+    lang = state->langs[re.lang_id];
+  }
   /*
   if (re.lang_id < 1 || re.lang_id > state->max_lang
       || !(lang = state->langs[re.lang_id])) {
@@ -1740,10 +1744,12 @@ serve_read_compile_packet(
     goto report_check_failed;
   }
   */
+  /*
   if (!(team_name = teamdb_get_name(state->teamdb_state, re.user_id))) {
     snprintf(errmsg, sizeof(errmsg), "invalid team %d\n", re.user_id);
     goto report_check_failed;
   }
+  */
   if (prob->disable_testing && prob->enable_compilation > 0) {
     if (run_change_status_4(state->runlog_state, comp_pkt->run_id,
                             RUN_ACCEPTED) < 0)
@@ -1764,13 +1770,12 @@ serve_read_compile_packet(
    * so far compilation is successful, and now we prepare a run packet
    */
 
-  if (prob && prob->type > 0 && prob->style_checker_cmd
-      && prob->style_checker_cmd[0]) {
-    // copy textual representation
+  if ((prob && prob->style_checker_cmd && prob->style_checker_cmd[0])
+      || (lang && lang->style_checker_cmd && lang->style_checker_cmd[0])) {
     snprintf(pkt_name, sizeof(pkt_name), "%06d", comp_pkt->run_id);
-    snprintf(run_arch_path, sizeof(run_arch_path), "%s/%s",
+    snprintf(run_arch_path, sizeof(run_arch_path), "%s/%s.txt",
              compile_report_dir, pkt_name);
-    if (generic_read_file(&run_text, 0, &run_size, 0, 0, run_arch_path, 0)>=0){
+    if (generic_read_file(&run_text, 0, &run_size, 0, 0, run_arch_path, 0) >= 0){
       arch_flags = archive_make_write_path(state,
                                            run_arch_path, sizeof(run_arch_path),
                                            global->report_archive_dir,
@@ -1784,7 +1789,9 @@ serve_read_compile_packet(
       }
       xfree(run_text); run_text = 0; run_size = 0;
     }
+  }
 
+  if (prob && prob->type > 0 && prob->style_checker_cmd && prob->style_checker_cmd[0]) {
     arch_flags = archive_make_read_path(state, run_arch_path,
                                         sizeof(run_arch_path),
                                         state->global->run_archive_dir,

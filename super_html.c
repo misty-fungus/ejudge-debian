@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html.c 6242 2011-04-10 05:18:38Z cher $ */
+/* $Id: super_html.c 6390 2011-06-30 19:53:38Z cher $ */
 
 /* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -132,34 +132,6 @@ enum
   MNG_STAT_WAITING,
   MNG_STAT_LAST = MNG_STAT_WAITING,
 };
-static int
-get_serve_management_status(const struct contest_desc *cnts,
-                            struct contest_extra *extra)
-{
-  if (cnts->managed) {
-    return MNG_STAT_NEW_MANAGED;
-  } else if (!cnts->managed && (!extra || !extra->serve_used)) {
-    return MNG_STAT_NOT_MANAGED;
-  } else if (!extra || !extra->serve_used) {
-    return MNG_STAT_TEMP_NOT_MANAGED;
-  } else if (!cnts->managed) {
-    if (extra->serve_suspended) {
-      return MNG_STAT_TEMP_FAILED;
-    } else if (extra->serve_pid > 0) {
-      return MNG_STAT_TEMP_RUNNING;
-    } else {
-      return MNG_STAT_TEMP_WAITING;
-    }
-  } else {
-    if (extra->serve_suspended) {
-      return MNG_STAT_FAILED;
-    } else if (extra->serve_pid > 0) {
-      return MNG_STAT_RUNNING;
-    } else {
-      return MNG_STAT_WAITING;
-    }
-  }
-}
 static int
 get_run_management_status(const struct contest_desc *cnts,
                           struct contest_extra *extra)
@@ -390,6 +362,9 @@ super_html_main_page(FILE *f,
 
   fprintf(f, "<table border=\"0\"><tr><td>%sProblem editor</a></td></tr></table>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_BROWSE_PROBLEM_PACKAGES));
 
+  fprintf(f, "<table border=\"0\"><tr><td>%sUser editor</a></td></tr></table>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_USER_BROWSE_PAGE));
+  fprintf(f, "<table border=\"0\"><tr><td>%sGroup editor</a></td></tr></table>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_GROUP_BROWSE_PAGE));
+
   fprintf(f, "<table border=\"0\"><tr><td>%sCreate new contest</a></td>", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d", SSERV_CMD_CREATE_CONTEST));
   if (sstate->edited_cnts) {
     fprintf(f, "<td>%sEdit current contest</a></td>",
@@ -423,9 +398,11 @@ super_html_main_page(FILE *f,
           "<th>Name</th>\n"
           "<th>Closed?</th>\n"
           "<th>Run status</th>\n"
+          "<th>Users</th>\n"
           "<th>Judge</th>\n"
           "<th>Master</th>\n"
           "<th>User</th>\n"
+          "<th>Edit</th>\n"
           "<th>Details</th>\n"
           "</tr>\n");
   for (contest_id = 1; contest_id < contest_max_id; contest_id++) {
@@ -586,6 +563,8 @@ super_html_main_page(FILE *f,
       fprintf(f, "<td>&nbsp;</td>\n");
     }
 
+    fprintf(f, "<td>%sUsers</a></td>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d&contest_id=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_USER_BROWSE_PAGE, contest_id));
+
     // report judge URL
     if (opcaps_check(caps, OPCAP_JUDGE_LOGIN) >= 0 && judge_url[0]
         && contests_check_judge_ip_2(cnts, ip_address, ssl)) {
@@ -628,6 +607,10 @@ super_html_main_page(FILE *f,
     if (priv_level >= PRIV_LEVEL_ADMIN
         && opcaps_check(caps, OPCAP_CONTROL_CONTEST) >= 0
         && contests_check_serve_control_ip_2(cnts, ip_address, ssl)) {
+      fprintf(f, "<td>%sEdit</a></td>",
+              html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
+                            "contest_id=%d&action=%d", contest_id,
+                            SSERV_CMD_EDIT_CONTEST_XML));
       fprintf(f, "<td>%sDetails</a></td>\n",
               html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
                             "contest_id=%d&action=%d", contest_id,
@@ -783,6 +766,8 @@ super_html_contest_page(FILE *f,
     fprintf(f, "<tr><td>Contest keywords:</td><td><tt>%s</tt></td></tr>\n", cnts->keywords);
   }
 
+  fprintf(f, "<tr><td>View/edit users</td><td>%sUsers</a></td></tr>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d&contest_id=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_USER_BROWSE_PAGE, contest_id));
+
   // report judge URL
   if (opcaps_check(caps, OPCAP_JUDGE_LOGIN) >= 0 && judge_url[0]
       && contests_check_judge_ip_2(cnts, ip_address, ssl)) {
@@ -844,149 +829,6 @@ super_html_contest_page(FILE *f,
       html_submit_button(f, SSERV_CMD_VISIBLE_CONTEST, "Make visible");
     } else {
       html_submit_button(f, SSERV_CMD_INVISIBLE_CONTEST, "Make invisible");
-    }
-    fprintf(f, "</form>");
-    fprintf(f, "</td>");
-  }
-  fprintf(f, "</tr>\n");
-
-  // report serve status
-  mng_status = get_serve_management_status(cnts, extra);
-  snprintf(mng_status_str, sizeof(mng_status_str),
-           mng_status_table[mng_status], extra?extra->serve_pid:0);
-  fprintf(f, "<tr><td><tt>serve</tt> management status:</td><td>%s</td>",
-          mng_status_str);
-  if (opcaps_check(caps, OPCAP_CONTROL_CONTEST) >= 0) {
-    fprintf(f, "<td>");
-    html_start_form(f, 1, self_url, new_hidden_vars);
-    switch (mng_status) {
-    case MNG_STAT_NOT_MANAGED:
-    case MNG_STAT_NEW_MANAGED:
-      fprintf(f, "&nbsp;");
-      /* FIXME: disabled for now
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_TEMP,
-                         "Manage temporarily");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG, "Manage permanently");
-      */
-      break;
-    case MNG_STAT_TEMP_NOT_MANAGED:
-      fprintf(f, "&nbsp;");
-      /*
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_RESUME,
-                         "Resume management");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_STOP, "Stop management");
-      */
-      break;
-    case MNG_STAT_TEMP_FAILED:
-      /*
-      html_submit_button(f, SSERV_CMD_SERVE_MNG, "Manage permanently");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_STOP, "Stop management");
-      */
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_RESET_ERROR,
-                         "Reset error flag");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_PROBE_RUN,
-                         "Do probe run");
-      break;
-    case MNG_STAT_TEMP_RUNNING:
-      /*
-      html_submit_button(f, SSERV_CMD_SERVE_MNG, "Manage permanently");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_STOP, "Stop management");
-      */
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_TERM, "Terminate serve");
-      break;
-    case MNG_STAT_TEMP_WAITING:
-      /*
-      html_submit_button(f, SSERV_CMD_SERVE_MNG, "Manage permanently");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_STOP, "Stop management");
-      */
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_PROBE_RUN,
-                         "Do probe run");
-      break;
-    case MNG_STAT_FAILED:
-      /*
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_SUSPEND,
-                         "Suspend management");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_STOP, "Stop management");
-      */
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_RESET_ERROR,
-                         "Reset error flag");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_PROBE_RUN,
-                         "Do probe run");
-      break;
-    case MNG_STAT_RUNNING:
-      /*
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_SUSPEND,
-                         "Suspend management");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_STOP, "Stop management");
-      */
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_TERM, "Terminate serve");
-      break;
-    case MNG_STAT_WAITING:
-      fprintf(f, "&nbsp;");
-      /*
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_SUSPEND,
-                         "Suspend management");
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_STOP,
-                         "Stop management");
-      */
-      html_submit_button(f, SSERV_CMD_SERVE_MNG_PROBE_RUN,
-                         "Do probe run");
-      break;
-    default:
-      abort();
-    }
-    fprintf(f, "</form>");
-    fprintf(f, "</td>");
-  }
-
-  // whether /dev/null exists?
-  if (stat("/dev/null", &devnullstat) < 0) {
-    // :( how come???
-    nodevnull = 1;
-  }
-
-  // serve log file status
-  if (!cnts->root_dir) {
-    logfilemode = 3;
-    snprintf(mng_status_str, sizeof(mng_status_str), "N/A");
-  } else {
-    snprintf(log_file_path, sizeof(log_file_path),
-             "%s/var/messages", cnts->root_dir);
-    if (stat(log_file_path, &logfilestat) < 0) {
-      logfilemode = 0;
-      snprintf(mng_status_str, sizeof(mng_status_str), "nonexistant");
-    } else if (!nodevnull
-               && logfilestat.st_dev == devnullstat.st_dev
-               && logfilestat.st_ino == devnullstat.st_ino) {
-      logfilemode = 1;
-      snprintf(mng_status_str, sizeof(mng_status_str), "/dev/null");
-    } else {
-      logfilemode = 2;
-      snprintf(mng_status_str, sizeof(mng_status_str), "%lld bytes",
-               (long long) logfilestat.st_size);
-    }
-  }
-
-  fprintf(f, "<tr><td>Serve log:</td><td>%s</td>", mng_status_str);
-  if (opcaps_check(caps, OPCAP_CONTROL_CONTEST) >= 0
-      && logfilemode != 3) {
-    fprintf(f, "<td>");
-    html_start_form(f, 1, self_url, new_hidden_vars);
-    if (logfilemode == 0) {
-      html_submit_button(f, SSERV_CMD_SERVE_LOG_DEV_NULL,
-                         "Redirect to /dev/null");
-    } else if (logfilemode == 2) {
-      html_submit_button(f, SSERV_CMD_SERVE_LOG_TRUNC, "Truncate log");
-      html_submit_button(f, SSERV_CMD_SERVE_LOG_DEV_NULL,
-                         "Redirect to /dev/null");
-      if (logfilestat.st_size <= MAX_LOG_VIEW_SIZE) {
-        fprintf(f, "%sView</a>",
-                html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
-                              "contest_id=%d&action=%d", contest_id,
-                              SSERV_CMD_VIEW_SERVE_LOG));
-      }
-    } else if (logfilemode == 1) {
-      html_submit_button(f, SSERV_CMD_SERVE_LOG_FILE, "Redirect to file");
     }
     fprintf(f, "</form>");
     fprintf(f, "</td>");
@@ -1092,7 +934,7 @@ super_html_contest_page(FILE *f,
     snprintf(mng_status_str, sizeof(mng_status_str), "N/A");
   } else {
     snprintf(log_file_path, sizeof(log_file_path),
-             "%s/var/run_messages", cnts->root_dir);
+             "%s/var/ej-run-messages.log", cnts->root_dir);
     if (stat(log_file_path, &logfilestat) < 0) {
       logfilemode = 0;
       snprintf(mng_status_str, sizeof(mng_status_str), "nonexistant");
@@ -1299,7 +1141,7 @@ super_html_log_page(FILE *f,
     break;
   case SSERV_CMD_VIEW_RUN_LOG:
     snprintf(log_file_path, sizeof(log_file_path),
-             "%s/var/run_messages", cnts->root_dir);
+             "%s/var/ej-run-messages.log", cnts->root_dir);
     progname = "run";
     refresh_action = SSERV_CMD_VIEW_RUN_LOG;
     break;
@@ -2455,6 +2297,26 @@ super_html_edit_contest_page(FILE *f,
                            cnts->problems_url,
                            SSERV_CMD_CNTS_CHANGE_PROBLEMS_URL,
                            SSERV_CMD_CNTS_CLEAR_PROBLEMS_URL,
+                           0,
+                           session_id,
+                           form_row_attrs[row ^= 1],
+                           self_url,
+                           extra_args,
+                           hidden_vars);
+  print_string_editing_row(f, "URL for the contest logo:",
+                           cnts->logo_url,
+                           SSERV_CMD_CNTS_CHANGE_LOGO_URL,
+                           SSERV_CMD_CNTS_CLEAR_LOGO_URL,
+                           0,
+                           session_id,
+                           form_row_attrs[row ^= 1],
+                           self_url,
+                           extra_args,
+                           hidden_vars);
+  print_string_editing_row(f, "URL for the contest CSS:",
+                           cnts->css_url,
+                           SSERV_CMD_CNTS_CHANGE_CSS_URL,
+                           SSERV_CMD_CNTS_CLEAR_CSS_URL,
                            0,
                            session_id,
                            form_row_attrs[row ^= 1],

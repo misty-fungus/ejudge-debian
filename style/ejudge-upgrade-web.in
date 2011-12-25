@@ -1,6 +1,6 @@
 #! /bin/sh
-# $Id: ejudge-upgrade-web.in 5521 2008-12-28 09:18:13Z cher $
-# Copyright (c) 2008 Alexander Chernov <cher@ejudge.ru>
+# $Id: ejudge-upgrade-web.in 6270 2011-04-27 05:04:59Z cher $
+# Copyright (c) 2008-2011 Alexander Chernov <cher@ejudge.ru>
 
 # This script upgrades the web installation of the ejudge system
 
@@ -107,7 +107,7 @@ then
 fi
 
 # symlink the necessary style files
-for i in logo.gif priv.css unpriv.css priv.js unpriv.js filter_expr.html icons
+for i in logo.gif priv.css unpriv.css priv.js unpriv.js filter_expr.html icons sprintf.js
 do
     if ! ln -sf "${datadir}/ejudge/style/${i}" "${i}"
     then

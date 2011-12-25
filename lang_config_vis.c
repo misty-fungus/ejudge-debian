@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: lang_config_vis.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: lang_config_vis.c 6387 2011-06-30 05:23:15Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -672,7 +672,8 @@ lang_configure_screen(
         const unsigned char *working_dir,
         unsigned char **keys,
         unsigned char **values,
-        const unsigned char *header)
+        const unsigned char *header,
+        int batch_mode)
 {
   WINDOW *in_win = 0, *out_win = 0;
   PANEL *in_pan = 0, *out_pan = 0;
@@ -705,9 +706,12 @@ lang_configure_screen(
 
   reconfigure_all_languages(script_dir, script_in_dirs, config_dir,
                             working_dir, keys, values, 0, in_win);
-  ncurses_print_help("Press any key");
-  doupdate();
-  c = getch();
+
+  if (!batch_mode) {
+    ncurses_print_help("Press any key");
+    doupdate();
+    c = getch();
+  }
 
   if (in_pan) del_panel(in_pan);
   if (out_pan) del_panel(out_pan);
@@ -762,7 +766,7 @@ lang_config_menu(
   unsigned char lang_id_buf[32];
 
   lang_configure_screen(script_dir, script_in_dirs, 0,
-                        working_dir, 0, 0, header);
+                        working_dir, 0, 0, header, 0);
   assign_lang_ids();
 
   for (pcfg = lang_first; pcfg; pcfg = pcfg->next) {
@@ -1006,6 +1010,9 @@ lang_config_generate_compile_cfg(
     }
     if ((s = shellconfig_get(p->cfg, "secure"))) {
       fprintf(f, "disable_security\n");
+    }
+    if ((s = shellconfig_get(p->cfg, "binary"))) {
+      fprintf(f, "binary\n");
     }
     if (!(s = shellconfig_get(p->cfg, "cmd"))) s = p->lang;
     fprintf(f, "cmd = \"%s\"\n", s);

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 6116 2011-03-17 07:41:59Z cher $ */
+/* $Id: new-server.h 6381 2011-06-25 18:52:12Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -289,6 +289,7 @@ enum
   NEW_SRV_ACTION_UPLOAD_RUNLOG_XML_2,
   NEW_SRV_ACTION_LOGIN,         /* for new-server-cmd */
   NEW_SRV_ACTION_DUMP_PROBLEMS,
+  NEW_SRV_ACTION_DUMP_LANGUAGES,
   NEW_SRV_ACTION_SOFT_UPDATE_STANDINGS,
   NEW_SRV_ACTION_HAS_TRANSIENT_RUNS,
   NEW_SRV_ACTION_DUMP_RUN_STATUS,
@@ -296,6 +297,10 @@ enum
   NEW_SRV_ACTION_DUMP_CLAR,
   NEW_SRV_ACTION_GET_CONTEST_NAME,
   NEW_SRV_ACTION_GET_CONTEST_TYPE,
+  NEW_SRV_ACTION_GET_CONTEST_STATUS,
+  NEW_SRV_ACTION_GET_CONTEST_SCHED,
+  NEW_SRV_ACTION_GET_CONTEST_DURATION,
+  NEW_SRV_ACTION_GET_CONTEST_DESCRIPTION,
   NEW_SRV_ACTION_DUMP_MASTER_RUNS,
   NEW_SRV_ACTION_DUMP_REPORT,
   NEW_SRV_ACTION_FULL_UPLOAD_RUNLOG_XML,
@@ -609,16 +614,29 @@ ns_write_priv_clar(const serve_state_t cs,
                    struct contest_extra *extra,
                    int clar_id);
 
-void ns_header(FILE *out, unsigned char const *template,
-               unsigned char const *content_type,
-               unsigned char const *charset,
-               const unsigned char *script_part,
-               const unsigned char *body_attr,
-               int locale_id,
-               char const *format, ...)
-  __attribute__((format(printf, 8, 9)));
-void ns_footer(FILE *out, unsigned char const *templ,
-               const unsigned char *copyright, int locale_id);
+void
+ns_header(
+        FILE *out,
+        unsigned char const *template,
+        unsigned char const *content_type,
+        unsigned char const *charset,
+        const unsigned char *script_part,
+        const unsigned char *body_attr,
+        int locale_id,
+        const struct contest_desc *cnts,
+        char const *format,
+        ...)
+  __attribute__((format(printf, 9, 10)));
+void
+ns_separator(
+        FILE *out,
+        unsigned char const *templ,
+        const struct contest_desc *cnts);
+void ns_footer(
+        FILE *out,
+        unsigned char const *templ,
+        const unsigned char *copyright,
+        int locale_id);
 
 const unsigned char *ns_unparse_role(int role);
 

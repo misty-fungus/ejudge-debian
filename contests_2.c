@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: contests_2.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: contests_2.c 6351 2011-05-24 19:28:45Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -264,6 +264,7 @@ contests_unparse(FILE *f,
     CONTEST_REGISTER_EMAIL, CONTEST_REGISTER_URL, CONTEST_TEAM_URL,
     CONTEST_STANDINGS_URL, CONTEST_PROBLEMS_URL, CONTEST_REGISTER_EMAIL_FILE,
     CONTEST_LOGIN_TEMPLATE, CONTEST_LOGIN_TEMPLATE_OPTIONS,
+    CONTEST_LOGO_URL, CONTEST_CSS_URL,
     0,
   });
 

@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.unix.in 6185 2011-03-27 15:16:29Z cher $
+# $Id: Makefile.unix.in 6328 2011-05-10 04:25:31Z cher $
 # @configure_input@
 
 # Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
@@ -174,11 +174,12 @@ NSM_OBJECTS = $(NSM_CFILES:.c=.o) libcommon.a libnew_server_clnt.a libuserlist_c
 NSC_CFILES=new-server-control.c version.c
 NSC_OBJECTS=$(NSC_CFILES:.c=.o) libcommon.a libnew_server_clnt.a libplatform.a libcommon.a
 
+INSTALLSCRIPT = ejudge-install.sh
 BINTARGETS = ejudge-jobs-cmd ejudge-edit-users ejudge-setup ejudge-configure-compilers ejudge-control ejudge-execute ejudge-contests-cmd
 SERVERBINTARGETS = ej-compile ej-compile-control ej-run ej-nwrun ej-ncheck ej-batch ej-serve ej-users ej-users-control ej-jobs ej-jobs-control ej-super-server ej-super-server-control ej-contests ej-contests-control uudecode ej-convert-clars ej-convert-runs ej-fix-db
 CGITARGETS = users${CGI_PROG_SUFFIX} serve-control${CGI_PROG_SUFFIX} new-client${CGI_PROG_SUFFIX}
 TARGETS = ${SERVERBINTARGETS} ${BINTARGETS} ${CGITARGETS}
-STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/priv.js style/unpriv.js style/filter_expr.html
+STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/priv.js style/unpriv.js style/filter_expr.html style/sprintf.js
 
 all: local_all subdirs_all mo
 local_all: $(TARGETS) ejudge-config
@@ -204,6 +205,8 @@ install_ej_users: ej-users
 	install -m 0755 ej-users "${DESTDIR}${serverbindir}"
 install_ej_contests: ej-contests
 	install -m 0755 ej-contests "${DESTDIR}${serverbindir}"
+install_ej_super_server: ej-super-server
+	install -m 0755 ej-super-server "${DESTDIR}${serverbindir}"
 
 local_install: ${TARGETS} ejudge-config po mo
 	install -d "${DESTDIR}${bindir}"
@@ -230,6 +233,8 @@ local_install: ${TARGETS} ejudge-config po mo
 	install -m 0755 style/ejudge-upgrade-web "${DESTDIR}${bindir}"
 	mkdir -p "${DESTDIR}${includedir}/ejudge"
 	for i in problem_plugin_impl.h problem_plugin.h ejudge_plugin.h ej_types.h iterators.h contest_plugin.h; do install -m 644 $$i "${DESTDIR}${includedir}/ejudge"; done
+	if [ ! -f "${INSTALLSCRIPT}" ]; then ./ejudge-setup -b; fi
+	if [ -f "${INSTALLSCRIPT}" ]; then install -m 0755 "${INSTALLSCRIPT}" "${DESTDIR}${bindir}"; fi
 
 install: local_install
 	$(MAKE) -C scripts DESTDIR="${DESTDIR}" install
@@ -280,7 +285,7 @@ ejudge-jobs-cmd: ${JP_OBJECTS}
 	${LD} ${LDFLAGS} $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB}
 
 ej-super-server: ${SS_OBJECTS}
-	${LD} ${LDFLAGS} $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB}
+	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl
 
 ej-super-server-control: ${SSC_OBJECTS}
 	${LD} ${LDFLAGS} $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB}
@@ -335,6 +340,9 @@ make-js-actions : make-js-actions.o
 
 struct-sizes : struct-sizes.o
 	$(LD) $(LDFLAGS) $^ -o $@ $(LDLIBS) ${EXPAT_LIB}
+
+ejudge-install.sh : ejudge-setup
+	./ejudge-setup -b
 
 local_clean:
 	-rm -f *.o *~ *.a $(TARGETS) revinfo version.c $(ARCH)/*.o ejudge.po mkChangeLog2 userlist_clnt/*.o xml_utils/*.o super_clnt/*.o cdeps deps.make filter_expr.[ch] filter_scan.c users users${CGI_PROG_SUFFIX} ejudge-config serve-control serve-control${CGI_PROG_SUFFIX} prjutils/*.o make-js-actions new_server_clnt/*.o mktable struct-sizes
@@ -436,7 +444,7 @@ endif
 locale/ru_RU.${CHARSET}/LC_MESSAGES/ejudge.mo : ejudge.ru_RU.${CHARSET}.po ru_all
 	${MSGFMT} -o $@ -c $<
 
-libcommon.a : $(COMMON_CFILES:.c=.o) filter_scan.o filter_expr.o contests_meta.o super-serve_meta.o prepare_meta.o
+libcommon.a : $(COMMON_CFILES:.c=.o) filter_scan.o filter_expr.o contests_meta.o super-serve_meta.o prepare_meta.o super_html_6_meta.o
 	ar rcv $@ $^
 
 libplatform.a : $(PLATFORM_CFILES:.c=.o)
@@ -463,16 +471,14 @@ filter_expr.c filter_expr.h : filter_expr.y
 filter_scan.c : filter_scan.lex
 	flex -p -s -L -8 -B -o$@ -Pfilter_expr_ $<
 
-contests_meta.c contests_meta.h : contests.h
-	$(META_CC) contests.h -o contests.out --force-h --meta --meta-struct contest_desc --meta-enum-prefix CNTS --meta-func-prefix contest_desc --meta-timestamp
-
-super-serve_meta.c super-serve_meta.h : super-serve.h
-	$(META_CC) super-serve.h -o super-serve.out --force-h --meta --meta-struct sid_state --meta-enum-prefix SSSS --meta-func-prefix ss_sid_state --meta-timestamp
-
-prepare_meta.c prepare_meta.h : prepare.h
-	$(META_CC) prepare.h -o prepare.out --force-h --meta --meta-struct section_global_data --meta-struct section_problem_data --meta-struct section_language_data --meta-struct section_tester_data --meta-enum-prefix CNTSGLOB --meta-enum-prefix CNTSPROB --meta-enum-prefix CNTSLANG --meta-enum-prefix CNTSTESTER --meta-func-prefix cntsglob --meta-func-prefix cntsprob --meta-func-prefix cntslang --meta-func-prefix cntstester --meta-timestamp
+include meta.make
 
 style/actions.js : make-js-actions
 	./make-js-actions > style/actions.js
+
+contest-1/contest-1.c : contest-1/contest-1.tar.gz
+	contest-1/make-c.sh contest-1.tar.gz contest-1/contest-1.tar.gz contest-1/contest-1.c
+contest-1/contest-1.tar.gz :
+	tar cvz --exclude-vcs -C contest-1 -f contest-1/contest-1.tar.gz problems
 
 include deps.make

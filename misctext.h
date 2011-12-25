@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: misctext.h 6042 2010-11-18 08:48:22Z cher $ */
+/* $Id: misctext.h 6347 2011-05-23 19:06:12Z cher $ */
 #ifndef __MISCTEXT_H__
 #define __MISCTEXT_H__
 
-/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -250,5 +250,13 @@ html_print_by_line(
         int max_line_length,
         unsigned char const *s,
         size_t size);
+
+int
+size_str_to_num(const unsigned char *str, int *p_num);
+int
+size_str_to_size_t(const unsigned char *str, size_t *p_size);
+
+int
+is_valid_email_address(const unsigned char *email_address);
 
 #endif /* __MISCTEXT_H__ */

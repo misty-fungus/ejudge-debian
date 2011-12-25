@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: userlist_clnt.h 5948 2010-07-15 09:47:25Z cher $ */
+/* $Id: userlist_clnt.h 6316 2011-05-08 07:09:12Z cher $ */
 
 #ifndef __USERLIST_CLNT_H__
 #define __USERLIST_CLNT_H__
 
-/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -394,5 +394,47 @@ userlist_clnt_get_xml_by_text(
         int cmd,
         const unsigned char *request_text,
         unsigned char **reply_text);
+
+int
+userlist_clnt_list_users_2(
+        struct userlist_clnt *clnt,
+        int cmd,
+        int contest_id,
+        int group_id,
+        const unsigned char *filter,
+        int offset,
+        int count,
+        unsigned char **p_info);
+
+int
+userlist_clnt_get_count(
+        struct userlist_clnt *clnt,
+        int cmd,
+        int contest_id,
+        int group_id,
+        const unsigned char *filter,
+        long long *p_count);
+
+struct userlist_pk_create_user_2;
+int
+userlist_clnt_create_user_2(
+        struct userlist_clnt *clnt,
+        int cmd,
+        const struct userlist_pk_create_user_2 *params,
+        const unsigned char *login_str,
+        const unsigned char *email_str,
+        const unsigned char *reg_password_str,
+        const unsigned char *cnts_password_str,
+        const unsigned char *cnts_name_str,
+        int *p_user_id);
+int
+userlist_clnt_get_prev_user_id(
+        struct userlist_clnt *clnt,
+        int cmd,
+        int contest_id,
+        int group_id,
+        int user_id,
+        const unsigned char *filter,
+        int *p_user_id);
 
 #endif /* __USERLIST_CLNT_H__ */

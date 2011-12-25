@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new-server-cmd.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: new-server-cmd.c 6381 2011-06-25 18:52:12Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -740,6 +740,7 @@ static const struct command_handler handler_table[] =
   { "export-xml-runs", prepare_simple, 0, 0, NEW_SRV_ACTION_EXPORT_XML_RUNS},
   { "dump-all-runs", prepare_simple, 0, 0, NEW_SRV_ACTION_VIEW_RUNS_DUMP },
   { "dump-problems", prepare_simple, 0, 0, NEW_SRV_ACTION_DUMP_PROBLEMS },
+  { "dump-languages", prepare_simple, 0, 0, NEW_SRV_ACTION_DUMP_LANGUAGES },
   { "soft-update-stand", prepare_simple, 0, 0, NEW_SRV_ACTION_SOFT_UPDATE_STANDINGS },
   { "suspend-testing", prepare_simple, 0, 0, NEW_SRV_ACTION_TEST_SUSPEND },
   { "resume-testing", prepare_simple, 0, 0, NEW_SRV_ACTION_TEST_RESUME },
@@ -753,6 +754,10 @@ static const struct command_handler handler_table[] =
   { "team-dump-clar", prepare_clar_id, 0, 0, NEW_SRV_ACTION_DUMP_CLAR },
   { "get-contest-name", prepare_simple, 0, 0, NEW_SRV_ACTION_GET_CONTEST_NAME },
   { "get-contest-type", prepare_simple, 0, 0, NEW_SRV_ACTION_GET_CONTEST_TYPE },
+  { "get-contest-status", prepare_simple, 0, 0, NEW_SRV_ACTION_GET_CONTEST_STATUS },
+  { "get-contest-sched", prepare_simple, 0, 0, NEW_SRV_ACTION_GET_CONTEST_SCHED },
+  { "get-contest-duration", prepare_simple, 0, 0, NEW_SRV_ACTION_GET_CONTEST_DURATION },
+  { "get-contest-description", prepare_simple, 0, 0, NEW_SRV_ACTION_GET_CONTEST_DESCRIPTION },
   { "submit-run", prepare_submit_run, 0, 0, 0 },
   { "team-submit-run", prepare_submit_run, 0, 0, 0 },
   { "import-xml-runs", prepare_import_xml, 0, 0, NEW_SRV_ACTION_UPLOAD_RUNLOG_XML_2 },
