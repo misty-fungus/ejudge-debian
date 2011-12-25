@@ -1,3 +1,15 @@
+ejudge (2.3.15-3) unstable; urgency=low
+
+  * fixed compile server log file position
+  * added support for po_debconf
+  * remove comments from debian/rules
+  * automated (help2man)  manpage creation for some binaries
+  * corrected copyright
+  * updated [post|pre][inst|rm] scripts
+  * commented out confmodule
+
+ -- Yaroslav Leonov <alximik@boottest.yandex.ru>  Sun, 25 Dec 2011 22:35:45 +0300
+
 ejudge (2.3.15-2) unstable; urgency=low
 
   * Fixed many link issues.
