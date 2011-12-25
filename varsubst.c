@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: varsubst.c 5864 2010-06-12 11:27:48Z cher $ */
+/* $Id: varsubst.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2004-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -21,8 +21,8 @@
 #include "errlog.h"
 #include "serve_state.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <string.h>
 

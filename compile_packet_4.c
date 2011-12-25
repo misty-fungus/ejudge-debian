@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: compile_packet_4.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: compile_packet_4.c 6172 2011-03-27 12:40:30Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,9 +26,9 @@
 #include "prepare.h"
 #include "runlog.h"
 
-#include <reuse/integral.h>
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -110,7 +110,7 @@ compile_reply_packet_read(size_t in_size, const void *in_data,
   return 0;
 
  failed:
-  err("compile_reply_packet_read: error %s, %d", "$Revision: 5675 $", errcode);
+  err("compile_reply_packet_read: error %s, %d", "$Revision: 6172 $", errcode);
   compile_reply_packet_free(pout);
   return -1;
 }

@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: nwrun.c 5763 2010-02-22 18:32:19Z cher $ */
+/* $Id: nwrun.c 6207 2011-03-30 19:43:10Z cher $ */
 
-/* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -25,9 +25,9 @@
 #include "runlog.h"
 #include "nwrun_packet.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
-#include <reuse/exec.h>
+#include "reuse_xalloc.h"
+#include "reuse_osdeps.h"
+#include "reuse_exec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -333,7 +333,7 @@ run_program(
   if (packet->max_vm_size > 0) {
     task_SetVMSize(tsk, packet->max_vm_size);
   }
-  task_SetMaxProcCount(tsk, 1);
+  task_SetMaxProcessCount(tsk, 1);
   if (packet->enable_secure_run > 0) {
     task_EnableSecureExec(tsk);
   }

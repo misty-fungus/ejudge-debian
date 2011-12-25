@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: teamdb.c 5950 2010-07-16 12:33:23Z cher $ */
+/* $Id: teamdb.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -25,9 +25,9 @@
 #include "userlist_proto.h"
 #include "userlist.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <string.h>

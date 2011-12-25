@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 6012 2010-10-23 13:13:26Z cher $ */
+/* $Id: prepare_out.c 6214 2011-04-01 20:03:14Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -28,9 +28,9 @@
 #include "sformat.h"
 #include "varsubst.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -146,6 +146,7 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     0,
   };
   unsigned char nbuf[64];
+  unsigned char size_buf[256];
 
   fprintf(f, "contest_id = %d\n", global->contest_id);
 
@@ -229,6 +230,8 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
   }
   fprintf(f, "\n");
 
+  if (global->separate_user_score > 0)
+    unparse_bool(f, "separate_user_score", global->separate_user_score);
   if (global->team_enable_src_view != DFLT_G_TEAM_ENABLE_SRC_VIEW)
     unparse_bool(f, "team_enable_src_view", global->team_enable_src_view);
   if (global->team_enable_rep_view != DFLT_G_TEAM_ENABLE_REP_VIEW)
@@ -328,6 +331,23 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     fprintf(f, "max_clar_num = %d\n", global->max_clar_num);
   if (global->team_page_quota != DFLT_G_TEAM_PAGE_QUOTA)
     fprintf(f, "team_page_quota = %d\n", global->team_page_quota);
+
+  if (((ssize_t) global->compile_max_vm_size) > 0) {
+    fprintf(f, "compile_max_vm_size = %s\n",
+            size_t_to_size(size_buf, sizeof(size_buf),
+                           global->compile_max_vm_size));
+  }
+  if (((ssize_t) global->compile_max_stack_size) > 0) {
+    fprintf(f, "compile_max_stack_size = %s\n",
+            size_t_to_size(size_buf, sizeof(size_buf),
+                           global->compile_max_stack_size));
+  }
+  if (((ssize_t) global->compile_max_file_size) > 0) {
+    fprintf(f, "compile_max_file_size = %s\n",
+            size_t_to_size(size_buf, sizeof(size_buf),
+                           global->compile_max_file_size));
+  }
+
   fprintf(f, "\n");
 
   if (global->team_info_url[0])
@@ -811,6 +831,7 @@ prepare_unparse_lang(
 {
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   int i, flag = 0;
+  unsigned char size_buf[256];
 
   fprintf(f, "[language]\n");
   fprintf(f, "id = %d\n", lang->id);
@@ -852,6 +873,19 @@ prepare_unparse_lang(
   }
   if (lang->style_checker_cmd[0]) {
     fprintf(f, "style_checker_cmd = \"%s\"\n",CARMOR(lang->style_checker_cmd));
+  }
+
+  if (lang->max_vm_size != -1L && lang->max_vm_size != 0) {
+    fprintf(f, "max_vm_size = %s\n",
+            size_t_to_size(size_buf, sizeof(size_buf), lang->max_vm_size));
+  }
+  if (lang->max_stack_size != -1L && lang->max_stack_size != 0) {
+    fprintf(f, "max_stack_size = %s\n",
+            size_t_to_size(size_buf, sizeof(size_buf), lang->max_stack_size));
+  }
+  if (lang->max_file_size != -1L && lang->max_file_size != 0) {
+    fprintf(f, "max_file_size = %s\n",
+            size_t_to_size(size_buf, sizeof(size_buf), lang->max_file_size));
   }
 
   if (lang->compiler_env) {
@@ -968,7 +1002,7 @@ prepare_unparse_prob(
     unparse_bool(f, "manual_checking", prob->manual_checking);
   if ((prob->abstract && prob->examinator_num > 0)
       || (!prob->abstract && prob->examinator_num > 0))
-    fprintf(f, "examinator_num = %d", prob->examinator_num);
+    fprintf(f, "examinator_num = %d\n", prob->examinator_num);
   if ((prob->abstract && prob->check_presentation == 1)
       || (!prob->abstract && prob->check_presentation >= 0))
     unparse_bool(f, "check_presentation", prob->check_presentation);
@@ -1003,6 +1037,9 @@ prepare_unparse_prob(
   if ((prob->abstract && prob->score_latest == 1)
       || (!prob->abstract && prob->score_latest >= 0))
     unparse_bool(f, "score_latest", prob->score_latest);
+  if ((prob->abstract && prob->score_latest_or_unmarked == 1)
+      || (!prob->abstract && prob->score_latest_or_unmarked >= 0))
+    unparse_bool(f, "score_latest_or_unmarked", prob->score_latest_or_unmarked);
   if (prob->xml_file[0])
     fprintf(f, "xml_file = \"%s\"\n", CARMOR(prob->xml_file));
   if (prob->alternatives_file[0])
@@ -1101,12 +1138,27 @@ prepare_unparse_prob(
   if (prob->max_data_size != -1L)
     fprintf(f, "max_data_size = %s\n",
             size_t_to_size(size_buf, sizeof(size_buf), prob->max_data_size));
+  if (prob->max_core_size != -1L)
+    fprintf(f, "max_core_size = %s\n",
+            size_t_to_size(size_buf, sizeof(size_buf), prob->max_core_size));
+  if (prob->max_file_size != -1L)
+    fprintf(f, "max_file_size = %s\n",
+            size_t_to_size(size_buf, sizeof(size_buf), prob->max_file_size));
+  if (prob->max_open_file_count >= 0) {
+    fprintf(f, "max_open_file_count = %d\n", prob->max_open_file_count);
+  }
+  if (prob->max_process_count >= 0) {
+    fprintf(f, "max_process_count = %d\n", prob->max_process_count);
+  }
 
   if (score_system == SCORE_KIROV || score_system == SCORE_OLYMPIAD) {
     if (prob->full_score >= 0) {
       if ((prob->abstract && prob->full_score != DFLT_P_FULL_SCORE)
           || !prob->abstract)
         fprintf(f, "full_score = %d\n", prob->full_score);
+    }
+    if (prob->full_user_score >= 0 && global) {
+      fprintf(f, "full_user_score = %d\n", prob->full_user_score);
     }
     if (prob->test_score >= 0) {
       if ((prob->abstract && prob->test_score != DFLT_P_TEST_SCORE)
@@ -1137,6 +1189,9 @@ prepare_unparse_prob(
   if (prob->open_tests[0]) {
     fprintf(f, "open_tests = \"%s\"\n", CARMOR(prob->open_tests));
   }
+  if (prob->final_open_tests[0]) {
+    fprintf(f, "final_open_tests = \"%s\"\n", CARMOR(prob->final_open_tests));
+  }
   if (score_system == SCORE_MOSCOW || score_system == SCORE_ACM) {
     if (prob->acm_run_penalty >= 0) {
       if ((prob->abstract && prob->acm_run_penalty != DFLT_P_ACM_RUN_PENALTY)
@@ -1149,6 +1204,9 @@ prepare_unparse_prob(
       if ((prob->abstract && prob->full_score != DFLT_P_FULL_SCORE)
           || !prob->abstract)
         fprintf(f, "full_score = %d\n", prob->full_score);
+    }
+    if (prob->full_user_score >= 0) {
+      fprintf(f, "full_user_score = %d\n", prob->full_user_score);
     }
     if (prob->score_tests[0])
       fprintf(f, "score_tests = \"%s\"\n", CARMOR(prob->score_tests));
@@ -1364,6 +1422,8 @@ prepare_unparse_unhandled_prob(
   do_str(f, &ab, "statement_file", prob->statement_file);
   //PROBLEM_PARAM(alternative, "x"),
   do_xstr(f, &ab, "alternative", prob->alternative);
+  //PROBLEM_PARAM(extid, "S"),
+  do_str(f, &ab, "extid", prob->extid);
 
   html_armor_free(&ab);
 }
@@ -1642,6 +1702,9 @@ generate_abstract_tester(
   } else if(testing_work_dir) {
     fprintf(f, "check_dir = \"%s\"\n",
             c_armor_2(&ab, testing_work_dir, contests_home_dir));
+  }
+  if (atst && atst->skip_testing > 0) {
+    fprintf(f, "skip_testing\n");
   }
   fprintf(f, "\n");
 
@@ -2159,13 +2222,16 @@ prob_instr(
     handle_file(f, global, tmp_prob, "Makefile", 0);
   }
 
-  prepare_set_prob_value(CNTSPROB_xml_file, tmp_prob, abstr,0);
+  prepare_set_prob_value(CNTSPROB_xml_file, tmp_prob, abstr, global);
   if (tmp_prob->xml_file[0]) {
+    if (global->advanced_layout <= 0) {
+      pathmake2(tmp_prob->xml_file, conf_path, "/", tmp_prob->xml_file, NULL);
+    }
     fprintf(f, "<p><b>Problem statement file:</b></p>\n");
     handle_file(f, global, tmp_prob, tmp_prob->xml_file, 0);
   }
 
-  prepare_set_prob_value(CNTSPROB_plugin_file, tmp_prob, abstr,0);
+  prepare_set_prob_value(CNTSPROB_plugin_file, tmp_prob, abstr, global);
   if (tmp_prob->plugin_file[0]) {
     fprintf(f, "<p><b>Problem plugin file:</b></p>\n");
     handle_file(f, global, tmp_prob, tmp_prob->plugin_file, 0);

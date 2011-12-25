@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: compile_packet_priv.h 5881 2010-06-14 11:40:36Z cher $ */
+/* $Id: compile_packet_priv.h 6219 2011-04-03 20:50:09Z cher $ */
 #ifndef __COMPILE_PACKET_PRIV_H__
 #define __COMPILE_PACKET_PRIV_H__
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  * GNU General Public License for more details.
  */
 
-#include <reuse/integral.h>
+#include "reuse_integral.h"
 
 #define EJ_COMPILE_PACKET_VERSION 4
 
@@ -35,6 +35,9 @@ struct compile_request_bin_packet
   rint32_t lang_id;             /* the language [1..max_lang] */
   rint32_t locale_id;           /* the locale identifier */
   rint32_t output_only;         /* the problem is output only */
+  ruint64_t max_vm_size;        /* the process VM limit */
+  ruint64_t max_stack_size;     /* the process stack size */
+  ruint64_t max_file_size;      /* the maximum file size */
   rint32_t style_check_only;    /* only perform style check */
   rint32_t ts1;                 /* the time, when comp. request was queued */
   rint32_t ts1_us;              /* the microsecond component */
@@ -43,7 +46,7 @@ struct compile_request_bin_packet
   rint32_t run_block_len;       /* the length of the run block */
   rint32_t env_num;             /* the number of env. variables */
   rint32_t sc_env_num;          /* the number of style checker env. vars */
-  //unsigned char pad[4];        /* padding to 64 boundary */
+  unsigned char pad[8];         /* padding to 16-byte boundary */
   /* style checker command (aligned to 16 byte boundary) */
   /* run_block (aligned to 16 byte boundary) */
   /* env variable length array (aligned to 16-byte address boundary) */

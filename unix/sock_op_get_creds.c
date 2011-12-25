@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: sock_op_get_creds.c 5514 2008-12-27 19:37:29Z cher $ */
+/* $Id: sock_op_get_creds.c 6161 2011-03-27 07:01:28Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 
 #include "errlog.h"
 
-#include <reuse/osdeps.h>
+#include "reuse_osdeps.h"
 
 #include <string.h>
 #include <stdlib.h>

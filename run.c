@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run.c 6012 2010-10-23 13:13:26Z cher $ */
+/* $Id: run.c 6239 2011-04-08 19:04:20Z cher $ */
 
-/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -38,13 +38,11 @@
 #include "misctext.h"
 #include "run.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/logger.h>
-#include <reuse/exec.h>
-#include <reuse/xalloc.h>
-#include <reuse/number_io.h>
-#include <reuse/format_io.h>
-#include <reuse/integral.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
+#include "reuse_integral.h"
+#include "reuse_exec.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -78,15 +76,13 @@
 #define EJUDGE_CHARSET EJ_INTERNAL_CHARSET
 #endif /* EJUDGE_CHARSET */
 
-#if HAVE_TASK_APPEND - 0 == 0
-#define TSK_APPEND TSK_REWRITE
-#endif
-
 static int managed_mode_flag = 0;
 static time_t last_activity_time;
 static struct serve_state serve_state;
 static int restart_flag = 0;
 static int utf8_mode = 0;
+static unsigned char **skip_archs;
+static int skip_arch_count;
 
 struct testinfo
 {
@@ -119,6 +115,7 @@ struct testinfo
   unsigned char *team_comment;  /* team's comment */
   unsigned char *exit_comment;  /* comment on exit status */
   int            checker_score;
+  int            visibility;    /* test visibility */
 };
 
 static int total_tests;
@@ -225,6 +222,7 @@ generate_xml_report(
         int variant,
         int scores,
         int max_score,
+        int user_max_score,
         int correct_available_flag,
         int info_available_flag,
         int report_time_limit_ms,
@@ -232,6 +230,7 @@ generate_xml_report(
         int has_real_time,
         int has_max_memory_used,
         int marked_flag,
+        int user_run_tests,
         const unsigned char *additional_comment,
         const unsigned char *valuer_comment,
         const unsigned char *valuer_judge_comment,
@@ -300,6 +299,23 @@ generate_xml_report(
   }
   if (marked_flag >= 0) {
     fprintf(f, " marked-flag=\"%s\"", marked_flag?"yes":"no");
+  }
+  if (req_pkt->separate_user_score > 0 && reply_pkt->user_status >= 0) {
+    run_status_to_str_short(buf1, sizeof(buf1), reply_pkt->user_status);
+    fprintf(f, " user-status=\"%s\"", buf1);
+  }
+  if (req_pkt->separate_user_score > 0 && reply_pkt->user_score >= 0) {
+    fprintf(f, " user-score=\"%d\"", reply_pkt->user_score);
+  }
+  if (req_pkt->separate_user_score > 0) {
+    if (user_max_score < 0) user_max_score = max_score;
+    fprintf(f, " user-max-score=\"%d\"", user_max_score);
+  }
+  if (req_pkt->separate_user_score > 0 && reply_pkt->user_tests_passed >= 0) {
+    fprintf(f, " user-tests-passed=\"%d\"", reply_pkt->user_tests_passed);
+  }
+  if (req_pkt->separate_user_score > 0 && user_run_tests >= 0) {
+    fprintf(f, " user-run-tests=\"%d\"", user_run_tests);
   }
   fprintf(f, " >\n");
 
@@ -389,6 +405,9 @@ generate_xml_report(
     }
     if (tests[i].args && strlen(tests[i].args) >= global->max_cmd_length) {
       fprintf(f, " args-too-long=\"yes\"");
+    }
+    if (tests[i].visibility > 0) {
+      fprintf(f, " visibility=\"%s\"", test_visibility_unparse(tests[i].visibility));
     }
     fprintf(f, " >\n");
 
@@ -584,12 +603,16 @@ read_valuer_score(
         const unsigned char *what,
         int max_score,
         int valuer_sets_marked,
+        int separate_user_score,
         int *p_score,
-        int *p_marked)
+        int *p_marked,
+        int *p_user_status,
+        int *p_user_score,
+        int *p_user_tests_passed)
 {
   char *score_buf = 0, *p;
   size_t score_buf_size = 0;
-  int x, y, n, r;
+  int x, y, n, r, user_status = -1, user_score = -1, user_tests_passed = -1;
 
   if (p_marked) *p_marked = -1;
 
@@ -601,29 +624,25 @@ read_valuer_score(
   }
   if (strlen(score_buf) != score_buf_size) {
     append_msg_to_log(log_path, "The %s score output is binary", what);
-    xfree(score_buf);
-    return -1;
+    goto fail;
   }
 
   while (score_buf_size > 0 && isspace(score_buf[score_buf_size - 1]))
     score_buf[--score_buf_size] = 0;
   if (!score_buf_size) {
     append_msg_to_log(log_path, "The %s score output is empty", what);
-    xfree(score_buf);
-    return -1;
+    goto fail;
   }
 
   p = score_buf;
   if (sscanf(p, "%d%n", &x, &n) != 1) {
     append_msg_to_log(log_path, "The %s score output (%s) is invalid",
                       what, score_buf);
-    xfree(score_buf);
-    return -1;
+    goto fail;
   }
   if (x < 0 || x > max_score) {
     append_msg_to_log(log_path, "The %s score (%d) is invalid", what, x);
-    xfree(score_buf);
-    return -1;
+    goto fail;
   }
   p += n;
 
@@ -631,28 +650,83 @@ read_valuer_score(
     if (sscanf(p, "%d%n", &y, &n) != 1) {
       append_msg_to_log(log_path, "The %s marked_flag output (%s) is invalid",
                         what, score_buf);
-      xfree(score_buf);
-      return -1;
+      goto fail;
     }
     if (y < 0 || y > 1) {
       append_msg_to_log(log_path, "The %s marked_flag (%d) is invalid", what,y);
-      xfree(score_buf);
-      return -1;
+      goto fail;
     }
     p += n;
   }
 
+  if (separate_user_score > 0) {
+    while (isspace(*p)) ++p;
+    if (*p) {
+      if (sscanf(p, "%d%n", &user_status, &n) != 1) {
+        append_msg_to_log(log_path, "The %s user_status output (%s) is invalid",
+                          what, score_buf);
+        goto fail;
+      }
+      p += n;
+      if (user_status >= 0) {
+        if (user_status != RUN_OK && user_status != RUN_PARTIAL) {
+          append_msg_to_log(log_path, "The %s user_status output (%d) is invalid",
+                            what, user_status);
+          goto fail;
+        }
+      } else {
+        user_status = -1;
+      }
+    }
+    while (isspace(*p)) ++p;
+    if (*p) {
+      if (sscanf(p, "%d%n", &user_score, &n) != 1) {
+        append_msg_to_log(log_path, "The %s user_score output (%s) is invalid",
+                          what, score_buf);
+        goto fail;
+      }
+      p += n;
+      if (user_score >= 0) {
+        // do some more checking...
+      } else {
+        user_score = -1;
+      }
+    }
+    while (isspace(*p)) ++p;
+    if (*p) {
+      if (sscanf(p, "%d%n", &user_tests_passed, &n) != 1) {
+        append_msg_to_log(log_path, "The %s user_tests_passed output (%s) is invalid",
+                          what, score_buf);
+        goto fail;
+      }
+      p += n;
+      if (user_tests_passed >= 0) {
+        // do some more checking
+      } else {
+        user_tests_passed = -1;
+      }
+    }
+  }
+
   if (*p) {
     append_msg_to_log(log_path, "The %s output is invalid", what);
-    xfree(score_buf);
-    return -1;
+    goto fail;
   }
 
   *p_score = x;
   if (valuer_sets_marked > 0 && p_marked) *p_marked = y;
+  if (separate_user_score > 0) {
+    if (p_user_status && user_status >= 0) *p_user_status = user_status;
+    if (p_user_score && user_score >= 0) *p_user_score = user_score;
+    if (p_user_tests_passed && user_tests_passed >= 0) *p_user_tests_passed = user_tests_passed;
+  }
 
   xfree(score_buf);
   return 0;
+
+fail:
+  xfree(score_buf);
+  return -1;
 }
 
 static void
@@ -689,6 +763,9 @@ invoke_valuer(
         int max_score,
         int *p_score,
         int *p_marked,
+        int *p_user_status,
+        int *p_user_score,
+        int *p_user_tests_passed,
         char **p_err_txt,
         char **p_cmt_txt,
         char **p_jcmt_txt)
@@ -705,6 +782,7 @@ invoke_valuer(
   tpTask tsk = 0;
   char *err_txt = 0, *cmt_txt = 0, *jcmt_txt = 0;
   size_t err_len = 0, cmt_len = 0, jcmt_len = 0;
+  unsigned char strbuf[1024];
 
 #ifdef EJUDGE_PREFIX_DIR
   snprintf(ejudge_prefix_dir_env, sizeof(ejudge_prefix_dir_env),
@@ -724,7 +802,14 @@ invoke_valuer(
   }
   fprintf(f, "%d\n", total_tests - 1);
   for (i = 1; i <= total_tests; i++) {
-    fprintf(f, "%d %d %ld\n", tests[i].status, tests[i].score, tests[i].times);
+    fprintf(f, "%d", tests[i].status);
+    if (prb->scoring_checker) {
+      fprintf(f, " %d", tests[i].checker_score);
+    } else {
+      fprintf(f, " %d", tests[i].score);
+    }
+    fprintf(f, " %ld", tests[i].times);
+    fprintf(f, "\n");
   }
   if (ferror(f)) {
     append_msg_to_log(score_err, "failed to write to %s", score_list);
@@ -749,7 +834,7 @@ invoke_valuer(
     }
   }
 
-  //fprintf(stderr, "valuer: %s\n", valuer_cmd);
+  info("starting valuer: %s %s %s", valuer_cmd, score_cmt, score_jcmt);
 
   tsk = task_New();
   task_AddArg(tsk, valuer_cmd);
@@ -764,9 +849,11 @@ invoke_valuer(
     task_SetMaxRealTime(tsk, prb->checker_real_time_limit);
   }
   setup_environment(tsk, prb->valuer_env, ejudge_prefix_dir_env);
-#if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
+  if (global->separate_user_score > 0) {
+    snprintf(strbuf, sizeof(strbuf), "EJUDGE_USER_SCORE=1");
+    task_PutEnv(tsk, strbuf);
+  }
   task_EnableAllSignals(tsk);
-#endif
 
   if (task_Start(tsk) < 0) {
     append_msg_to_log(score_err, "valuer failed to start");
@@ -791,7 +878,8 @@ invoke_valuer(
   task_Delete(tsk); tsk = 0;
 
   if (read_valuer_score(score_res, score_err, "valuer", max_score,
-                        prb->valuer_sets_marked, p_score, p_marked) < 0) {
+                        prb->valuer_sets_marked, global->separate_user_score,
+                        p_score, p_marked, p_user_status, p_user_score, p_user_tests_passed) < 0) {
     goto cleanup;
   }
   generic_read_file(&cmt_txt, 0, &cmt_len, 0, 0, score_cmt, "");
@@ -1052,23 +1140,26 @@ invoke_nwrun(
     fprintf(f, "real_time_limit_millis = %d\n", prb->real_time_limit * 1000);
   }
   if (prb->max_stack_size > 0) {
-    fprintf(f, "max_stack_size = %d\n", prb->max_stack_size);
+    fprintf(f, "max_stack_size = %" EJ_PRINTF_ZSPEC "u\n",
+            EJ_PRINTF_ZCAST(prb->max_stack_size));
   }
   if (prb->max_data_size > 0) {
-    fprintf(f, "max_data_size = %d\n", prb->max_data_size);
+    fprintf(f, "max_data_size = %" EJ_PRINTF_ZSPEC "u\n",
+            EJ_PRINTF_ZCAST(prb->max_data_size));
   }
   if (prb->max_vm_size > 0) {
-    fprintf(f, "max_vm_size = %d\n", prb->max_vm_size);
+    fprintf(f, "max_vm_size = %" EJ_PRINTF_ZSPEC "u\n",
+            EJ_PRINTF_ZCAST(prb->max_vm_size));
   }
   fprintf(f, "max_output_file_size = 60M\n");
   fprintf(f, "max_error_file_size = 16M\n");
   if (req_pkt->secure_run) {
     fprintf(f, "enable_secure_run = 1\n");
   }
-  if (req_pkt->memory_limit) {
+  if (req_pkt->memory_limit && req_pkt->secure_run) {
     fprintf(f, "enable_memory_limit_error = 1\n");
   }
-  if (req_pkt->security_violation) {
+  if (req_pkt->security_violation && req_pkt->secure_run) {
     fprintf(f, "enable_security_violation_error = 1\n");
   }
   fprintf(f, "prob_short_name = \"%s\"\n", prb->short_name);
@@ -1368,6 +1459,7 @@ run_tests(struct section_tester_data *tst,
   int report_real_time_limit_ms = -1;
   int has_real_time = 0;
   int has_max_memory_used = 0;
+  int has_user_score, user_status, user_score, user_tests_passed, user_run_tests;
 
   int pfd1[2], pfd2[2];
   tpTask tsk_int = 0;
@@ -1501,9 +1593,7 @@ run_tests(struct section_tester_data *tst,
     task_SetRedir(tsk, 0, TSR_FILE, "/dev/null", TSK_READ, 0);
     task_SetRedir(tsk, 1, TSR_FILE, report_path, TSK_REWRITE, TSK_FULL_RW);
     task_SetRedir(tsk, 2, TSR_DUP, 1);
-#if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
     task_EnableAllSignals(tsk);
-#endif
     task_Start(tsk);
     task_Wait(tsk);
     if (task_IsAbnormal(tsk)) goto _internal_execution_error;
@@ -1569,6 +1659,7 @@ run_tests(struct section_tester_data *tst,
     tests[cur_test].error_size = -1;
     tests[cur_test].correct_size = -1;
     tests[cur_test].chk_out_size = -1;
+    tests[cur_test].visibility = cntsprob_get_test_visibility(prb, cur_test, 0);
 
     time_limit_value = 0;
     if (prb->time_limit_millis > 0)
@@ -1724,9 +1815,7 @@ run_tests(struct section_tester_data *tst,
         task_SetRedir(tsk_int, pfd2[1], TSR_CLOSE);
         task_SetRedir(tsk_int, 2, TSR_FILE, check_out_path, TSK_REWRITE, 
                       TSK_FULL_RW);
-#if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
         task_EnableAllSignals(tsk_int);
-#endif
         if (prb->interactor_time_limit > 0) {
           task_SetMaxTime(tsk_int, prb->interactor_time_limit);
         }
@@ -1821,11 +1910,7 @@ run_tests(struct section_tester_data *tst,
 
       if (time_limit_value > 0) {
         if ((time_limit_value % 1000)) {
-#if defined HAVE_TASK_SETMAXTIMEMILLIS
           task_SetMaxTimeMillis(tsk, time_limit_value);
-#else
-          task_SetMaxTime(tsk, (time_limit_value + 999) / 1000);
-#endif
         } else {
           task_SetMaxTime(tsk, time_limit_value / 1000);
         }
@@ -1859,16 +1944,14 @@ run_tests(struct section_tester_data *tst,
           task_SetDataSize(tsk, tst->max_data_size);
         if (tst->max_vm_size && tst->max_vm_size != -1L)
           task_SetVMSize(tsk, tst->max_vm_size);
-#if defined HAVE_TASK_ENABLEMEMORYLIMITERROR
-        if (tst->enable_memory_limit_error && req_pkt->memory_limit) {
+        if (tst->enable_memory_limit_error && req_pkt->memory_limit
+            && req_pkt->secure_run) {
           task_EnableMemoryLimitError(tsk);
         }
-#endif
-#if defined HAVE_TASK_ENABLESECURITYVIOLATIONERROR
-        if (tst->enable_memory_limit_error && req_pkt->security_violation) {
+        if (tst->enable_memory_limit_error && req_pkt->secure_run
+            && req_pkt->security_violation) {
           task_EnableSecurityViolationError(tsk);
         }
-#endif
       } else {
         switch (tst->memory_limit_type_val) {
         case MEMLIMIT_TYPE_DEFAULT:
@@ -1889,16 +1972,14 @@ run_tests(struct section_tester_data *tst,
             task_SetDataSize(tsk, prb->max_data_size);
           if (prb->max_vm_size && prb->max_vm_size != -1L)
             task_SetVMSize(tsk, prb->max_vm_size);
-#if defined HAVE_TASK_ENABLEMEMORYLIMITERROR
-          if (tst->enable_memory_limit_error && req_pkt->memory_limit) {
+          if (tst->enable_memory_limit_error && req_pkt->memory_limit
+              && req_pkt->secure_run) {
             task_EnableMemoryLimitError(tsk);
           }
-#endif
-#if defined HAVE_TASK_ENABLESECURITYVIOLATIONERROR
-          if (tst->enable_memory_limit_error && req_pkt->security_violation) {
+          if (tst->enable_memory_limit_error
+              && req_pkt->secure_run && req_pkt->security_violation) {
             task_EnableSecurityViolationError(tsk);
           }
-#endif
           break;
         case MEMLIMIT_TYPE_JAVA:
           java_flags_ptr = flags_buf;
@@ -1950,7 +2031,6 @@ run_tests(struct section_tester_data *tst,
         switch (tst->secure_exec_type_val) {
         case SEXEC_TYPE_STATIC:
           if (req_pkt->secure_run) {
-#if defined HAVE_TASK_ENABLESECUREEXEC
             if (task_EnableSecureExec(tsk) < 0) {
               // FIXME: also report this condition
               err("task_EnableSecureExec() failed");
@@ -1967,22 +2047,6 @@ run_tests(struct section_tester_data *tst,
               total_failed_tests++;
               goto done_this_test;
             }
-#else
-            // FIXME: also report this condition
-            err("no task_EnableSecureExec support in the reuse library");
-            status = RUN_CHECK_FAILED;
-            tests[cur_test].code = 0;
-            task_Delete(tsk); tsk = 0;
-            if (tsk_int) task_Delete(tsk_int);
-            tsk_int = 0;
-            if (pfd1[0] >= 0) close(pfd1[0]);
-            if (pfd1[1] >= 0) close(pfd1[1]);
-            if (pfd2[0] >= 0) close(pfd2[0]);
-            if (pfd2[1] >= 0) close(pfd2[1]);
-            pfd1[0] = pfd1[1] = pfd2[0] = pfd2[1] = -1;
-            total_failed_tests++;
-            goto done_this_test;
-#endif
           }
           break;
         case SEXEC_TYPE_DLL:
@@ -2021,9 +2085,20 @@ run_tests(struct section_tester_data *tst,
         }
       }
 #endif
-#if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
       task_EnableAllSignals(tsk);
-#endif
+
+      if (prb->max_core_size != -1L) {
+        task_SetMaxCoreSize(tsk, prb->max_core_size);
+      }
+      if (prb->max_file_size != -1L) {
+        task_SetMaxFileSize(tsk, prb->max_file_size);
+      }
+      if (prb->max_open_file_count >= 0) {
+        task_SetMaxOpenFileCount(tsk, prb->max_open_file_count);
+      }
+      if (prb->max_process_count >= 0) {
+        task_SetMaxProcessCount(tsk, prb->max_process_count);
+      }
 
       if (task_Start(tsk) < 0) {
         /* failed to start task */
@@ -2078,10 +2153,8 @@ run_tests(struct section_tester_data *tst,
     /* fill test report structure */
     if (tsk) {
       tests[cur_test].times = task_GetRunningTime(tsk);
-#if defined HAVE_TASK_GETREALTIME
       has_real_time = 1;
       tests[cur_test].real_time = task_GetRealTime(tsk);
-#endif
     }
     if (req_pkt->full_archive) {
       filehash_get(test_src, tests[cur_test].input_digest);
@@ -2167,9 +2240,8 @@ run_tests(struct section_tester_data *tst,
       }
     }
 
-#if defined HAVE_TASK_ISMEMORYLIMIT
     if (tsk && tst->enable_memory_limit_error && req_pkt->memory_limit
-        && task_IsMemoryLimit(tsk)) {
+        && req_pkt->secure_run && task_IsMemoryLimit(tsk)) {
       failed_test = cur_test;
       status = RUN_MEM_LIMIT_ERR;
       total_failed_tests++;
@@ -2178,11 +2250,9 @@ run_tests(struct section_tester_data *tst,
       tsk_int = 0;
       goto done_this_test;
     }
-#endif
 
-#if defined HAVE_TASK_ISSECURITYVIOLATION
     if (tsk && tst->enable_memory_limit_error && req_pkt->security_violation
-        && task_IsSecurityViolation(tsk)) {
+        && req_pkt->secure_run && task_IsSecurityViolation(tsk)) {
       failed_test = cur_test;
       status = RUN_SECURITY_ERR;
       total_failed_tests++;
@@ -2191,7 +2261,6 @@ run_tests(struct section_tester_data *tst,
       tsk_int = 0;
       goto done_this_test;
     }
-#endif
 
     if (tsk && task_IsTimeout(tsk)) {
       failed_test = cur_test;
@@ -2373,9 +2442,7 @@ run_tests(struct section_tester_data *tst,
     }
     setup_environment(tsk, prb->checker_env, ejudge_prefix_dir_env);
     setup_environment(tsk, tst->checker_env, ejudge_prefix_dir_env);
-#if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
     task_EnableAllSignals(tsk);
-#endif
 
     task_Start(tsk);
     task_Wait(tsk);
@@ -2402,7 +2469,9 @@ run_tests(struct section_tester_data *tst,
     force_check_failed = 0;
     if (prb->scoring_checker && !task_IsTimeout(tsk)
         && task_Status(tsk) == TSK_EXITED
-        && task_ExitCode(tsk) == RUN_WRONG_ANSWER_ERR) {
+        && (task_ExitCode(tsk) == RUN_WRONG_ANSWER_ERR
+            || task_ExitCode(tsk) == RUN_PRESENTATION_ERR
+            || task_ExitCode(tsk) == RUN_OK)) {
       switch (score_system_val) {
       case SCORE_KIROV:
       case SCORE_OLYMPIAD:
@@ -2531,13 +2600,13 @@ run_tests(struct section_tester_data *tst,
     for (jj = 1; jj <= prb->ntests; jj++) {
       tests[jj].score = 0;
       tests[jj].max_score = prb->tscores[jj];
-      if (tests[jj].status == RUN_OK) {
+      if (prb->scoring_checker
+          && (tests[jj].status == RUN_OK
+              || tests[jj].status == RUN_PRESENTATION_ERR
+              || tests[jj].status == RUN_WRONG_ANSWER_ERR)) {
+      } else if (tests[jj].status == RUN_OK) {
         score += prb->tscores[jj];
         tests[jj].score = prb->tscores[jj];
-      } else if (prb->scoring_checker
-                 && tests[jj].status == RUN_WRONG_ANSWER_ERR) {
-        tests[jj].score = tests[jj].checker_score;
-        score += tests[jj].checker_score;
       }
       if (tests[jj].status == RUN_CHECK_FAILED) {
         retcode = RUN_CHECK_FAILED;
@@ -2687,10 +2756,17 @@ run_tests(struct section_tester_data *tst,
 
   get_current_time(&reply_pkt->ts7, &reply_pkt->ts7_us);
 
+  has_user_score = 0;
+  user_status = -1;
+  user_score = -1;
+  user_tests_passed = -1;
+  user_run_tests = -1;
   if (prb->valuer_cmd[0] && !req_pkt->accepting_mode
       && !reply_pkt->status != RUN_CHECK_FAILED) {
     if (invoke_valuer(global, prb, cur_variant, prb->full_score,
-                      &score, &marked_flag, &valuer_errors, &valuer_comment,
+                      &score, &marked_flag,
+                      &user_status, &user_score, &user_tests_passed,
+                      &valuer_errors, &valuer_comment,
                       &valuer_judge_comment) < 0) {
       reply_pkt->status = RUN_CHECK_FAILED;
     } else {
@@ -2699,11 +2775,81 @@ run_tests(struct section_tester_data *tst,
     }
   }
 
+  if (reply_pkt->status == RUN_CHECK_FAILED) {
+    user_status = -1;
+    user_score = -1;
+    user_tests_passed = -1;
+    user_run_tests = -1;
+  } else if (global->separate_user_score <= 0) {
+    user_status = -1;
+    user_score = -1;
+    user_tests_passed = -1;
+    user_run_tests = -1;
+  } else {
+    has_user_score = 1;
+    user_run_tests = 0;
+    for (cur_test = 1; cur_test < total_tests; ++cur_test) {
+      if (tests[cur_test].visibility != TV_HIDDEN)
+        ++user_run_tests;
+    }
+    if (user_status < 0) {
+      user_status = RUN_OK;
+      for (cur_test = 1; cur_test < total_tests; ++cur_test) {
+        if (tests[cur_test].visibility != TV_HIDDEN
+            && tests[cur_test].status != RUN_OK) {
+          user_status = RUN_PARTIAL;
+          break;
+        }
+      }
+    }
+    if (score_system_val == SCORE_KIROV
+        || (score_system_val == SCORE_OLYMPIAD && !req_pkt->accepting_mode)) {
+      if (user_score < 0) {
+        if (prb->variable_full_score <= 0 && user_status == RUN_OK) {
+          if (prb->full_user_score >= 0) {
+            user_score = prb->full_user_score;
+          } else {
+            user_score = prb->full_score;
+          }
+        } else {
+          user_score = 0;
+          for (cur_test = 1; cur_test < total_tests; ++cur_test) {
+            if (tests[cur_test].visibility != TV_HIDDEN
+                && tests[cur_test].score >= 0) {
+              user_score += tests[cur_test].score;
+            }
+          }
+          if (prb->variable_full_score <= 0) {
+            if (prb->full_user_score >= 0 && user_score > prb->full_user_score) {
+              user_score = prb->full_user_score;
+            } else if (user_score > prb->full_score) {
+              user_score = prb->full_score;
+            }
+          }
+        }
+      }
+      if (user_tests_passed < 0) {
+        user_tests_passed = 0;
+        for (cur_test = 1; cur_test < total_tests; ++cur_test) {
+          if (tests[cur_test].visibility != TV_HIDDEN
+              && tests[cur_test].status == RUN_OK)
+            ++user_tests_passed;
+        }
+      }
+    }
+  }
+
+  reply_pkt->has_user_score = has_user_score;
+  reply_pkt->user_status = user_status;
+  reply_pkt->user_score = user_score;
+  reply_pkt->user_tests_passed = user_tests_passed;
+
   generate_xml_report(req_pkt, reply_pkt, report_path, cur_variant,
-                      score, prb->full_score,
+                      score, prb->full_score, prb->full_user_score,
                       (prb->use_corr && prb->corr_dir[0]), prb->use_info,
                       report_time_limit_ms, report_real_time_limit_ms,
                       has_real_time, has_max_memory_used, marked_flag,
+                      user_run_tests,
                       additional_comment, valuer_comment,
                       valuer_judge_comment, valuer_errors);
 
@@ -2916,6 +3062,14 @@ do_loop(void)
            req_pkt->arch);
       tst = serve_state.testers[tester_id];
 
+      if (tst->any) {
+        info("tester %d is a default tester", tester_id);
+        r = prepare_tester_refinement(&serve_state, &tn, tester_id,
+                                      req_pkt->problem_id);
+        ASSERT(r >= 0);
+        tst = &tn;
+      }
+
       /* if this tester is marked as "skip_testing" put the
        * packet back to the spool directory
        */
@@ -2925,15 +3079,12 @@ do_loop(void)
         if (r < 0) return -1;
         info("skipping tester <%s,%s>", cur_prob->short_name, tst->arch);
         scan_dir_add_ignored(global->run_queue_dir, pkt_name);
+        if (tst == &tn) {
+          sarray_free(tst->start_env); tst->start_env = 0;
+          sarray_free(tst->checker_env); tst->checker_env = 0;
+          sarray_free(tst->super); tst->super = 0;
+        }
         continue;
-      }
-
-      if (tst->any) {
-        info("tester %d is a default tester", tester_id);
-        r = prepare_tester_refinement(&serve_state, &tn, tester_id,
-                                      req_pkt->problem_id);
-        ASSERT(r >= 0);
-        tst = &tn;
       }
 
       snprintf(exe_pkt_name, sizeof(exe_pkt_name), "%s%s", pkt_name,
@@ -2955,6 +3106,9 @@ do_loop(void)
       reply_pkt.contest_id = req_pkt->contest_id;
       reply_pkt.run_id = req_pkt->run_id;
       reply_pkt.notify_flag = req_pkt->notify_flag;
+      reply_pkt.user_status = -1;
+      reply_pkt.user_tests_passed = -1;
+      reply_pkt.user_score = -1;
       reply_pkt.ts1 = req_pkt->ts1;
       reply_pkt.ts1_us = req_pkt->ts1_us;
       reply_pkt.ts2 = req_pkt->ts2;
@@ -3026,6 +3180,9 @@ do_loop(void)
     reply_pkt.judge_id = req_pkt->judge_id;
     reply_pkt.contest_id = req_pkt->contest_id;
     reply_pkt.run_id = req_pkt->run_id;
+    reply_pkt.user_status = -1;
+    reply_pkt.user_tests_passed = -1;
+    reply_pkt.user_score = -1;
     reply_pkt.ts1 = req_pkt->ts1;
     reply_pkt.ts1_us = req_pkt->ts1_us;
     reply_pkt.ts2 = req_pkt->ts2;
@@ -3077,9 +3234,9 @@ count_files(char const *dir, char const *sfx, const char *pat)
     if (pat && pat[0]) {
       unsigned char file_base[64];
       snprintf(file_base, sizeof(file_base), pat, n);
-      os_snprintf(path, PATH_MAX, "%s%s%s", dir, PATH_SEP, file_base);
+      snprintf(path, PATH_MAX, "%s%s%s", dir, PATH_SEP, file_base);
     } else {
-      os_snprintf(path, PATH_MAX, "%s%s%03d%s", dir, PATH_SEP, n, sfx);
+      snprintf(path, PATH_MAX, "%s%s%03d%s", dir, PATH_SEP, n, sfx);
     }
     s = os_IsFile(path);
     if (s < 0) break;
@@ -3183,6 +3340,7 @@ check_config(void)
   int     total = 0;
 
   struct section_problem_data *prb = 0;
+  struct section_tester_data *tst = 0;
   unsigned char *var_test_dir;
   unsigned char *var_corr_dir;
   unsigned char *var_info_dir;
@@ -3190,6 +3348,22 @@ check_config(void)
   unsigned char *var_check_cmd = 0;
   problem_xml_t px;
   const struct section_global_data *global = serve_state.global;
+
+  if (skip_arch_count > 0) {
+    for (i = 0; i < serve_state.max_abstr_tester; ++i) {
+      tst = serve_state.abstr_testers[i];
+      if (!tst) continue;
+      tst->skip_testing = -1;
+      for (j = 0; j < skip_arch_count; ++j) {
+        if (!strcmp(skip_archs[j], tst->arch)) {
+          break;
+        }
+      }
+      if (j < skip_arch_count) {
+        tst->skip_testing = 1;
+      }
+    }
+  }
 
   /* check spooler dirs */
   if (check_writable_spool(global->run_queue_dir, SPOOL_OUT) < 0) return -1;
@@ -3649,7 +3823,7 @@ check_config(void)
       }
 
       for (j = 1; j <= prb->ntests; j++) score_summ += prb->tscores[j];
-      if (score_summ > prb->full_score) {
+      if (score_summ > prb->full_score && !prb->valuer_cmd[0]) {
         err("total score (%d) > full score (%d) for problem %s",
             score_summ, prb->full_score, prb->short_name);
         return -1;
@@ -3715,6 +3889,10 @@ main(int argc, char *argv[])
   if (argc == 1) goto print_usage;
   code = 1;
 
+  if (argc > 0) {
+    XCALLOC(skip_archs, argc);
+  }
+
   while (i < argc) {
     if (!strcmp(argv[i], "-k")) {
       if (++i >= argc) goto print_usage;
@@ -3725,6 +3903,9 @@ main(int argc, char *argv[])
     } else if (!strncmp(argv[i], "-D", 2)) {
       if (cpp_opts[0]) pathcat(cpp_opts, " ");
       pathcat(cpp_opts, argv[i++]);
+    } else if (!strcmp(argv[i], "-s")) {
+        if (++i >= argc) goto print_usage;
+        skip_archs[skip_arch_count++] = argv[i++];
     } else break;
   }
   if (i >= argc) goto print_usage;
@@ -3752,8 +3933,9 @@ main(int argc, char *argv[])
 
  print_usage:
   printf("Usage: %s [ OPTS ] config-file\n", argv[0]);
-  printf("  -k key - specify tester key\n");
-  printf("  -DDEF  - define a symbol for preprocessor\n");
+  printf("  -k key  - specify tester key\n");
+  printf("  -DDEF   - define a symbol for preprocessor\n");
+  printf("  -s arch - specify architecture to skip testing\n");
   return code;
 }
 

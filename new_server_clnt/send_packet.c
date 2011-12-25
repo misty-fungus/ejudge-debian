@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: send_packet.c 3272 2006-09-01 08:50:43Z cher $ */
+/* $Id: send_packet.c 6170 2011-03-27 12:35:38Z cher $ */
 
-/* Copyright (C) 2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,8 +19,8 @@
 #include "new_server_proto.h"
 #include "errlog.h"
 
-#include <reuse/integral.h>
-#include <reuse/osdeps.h>
+#include "reuse_osdeps.h"
+#include "reuse_integral.h"
 
 #include <unistd.h>
 #include <sys/uio.h>

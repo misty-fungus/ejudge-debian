@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: rldb_plugin.h 6022 2010-11-02 06:06:49Z cher $ */
+/* $Id: rldb_plugin.h 6103 2011-03-01 18:42:57Z cher $ */
 
 #ifndef __RLDB_PLUGIN_H__
 #define __RLDB_PLUGIN_H__
 
-/* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -138,6 +138,22 @@ struct rldb_plugin_iface
                          int is_marked);
   // check the runlog (may fix broken items)
   int (*check)(struct rldb_plugin_cnts *, FILE *log_f);
+  // change the status (includes user status)
+  int (*change_status_3)(struct rldb_plugin_cnts *,
+                         int run_id,
+                         int new_status,
+                         int new_test,
+                         int new_score,
+                         int judge_id,
+                         int is_marked,
+                         int has_user_score,
+                         int user_status,
+                         int user_tests_passed,
+                         int user_score);
+  // change the status (brief version)
+  int (*change_status_4)(struct rldb_plugin_cnts *,
+                         int run_id,
+                         int new_status);
 };
 
 /* default plugin: compiled into new-server */

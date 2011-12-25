@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: html_start_form.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: html_start_form.c 6147 2011-03-26 10:49:24Z cher $ */
 
-/* Copyright (C) 2005-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 
 #include "mischtml.h"
 
-#include <reuse/logger.h>
+#include "reuse_logger.h"
 
 #include <stdio.h>
 

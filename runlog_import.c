@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: runlog_import.c 5573 2009-05-31 07:56:22Z cher $ */
+/* $Id: runlog_import.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2003-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,9 +24,9 @@
 #include "fileutl.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdlib.h>
 

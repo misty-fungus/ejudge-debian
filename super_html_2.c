@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_2.c 6004 2010-10-05 08:00:02Z cher $ */
+/* $Id: super_html_2.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -40,9 +40,9 @@
 #include "compat.h"
 #include "file_perms.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdarg.h>
 #include <string.h>

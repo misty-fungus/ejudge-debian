@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: misctext.c 5959 2010-07-23 18:57:30Z cher $ */
+/* $Id: misctext.c 6237 2011-04-08 18:47:35Z cher $ */
 
-/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,8 +19,8 @@
 #include "base64.h"
 #include "compat.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -519,8 +519,8 @@ text_table_number_lines(
 
   fprintf(out_f, "<tr%s><td valign=\"top\"%s>", tr_attr, td_attr);
   for (line = 0; line < lines; ++line)
-    fprintf(out_f, "<span onclick=\"markLine(%" EJ_PRINTF_ZSPEC "u)\"><tt>[%" EJ_PRINTF_ZSPEC "u]</tt></span><br/>\n",
-            EJ_PRINTF_ZCAST(line + 1), EJ_PRINTF_ZCAST(line + 1));
+    fprintf(out_f,"<span onclick=\"markLine(%d)\"><tt>[%d]</tt></span><br/>\n",
+            line + 1, line + 1);
   fprintf(out_f, "</td><td valign=\"top\"%s>", td_attr);
 
   for (cur = 0; cur < insize; ++cur) {
@@ -1779,7 +1779,7 @@ html_print_by_line(
             p++;
           } else if (*p <= 0xdf) {
             // two bytes: 0x80-0x7ff
-            if (p + 1 < s && p[1] >= 0x80 && p[1] <= 0xbf && (((s[0] & 0x1f) << 6) | (s[1] & 0x3f)) >= 0x80) {
+            if (p + 1 < s && p[1] >= 0x80 && p[1] <= 0xbf && (((p[0] & 0x1f) << 6) | (p[1] & 0x3f)) >= 0x80) {
               putc(*p++, f);
               putc(*p++, f);
             } else {
@@ -1788,7 +1788,10 @@ html_print_by_line(
             }
           } else if (*p <= 0xef) {
             // three bytes: 0x800-0xffff
-            if (p + 2 < s && p[1] >= 0x80 && p[1] <= 0xbf && p[2] >= 0x80 && p[2] <= 0xbf && (((s[0] & 0x0f) << 12) | ((s[1] & 0x3f) << 6) | (s[2] & 0x3f)) >= 0x800) {
+            putc('?', f);
+            p++;
+            /*
+            if (p + 2 < s && p[1] >= 0x80 && p[1] <= 0xbf && p[2] >= 0x80 && p[2] <= 0xbf && (((p[0] & 0x0f) << 12) | ((p[1] & 0x3f) << 6) | (p[2] & 0x3f)) >= 0x800) {
               putc(*p++, f);
               putc(*p++, f);
               putc(*p++, f);
@@ -1796,9 +1799,13 @@ html_print_by_line(
               putc('?', f);
               p++;
             }
+            */
           } else if (*p <= 0xf7) {
             // four bytes: 0x10000-0x10ffff
-            if (p + 3 < s && p[1] >= 0x80 && p[1] <= 0xbf && p[2] >= 0x80 && p[2] <= 0xbf && p[3] >= 0x80 && p[3] <= 0xbf && (((s[0] & 0x07) << 18) | ((s[1] & 0x3f) << 12) | ((s[2] & 0x3f) << 6) | (s[3] & 0x3f)) >= 0x10000) {
+            putc('?', f);
+            p++;
+            /*
+            if (p + 3 < s && p[1] >= 0x80 && p[1] <= 0xbf && p[2] >= 0x80 && p[2] <= 0xbf && p[3] >= 0x80 && p[3] <= 0xbf && (((p[0] & 0x07) << 18) | ((p[1] & 0x3f) << 12) | ((p[2] & 0x3f) << 6) | (p[3] & 0x3f)) >= 0x10000) {
               putc(*p++, f);
               putc(*p++, f);
               putc(*p++, f);
@@ -1807,6 +1814,7 @@ html_print_by_line(
               putc('?', f);
               p++;
             }
+            */
           } else {
             // reserved
             putc('?', f);
@@ -1830,6 +1838,96 @@ html_print_by_line(
   putc('\n', f);
 }
 
+int
+ucs2_to_utf8(
+        unsigned char **pu8str,
+        const unsigned char *u16str,
+        int u16len)
+{
+  int i, out_count, c;
+  int is_be = 0; // big endian?
+  const unsigned char *u16p = u16str;
+  unsigned char *u8o = 0, *u8p = 0;
+
+  if (u16len < 0) return -1;
+  if (!u16str || !u16len) {
+    if (pu8str) *pu8str = 0;
+    return 0;
+  }
+  if ((u16len & 1)) return -1;
+
+  // check for zero in the middle
+  for (i = 0; i < u16len; i += 2) {
+    if (!u16str[i] && !u16str[i + 1]) return -1;
+  }
+
+  // check for the BOM
+  if (u16str[0] == 0xff && u16str[1] == 0xfe) {
+    u16p = u16str + 2;
+    u16len -= 2;
+  } else if (u16str[0] == 0xfe && u16str[1] == 0xff) {
+    u16p = u16str + 2;
+    u16len -= 2;
+    is_be = 1;
+  } else {
+    int count0 = 0;
+    int count1 = 0;
+    for (i = 0; i < u16len; i += 2) {
+      if (u16str[i] >= ' ') ++count0;
+      if (u16str[i + 1] >= ' ') ++count1;
+      if (count0 <= 0) {
+        is_be = 1;
+      }
+      if (count0 > 0 && count1 > 0) {
+        // do not risk it
+        return -1;
+      }
+    }
+  }
+
+  out_count = 0;
+  for (i = 0; i < u16len; i += 2) {
+    if (is_be) {
+      c = (u16str[i] << 8) | u16str[i + 1];
+    } else {
+      c = (u16str[i + 1] << 8) | u16str[i];
+    }
+
+    if (c <= 0x7f) {
+      out_count += 1;
+    } else if (c <= 0x7ff) {
+      out_count += 2;
+    } else {
+      out_count += 3;
+    }
+  }
+  if (!pu8str) return out_count;
+
+  u8o = (unsigned char*) xmalloc(out_count + 1);
+  u8p = u8o;
+  for (i = 0; i < u16len; i += 2) {
+    if (is_be) {
+      c = (u16str[i] << 8) | u16str[i + 1];
+    } else {
+      c = (u16str[i + 1] << 8) | u16str[i];
+    }
+
+    if (c <= 0x7f) {
+      *u8p++ = c;
+    } else if (c <= 0x7ff) {
+      *u8p++ = (c >> 6) | 0xc0;
+      *u8p++ = (c & 0x3f) | 0x80;
+    } else {
+      *u8p++ = (c >> 12) | 0xe0;
+      *u8p++ = ((c >> 6) & 0x3f) | 0x80;
+      *u8p++ = (c & 0x3f) | 0x80;
+    }
+  }
+
+  *u8p = 0;
+  *pu8str = u8o;
+  return out_count;
+}
 
 /*
  * Local variables:

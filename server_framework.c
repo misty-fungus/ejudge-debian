@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: server_framework.c 5521 2008-12-28 09:18:13Z cher $ */
+/* $Id: server_framework.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -23,9 +23,9 @@
 #include "new_server_proto.h"
 #include "sock_op.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <string.h>

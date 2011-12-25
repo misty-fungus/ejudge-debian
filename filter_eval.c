@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: filter_eval.c 5948 2010-07-15 09:47:25Z cher $ */
+/* $Id: filter_eval.c 6185 2011-03-27 15:16:29Z cher $ */
 
-/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,8 +24,8 @@
 #include "userlist.h"
 #include "archive_paths.h"
 
-#include <reuse/logger.h>
-#include <reuse/MemPage.h>
+#include "reuse_logger.h"
+#include "reuse_mempage.h"
 
 static unsigned char *envdup(struct filter_env *env,
                              unsigned char const *str)

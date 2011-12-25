@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: compile_packet_2.c 5881 2010-06-14 11:40:36Z cher $ */
+/* $Id: compile_packet_2.c 6211 2011-03-31 22:56:14Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,9 +26,9 @@
 #include "prepare.h"
 #include "runlog.h"
 
-#include <reuse/integral.h>
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -135,6 +135,9 @@ compile_request_packet_write(
   out_data->style_check_only = cvt_host_to_bin_32(in_data->style_check_only);
   out_data->ts1 = cvt_host_to_bin_32(in_data->ts1);
   out_data->ts1_us = cvt_host_to_bin_32(in_data->ts1_us);
+  out_data->max_vm_size = cvt_host_to_bin_64(in_data->max_vm_size);
+  out_data->max_stack_size = cvt_host_to_bin_64(in_data->max_stack_size);
+  out_data->max_file_size = cvt_host_to_bin_64(in_data->max_file_size);
   out_data->style_checker_len = cvt_host_to_bin_32(style_checker_len);
   out_data->src_sfx_len = cvt_host_to_bin_32(src_sfx_len);
   out_data->run_block_len = cvt_host_to_bin_32(in_data->run_block_len);
@@ -181,7 +184,7 @@ compile_request_packet_write(
   return 0;
 
  failed:
-  err("compile_request_packet_write: error %s, %d", "$Revision: 5881 $", errcode);
+  err("compile_request_packet_write: error %s, %d", "$Revision: 6211 $", errcode);
   xfree(out_data);
   return -1;
 }

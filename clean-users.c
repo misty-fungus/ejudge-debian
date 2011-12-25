@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: clean-users.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: clean-users.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2003-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -29,8 +29,8 @@
 #include "userlist_proto.h"
 #include "serve_state.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <limits.h>

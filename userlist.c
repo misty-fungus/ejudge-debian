@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: userlist.c 5797 2010-05-15 20:53:58Z cher $ */
+/* $Id: userlist.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -25,8 +25,8 @@
 #include "xml_utils.h"
 #include "ej_limits.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <stdio.h>
 #include <stdlib.h>

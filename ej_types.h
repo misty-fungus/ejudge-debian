@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: ej_types.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: ej_types.h 6172 2011-03-27 12:40:30Z cher $ */
 #ifndef __EJ_TYPES_H__
 #define __EJ_TYPES_H__
 
-/* Copyright (C) 2005-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  * GNU General Public License for more details.
  */
 
-#include <reuse/integral.h>
+#include "reuse_integral.h"
 
 /* special types used to store/send data in binary format */
 typedef rint32_t  ej_time_t;     /* time_t as stored in files */
@@ -79,5 +79,22 @@ enum user_flags
 
   USERLIST_UC_ALL          = 0x0000001f,
 };
+
+/* test visibility */
+enum test_visibility
+{
+  TV_NORMAL = 0, // normal visibility, default value
+  TV_FULL   = 1, // full visibility: show test, output, checker...
+  TV_FULLIFMARKED = 2, // full for the marked runs, hidden elsewhere
+  TV_BRIEF  = 3, // brief: only testing result
+  TV_EXISTS = 4, // only existance of the test, score is counted
+  TV_HIDDEN = 5, // completely hidden
+
+  TV_LAST = 6
+};
+
+int test_visibility_parse(const unsigned char*);
+int test_visibility_parse_mem(const unsigned char*, int len);
+const unsigned char *test_visibility_unparse(int visibility);
 
 #endif /* __EJ_TYPES_H__ */

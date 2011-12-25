@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: nwrun_packet.c 5748 2010-01-26 07:20:54Z cher $ */
+/* $Id: nwrun_packet.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,8 +22,8 @@
 #include "nwrun_packet.h"
 #include "errlog.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_osdeps.h"
 
 #include <string.h>
 

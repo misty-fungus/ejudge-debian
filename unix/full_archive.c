@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: full_archive.c 5681 2010-01-19 10:02:25Z cher $ */
+/* $Id: full_archive.c 6160 2011-03-27 07:01:05Z cher $ */
 
-/* Copyright (C) 2005-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -21,9 +21,9 @@
 #include "errlog.h"
 #include "fileutl.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

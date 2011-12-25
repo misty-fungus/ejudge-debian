@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: common_plugin.c 5271 2008-11-10 19:45:23Z cher $ */
+/* $Id: common_plugin.c 6135 2011-03-26 09:30:42Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 #include "common_plugin.h"
 #include "errlog.h"
 
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
 
 #include <string.h>
 

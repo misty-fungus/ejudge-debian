@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_packet_2.c 5891 2010-06-16 19:02:46Z cher $ */
+/* $Id: run_packet_2.c 6172 2011-03-27 12:40:30Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,9 +26,9 @@
 #include "prepare.h"
 #include "runlog.h"
 
-#include <reuse/integral.h>
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -87,6 +87,7 @@ run_request_packet_write(
   if (in_data->security_violation) flags |= FLAGS_SECURITY_VIOLATION;
   if (in_data->notify_flag) flags |= FLAGS_NOTIFY;
   if (in_data->advanced_layout) flags |= FLAGS_ADVANCED_LAYOUT;
+  if (in_data->separate_user_score) flags |= FLAGS_SEPARATE_USER_SCORE;
   out_data->flags = cvt_host_to_bin_32(flags);
 
   /* copy timestamps without care */
@@ -134,7 +135,7 @@ run_request_packet_write(
   return 0;
 
  failed:
-  err("run_request_packet_write: error %s, %d", "$Revision: 5891 $", errcode);
+  err("run_request_packet_write: error %s, %d", "$Revision: 6172 $", errcode);
   xfree(out_data);
   return -1;
 }

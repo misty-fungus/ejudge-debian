@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: charsets.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: charsets.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,8 +20,8 @@
 
 #include "misctext.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <stdio.h>
 #include <string.h>

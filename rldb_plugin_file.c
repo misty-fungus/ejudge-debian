@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 6027 2010-11-03 12:53:13Z cher $ */
+/* $Id: rldb_plugin_file.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -32,9 +32,9 @@
 #include "xml_utils.h"
 #include "random.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -183,6 +183,24 @@ static int
 check_func(
         struct rldb_plugin_cnts *cdata,
         FILE *log_f);
+static int
+change_status_3_func(
+        struct rldb_plugin_cnts *cdata,
+        int run_id,
+        int new_status,
+        int new_test,
+        int new_score,
+        int judge_id,
+        int is_marked,
+        int has_user_score,
+        int user_status,
+        int user_tests_passed,
+        int user_score);
+static int
+change_status_4_func(
+        struct rldb_plugin_cnts *cdata,
+        int run_id,
+        int new_status);
 
 struct rldb_plugin_iface rldb_plugin_file =
 {
@@ -227,6 +245,8 @@ struct rldb_plugin_iface rldb_plugin_file =
   NULL, // put_header
   change_status_2_func,
   check_func,
+  change_status_3_func,
+  change_status_4_func,
 };
 
 static struct common_plugin_data *
@@ -1523,6 +1543,60 @@ check_func(
 
   // FIXME: save the updated runs
   return 0;
+}
+
+static int
+change_status_3_func(
+        struct rldb_plugin_cnts *cdata,
+        int run_id,
+        int new_status,
+        int new_test,
+        int new_score,
+        int judge_id,
+        int is_marked,
+        int has_user_score,
+        int user_status,
+        int user_tests_passed,
+        int user_score)
+{
+  struct rldb_file_cnts *cs = (struct rldb_file_cnts*) cdata;
+  struct runlog_state *rls = cs->rl_state;
+
+  ASSERT(run_id >= 0 && run_id < rls->run_u);
+
+  rls->runs[run_id].status = new_status;
+  rls->runs[run_id].test = new_test;
+  rls->runs[run_id].score = new_score;
+  rls->runs[run_id].judge_id = judge_id;
+  rls->runs[run_id].is_marked = is_marked;
+  rls->runs[run_id].is_saved = has_user_score;
+  rls->runs[run_id].saved_status = user_status;
+  rls->runs[run_id].saved_test = user_tests_passed;
+  rls->runs[run_id].saved_score = user_score;
+  return do_flush_entry(cs, run_id);
+}
+
+static int
+change_status_4_func(
+        struct rldb_plugin_cnts *cdata,
+        int run_id,
+        int new_status)
+{
+  struct rldb_file_cnts *cs = (struct rldb_file_cnts*) cdata;
+  struct runlog_state *rls = cs->rl_state;
+
+  ASSERT(run_id >= 0 && run_id < rls->run_u);
+
+  rls->runs[run_id].status = new_status;
+  rls->runs[run_id].test = 0;
+  rls->runs[run_id].score = -1;
+  rls->runs[run_id].judge_id = 0;
+  rls->runs[run_id].is_marked = 0;
+  rls->runs[run_id].is_saved = 0;
+  rls->runs[run_id].saved_status = 0;
+  rls->runs[run_id].saved_test = 0;
+  rls->runs[run_id].saved_score = 0;
+  return do_flush_entry(cs, run_id);
 }
 
 /*

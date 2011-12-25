@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: digest_1.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: digest_1.c 6147 2011-03-26 10:49:24Z cher $ */
 
-/* Copyright (C) 2005 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 
 #include "digest_io.h"
 
-#include <reuse/logger.h>
+#include "reuse_logger.h"
 
 int
 digest_get_ascii_size(int kind)

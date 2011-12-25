@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: protocol.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: protocol.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2002-2005 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,8 +17,8 @@
 
 #include "protocol.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <stdio.h>
 

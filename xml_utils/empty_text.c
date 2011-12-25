@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: empty_text.c 5677 2010-01-19 09:59:15Z cher $ */
+/* $Id: empty_text.c 6129 2011-03-26 09:12:45Z cher $ */
 
-/* Copyright (C) 2004-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 #include "pathutl.h"
 #include "expat_iface.h"
 
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
 
 #include <ctype.h>
 

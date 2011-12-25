@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: compile_packet_1.c 5881 2010-06-14 11:40:36Z cher $ */
+/* $Id: compile_packet_1.c 6211 2011-03-31 22:56:14Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,9 +26,9 @@
 #include "prepare.h"
 #include "runlog.h"
 
-#include <reuse/integral.h>
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -83,6 +83,10 @@ compile_request_packet_read(
   pout->ts1 = cvt_bin_to_host_32(pin->ts1);
   pout->ts1_us = cvt_bin_to_host_32(pin->ts1_us);
   FAIL_IF(pout->ts1_us < 0 || pout->ts1_us > USEC_MAX);
+
+  pout->max_vm_size = (size_t) cvt_bin_to_host_64(pin->max_vm_size);
+  pout->max_stack_size = (size_t) cvt_bin_to_host_64(pin->max_stack_size);
+  pout->max_file_size = (size_t) cvt_bin_to_host_64(pin->max_file_size);
 
   /* extract the additional data */
   // set up the additional data pointer
@@ -195,7 +199,7 @@ compile_request_packet_read(
 
  failed:
   /* even the contest id is not available */
-  err("compile_request_packet_read: error %s, %d", "$Revision: 5881 $", errcode);
+  err("compile_request_packet_read: error %s, %d", "$Revision: 6211 $", errcode);
   compile_request_packet_free(pout);
   return -1;
 }

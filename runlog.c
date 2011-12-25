@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: runlog.c 6022 2010-11-02 06:06:49Z cher $ */
+/* $Id: runlog.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -29,9 +29,9 @@
 #include "rldb_plugin.h"
 #include "prepare.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -491,6 +491,70 @@ run_change_status_2(
 }
 
 int
+run_change_status_3(
+        runlog_state_t state,
+        int runid,
+        int newstatus,
+        int newtest,
+        int newscore,
+        int judge_id,
+        int is_marked,
+        int has_user_score,
+        int user_status,
+        int user_tests_passed,
+        int user_score)
+{
+  if (runid < 0 || runid >= state->run_u) ERR_R("bad runid: %d", runid);
+  if (newstatus < 0 || newstatus > 255) ERR_R("bad newstatus: %d", newstatus);
+  if (newtest < -1) ERR_R("bad newtest: %d", newtest);
+  if (newscore < -1 || newscore > EJ_MAX_SCORE)
+    ERR_R("bad newscore: %d", newscore);
+  if (judge_id < 0 || judge_id > EJ_MAX_JUDGE_ID)
+    ERR_R("bad judge_id: %d", judge_id);
+
+  if (newstatus == RUN_VIRTUAL_START || newstatus == RUN_VIRTUAL_STOP)
+    ERR_R("virtual status cannot be changed that way");
+  if (newstatus == RUN_EMPTY)
+    ERR_R("EMPTY status cannot be set this way");
+  if (state->runs[runid].status == RUN_VIRTUAL_START
+      || state->runs[runid].status == RUN_VIRTUAL_STOP
+      || state->runs[runid].status == RUN_EMPTY)
+    ERR_R("this entry cannot be changed");
+
+  if (state->runs[runid].is_readonly)
+    ERR_R("this entry is read-only");
+
+  return state->iface->change_status_3(state->cnts, runid, newstatus, newtest,
+                                       newscore, judge_id, is_marked,
+                                       has_user_score, user_status,
+                                       user_tests_passed, user_score);
+}
+
+int
+run_change_status_4(
+        runlog_state_t state,
+        int runid,
+        int newstatus)
+{
+  if (runid < 0 || runid >= state->run_u) ERR_R("bad runid: %d", runid);
+  if (newstatus < 0 || newstatus > 255) ERR_R("bad newstatus: %d", newstatus);
+
+  if (newstatus == RUN_VIRTUAL_START || newstatus == RUN_VIRTUAL_STOP)
+    ERR_R("virtual status cannot be changed that way");
+  if (newstatus == RUN_EMPTY)
+    ERR_R("EMPTY status cannot be set this way");
+  if (state->runs[runid].status == RUN_VIRTUAL_START
+      || state->runs[runid].status == RUN_VIRTUAL_STOP
+      || state->runs[runid].status == RUN_EMPTY)
+    ERR_R("this entry cannot be changed");
+
+  if (state->runs[runid].is_readonly)
+    ERR_R("this entry is read-only");
+
+  return state->iface->change_status_4(state->cnts, runid, newstatus);
+}
+
+int
 run_get_status(runlog_state_t state, int runid)
 {
   if (runid < 0 || runid >= state->run_u) ERR_R("bad runid: %d", runid);
@@ -648,8 +712,8 @@ run_get_attempts(
       continue;
     if (state->runs[i].user_id != state->runs[runid].user_id) continue;
     if (state->runs[i].prob_id != state->runs[runid].prob_id) continue;
-    if (state->runs[i].status == RUN_COMPILE_ERR && skip_ce_flag) continue;
-    // RUN_STYLE_ERR???
+    if ((state->runs[i].status == RUN_COMPILE_ERR || state->runs[i].status == RUN_STYLE_ERR)
+        && skip_ce_flag) continue;
     if (state->runs[i].status == RUN_IGNORED) continue;
     if (state->runs[i].is_hidden) continue;
     if (state->runs[i].status == RUN_DISQUALIFIED) {

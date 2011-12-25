@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: master_html.c 5918 2010-06-29 18:44:53Z cher $ */
+/* $Id: master_html.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -43,9 +43,9 @@
 #include "serve_state.h"
 #include "mime_type.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <zlib.h>
 #include <stdio.h>

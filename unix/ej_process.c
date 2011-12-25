@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: ej_process.c 5877 2010-06-12 20:38:29Z cher $ */
+/* $Id: ej_process.c 6134 2011-03-26 09:15:37Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 #include "ej_process.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
 
 #include <stdio.h>
 #include <string.h>

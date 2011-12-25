@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: fileutl.c 5906 2010-06-24 04:54:23Z cher $ */
+/* $Id: fileutl.c 6160 2011-03-27 07:01:05Z cher $ */
 
-/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -23,9 +23,9 @@
 #include "errlog.h"
 #include "ej_limits.h"
 
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <unistd.h>
 #include <string.h>

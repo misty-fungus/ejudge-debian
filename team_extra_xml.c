@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: team_extra_xml.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: team_extra_xml.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2004-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,8 +24,8 @@
 #include "errlog.h"
 #include "xml_utils.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <ctype.h>
 

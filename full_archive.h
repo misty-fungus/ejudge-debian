@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: full_archive.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: full_archive.h 6173 2011-03-27 12:41:26Z cher $ */
 #ifndef __FULL_ARCHIVE_H__
 #define __FULL_ARCHIVE_H__
 
-/* Copyright (C) 2005 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  * GNU General Public License for more details.
  */
 
-#include <reuse/integral.h>
+#include "reuse_integral.h"
 
 struct full_archive
 {

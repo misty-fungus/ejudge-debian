@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: file_perms.c 6002 2010-10-05 07:56:19Z cher $ */
+/* $Id: file_perms.c 6161 2011-03-27 07:01:28Z cher $ */
 
-/* Copyright (C) 2009-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2009-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 #include "file_perms.h"
 #include "misctext.h"
 
-#include <reuse/osdeps.h>
+#include "reuse_osdeps.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

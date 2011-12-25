@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: userlist_check.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: userlist_check.c 6147 2011-03-26 10:49:24Z cher $ */
 
-/* Copyright (C) 2007-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 #include "userlist.h"
 #include "misctext.h"
 
-#include <reuse/logger.h>
+#include "reuse_logger.h"
 
 #include <string.h>
 
