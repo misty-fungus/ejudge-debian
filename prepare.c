@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.c 5957 2010-07-23 17:39:27Z cher $ */
+/* $Id: prepare.c 6012 2010-10-23 13:13:26Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -394,6 +394,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(max_stack_size, "z"),
   PROBLEM_PARAM(max_data_size, "z"),
   PROBLEM_PARAM_2(type, do_problem_parse_type),
+  PROBLEM_PARAM(interactor_time_limit, "d"),
 
   PROBLEM_PARAM(super, "s"),
   PROBLEM_PARAM(short_name, "s"),
@@ -650,6 +651,22 @@ int
 find_tester(const serve_state_t state,int problem, char const *arch)
 {
   int i;
+  struct section_tester_data *tst;
+
+  if (!arch) {
+    for (i = 1; i <= state->max_tester; ++i) {
+      if ((tst = state->testers[i]) && tst->any <= 0
+          && problem == tst->problem)
+        return i;
+    }
+
+    for (i = 1; i <= state->max_tester; ++i) {
+      if ((tst = state->testers[i]) && tst->any)
+        return i;
+    }
+
+    return 0;
+  }
 
   for (i = 1; i <= state->max_tester; i++) {
     if (!state->testers[i]) continue;
@@ -860,6 +877,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->max_vm_size = -1L;
   p->max_stack_size = -1L;
   p->max_data_size = -1L;
+  p->interactor_time_limit = -1;
 }
 
 static void free_testsets(int t, struct testset_info *p);
@@ -3204,6 +3222,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_time_limit, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit_millis, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_real_time_limit, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_interactor_time_limit, prob, aprob, g);
 
     prepare_set_prob_value(CNTSPROB_test_sfx, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_corr_sfx, prob, aprob, g);
@@ -5414,6 +5433,12 @@ prepare_set_prob_value(
     if (out->real_time_limit == -1) out->real_time_limit = 0;
     break;
 
+  case CNTSPROB_interactor_time_limit:
+    if (out->interactor_time_limit < 0 && abstr)
+      out->interactor_time_limit = abstr->interactor_time_limit;
+    if (out->interactor_time_limit < 0) out->interactor_time_limit = 0;
+    break;
+
   case CNTSPROB_use_ac_not_ok:
     if (out->use_ac_not_ok == -1 && abstr)
       out->use_ac_not_ok = abstr->use_ac_not_ok;
@@ -6010,7 +6035,7 @@ static const int prob_settable_list[] =
   CNTSPROB_binary_input, CNTSPROB_binary, CNTSPROB_ignore_exit_code,
   CNTSPROB_olympiad_mode,
   CNTSPROB_score_latest, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
-  CNTSPROB_real_time_limit, CNTSPROB_use_ac_not_ok,
+  CNTSPROB_real_time_limit, CNTSPROB_interactor_time_limit, CNTSPROB_use_ac_not_ok,
   CNTSPROB_team_enable_rep_view, CNTSPROB_team_enable_ce_view,
   CNTSPROB_team_show_judge_report, CNTSPROB_ignore_compile_errors,
   CNTSPROB_full_score, CNTSPROB_test_score, CNTSPROB_run_penalty,
@@ -6074,6 +6099,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
+  [CNTSPROB_interactor_time_limit] = 1,
   [CNTSPROB_use_ac_not_ok] = 1,
   [CNTSPROB_team_enable_rep_view] = 1,
   [CNTSPROB_team_enable_ce_view] = 1,
@@ -6188,6 +6214,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_binary_input, CNTSPROB_binary,
   CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode, CNTSPROB_score_latest,
   CNTSPROB_time_limit, CNTSPROB_time_limit_millis, CNTSPROB_real_time_limit,
+  CNTSPROB_interactor_time_limit,
   CNTSPROB_use_ac_not_ok, CNTSPROB_team_enable_rep_view,
   CNTSPROB_team_enable_ce_view, CNTSPROB_team_show_judge_report,
   CNTSPROB_ignore_compile_errors, CNTSPROB_full_score, CNTSPROB_test_score,
@@ -6250,6 +6277,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
+  [CNTSPROB_interactor_time_limit] = 1,
   [CNTSPROB_use_ac_not_ok] = 1,
   [CNTSPROB_team_enable_rep_view] = 1,
   [CNTSPROB_team_enable_ce_view] = 1,
@@ -6371,6 +6399,7 @@ static const struct section_problem_data prob_undef_values =
   .real_time_limit = -1,
   .time_limit = -1,
   .time_limit_millis = -1,
+  .interactor_time_limit = -1,
   .use_ac_not_ok = -1,
   .team_enable_rep_view = -1,
   .team_enable_ce_view = -1,
@@ -6496,6 +6525,7 @@ static const struct section_problem_data prob_default_values =
   .real_time_limit = 0,
   .time_limit = 0,
   .time_limit_millis = 0,
+  .interactor_time_limit = 0,
   .use_ac_not_ok = 0,
   .team_enable_rep_view = 0,
   .team_enable_ce_view = 0,
@@ -6789,7 +6819,7 @@ cntsprob_copy_and_set_default(
         if (*(unsigned char **) s_ptr != 0) {
           *pd_str = xstrdup(*(unsigned char **) s_ptr);
         }
-        if (!*pd_str && is_inh && *(unsigned char **) a_ptr) {
+        if (!*pd_str && is_inh && a_ptr && *(unsigned char **) a_ptr) {
           *pd_str = xstrdup(*(unsigned char **) a_ptr);
         }
         if (*pd_str && prob_format_set[f_id]) {

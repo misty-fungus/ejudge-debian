@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 5955 2010-07-21 05:48:38Z cher $ */
+/* $Id: new_server_html_4.c 6006 2010-10-15 18:53:41Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1812,7 +1812,7 @@ new_server_cmd_handler(FILE *fout, struct http_request_info *phr)
   callbacks.list_all_users = ns_list_all_users_callback;
 
   // invoke the contest
-  if (serve_state_load_contest(config, phr->contest_id,
+  if (serve_state_load_contest(ejudge_config, phr->contest_id,
                                ul_conn,
                                &callbacks,
                                &extra->serve_state, 0) < 0) {

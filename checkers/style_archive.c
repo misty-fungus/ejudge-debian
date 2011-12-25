@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: style_archive.c 5976 2010-08-08 07:34:09Z cher $ */
+/* $Id: style_archive.c 6029 2010-11-03 14:16:30Z cher $ */
 
 /* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -33,6 +33,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <dirent.h>
+#include <sys/stat.h>
 
 extern char **environ;
 

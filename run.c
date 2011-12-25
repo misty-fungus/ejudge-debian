@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run.c 5907 2010-06-24 04:58:26Z cher $ */
+/* $Id: run.c 6012 2010-10-23 13:13:26Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1727,6 +1727,9 @@ run_tests(struct section_tester_data *tst,
 #if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
         task_EnableAllSignals(tsk_int);
 #endif
+        if (prb->interactor_time_limit > 0) {
+          task_SetMaxTime(tsk_int, prb->interactor_time_limit);
+        }
 
         if (task_Start(tsk_int) < 0) {
           /* failed to start task */
@@ -2767,6 +2770,7 @@ do_loop(void)
   size_t reply_pkt_buf_size = 0;
   unsigned char errmsg[512];
   const struct section_global_data *global = serve_state.global;
+  const unsigned char *arch = 0;
 
   memset(&tn, 0, sizeof(tn));
 
@@ -2894,9 +2898,14 @@ do_loop(void)
                           utf8_mode);
       cr_serialize_unlock(&serve_state);
     } else {
+      arch = req_pkt->arch;
+      if (cur_prob->type > 0 && arch && !*arch) {
+        // any tester will work for output-only problems
+        arch = 0;
+      }
+
       /* regular problem */
-      if (!(tester_id = find_tester(&serve_state, req_pkt->problem_id,
-                                    req_pkt->arch))) {
+      if (!(tester_id = find_tester(&serve_state, req_pkt->problem_id, arch))){
         snprintf(errmsg, sizeof(errmsg),
                  "no tester found for %d, %s\n",
                  req_pkt->problem_id, req_pkt->arch);

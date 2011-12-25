@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_2.c 5955 2010-07-21 05:48:38Z cher $ */
+/* $Id: serve_2.c 6000 2010-10-05 06:18:37Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1171,7 +1171,7 @@ serve_run_request(
   int cn;
   struct section_problem_data *prob;
   struct section_language_data *lang = 0;
-  unsigned char *arch = "", *exe_sfx = "";
+  unsigned char *arch = 0, *exe_sfx = "";
   const unsigned char *user_name;
   int prio, i;
   unsigned char pkt_base[EJ_SERVE_PACKET_NAME_SIZE];
@@ -1278,6 +1278,10 @@ serve_run_request(
       fprintf(errf, "writing failed");
       return -1;
     }
+  }
+
+  if (!arch) {
+    arch = "";
   }
 
   /* create an internal representation of run packet */

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 5775 2010-02-23 16:02:43Z cher $ */
+/* $Id: rldb_plugin_file.c 6027 2010-11-03 12:53:13Z cher $ */
 
 /* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -179,6 +179,10 @@ change_status_2_func(
         int new_score,
         int judge_id,
         int is_marked);
+static int
+check_func(
+        struct rldb_plugin_cnts *cdata,
+        FILE *log_f);
 
 struct rldb_plugin_iface rldb_plugin_file =
 {
@@ -222,6 +226,7 @@ struct rldb_plugin_iface rldb_plugin_file =
   NULL, // put_entry
   NULL, // put_header
   change_status_2_func,
+  check_func,
 };
 
 static struct common_plugin_data *
@@ -1499,6 +1504,25 @@ change_status_2_func(
   rls->runs[run_id].judge_id = judge_id;
   rls->runs[run_id].is_marked = is_marked;
   return do_flush_entry(cs, run_id);
+}
+
+static int
+check_func(
+        struct rldb_plugin_cnts *cdata,
+        FILE *log_f)
+{
+  struct rldb_file_cnts *cs = (struct rldb_file_cnts*) cdata;
+  struct runlog_state *rls = cs->rl_state;
+
+  int retval = 0;
+
+  retval = run_fix_runlog_time(log_f, rls->run_u, rls->runs, NULL);
+  if (retval < 0) {
+    return retval;
+  }
+
+  // FIXME: save the updated runs
+  return 0;
 }
 
 /*

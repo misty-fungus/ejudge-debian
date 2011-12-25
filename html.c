@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 5950 2010-07-16 12:33:23Z cher $ */
+/* $Id: html.c 5996 2010-10-03 17:05:27Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -3525,14 +3525,16 @@ do_write_standings(
     start_time = run_get_virtual_start_time(state->runlog_state, user_id);
     stop_time = run_get_virtual_stop_time(state->runlog_state, user_id, 0);
   }
-  if (start_time && !stop_time && cur_time >= start_time + contest_dur) {
-    stop_time = start_time + contest_dur;
-  }
-  if (start_time && cur_time < start_time) {
+  if (start_time > 0 && cur_time < start_time) {
     cur_time = start_time;
   }
-  if (stop_time && cur_time > stop_time) {
-    cur_time = stop_time;
+  if (start_time > 0 && contest_dur > 0) {
+    if (stop_time <= 0 && cur_time >= start_time + contest_dur) {
+      stop_time = start_time + contest_dur;
+    }
+    if (stop_time > 0 && cur_time > stop_time) {
+      cur_time = stop_time;
+    }
   }
   current_dur = cur_time - start_time;
   if (!start_time) {

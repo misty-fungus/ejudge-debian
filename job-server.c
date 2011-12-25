@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: job-server.c 5538 2008-12-31 10:40:16Z cher $ */
+/* $Id: job-server.c 6029 2010-11-03 14:16:30Z cher $ */
 
 /* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
 
@@ -38,6 +38,7 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <sys/stat.h>
 
 static struct ejudge_cfg *config;
 static path_t job_server_log_path;
