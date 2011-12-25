@@ -1,8 +1,8 @@
 Index: ejudge-debian/compile.c
 ===================================================================
---- ejudge-debian.orig/compile.c	2011-03-01 22:52:31.882868291 +0300
-+++ ejudge-debian/compile.c	2011-03-01 23:13:34.866868687 +0300
-@@ -705,9 +705,13 @@
+--- ejudge-debian.orig/compile.c	2011-12-25 23:26:39.000000000 +0300
++++ ejudge-debian/compile.c	2011-12-25 23:26:47.000000000 +0300
+@@ -887,9 +887,13 @@
  
  #if HAVE_SETSID - 0
    if (daemon_mode) {

@@ -1,3 +1,10 @@
+ejudge (2.3.18-1) unstable; urgency=low
+
+  * New upstream version 2.3.18
+  * refreshed patches for 2.3.18
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Sun, 25 Dec 2011 23:29:26 +0300
+
 ejudge (2.3.17-1) unstable; urgency=low
 
   * Imported Upstream version 2.3.17
