@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: file_perms.c 5561 2009-05-02 16:06:34Z cher $ */
+/* $Id: file_perms.c 6003 2010-10-05 07:57:27Z cher $ */
 
-/* Copyright (C) 2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2009-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -28,6 +28,26 @@ int
 file_perms_parse_group(const unsigned char *group)
 {
   return -1;
+}
+
+int
+file_perms_set(
+        FILE *flog,
+        const unsigned char *path,
+        int group,
+        int mode,
+        int old_group,
+        int old_mode)
+{
+  return -1;
+}
+
+void
+file_perms_get(
+        const unsigned char *path,
+        int *p_group,
+        int *p_mode)
+{
 }
 
 /*

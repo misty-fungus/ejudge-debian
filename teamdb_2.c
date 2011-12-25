@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: teamdb_2.c 5950 2010-07-16 12:33:23Z cher $ */
+/* $Id: teamdb_2.c 5990 2010-09-11 16:17:41Z cher $ */
 
 /* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -122,6 +122,9 @@ teamdb_get_user_map(
     }
   }
 
+  /*
   env.mem = filter_tree_delete(env.mem);
+  filter->stand_user_tree = 0;
+  */
   *p_u_tot = u_tot;
 }

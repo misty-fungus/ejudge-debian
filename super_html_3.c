@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 5980 2010-08-10 16:31:00Z cher $ */
+/* $Id: super_html_3.c 6012 2010-10-23 13:13:26Z cher $ */
 
 /* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -3349,6 +3349,13 @@ super_html_edit_languages(
   int row = 1;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
 
+  if (!global) {
+    super_html_contest_page_menu(f, session_id, sstate, 3, self_url,
+                                 hidden_vars, extra_args);
+    fprintf(f, "<h2>Editing session is finished</h2>\n");
+    goto cleanup;
+  }
+
   if (sstate->serve_parse_errors) {
     super_html_contest_page_menu(f, session_id, sstate, 3, self_url, hidden_vars,
                                  extra_args);
@@ -5818,6 +5825,31 @@ super_html_print_problem(FILE *f,
     xfree(checker_env);
   }
 
+  //PROBLEM_PARAM(interactor_time_limit, "d"),
+  if (show_adv) {
+    extra_msg = "";
+    if (prob->abstract) {
+      if (prob->interactor_time_limit == -1) extra_msg = "<i>(Undefined)</i>";
+      else if (!prob->interactor_time_limit) extra_msg = "<i>(Unlimited)</i>";
+    } else {
+      if (prob->interactor_time_limit == -1) {
+        prepare_set_prob_value(CNTSPROB_interactor_time_limit,
+                               tmp_prob, sup_prob, sstate->global);
+        if (!tmp_prob->interactor_time_limit)
+          snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - Unlimited)</i>");
+        else
+          snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - %d)</i>",
+                   tmp_prob->interactor_time_limit);
+        extra_msg = msg_buf;
+      } else if (!prob->interactor_time_limit) extra_msg = "<i>(Unlimited)</i>";
+    }
+    print_int_editing_row(f, "Time limit for interactor (sec):",
+                          prob->interactor_time_limit, extra_msg,
+                          SSERV_CMD_PROB_CHANGE_INTERACTOR_TIME_LIMIT,
+                          session_id, form_row_attrs[row ^= 1],
+                          self_url, extra_args, prob_hidden_vars);
+  }
+
   //PROBLEM_PARAM(style_checker_cmd, "s"),
   extra_msg = 0;
   if (show_adv) {
@@ -6761,6 +6793,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CHANGE_CHECKER_REAL_TIME_LIMIT:
     p_int = &prob->checker_real_time_limit;
+    goto handle_int_1;
+
+  case SSERV_CMD_PROB_CHANGE_INTERACTOR_TIME_LIMIT:
+    p_int = &prob->interactor_time_limit;
     goto handle_int_1;
 
   case SSERV_CMD_PROB_CHANGE_MAX_VM_SIZE:
@@ -8230,6 +8266,7 @@ check_test_file(
   size_t test_len = 0;
   unsigned char *d2u_txt = 0, *out_txt = 0;
   int changed = 0;
+  int old_group = 0, old_mode = 0;
 
   if (pat && *pat) {
     snprintf(name, sizeof(name), pat, n);
@@ -8282,6 +8319,8 @@ check_test_file(
     }
   }
 
+  file_perms_get(full, &old_group, &old_mode);
+
   if (!bin_flag) {
     if (generic_read_file(&test_txt, 0, &test_len, 0, 0, full, 0) < 0) {
       fprintf(flog, "Error: failed to read %s\n", full);
@@ -8320,7 +8359,7 @@ check_test_file(
       return -1;
     }
     fprintf(flog, "Info: file %s successfully written\n", full);
-    file_perms_set(flog, full, file_group, file_mode);
+    file_perms_set(flog, full, file_group, file_mode, old_group, old_mode);
   }
 
   xfree(out_txt);

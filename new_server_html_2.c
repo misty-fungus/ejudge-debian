@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 5955 2010-07-21 05:48:38Z cher $ */
+/* $Id: new_server_html_2.c 6008 2010-10-16 18:52:35Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -2075,6 +2075,7 @@ write_from_contest_dir(
 {
   path_t path1;
   path_t path2;
+  path_t path3;
   unsigned char cur_digest[32];
   int good_digest_flag = 0;
   char *file_bytes = 0;
@@ -2092,7 +2093,8 @@ write_from_contest_dir(
   }
 
   if (global->advanced_layout > 0) {
-    get_advanced_layout_path(path1, sizeof(path1), global, prb, entry, variant);
+    get_advanced_layout_path(path3, sizeof(path3), global, prb, entry,variant);
+    snprintf(path1, sizeof(path1), "%s/%s", path3, path2);
   } else {
     if (variant > 0) {
       snprintf(path1, sizeof(path1), "%s-%d/%s", dir, variant, path2);

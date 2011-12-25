@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 5973 2010-08-03 20:11:15Z cher $ */
+/* $Id: new_server_html.c 6006 2010-10-15 18:53:41Z cher $ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -683,7 +683,7 @@ ns_open_ul_connection(struct server_framework_state *state)
 
   if (ul_conn) return 0;
 
-  if (!(ul_conn = userlist_clnt_open(config->socket_path))) {
+  if (!(ul_conn = userlist_clnt_open(ejudge_config->socket_path))) {
     err("ns_open_ul_connection: connect to server failed");
     return -1;
   }
@@ -3124,11 +3124,20 @@ priv_set_run_style_error_status(
   unsigned char errmsg[1024];
   unsigned char rep_path[PATH_MAX];
 
+  if (opcaps_check(phr->caps, OPCAP_COMMENT_RUN) < 0) {
+    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
+    goto cleanup;
+  }
+
   errmsg[0] = 0;
   if (parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0) return -1;
   if (re.user_id && !teamdb_lookup(cs->teamdb_state, re.user_id)) {
     ns_error(log_f, NEW_SRV_ERR_USER_ID_NONEXISTANT, re.user_id);
     goto cleanup;
+  }
+  if (re.status != RUN_ACCEPTED && opcaps_check(phr->caps, OPCAP_EDIT_RUN)<0){
+    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
+    goto cleanup;    
   }
   if (ns_cgi_param(phr, "msg_text", &text) < 0) {
     snprintf(errmsg, sizeof(errmsg), "%s", "msg_text is binary");
@@ -3880,9 +3889,7 @@ priv_simple_change_status(
     goto invalid_param;
   }
 
-  if (opcaps_check(phr->caps, OPCAP_EDIT_RUN) < 0
-      && ((status != RUN_REJUDGE && status != RUN_FULL_REJUDGE)
-          || opcaps_check(phr->caps, OPCAP_REJUDGE_RUN))) {
+  if (opcaps_check(phr->caps, OPCAP_COMMENT_RUN) < 0) {
     ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
     goto cleanup;
   }
@@ -3895,6 +3902,10 @@ priv_simple_change_status(
       || !(prob = cs->probs[re.prob_id])) {
     ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
     goto cleanup;
+  }
+  if (re.status != RUN_ACCEPTED && opcaps_check(phr->caps, OPCAP_EDIT_RUN)<0){
+    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
+    goto cleanup;    
   }
 
   memset(&new_run, 0, sizeof(new_run));
@@ -8777,7 +8788,7 @@ privileged_entry_point(
     phr->caps = caps;
   }
   phr->dbcaps = 0;
-  if (opcaps_find(&config->capabilities, phr->login, &caps) >= 0) {
+  if (opcaps_find(&ejudge_config->capabilities, phr->login, &caps) >= 0) {
     phr->dbcaps = caps;
   }
 
@@ -8786,7 +8797,7 @@ privileged_entry_point(
   callbacks.list_all_users = ns_list_all_users_callback;
 
   // invoke the contest
-  if (serve_state_load_contest(config, phr->contest_id,
+  if (serve_state_load_contest(ejudge_config, phr->contest_id,
                                ul_conn,
                                &callbacks,
                                &extra->serve_state, 0) < 0) {
@@ -13687,7 +13698,7 @@ unprivileged_entry_point(
     return unpriv_page_forgot_password_3(fout, phr, orig_locale_id);
 
   if ((phr->contest_id < 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts)
-      && !phr->session_id && config->enable_contest_select){
+      && !phr->session_id && ejudge_config->enable_contest_select){
     return anon_select_contest_page(fout, phr);
   }
 
@@ -13779,7 +13790,7 @@ unprivileged_entry_point(
   callbacks.list_all_users = ns_list_all_users_callback;
 
   // invoke the contest
-  if (serve_state_load_contest(config, phr->contest_id,
+  if (serve_state_load_contest(ejudge_config, phr->contest_id,
                                ul_conn,
                                &callbacks,
                                &extra->serve_state, 0) < 0) {

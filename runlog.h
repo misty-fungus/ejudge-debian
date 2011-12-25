@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.h 5775 2010-02-23 16:02:43Z cher $ */
+/* $Id: runlog.h 6027 2010-11-03 12:53:13Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
@@ -339,5 +339,12 @@ run_get_all_statistics(
         size_t size,
         int *counts,
         size_t *sizes);
+
+int
+run_fix_runlog_time(
+        FILE *log_f,
+        int run_u,
+        struct run_entry *runs,
+        unsigned char *fix_mask);
 
 #endif /* __RUNLOG_H__ */

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.c 5775 2010-02-23 16:02:43Z cher $ */
+/* $Id: runlog.c 6022 2010-11-02 06:06:49Z cher $ */
 
 /* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -197,6 +197,8 @@ run_open(
                                            init_finish_time)))
       return -1;
     if (!(flags & RUN_LOG_NOINDEX)) {
+      if (state->iface->check && state->iface->check(state->cnts, 0) < 0)
+        return -1;
       if (runlog_check(0, &state->head, state->run_u, state->runs) < 0)
         return -1;
       build_indices(state);
@@ -216,6 +218,8 @@ run_open(
                                            init_finish_time)))
       return -1;
     if (!(flags & RUN_LOG_NOINDEX)) {
+      if (state->iface->check && state->iface->check(state->cnts, 0) < 0)
+        return -1;
       if (runlog_check(0, &state->head, state->run_u, state->runs) < 0)
         return -1;
       build_indices(state);
@@ -256,6 +260,8 @@ run_open(
                                          init_finish_time)))
     return -1;
   if (!(flags & RUN_LOG_NOINDEX)) {
+    if (state->iface->check && state->iface->check(state->cnts, 0) < 0)
+      return -1;
     if (runlog_check(0, &state->head, state->run_u, state->runs) < 0)
       return -1;
     build_indices(state);

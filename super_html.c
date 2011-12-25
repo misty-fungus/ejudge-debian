@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html.c 5933 2010-07-07 19:02:43Z cher $ */
+/* $Id: super_html.c 5992 2010-09-17 05:05:22Z cher $ */
 
 /* Copyright (C) 2004-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -3441,6 +3441,7 @@ static const char * contest_cap_descs[] =
   [OPCAP_EDIT_PASSWD] = "View and edit passwords for regular users",
   [OPCAP_PRIV_EDIT_PASSWD] = "View and edit passwords for privileged users",
   [OPCAP_RESTART] = "Restart the server programs",
+  [OPCAP_COMMENT_RUN] = "Comment the runs",
 };
 
 void

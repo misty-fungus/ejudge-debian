@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: rldb_plugin.h 5775 2010-02-23 16:02:43Z cher $ */
+/* $Id: rldb_plugin.h 6022 2010-11-02 06:06:49Z cher $ */
 
 #ifndef __RLDB_PLUGIN_H__
 #define __RLDB_PLUGIN_H__
@@ -136,6 +136,8 @@ struct rldb_plugin_iface
                          int new_score,
                          int judge_id,
                          int is_marked);
+  // check the runlog (may fix broken items)
+  int (*check)(struct rldb_plugin_cnts *, FILE *log_f);
 };
 
 /* default plugin: compiled into new-server */

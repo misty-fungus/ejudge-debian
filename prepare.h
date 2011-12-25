@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 5972 2010-08-03 19:48:42Z cher $ */
+/* $Id: prepare.h 6010 2010-10-23 10:20:57Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -703,7 +703,7 @@ struct section_global_data
   +path_t test_checker_cmd;
  */
 
-/* sizeof(struct section_problem_data) == 64916 */
+/* sizeof(struct section_problem_data) == 64920 */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -883,6 +883,8 @@ struct section_problem_data
   ejintbool_t valuer_sets_marked;
   /** ignore unmarked submits in scoring */
   ejintbool_t ignore_unmarked;
+  /** time-limit for the interactor */
+  int interactor_time_limit;
 
   /** printf pattern for the test files */
   unsigned char test_pat[32];

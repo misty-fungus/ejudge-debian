@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 5950 2010-07-16 12:33:23Z cher $ */
+/* $Id: new-server.h 6006 2010-10-15 18:53:41Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -108,7 +108,7 @@ ns_handle_http_request(struct server_framework_state *state,
 
 struct ejudge_cfg;
 struct userlist_clnt;
-extern struct ejudge_cfg *config;
+extern struct ejudge_cfg *ejudge_config;
 extern struct userlist_clnt *ul_conn;
 extern int ul_uid;
 extern unsigned char *ul_login;

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: lang_config_vis.c 5864 2010-06-12 11:27:48Z cher $ */
+/* $Id: lang_config_vis.c 6029 2010-11-03 14:16:30Z cher $ */
 
 /* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -38,6 +38,7 @@
 #include <dirent.h>
 #include <utime.h>
 #include <time.h>
+#include <sys/stat.h>
 
 static struct lang_config_info *lang_first, *lang_last;
 static int lang_configured = 0;

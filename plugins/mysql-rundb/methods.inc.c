@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: methods.inc.c 5774 2010-02-23 15:51:01Z cher $ */
+/* $Id: methods.inc.c 6021 2010-11-02 06:04:58Z cher $ */
 
 /* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -175,3 +175,8 @@ change_status_2_func(
         int new_score,
         int new_judge_id,
         int new_is_marked);
+
+static int
+check_func(
+        struct rldb_plugin_cnts *cdata,
+        FILE *log_f);

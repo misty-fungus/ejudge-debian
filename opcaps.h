@@ -1,9 +1,9 @@
 #ifndef __OPCAPS_H__
 #define __OPCAPS_H__
 
-/* $Id: opcaps.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: opcaps.h 5992 2010-09-17 05:05:22Z cher $ */
 
-/* Copyright (C) 2003-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2010 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -57,6 +57,7 @@ enum
   OPCAP_EDIT_PASSWD = 32,
   OPCAP_PRIV_EDIT_PASSWD = 33,
   OPCAP_RESTART = 34,
+  OPCAP_COMMENT_RUN = 35,
 
   OPCAP_LAST
 };

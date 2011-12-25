@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 5955 2010-07-21 05:48:38Z cher $ */
+/* $Id: prepare_out.c 6012 2010-10-23 13:13:26Z cher $ */
 
 /* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -948,6 +948,9 @@ prepare_unparse_prob(
   if (!prob->abstract) {
     fprintf(f, "long_name = \"%s\"\n", CARMOR(prob->long_name));
   }
+  if (!prob->abstract && prob->internal_name[0]) {
+    fprintf(f, "internal_name = \"%s\"\n", CARMOR(prob->internal_name));
+  }
 
   if ((prob->abstract && prob->type > 0)
       || (!prob->abstract && prob->type >= 0))
@@ -1180,6 +1183,9 @@ prepare_unparse_prob(
   if (prob->interactor_cmd[0])
     fprintf(f,"interactor_cmd = \"%s\"\n",CARMOR(prob->interactor_cmd));
   do_xstr(f, &ab, "interactor_env", prob->interactor_env);
+  if (prob->interactor_time_limit > 0) {
+    fprintf(f, "interactor_time_limit = %d\n", prob->interactor_time_limit);
+  }
   if (prob->style_checker_cmd[0])
     fprintf(f,"style_checker_cmd = \"%s\"\n",CARMOR(prob->style_checker_cmd));
   do_xstr(f, &ab, "style_checker_env", prob->style_checker_env);
@@ -1253,6 +1259,10 @@ prepare_unparse_prob(
   if (prob->stand_last_column >= 0
       && ((prob->abstract && prob->stand_last_column) || !prob->abstract))
       unparse_bool(f, "stand_last_column", prob->stand_last_column);
+  if (!prob->abstract && prob->stand_column[0]) {
+    fprintf(f, "stand_column = \"%s\"\n", CARMOR(prob->stand_column));
+  }
+
 
   if (!prob->abstract && prob->start_date > 0)
     fprintf(f, "start_date = \"%s\"\n", xml_unparse_date(prob->start_date));

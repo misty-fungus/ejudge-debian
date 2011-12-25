@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.unix.in 5930 2010-07-07 05:23:04Z cher $
+# $Id: Makefile.unix.in 5985 2010-09-05 09:46:33Z cher $
 # @configure_input@
 
 # Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
@@ -58,6 +58,8 @@ WPTRSIGN=@ac_cv_gcc_wno_pointer_sign@
 NCURSES_SUFFIX=@ac_cv_ncurses_suffix@
 WERROR=@ac_cv_werror_flag@
 
+META_CC=@ac_cv_meta_cc@
+
 include files.make
 
 ifeq (${ARCH}, unix)
@@ -86,8 +88,6 @@ CC=gcc
 LD=gcc
 EXPAT_LIB=-lexpat
 REUSE_LIB=-lreuse
-
-META_CC = ../new-c/bin/rcc
 
 C_CFILES=compile.c version.c
 C_OBJECTS=$(C_CFILES:.c=.o) libcommon.a libplatform.a

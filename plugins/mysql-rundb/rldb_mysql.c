@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 5856 2010-06-12 06:14:27Z cher $ */
+/* $Id: rldb_mysql.c 6026 2010-11-03 12:49:10Z cher $ */
 
 /* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -103,6 +103,7 @@ struct rldb_plugin_iface plugin_rldb_mysql =
   put_entry_func,
   put_header_func,
   change_status_2_func,
+  check_func,
 };
 
 static struct common_plugin_data *
@@ -1538,6 +1539,24 @@ change_status_2_func(
 
   return do_update_entry(cs, run_id, &te,
                          RE_STATUS | RE_TEST | RE_SCORE | RE_JUDGE_ID | RE_IS_MARKED);
+}
+
+static int
+check_func(
+        struct rldb_plugin_cnts *cdata,
+        FILE *log_f)
+{
+  struct rldb_mysql_cnts *cs = (struct rldb_mysql_cnts *) cdata;
+  struct runlog_state *rls = cs->rl_state;
+  int retval = 0;
+
+  retval = run_fix_runlog_time(log_f, rls->run_u, rls->runs, NULL);
+  if (retval < 0) {
+    return retval;
+  }
+
+  // FIXME: save the updated runs
+  return 0;
 }
 
 /*
