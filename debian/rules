@@ -39,6 +39,7 @@ override_dh_auto_configure:
 override_dh_auto_install:
 	dh_auto_install
 	mv $(CURDIR)/debian/ejudge/include $(CURDIR)/debian/ejudge/usr
+	mkdir -p $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-control $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-config $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-upgrade-web $(CURDIR)/debian/ejudge/usr/sbin/
