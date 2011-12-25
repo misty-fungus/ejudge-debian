@@ -1,7 +1,7 @@
 # -*- Makefile -*-
-# $Id: files.make 5950 2010-07-16 12:33:23Z cher $
+# $Id: files.make 6185 2011-03-27 15:16:29Z cher $
 
-# Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -92,6 +92,26 @@ NEW_SERVER_CLNT_CFILES=\
  new_server_clnt/recv_packet.c\
  new_server_clnt/send_packet.c
 
+REUSE_CFILES=\
+ reuse/reuse_hash.c\
+ reuse/reuse_mempage.c\
+ reuse/reuse_xalloc.c\
+ reuse/reuse_xcalloc.c\
+ reuse/reuse_xexpand.c\
+ reuse/reuse_xexpand2.c\
+ reuse/reuse_xexpand3.c\
+ reuse/reuse_xexpand4.c\
+ reuse/reuse_xfree.c\
+ reuse/reuse_xmalloc.c\
+ reuse/reuse_xmemdup.c\
+ reuse/reuse_xrealloc.c\
+ reuse/reuse_xstrarrayfree.c\
+ reuse/reuse_xstrdup.c\
+ reuse/reuse_xstrmerge0.c\
+ reuse/reuse_xstrmerge1.c\
+ reuse/reuse_xstrmerge2.c\
+ reuse/reuse_xstrmerge3.c
+
 COMMON_CFILES=\
  allowed_list.c\
  archive_paths.c\
@@ -141,6 +161,7 @@ COMMON_CFILES=\
  meta_generic.c\
  mime_type.c\
  misctext.c\
+ ncheck_packet.c\
  new_server_html.c\
  new_server_html_2.c\
  new_server_html_3.c\
@@ -193,6 +214,10 @@ COMMON_CFILES=\
  super_html_5.c\
  super_proto.c\
  sha.c\
+ t3m_dir_listener.c\
+ t3m_submits.c\
+ t3m_zip_packet_class.c\
+ t3_packets.c\
  teamdb.c\
  teamdb_2.c\
  team_extra.c\
@@ -212,6 +237,7 @@ COMMON_CFILES=\
  varsubst.c\
  vcs.c\
  watched_file.c\
+ zip_utils.c\
  xml_utils/attr_bool.c\
  xml_utils/attr_bool_byte.c\
  xml_utils/attr_date.c\
@@ -248,7 +274,58 @@ COMMON_CFILES=\
  xml_utils/unparse_run_status.c\
  xml_utils/unparse_text.c\
  xml_utils/xml_err.c\
- xml_utils/xml_err_a.c
+ xml_utils/xml_err_a.c\
+ ${REUSE_CFILES}
+
+PLATFORM_CFILES =\
+ pathutl.c\
+ $(ARCH)/fileutl.c\
+ $(ARCH)/cr_serialize.c\
+ $(ARCH)/interrupt.c\
+ $(ARCH)/curtime.c\
+ $(ARCH)/timestamp.c\
+ $(ARCH)/ej_process.c\
+ $(ARCH)/cpu.c\
+ $(ARCH)/file_perms.c\
+ $(ARCH)/full_archive.c\
+ $(ARCH)/startstop.c\
+ $(ARCH)/sock_op_enable_creds.c\
+ $(ARCH)/sock_op_get_fds.c\
+ $(ARCH)/sock_op_put_fds.c\
+ $(ARCH)/sock_op_get_creds.c\
+ $(ARCH)/sock_op_put_creds.c\
+ $(ARCH)/open_memstream.c\
+ $(ARCH)/fmemopen.c\
+ $(ARCH)/reuse_attachfile.c\
+ $(ARCH)/reuse_checkaccess.c\
+ $(ARCH)/reuse_dirname.c\
+ $(ARCH)/reuse_errormsg.c\
+ $(ARCH)/reuse_errorstring.c\
+ $(ARCH)/reuse_findinpath.c\
+ $(ARCH)/reuse_exec.c\
+ $(ARCH)/reuse_getbasename.c\
+ $(ARCH)/reuse_geterrorstring.c\
+ $(ARCH)/reuse_getlastname.c\
+ $(ARCH)/reuse_getsignalstring.c\
+ $(ARCH)/reuse_getsuffix.c\
+ $(ARCH)/reuse_getworkingdir.c\
+ $(ARCH)/reuse_isabsolutepath.c\
+ $(ARCH)/reuse_isfile.c\
+ $(ARCH)/reuse_logger.c\
+ $(ARCH)/reuse_makedir.c\
+ $(ARCH)/reuse_makedirpath.c\
+ $(ARCH)/reuse_nodename.c\
+ $(ARCH)/reuse_normalize_path.c\
+ $(ARCH)/reuse_rdirname.c\
+ $(ARCH)/reuse_rgetbasename.c\
+ $(ARCH)/reuse_rgetlastname.c\
+ $(ARCH)/reuse_rgetsuffix.c\
+ $(ARCH)/reuse_rgetworkingdir.c\
+ $(ARCH)/reuse_setlock.c\
+ $(ARCH)/reuse_sleep.c\
+ $(ARCH)/reuse_substsuffix.c\
+ $(ARCH)/reuse_tempnam.c\
+ $(ARCH)/reuse_logger.c
 
 CFILES=\
  clean-users.c\
@@ -258,6 +335,8 @@ CFILES=\
  convert-clars.c\
  convert-runs.c\
  edit-userlist.c\
+ ej-ncheck.c\
+ ej-batch.c\
  ejudge-configure-compilers.c\
  ejudge-control.c\
  ejudge-setup.c\
@@ -317,6 +396,64 @@ CFILES=\
  win32/sock_op_put_creds.c\
  unix/startstop.c\
  win32/startstop.c\
+ unix/reuse_logger.c\
+ win32/reuse_logger.c\
+ unix/reuse_attachfile.c\
+ win32/reuse_attachfile.c\
+ unix/reuse_checkaccess.c\
+ win32/reuse_checkaccess.c\
+ unix/reuse_dirname.c\
+ win32/reuse_dirname.c\
+ unix/reuse_errormsg.c\
+ win32/reuse_errormsg.c\
+ unix/reuse_errorstring.c\
+ win32/reuse_errorstring.c\
+ unix/reuse_exec.c\
+ win32/reuse_exec.c\
+ unix/reuse_findinpath.c\
+ win32/reuse_findinpath.c\
+ unix/reuse_getbasename.c\
+ win32/reuse_getbasename.c\
+ unix/reuse_geterrorstring.c\
+ win32/reuse_geterrorstring.c\
+ unix/reuse_getlastname.c\
+ win32/reuse_getlastname.c\
+ unix/reuse_getsignalstring.c\
+ win32/reuse_getsignalstring.c\
+ unix/reuse_getsuffix.c\
+ win32/reuse_getsuffix.c\
+ unix/reuse_getworkingdir.c\
+ win32/reuse_getworkingdir.c\
+ unix/reuse_isabsolutepath.c\
+ win32/reuse_isabsolutepath.c\
+ unix/reuse_isfile.c\
+ win32/reuse_isfile.c\
+ unix/reuse_makedir.c\
+ win32/reuse_makedir.c\
+ unix/reuse_makedirpath.c\
+ win32/reuse_makedirpath.c\
+ unix/reuse_nodename.c\
+ win32/reuse_nodename.c\
+ unix/reuse_normalize_path.c\
+ win32/reuse_normalize_path.c\
+ unix/reuse_rdirname.c\
+ win32/reuse_rdirname.c\
+ unix/reuse_rgetbasename.c\
+ win32/reuse_rgetbasename.c\
+ unix/reuse_rgetlastname.c\
+ win32/reuse_rgetlastname.c\
+ unix/reuse_rgetsuffix.c\
+ win32/reuse_rgetsuffix.c\
+ unix/reuse_rgetworkingdir.c\
+ win32/reuse_rgetworkingdir.c\
+ unix/reuse_setlock.c\
+ win32/reuse_setlock.c\
+ unix/reuse_sleep.c\
+ win32/reuse_sleep.c\
+ unix/reuse_substsuffix.c\
+ win32/reuse_substsuffix.c\
+ unix/reuse_tempnam.c\
+ win32/reuse_tempnam.c\
  ${COMMON_CFILES}\
  ${SUPER_CLNT_CFILES}\
  ${USERLIST_CLNT_CFILES}\
@@ -368,6 +505,7 @@ HFILES=\
  mime_type.h\
  mischtml.h\
  misctext.h\
+ ncheck_packet.h\
  ncurses_utils.h\
  new-server.h\
  nsdb_plugin.h\
@@ -383,6 +521,14 @@ HFILES=\
  problem_xml.h\
  protocol.h\
  random.h\
+ reuse_exec.h\
+ reuse_hash.h\
+ reuse_hash_priv.h\
+ reuse_integral.h\
+ reuse_logger.h\
+ reuse_mempage.h\
+ reuse_osdeps.h\
+ reuse_xalloc.h\
  rldb_plugin.h\
  run.h\
  runlog.h\
@@ -401,6 +547,10 @@ HFILES=\
  super_proto.h\
  super-serve.h\
  sha.h\
+ t3m_dir_listener.h\
+ t3m_packet_class.h\
+ t3m_submits.h\
+ t3_packets.h\
  teamdb.h\
  teamdb_priv.h\
  team_extra.h\
@@ -422,7 +572,8 @@ HFILES=\
  new_server_clnt.h\
  new_server_proto.h\
  new_server_clnt/new_server_clnt_priv.h\
- xml_utils.h
+ xml_utils.h\
+ zip_utils.h
 
 OTHERFILES=\
  filter_expr.y\

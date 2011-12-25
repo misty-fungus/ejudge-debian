@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: diff.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: diff.c 6178 2011-03-27 12:55:07Z cher $ */
 
-/* Copyright (C) 2004-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -25,8 +25,8 @@
 #include "serve_state.h"
 #include "misctext.h"
 
-#include <reuse/exec.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_exec.h"
 
 #include <unistd.h>
 #include <fcntl.h>

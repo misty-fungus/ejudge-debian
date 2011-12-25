@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cldb_plugin_file.c 5265 2008-11-10 16:37:32Z cher $ */
+/* $Id: cldb_plugin_file.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -28,9 +28,9 @@
 #include "base64.h"
 #include "fileutl.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <unistd.h>
 #include <string.h>

@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.in 6018 2010-11-01 20:25:10Z cher $
+# $Id: Makefile.in 6047 2010-11-18 12:24:38Z cher $
 # @configure_input@
 
 # Copyright (C) 2004-2008 Alexander Chernov <cher@ejudge.ru> */
@@ -76,6 +76,8 @@ SCRIPTS_IN = \
  gpc-version.in\
  gprolog.in\
  gprolog-version.in\
+ kumir.in\
+ kumir-version.in\
  mzscheme.in\
  mzscheme-version.in\
  qb.in\

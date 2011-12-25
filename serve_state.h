@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 5955 2010-07-21 05:48:38Z cher $ */
+/* $Id: serve_state.h 6116 2011-03-17 07:41:59Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
-/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -212,11 +212,37 @@ struct serve_state
 
   // upsolving mode
   int upsolving_mode;
-  int freeze_standings;
-  int view_source;
-  int view_protocol;
-  int full_protocol;
-  int disable_clars;
+  int upsolving_freeze_standings;
+  int upsolving_view_source;
+  int upsolving_view_protocol;
+  int upsolving_full_protocol;
+  int upsolving_disable_clars;
+
+  /**
+     Enable source view for the participants.
+     Overrides team_enable_src_view if set.
+     0 - undefined, -1 - disabled, 1 - enabled.
+   */
+  int online_view_source;
+  /**
+     Enable report view for the participants.
+     Overrides team_enable_rep_view if set.
+     0 - undefined, -1 - disabled, 1 - enabled.
+   */
+  int online_view_report;
+  /**
+     Show the main (judge) scores to the participants.
+     Works for contests with separate_user_score mode set.
+     0 - no, 1 - yes.
+   */
+  int online_view_judge_score;
+  /**
+     Use the final visibility rules for the tests.
+     The final visibility rules are specified by final_open_tests
+     problem configuration variable.
+     0 - no, 1 - yes.
+   */
+  int online_final_visibility;
 
   time_t stat_last_check_time;
   time_t stat_reported_before;
@@ -315,7 +341,8 @@ int serve_state_load_contest(
         struct userlist_clnt *ul_conn,
         struct teamdb_db_callbacks *teamdb_callbacks,
         serve_state_t *p_state,
-        const struct contest_desc **p_cnts);
+        const struct contest_desc **p_cnts,
+        int no_users_flag);
 
 int serve_count_unread_clars(const serve_state_t state, int user_id,
                              time_t start_time);
@@ -337,6 +364,7 @@ serve_compile_request(
         serve_state_t state,
         unsigned char const *str,
         int len,
+        int contest_id,
         int run_id,
         int user_id,
         int lang_id,
@@ -351,7 +379,8 @@ serve_compile_request(
         int priority_adjustment,
         int notify_flag,
         const struct section_problem_data *prob,
-        const struct section_language_data *lang);
+        const struct section_language_data *lang,
+        int no_db_flag);
 
 struct compile_reply_packet;
 int
@@ -360,6 +389,7 @@ serve_run_request(
         FILE *errf,
         const unsigned char *run_text,
         size_t run_size,
+        int contest_id,
         int run_id,
         int user_id,
         int prob_id,
@@ -371,7 +401,8 @@ serve_run_request(
         int notify_flag,
         int mime_type,
         const unsigned char *compile_report_dir,
-        const struct compile_reply_packet *comp_pkt);
+        const struct compile_reply_packet *comp_pkt,
+        int no_db_flag);
 
 int serve_is_valid_status(serve_state_t state, int status, int mode);
 

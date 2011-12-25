@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_packet_1.c 5891 2010-06-16 19:02:46Z cher $ */
+/* $Id: run_packet_1.c 6204 2011-03-30 04:44:39Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,9 +26,9 @@
 #include "prepare.h"
 #include "runlog.h"
 
-#include <reuse/integral.h>
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -52,8 +52,6 @@ run_request_packet_read(
   FAIL_IF(pkt_bin_align(in_size) != in_size);
   packet_len = cvt_bin_to_host_32(pin->packet_len);
   FAIL_IF(packet_len != in_size);
-  version = cvt_bin_to_host_32(pin->version);
-  FAIL_IF(version != RUN_REQUEST_PACKET_VERSION);
 
   XCALLOC(pout, 1);
 
@@ -63,6 +61,10 @@ run_request_packet_read(
     *p_out_data = pout;
     return 0;
   }
+
+  version = cvt_bin_to_host_32(pin->version);
+  FAIL_IF(version != RUN_REQUEST_PACKET_VERSION);
+
   FAIL_IF(pout->contest_id <= 0 || pout->contest_id > EJ_MAX_CONTEST_ID);
   pout->run_id = cvt_bin_to_host_32(pin->run_id);
   FAIL_IF(pout->run_id < 0 || pout->run_id > EJ_MAX_RUN_ID);
@@ -90,6 +92,7 @@ run_request_packet_read(
   if ((flags & FLAGS_SECURITY_VIOLATION)) pout->security_violation = 1;
   if ((flags & FLAGS_NOTIFY)) pout->notify_flag = 1;
   if ((flags & FLAGS_ADVANCED_LAYOUT)) pout->advanced_layout = 1;
+  if ((flags & FLAGS_SEPARATE_USER_SCORE)) pout->separate_user_score = 1;
 
   pout->ts1 = cvt_bin_to_host_32(pin->ts1);
   pout->ts1_us = cvt_bin_to_host_32(pin->ts1_us);
@@ -142,7 +145,7 @@ run_request_packet_read(
   return 0;
 
  failed:
-  err("run_request_packet_read: error %s, %d", "$Revision: 5891 $", errcode);
+  err("run_request_packet_read: error %s, %d", "$Revision: 6204 $", errcode);
   run_request_packet_free(pout);
   return -1;
 }

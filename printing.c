@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: printing.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: printing.c 6180 2011-03-27 12:55:59Z cher $ */
 
-/* Copyright (C) 2004-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -28,7 +28,7 @@
 #include "serve_state.h"
 #include "xml_utils.h"
 
-#include <reuse/exec.h>
+#include "reuse_exec.h"
 
 #include <stdio.h>
 #include <unistd.h>

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: open.c 5467 2008-12-25 21:01:01Z cher $ */
+/* $Id: open.c 6155 2011-03-27 06:57:30Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,8 +20,8 @@
 #include "errlog.h"
 #include "sock_op.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_osdeps.h"
 
 #include <signal.h>
 #include <unistd.h>

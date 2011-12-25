@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 6012 2010-10-23 13:13:26Z cher $ */
+/* $Id: super-serve.c 6214 2011-04-01 20:03:14Z cher $ */
 
-/* Copyright (C) 2003-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -37,9 +37,9 @@
 #include "sock_op.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/osdeps.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -2828,6 +2828,9 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_LANG_CHANGE_DISABLE_AUTO_TESTING:
   case SSERV_CMD_LANG_CHANGE_DISABLE_TESTING:
   case SSERV_CMD_LANG_CHANGE_BINARY:
+  case SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE:
+  case SSERV_CMD_LANG_CHANGE_MAX_STACK_SIZE:
+  case SSERV_CMD_LANG_CHANGE_MAX_FILE_SIZE:
   case SSERV_CMD_LANG_CHANGE_CONTENT_TYPE:
   case SSERV_CMD_LANG_CLEAR_CONTENT_TYPE:
   case SSERV_CMD_LANG_CHANGE_OPTS:
@@ -2876,6 +2879,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_IGNORE_EXIT_CODE:
   case SSERV_CMD_PROB_CHANGE_OLYMPIAD_MODE:
   case SSERV_CMD_PROB_CHANGE_SCORE_LATEST:
+  case SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED:
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT:
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS:
   case SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT:
@@ -2893,6 +2897,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_DISABLE_AUTO_TESTING:
   case SSERV_CMD_PROB_CHANGE_ENABLE_COMPILATION:
   case SSERV_CMD_PROB_CHANGE_FULL_SCORE:
+  case SSERV_CMD_PROB_CHANGE_FULL_USER_SCORE:
   case SSERV_CMD_PROB_CHANGE_TEST_SCORE:
   case SSERV_CMD_PROB_CHANGE_RUN_PENALTY:
   case SSERV_CMD_PROB_CHANGE_ACM_RUN_PENALTY:
@@ -2918,6 +2923,10 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_INTERACTOR_TIME_LIMIT:
   case SSERV_CMD_PROB_CHANGE_MAX_VM_SIZE:
   case SSERV_CMD_PROB_CHANGE_MAX_STACK_SIZE:
+  case SSERV_CMD_PROB_CHANGE_MAX_CORE_SIZE:
+  case SSERV_CMD_PROB_CHANGE_MAX_FILE_SIZE:
+  case SSERV_CMD_PROB_CHANGE_MAX_OPEN_FILE_COUNT:
+  case SSERV_CMD_PROB_CHANGE_MAX_PROCESS_COUNT:
   case SSERV_CMD_PROB_CHANGE_INPUT_FILE:
   case SSERV_CMD_PROB_CLEAR_INPUT_FILE:
   case SSERV_CMD_PROB_CHANGE_OUTPUT_FILE:
@@ -2947,6 +2956,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_SCORE_BONUS:
   case SSERV_CMD_PROB_CHANGE_OPEN_TESTS:
   case SSERV_CMD_PROB_CLEAR_OPEN_TESTS:    
+  case SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS:
+  case SSERV_CMD_PROB_CLEAR_FINAL_OPEN_TESTS:    
   case SSERV_CMD_PROB_CHANGE_CHECK_CMD:
   case SSERV_CMD_PROB_CLEAR_CHECK_CMD:
   case SSERV_CMD_PROB_CHANGE_CHECKER_ENV:
@@ -3180,6 +3191,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CHANGE_SECURE_RUN:
   case SSERV_CMD_GLOB_CHANGE_DETECT_VIOLATIONS:
   case SSERV_CMD_GLOB_CHANGE_ENABLE_MEMORY_LIMIT_ERROR:
+  case SSERV_CMD_GLOB_CHANGE_SEPARATE_USER_SCORE:
   case SSERV_CMD_GLOB_CHANGE_STAND_ROW_ATTR:
   case SSERV_CMD_GLOB_CLEAR_STAND_ROW_ATTR:
   case SSERV_CMD_GLOB_CHANGE_STAND_PAGE_TABLE_ATTR:
@@ -3228,6 +3240,9 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CLEAR_XUSER_PLUGIN:
   case SSERV_CMD_GLOB_CHANGE_LOAD_USER_GROUP:
   case SSERV_CMD_GLOB_CLEAR_LOAD_USER_GROUP:
+  case SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_VM_SIZE:
+  case SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_STACK_SIZE:
+  case SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_FILE_SIZE:
     r = super_html_global_param(sstate, pkt->b.id, config,
                                 pkt->param1, param2_ptr, pkt->param3, pkt->param4);
     break;
@@ -3778,6 +3793,9 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_LANG_CHANGE_DISABLE_AUTO_TESTING] = { cmd_set_value },
   [SSERV_CMD_LANG_CHANGE_DISABLE_TESTING] = { cmd_set_value },
   [SSERV_CMD_LANG_CHANGE_BINARY] = { cmd_set_value },
+  [SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE] = { cmd_set_value },
+  [SSERV_CMD_LANG_CHANGE_MAX_STACK_SIZE] = { cmd_set_value },
+  [SSERV_CMD_LANG_CHANGE_MAX_FILE_SIZE] = { cmd_set_value },
   [SSERV_CMD_LANG_CHANGE_OPTS] = { cmd_set_value },
   [SSERV_CMD_LANG_CLEAR_OPTS] = { cmd_set_value },
   [SSERV_CMD_LANG_CHANGE_STYLE_CHECKER_CMD] = { cmd_set_value },
@@ -3819,6 +3837,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_IGNORE_EXIT_CODE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_OLYMPIAD_MODE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT] = { cmd_set_value },
@@ -3836,6 +3855,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DISABLE_AUTO_TESTING] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ENABLE_COMPILATION] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_FULL_SCORE] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_FULL_USER_SCORE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEST_SCORE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_RUN_PENALTY] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ACM_RUN_PENALTY] = { cmd_set_value },
@@ -3861,6 +3881,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_INTERACTOR_TIME_LIMIT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_MAX_VM_SIZE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_MAX_STACK_SIZE] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_MAX_CORE_SIZE] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_MAX_FILE_SIZE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_INPUT_FILE] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_INPUT_FILE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_OUTPUT_FILE] = { cmd_set_value },
@@ -3890,6 +3912,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_SCORE_BONUS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_OPEN_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_OPEN_TESTS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_FINAL_OPEN_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_CHECK_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_CHECK_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_CHECKER_ENV] = { cmd_set_value },
@@ -4126,6 +4150,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_SECURE_RUN] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DETECT_VIOLATIONS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ENABLE_MEMORY_LIMIT_ERROR] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_SEPARATE_USER_SCORE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_STAND_ROW_ATTR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_STAND_ROW_ATTR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_STAND_PAGE_TABLE_ATTR] = { cmd_set_value },
@@ -4176,6 +4201,9 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CLEAR_PLOG_FOOTER_TEXT] = { cmd_set_value },
   [SSERV_CMD_VIEW_NEW_SERVE_CFG] = { cmd_main_page },
   [SSERV_CMD_LANG_UPDATE_VERSIONS] = { cmd_simple_top_command },
+  [SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_VM_SIZE] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_STACK_SIZE] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_FILE_SIZE] = { cmd_set_value },
 
   [SSERV_CMD_PROB_CLEAR_VARIANTS] = { cmd_set_value },
   [SSERV_CMD_PROB_RANDOM_VARIANTS] = { cmd_set_value },

@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_inverse.c 5979 2010-08-10 16:29:28Z cher $ */
+/* $Id: run_inverse.c 6178 2011-03-27 12:55:07Z cher $ */
 
-/* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -31,10 +31,10 @@
 #include "runlog.h"
 #include "testing_report_xml.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
-#include <reuse/exec.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
+#include "reuse_exec.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -1121,6 +1121,9 @@ run_inverse_testing(
   reply_pkt->marked_flag = 0;
   reply_pkt->status = RUN_CHECK_FAILED;
   reply_pkt->score = 0;
+  reply_pkt->user_status = -1;
+  reply_pkt->user_tests_passed = -1;
+  reply_pkt->user_score = -1;
   reply_pkt->ts1 = req_pkt->ts1;
   reply_pkt->ts1_us = req_pkt->ts1_us;
   reply_pkt->ts2 = req_pkt->ts2;

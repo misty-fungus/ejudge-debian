@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: http_request.c 5966 2010-07-31 09:49:18Z cher $ */
+/* $Id: http_request.c 6155 2011-03-27 06:57:30Z cher $ */
 
-/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,8 +20,8 @@
 #include "new_server_proto.h"
 #include "errlog.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_osdeps.h"
 
 #include <unistd.h>
 

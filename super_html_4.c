@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 6012 2010-10-23 13:13:26Z cher $ */
+/* $Id: super_html_4.c 6235 2011-04-08 17:43:53Z cher $ */
 
-/* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -41,8 +41,8 @@
 #include "cpu.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <string.h>
 #include <errno.h>
@@ -1323,6 +1323,10 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_real_time_limit, 'd', 1, 1, 1, 1, 0, "Real time limit (s)", 0, "Problem.manual_checking !" },
   { NS_PROBLEM, CNTSPROB_max_vm_size, 'Z', 1, 1, 1, 1, 0, "Maximum VM size", 0, "Problem.manual_checking !" },
   { NS_PROBLEM, CNTSPROB_max_stack_size, 'Z', 1, 1, 1, 1, 0, "Maximum stack size", 0, "Problem.manual_checking !" },
+  { NS_PROBLEM, CNTSPROB_max_core_size, 'Z', 1, 1, 1, 1, 0, "Maximum core file size", 0, "Problem.manual_checking ! SidState.prob_show_adv &&" },
+  { NS_PROBLEM, CNTSPROB_max_file_size, 'Z', 1, 1, 1, 1, 0, "Maximum file size", 0, "Problem.manual_checking ! SidState.prob_show_adv &&" },
+  { NS_PROBLEM, CNTSPROB_max_open_file_count, 'd', 1, 1, 1, 1, 0, "Maximum number of opened files", 0, "Problem.manual_checking ! SidState.prob_show_adv &&" },
+  { NS_PROBLEM, CNTSPROB_max_process_count, 'd', 1, 1, 1, 1, 0, "Maximum number of processes", 0, "Problem.manual_checking ! SidState.prob_show_adv &&" },
   { NS_PROBLEM, CNTSPROB_checker_real_time_limit, 'd', 1, 1, 1, 1, 0, "Checker real time limit (s)", 0, 0 },
   { NS_PROBLEM, CNTSPROB_use_ac_not_ok, 'Y', 1, 0, 0, 0, 0, "Use AC status instead of OK", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_team_enable_rep_view, 'Y', 1, 0, 0, 0, 0, "Contestants may view testing protocols", 0, 0 },
@@ -1340,6 +1344,7 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_ignore_exit_code, 'Y', 1, 0, 0, 0, 0, "Ignore process exit code", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_olympiad_mode, 'Y', 1, 0, 0, 0, 0, "Use Olympiad mode", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == &&" },
   { NS_PROBLEM, CNTSPROB_score_latest, 'Y', 1, 0, 0, 0, 0, "Score the latest submit", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == &&" },
+  { NS_PROBLEM, CNTSPROB_score_latest_or_unmarked, 'Y', 1, 0, 0, 0, 0, "Score the latest submit or the best unmarked", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == &&" },
   { NS_PROBLEM, CNTSPROB_full_score, 'd', 1, 1, 1, 1, 0, "Full problem score", 0, "Global.score_system SCORE_ACM !=" },
   { NS_PROBLEM, CNTSPROB_variable_full_score, 'Y', 1, 0, 0, 0, 0, "Allow variable full score", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == Global.score_system SCORE_OLYMPIAD == || &&" },
   { NS_PROBLEM, CNTSPROB_test_score, 'd', 1, 1, 1, 1, 0, "Score for one passed test", 0, "Global.score_system SCORE_KIROV == Global.score_system SCORE_OLYMPIAD == ||" },
@@ -1351,6 +1356,7 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_test_sets, 'x', 1, 1, 1, 1, 0, "Specially scored test sets", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == Global.score_system SCORE_OLYMPIAD == || &&" },
   { NS_PROBLEM, CNTSPROB_score_bonus, 'S', 1, 1, 1, 1, 0, "Additional score bonus", 0, "Global.score_system SCORE_KIROV ==" },
   { NS_PROBLEM, CNTSPROB_open_tests, 'S', 1, 1, 1, 1, 0, "Tests open for participants", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_final_open_tests, 'S', 1, 1, 1, 1, 0, "Tests open for participants on final show", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_tests_to_accept, 'd', 1, 1, 1, 1, 0, "Number of accept tests", 0, "Global.score_system SCORE_OLYMPIAD ==" },
   { NS_PROBLEM, CNTSPROB_accept_partial, 'Y', 1, 0, 0, 0, 0, "Accept submits, which do not pass accept tests", 0, "SidState.prob_show_adv Global.score_system SCORE_OLYMPIAD == &&" },
   { NS_PROBLEM, CNTSPROB_min_tests_to_accept, 'd', 1, 1, 1, 1, 0, "Minimum number of tests to accept", 0, "SidState.prob_show_adv Global.score_system SCORE_OLYMPIAD == &&" },
@@ -5931,6 +5937,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_ignore_exit_code] = 0,
   [CNTSPROB_olympiad_mode] = 1,
   [CNTSPROB_score_latest] = 0,
+  [CNTSPROB_score_latest_or_unmarked] = 0,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
@@ -5979,6 +5986,10 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_max_vm_size] = 0,
   [CNTSPROB_max_stack_size] = 0,
   [CNTSPROB_max_data_size] = 0,
+  [CNTSPROB_max_core_size] = 0,
+  [CNTSPROB_max_file_size] = 0,
+  [CNTSPROB_max_open_file_count] = 0,
+  [CNTSPROB_max_process_count] = 0,
   [CNTSPROB_super] = 1,
   [CNTSPROB_short_name] = 1,
   [CNTSPROB_long_name] = 1,
@@ -6028,6 +6039,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_personal_deadline] = 0,
   [CNTSPROB_score_bonus] = 0,
   [CNTSPROB_open_tests] = 0,
+  [CNTSPROB_final_open_tests] = 0,
   [CNTSPROB_statement_file] = 1,
   [CNTSPROB_alternatives_file] = 0,
   [CNTSPROB_plugin_file] = 1,
@@ -6220,7 +6232,7 @@ cmd_op_set_serve_prob_field(
     break;
   case 'z':
     {
-      ejintsize_t val = 0;
+      size_t val = 0;
       if (parse_size(valstr, &val) < 0) FAIL(S_ERR_INV_VALUE);
       * (ejintsize_t*) f_ptr = val;
     }

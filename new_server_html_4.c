@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 6006 2010-10-15 18:53:41Z cher $ */
+/* $Id: new_server_html_4.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -41,8 +41,8 @@
 #include "charsets.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <stdlib.h>
 #include <errno.h>
@@ -946,7 +946,7 @@ cmd_submit_run(
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)
         || lang->disable_auto_testing || lang->disable_testing) {
-      run_change_status(cs->runlog_state, run_id, RUN_PENDING, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: pending\n"
@@ -954,13 +954,14 @@ cmd_submit_run(
                       "  Testing disabled for this problem or language\n",
                       run_id);
     } else {
-      if (serve_compile_request(cs, run_text, run_size, run_id, phr->user_id,
+      if (serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                run_id, phr->user_id,
                                 lang->compile_id, phr->locale_id, 0,
                                 lang->src_sfx,
                                 lang->compiler_env,
                                 0, prob->style_checker_cmd,
                                 prob->style_checker_env,
-                                -1, 0, 0, prob, lang) < 0)
+                                -1, 0, 0, prob, lang, 0) < 0)
         FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
@@ -970,7 +971,7 @@ cmd_submit_run(
   } else if (prob->manual_checking > 0) {
     // manually tested outputs
     if (prob->check_presentation <= 0) {
-      run_change_status(cs->runlog_state, run_id, RUN_ACCEPTED, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: accepted for testing\n"
@@ -979,8 +980,8 @@ cmd_submit_run(
                       run_id);
     } else {
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        if (serve_compile_request(cs, run_text, run_size, run_id,
-                                  phr->user_id, 0 /* lang_id */,
+        if (serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                  run_id, phr->user_id, 0 /* lang_id */,
                                   0 /* locale_id */, 1 /* output_only*/,
                                   mime_type_get_suffix(mime_type),
                                   NULL /* compiler_env */,
@@ -990,12 +991,14 @@ cmd_submit_run(
                                   0 /* accepting_mode */,
                                   0 /* priority_adjustment */,
                                   0 /* notify flag */,
-                                  prob, NULL /* lang */) < 0)
+                                  prob, NULL /* lang */,
+                                  0 /* no_db_flag */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       } else {
-        if (serve_run_request(cs, stderr, run_text, run_size, run_id,
+        if (serve_run_request(cs, stderr, run_text, run_size,
+                              global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0) < 0)
+                              mime_type, 0, 0, 0) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
 
@@ -1007,7 +1010,7 @@ cmd_submit_run(
   } else {
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)) {
-      run_change_status(cs->runlog_state, run_id, RUN_PENDING, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: pending\n"
@@ -1016,8 +1019,8 @@ cmd_submit_run(
                       run_id);
     } else {
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        if (serve_compile_request(cs, run_text, run_size, run_id,
-                                  phr->user_id, 0 /* lang_id */,
+        if (serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                  run_id, phr->user_id, 0 /* lang_id */,
                                   0 /* locale_id */, 1 /* output_only*/,
                                   mime_type_get_suffix(mime_type),
                                   NULL /* compiler_env */,
@@ -1027,12 +1030,14 @@ cmd_submit_run(
                                   0 /* accepting_mode */,
                                   0 /* priority_adjustment */,
                                   0 /* notify flag */,
-                                  prob, NULL /* lang */) < 0)
+                                  prob, NULL /* lang */,
+                                  0 /* no_db_flag */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       } else {
-        if (serve_run_request(cs, stderr, run_text, run_size, run_id,
+        if (serve_run_request(cs, stderr, run_text, run_size,
+                              global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0) < 0)
+                              mime_type, 0, 0, 0) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
 
@@ -1569,7 +1574,7 @@ do_dump_master_runs(
         orig_score = prob->full_score;
       snprintf(base_score_buf, sizeof(base_score_buf), "%d", orig_score);
       csv_rec[F_BASE_SCORE] = base_score_buf;
-      score = calc_kirov_score(0, 0, pe, prob, attempts, disq_attempts,
+      score = calc_kirov_score(0, 0, 0, 0, pe, prob, attempts, disq_attempts,
                                prev_successes, &date_penalty, 0);
       snprintf(score_buf, sizeof(score_buf), "%d", score);
       csv_rec[F_TOTAL_SCORE] = score_buf;
@@ -1815,7 +1820,7 @@ new_server_cmd_handler(FILE *fout, struct http_request_info *phr)
   if (serve_state_load_contest(ejudge_config, phr->contest_id,
                                ul_conn,
                                &callbacks,
-                               &extra->serve_state, 0) < 0) {
+                               &extra->serve_state, 0, 0) < 0) {
     return -NEW_SRV_ERR_INV_CONTEST_ID;
   }
 

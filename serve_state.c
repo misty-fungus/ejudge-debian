@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: serve_state.c 5955 2010-07-21 05:48:38Z cher $ */
+/* $Id: serve_state.c 6200 2011-03-29 19:19:28Z cher $ */
 
-/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -40,9 +40,9 @@
 #include "userlist.h"
 #include "xml_utils.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/osdeps.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <string.h>
 #include <sys/types.h>
@@ -235,18 +235,18 @@ serve_set_upsolving_mode(serve_state_t state)
                       &saved_finish_time);
   if (saved_stop_time <= 0) return;
 
-  if (state->freeze_standings)
+  if (state->upsolving_freeze_standings)
     state->global->stand_ignore_after = saved_stop_time;
-  if (state->disable_clars)
+  if (state->upsolving_disable_clars)
     state->global->disable_team_clars = 1;
-  if (state->view_source)
+  if (state->upsolving_view_source)
     state->global->team_enable_src_view = 1;
 
   for (prob_id = 1; prob_id <= state->max_prob; prob_id++) {
     if (!(prob = state->probs[prob_id])) continue;
-    if (state->view_protocol)
+    if (state->upsolving_view_protocol)
       prob->team_enable_rep_view = 1;
-    if (state->full_protocol)
+    if (state->upsolving_full_protocol)
       prob->team_show_judge_report = 1;
   }
 }
@@ -625,7 +625,8 @@ serve_state_load_contest(
         struct userlist_clnt *ul_conn,
         struct teamdb_db_callbacks *teamdb_callbacks,
         serve_state_t *p_state,
-        const struct contest_desc **p_cnts)
+        const struct contest_desc **p_cnts,
+        int no_users_flag)
 {
   serve_state_t state = 0;
   const struct contest_desc *cnts = 0;
@@ -637,6 +638,8 @@ serve_state_load_contest(
   const size_t *sza;
   struct contest_plugin_iface *iface;
   const unsigned char *f = __FUNCTION__;
+  const struct section_global_data *global = 0;
+  time_t contest_finish_time = 0;
 
   if (*p_state) return 0;
   if (contests_get(contest_id, &cnts) < 0 || !cnts) goto failure;
@@ -684,15 +687,22 @@ serve_state_load_contest(
   if (prepare_serve_defaults(state, p_cnts) < 0) goto failure;
   if (create_dirs(state, PREPARE_SERVE) < 0) goto failure;
 
+  global = state->global;
+
   /* find olympiad_mode problems in KIROV contests */
-  if (state->global->score_system == SCORE_KIROV) {
+  if (global->score_system == SCORE_KIROV) {
     for (i = 1; i <= state->max_prob; i++) {
       if (!(prob = state->probs[i])) continue;
       if (prob->olympiad_mode > 0) state->has_olympiad_mode = 1;
     }
   }
 
-  team_extra_set_dir(state->team_extra_state, state->global->team_extra_dir);
+  if (no_users_flag) {
+    *p_state = state;
+    return 1;
+  }
+
+  team_extra_set_dir(state->team_extra_state, global->team_extra_dir);
 
   if (teamdb_set_callbacks(state->teamdb_state, teamdb_callbacks, cnts->id) < 0)
     goto failure;
@@ -710,8 +720,8 @@ serve_state_load_contest(
   }
 
   // load reporting plugin
-  if (state->global->contest_plugin_file[0]) {
-    iface = (struct contest_plugin_iface *) plugin_load(state->global->contest_plugin_file, "report", "");
+  if (global->contest_plugin_file[0]) {
+    iface = (struct contest_plugin_iface *) plugin_load(global->contest_plugin_file, "report", "");
     if (!iface) goto failure;
     state->contest_plugin = iface;
     if (iface->contest_plugin_version != CONTEST_PLUGIN_IFACE_VERSION) {
@@ -740,24 +750,31 @@ serve_state_load_contest(
       state->contest_plugin_data = (*state->contest_plugin->init)();
   }
 
-  if (state->global->is_virtual) {
-    if (state->global->score_system != SCORE_ACM
-        && state->global->score_system != SCORE_OLYMPIAD) {
+  if (global->is_virtual) {
+    if (global->score_system != SCORE_ACM
+        && global->score_system != SCORE_OLYMPIAD) {
       err("invalid score system for virtual contest");
       goto failure;
     }
   }
 
   while (1) {
-    if (run_open(state->runlog_state, config, cnts, state->global, 0, 0,
-                 state->global->contest_time, cnts->sched_time,
-                 state->global->contest_finish_time) < 0) goto failure;
+    contest_finish_time = 0;
+    if (global->contest_finish_time > 0) {
+      contest_finish_time = global->contest_finish_time;
+    }
+    if (contest_finish_time > 0 && contest_finish_time <= state->current_time){
+      contest_finish_time = 0;
+    }
+    if (run_open(state->runlog_state, config, cnts, global, 0, 0,
+                 global->contest_time, cnts->sched_time,
+                 contest_finish_time) < 0) goto failure;
     if (!serve_collect_virtual_stop_events(state)) break;
     state->runlog_state = run_destroy(state->runlog_state);
     state->runlog_state = run_init(state->teamdb_state);
   }
 
-  if (clar_open(state->clarlog_state, config, cnts, state->global, 0, 0) < 0)
+  if (clar_open(state->clarlog_state, config, cnts, global, 0, 0) < 0)
     goto failure;
   serve_load_status_file(state);
   serve_set_upsolving_mode(state);

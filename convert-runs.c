@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: convert-runs.c 5569 2009-05-02 20:34:32Z cher $ */
+/* $Id: convert-runs.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2008-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,8 +26,8 @@
 #include "xml_utils.h"
 #include "compat.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>

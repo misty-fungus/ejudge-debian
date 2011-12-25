@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: timestamp.c 5678 2010-01-19 10:00:07Z cher $ */
+/* $Id: timestamp.c 6143 2011-03-26 10:37:35Z cher $ */
 
-/* Copyright (C) 2005-2006 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,8 +17,8 @@
 
 #include "timestamp.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <windows.h>
 

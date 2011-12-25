@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: fix-db.c 5656 2010-01-17 14:04:56Z cher $ */
+/* $Id: fix-db.c 6236 2011-04-08 17:44:13Z cher $ */
 
-/* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -30,9 +30,9 @@
 #define EJUDGE_SKIP_MYSQL 1
 #include "plugins/mysql-common/common_mysql.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -338,7 +338,7 @@ is_short_name(
   ++s;
   p = s;
   while (*s && *s != '"') ++s;
-  snprintf(short_name_buf, short_name_buf_len, "%.*s", s - p, p);
+  snprintf(short_name_buf, short_name_buf_len, "%.*s", (int) (s - p), p);
   if (*s != '"') return 0;
   return 1;
 }

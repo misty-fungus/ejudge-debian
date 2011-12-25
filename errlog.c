@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: errlog.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: errlog.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2005-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -17,8 +17,8 @@
 
 #include "errlog.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <string.h>
 #include <stdlib.h>

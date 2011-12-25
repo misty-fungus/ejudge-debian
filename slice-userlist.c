@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: slice-userlist.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: slice-userlist.c 6135 2011-03-26 09:30:42Z cher $ */
 
-/* Copyright (C) 2004-2006 Alexander Chernov <cher@unicorn.cmc.msu.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 #include "config.h"
 
@@ -9,7 +9,7 @@
 #include "ejudge_cfg.h"
 #include "userlist.h"
 
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>

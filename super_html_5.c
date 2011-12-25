@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_5.c 5424 2008-12-17 21:15:42Z cher $ */
+/* $Id: super_html_5.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -25,8 +25,8 @@
 #include "pathutl.h"
 #include "errlog.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_osdeps.h"
 
 #include <string.h>
 #include <ctype.h>

@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: prepare_serve.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: prepare_serve.c 6135 2011-03-26 09:30:42Z cher $ */
 
-/* Copyright (C) 2005-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -25,7 +25,7 @@
 #include "errlog.h"
 #include "serve_state.h"
 
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
 
 int
 find_variant(

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: pass_fd.c 5467 2008-12-25 21:01:01Z cher $ */
+/* $Id: pass_fd.c 6156 2011-03-27 06:57:57Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 #include "new_server_proto.h"
 #include "errlog.h"
 
-#include <reuse/osdeps.h>
+#include "reuse_osdeps.h"
 
 #include <stdlib.h>
 

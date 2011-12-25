@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: collect-emails.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: collect-emails.c 6135 2011-03-26 09:30:42Z cher $ */
 
-/* Copyright (C) 2004-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 #include "ejudge_cfg.h"
 #include "userlist.h"
 
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>

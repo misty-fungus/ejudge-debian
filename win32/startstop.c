@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: startstop.c 5575 2009-07-20 15:32:03Z cher $ */
+/* $Id: startstop.c 6144 2011-03-26 10:38:05Z cher $ */
 
-/* Copyright (C) 2008-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,7 +22,7 @@
 #include "version.h"
 #include "startstop.h"
 
-#include <reuse/logger.h>
+#include "reuse_logger.h"
 
 #if STARTSTOP_DEBUG - 0
 #include <stdio.h>

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: create_contest.c 5682 2010-01-19 10:03:27Z cher $ */
+/* $Id: create_contest.c 6158 2011-03-27 06:59:28Z cher $ */
 
-/* Copyright (C) 2005 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 #include "super_proto.h"
 #include "errlog.h"
 
-#include <reuse/osdeps.h>
+#include "reuse_osdeps.h"
 
 #include <stdlib.h>
 #include <unistd.h>

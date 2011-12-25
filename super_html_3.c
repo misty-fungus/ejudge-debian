@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 6012 2010-10-23 13:13:26Z cher $ */
+/* $Id: super_html_3.c 6240 2011-04-09 04:50:34Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -40,9 +40,9 @@
 #include "compat.h"
 #include "file_perms.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -72,6 +72,9 @@ static const unsigned char * const form_row_attrs[]=
   " bgcolor=\"#d0d0d0\"",
   " bgcolor=\"#e0e0e0\"",
 };
+
+static int
+num_suffix(const unsigned char *str);
 
 static void
 html_submit_button(FILE *f,
@@ -151,6 +154,392 @@ html_edit_text_form(FILE *f,
   xfree(s);
 }
 
+static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
+{
+  /*
+  SSERV_CMD_CNTS_EDIT_PERMISSION,
+  SSERV_CMD_CNTS_EDIT_FORM_FIELDS,
+  SSERV_CMD_CNTS_EDIT_CONTESTANT_FIELDS,
+  SSERV_CMD_CNTS_EDIT_RESERVE_FIELDS,
+  SSERV_CMD_CNTS_EDIT_COACH_FIELDS,
+  SSERV_CMD_CNTS_EDIT_ADVISOR_FIELDS,
+  SSERV_CMD_CNTS_EDIT_GUEST_FIELDS,
+  SSERV_CMD_CNTS_EDIT_USERS_HEADER,
+  SSERV_CMD_CNTS_EDIT_USERS_FOOTER,
+  SSERV_CMD_CNTS_EDIT_REGISTER_HEADER,
+  SSERV_CMD_CNTS_EDIT_REGISTER_FOOTER,
+  SSERV_CMD_CNTS_EDIT_TEAM_HEADER,
+  SSERV_CMD_CNTS_EDIT_TEAM_MENU_1,
+  SSERV_CMD_CNTS_EDIT_TEAM_MENU_2,
+  SSERV_CMD_CNTS_EDIT_TEAM_MENU_3,
+  SSERV_CMD_CNTS_EDIT_TEAM_SEPARATOR,
+  SSERV_CMD_CNTS_EDIT_TEAM_FOOTER,
+  SSERV_CMD_CNTS_EDIT_PRIV_HEADER,
+  SSERV_CMD_CNTS_EDIT_PRIV_FOOTER,
+  SSERV_CMD_CNTS_EDIT_COPYRIGHT,
+  SSERV_CMD_CNTS_EDIT_WELCOME,
+  SSERV_CMD_CNTS_EDIT_REG_WELCOME,
+  SSERV_CMD_CNTS_EDIT_REGISTER_EMAIL_FILE,
+  */
+
+  [SSERV_CMD_CNTS_CHANGE_NAME] = "Contest.xml:name",
+  [SSERV_CMD_CNTS_CHANGE_NAME_EN] = "Contest.xml:name_en",
+  [SSERV_CMD_CNTS_CHANGE_MAIN_URL] = "Contest.xml:main_url",
+  [SSERV_CMD_CNTS_CHANGE_KEYWORDS] = "Contest.xml:keywords",
+  [SSERV_CMD_CNTS_CHANGE_USER_CONTEST] = "Contest.xml:user_contest",
+  [SSERV_CMD_CNTS_CHANGE_DEFAULT_LOCALE] = "Contest.xml:default_locale",
+  [SSERV_CMD_CNTS_CHANGE_AUTOREGISTER] = "Contest.xml:autoregister",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_PASSWD] = "Contest.xml:disable_team_password",
+  [SSERV_CMD_CNTS_CHANGE_SIMPLE_REGISTRATION] = "Contest.xml:simple_registration",
+  [SSERV_CMD_CNTS_CHANGE_ASSIGN_LOGINS] = "Contest.xml:assign_logins",
+  [SSERV_CMD_CNTS_CHANGE_FORCE_REGISTRATION] = "Contest.xml:force_registration",
+  [SSERV_CMD_CNTS_CHANGE_DISABLE_NAME] = "Contest.xml:disable_name",
+  [SSERV_CMD_CNTS_CHANGE_ENABLE_PASSWORD_RECOVERY] = "Contest.xml:enable_password_recovery",
+  [SSERV_CMD_CNTS_CHANGE_EXAM_MODE] = "Contest.xml:exam_mode",
+  [SSERV_CMD_CNTS_CHANGE_DISABLE_PASSWORD_CHANGE] = "Contest.xml:disable_password_change",
+  [SSERV_CMD_CNTS_CHANGE_DISABLE_LOCALE_CHANGE] = "Contest.xml:disable_locale_change",
+  [SSERV_CMD_CNTS_CHANGE_PERSONAL] = "Contest.xml:personal",
+  [SSERV_CMD_CNTS_CHANGE_ALLOW_REG_DATA_EDIT] = "Contest.xml:allow_reg_data_edit",
+  [SSERV_CMD_CNTS_CHANGE_SEND_PASSWD_EMAIL] = "Contest.xml:send_passwd_email",
+  [SSERV_CMD_CNTS_CHANGE_MANAGED] = "Contest.xml:managed",
+  [SSERV_CMD_CNTS_CHANGE_RUN_MANAGED] = "Contest.xml:run_managed",
+  [SSERV_CMD_CNTS_CHANGE_CLEAN_USERS] = "Contest.xml:clean_users",
+  [SSERV_CMD_CNTS_CHANGE_CLOSED] = "Contest.xml:closed",
+  [SSERV_CMD_CNTS_CHANGE_INVISIBLE] = "Contest.xml:invisible",
+  [SSERV_CMD_CNTS_CHANGE_MEMBER_DELETE] = "Contest.xml:disable_member_delete",
+  [SSERV_CMD_CNTS_CHANGE_DEADLINE] = "Contest.xml:registration_deadline",
+  [SSERV_CMD_CNTS_CHANGE_SCHED_TIME] = "Contest.xml:sched_time",
+  [SSERV_CMD_CNTS_CHANGE_USERS_HEADER] = "Contest.xml:users_header_file",
+  [SSERV_CMD_CNTS_CHANGE_USERS_FOOTER] = "Contest.xml:users_footer_file",
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_HEADER] = "Contest.xml:register_header_file",
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_FOOTER] = "Contest.xml:register_footer_file",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_HEADER] = "Contest.xml:team_header_file",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_MENU_1] = "Contest.xml:team_menu_1_file",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_MENU_2] = "Contest.xml:team_menu_2_file",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_MENU_3] = "Contest.xml:team_menu_3_file",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_SEPARATOR] = "Contest.xml:team_separator_file",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_FOOTER] = "Contest.xml:team_footer_file",
+  [SSERV_CMD_CNTS_CHANGE_PRIV_HEADER] = "Contest.xml:priv_header_file",
+  [SSERV_CMD_CNTS_CHANGE_PRIV_FOOTER] = "Contest.xml:priv_footer_file",
+  [SSERV_CMD_CNTS_CHANGE_COPYRIGHT] = "Contest.xml:copyright_file",
+  [SSERV_CMD_CNTS_CHANGE_WELCOME] = "Contest.xml:welcome_file",
+  [SSERV_CMD_CNTS_CHANGE_REG_WELCOME] = "Contest.xml:reg_welcome_file",
+  [SSERV_CMD_CNTS_CHANGE_USERS_HEAD_STYLE] = "Contest.xml:users_head_style",
+  [SSERV_CMD_CNTS_CHANGE_USERS_PAR_STYLE] = "Contest.xml:users_par_style",
+  [SSERV_CMD_CNTS_CHANGE_USERS_TABLE_STYLE] = "Contest.xml:users_table_style",
+  [SSERV_CMD_CNTS_CHANGE_USERS_VERB_STYLE] = "Contest.xml:users_verb_style",
+  [SSERV_CMD_CNTS_CHANGE_USERS_TABLE_FORMAT] = "Contest.xml:users_table_format",
+  [SSERV_CMD_CNTS_CHANGE_USERS_TABLE_FORMAT_EN] = "Contest.xml:users_table_format_en",
+  [SSERV_CMD_CNTS_CHANGE_USERS_TABLE_LEGEND] = "Contest.xml:users_table_legend",
+  [SSERV_CMD_CNTS_CHANGE_USERS_TABLE_LEGEND_EN] = "Contest.xml:users_table_legend_en",
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_HEAD_STYLE] = "Contest.xml:register_head_style",
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_PAR_STYLE] = "Contest.xml:register_par_style",
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_TABLE_STYLE] = "Contest.xml:register_table_style",
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_NAME_COMMENT] = "Contest.xml:user_name_comment",
+  [SSERV_CMD_CNTS_CHANGE_ALLOWED_LANGUAGES] = "Contest.xml:allowed_languages",
+  [SSERV_CMD_CNTS_CHANGE_ALLOWED_REGIONS] = "Contest.xml:allowed_regions",
+  [SSERV_CMD_CNTS_CHANGE_CF_NOTIFY_EMAIL] = "Contest.xml:cf_notify_email",
+  [SSERV_CMD_CNTS_CHANGE_CLAR_NOTIFY_EMAIL] = "Contest.xml:clar_notify_email",
+  [SSERV_CMD_CNTS_CHANGE_DAILY_STAT_EMAIL] = "Contest.xml:daily_stat_email",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_HEAD_STYLE] = "Contest.xml:team_head_style",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_PAR_STYLE] = "Contest.xml:team_par_style",
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_EMAIL] = "Contest.xml:register_email",
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_URL] = "Contest.xml:register_url",
+  [SSERV_CMD_CNTS_CHANGE_LOGIN_TEMPLATE] = "Contest.xml:login_template",
+  [SSERV_CMD_CNTS_CHANGE_LOGIN_TEMPLATE_OPTIONS] = "Contest.xml:login_template_options",
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_EMAIL_FILE] = "Contest.xml:register_email_file",
+  [SSERV_CMD_CNTS_CHANGE_TEAM_URL] = "Contest.xml:team_url",
+  [SSERV_CMD_CNTS_CHANGE_STANDINGS_URL] = "Contest.xml:standings_url",
+  [SSERV_CMD_CNTS_CHANGE_PROBLEMS_URL] = "Contest.xml:problems_url",
+  [SSERV_CMD_CNTS_CHANGE_ROOT_DIR] = "Contest.xml:root_dir",
+  [SSERV_CMD_CNTS_CHANGE_CONF_DIR] = "Contest.xml:conf_dir",
+  [SSERV_CMD_CNTS_CHANGE_DIR_MODE] = "Contest.xml:dir_mode",
+  [SSERV_CMD_CNTS_CHANGE_DIR_GROUP] = "Contest.xml:dir_group",
+  [SSERV_CMD_CNTS_CHANGE_FILE_MODE] = "Contest.xml:file_mode",
+  [SSERV_CMD_CNTS_CHANGE_FILE_GROUP] = "Contest.xml:file_group",
+  [SSERV_CMD_CNTS_DEFAULT_ACCESS] = "Contest.xml",
+  [SSERV_CMD_CNTS_ADD_RULE] = "Contest.xml",
+  [SSERV_CMD_CNTS_CHANGE_RULE] = "Contest.xml",
+  [SSERV_CMD_CNTS_DELETE_RULE] = "Contest.xml",
+  [SSERV_CMD_CNTS_UP_RULE] = "Contest.xml",
+  [SSERV_CMD_CNTS_DOWN_RULE] = "Contest.xml",
+  [SSERV_CMD_CNTS_COPY_ACCESS] = "Contest.xml",
+  [SSERV_CMD_CNTS_DELETE_PERMISSION] = "Contest.xml",
+  [SSERV_CMD_CNTS_ADD_PERMISSION] = "Contest.xml",
+  [SSERV_CMD_CNTS_SAVE_PERMISSIONS] = "Contest.xml",
+  [SSERV_CMD_CNTS_SET_PREDEF_PERMISSIONS] = "Contest.xml",
+
+  [SSERV_CMD_GLOB_CHANGE_DURATION] = "Serve.cfg:global:contest_time",
+  [SSERV_CMD_GLOB_CHANGE_TYPE] = "Serve.cfg:global:score_system",
+  [SSERV_CMD_GLOB_CHANGE_FOG_TIME] = "Serve.cfg:global:board_fog_time",
+  [SSERV_CMD_GLOB_CHANGE_UNFOG_TIME] = "Serve.cfg:global:board_unfog_time",
+  [SSERV_CMD_GLOB_CHANGE_STAND_LOCALE] = "Serve.cfg:global:stand_locale",
+  [SSERV_CMD_GLOB_CHANGE_SRC_VIEW] = "Serve.cfg:global:team_enable_src_view",
+  [SSERV_CMD_GLOB_CHANGE_REP_VIEW] = "Serve.cfg:global:team_enable_rep_view",
+  [SSERV_CMD_GLOB_CHANGE_CE_VIEW] = "Serve.cfg:global:team_enable_ce_view",
+  [SSERV_CMD_GLOB_CHANGE_JUDGE_REPORT] = "Serve.cfg:global:team_show_judge_report",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_CLARS] = "Serve.cfg:global:disable_clars",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_TEAM_CLARS] = "Serve.cfg:global:disable_team_clars",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = "Serve.cfg:global:disable_submit_after_ok",
+  [SSERV_CMD_GLOB_CHANGE_IGNORE_COMPILE_ERRORS] = "Serve.cfg:global:ignore_compile_errors",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_FAILED_TEST_VIEW] = "Serve.cfg:global:disable_failed_test_view",
+  [SSERV_CMD_GLOB_CHANGE_IGNORE_DUPICATED_RUNS] = "Serve.cfg:global:ignore_duplicated_runs",
+  [SSERV_CMD_GLOB_CHANGE_REPORT_ERROR_CODE] = "Serve.cfg:global:report_error_code",
+  [SSERV_CMD_GLOB_CHANGE_SHOW_DEADLINE] = "Serve.cfg:global:show_deadline",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_PRINTING] = "Serve.cfg:global:enable_printing",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE] = "Serve.cfg:global:disable_banner_page",
+  [SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS] = "Serve.cfg:global:prune_empty_users",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = "Serve.cfg:global:enable_full_archive",
+  [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = "Serve.cfg:global:advanced_layout",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH] = "Serve.cfg:global:disable_auto_refresh",
+  [SSERV_CMD_GLOB_CHANGE_ALWAYS_SHOW_PROBLEMS] = "Serve.cfg:global:always_show_problems",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS] = "Serve.cfg:global:disable_user_standings",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_LANGUAGE] = "Serve.cfg:global:disable_language",
+  [SSERV_CMD_GLOB_CHANGE_PROBLEM_NAVIGATION] = "Serve.cfg:global:problem_navigation",
+  [SSERV_CMD_GLOB_CHANGE_VERTICAL_NAVIGATION] = "Serve.cfg:global:vertical_navigation",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_VIRTUAL_START] = "Serve.cfg:global:disable_virtual_start",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_VIRTUAL_AUTO_JUDGE] = "Serve.cfg:global:disable_virtual_auto_judge",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_AUTO_PRINT_PROTOCOL] = "Serve.cfg:global:enable_auto_print_protocol",
+  [SSERV_CMD_GLOB_CHANGE_NOTIFY_CLAR_REPLY] = "Serve.cfg:global:notify_clar_reply",
+  [SSERV_CMD_GLOB_CHANGE_NOTIFY_STATUS_CHANGE] = "Serve.cfg:global:notify_status_change",
+  [SSERV_CMD_GLOB_CHANGE_TEST_DIR] = "Serve.cfg:global:test_dir",
+  [SSERV_CMD_GLOB_CHANGE_CORR_DIR] = "Serve.cfg:global:corr_dir",
+  [SSERV_CMD_GLOB_CHANGE_INFO_DIR] = "Serve.cfg:global:info_dir",
+  [SSERV_CMD_GLOB_CHANGE_TGZ_DIR] = "Serve.cfg:global:tgz_dir",
+  [SSERV_CMD_GLOB_CHANGE_CHECKER_DIR] = "Serve.cfg:global:checker_dir",
+  [SSERV_CMD_GLOB_CHANGE_STATEMENT_DIR] = "Serve.cfg:global:statement_dir",
+  [SSERV_CMD_GLOB_CHANGE_PLUGIN_DIR] = "Serve.cfg:global:plugin_dir",
+  [SSERV_CMD_GLOB_CHANGE_DESCRIPTION_FILE] = "Serve.cfg:global:description_file",
+  [SSERV_CMD_GLOB_CHANGE_CONTEST_START_CMD] = "Serve.cfg:global:contest_start_cmd",
+  [SSERV_CMD_GLOB_CHANGE_CONTEST_STOP_CMD] = "Serve.cfg:global:contest_stop_cmd",
+  [SSERV_CMD_GLOB_CHANGE_MAX_RUN_SIZE] = "Serve.cfg:global:max_run_size",
+  [SSERV_CMD_GLOB_CHANGE_MAX_RUN_TOTAL] = "Serve.cfg:global:max_run_total",
+  [SSERV_CMD_GLOB_CHANGE_MAX_RUN_NUM] = "Serve.cfg:global:max_run_num",
+  [SSERV_CMD_GLOB_CHANGE_MAX_CLAR_SIZE] = "Serve.cfg:global:max_clar_size",
+  [SSERV_CMD_GLOB_CHANGE_MAX_CLAR_TOTAL] = "Serve.cfg:global:max_clar_total",
+  [SSERV_CMD_GLOB_CHANGE_MAX_CLAR_NUM] = "Serve.cfg:global:max_clar_num",
+  [SSERV_CMD_GLOB_CHANGE_TEAM_PAGE_QUOTA] = "Serve.cfg:global:team_page_quota",
+  [SSERV_CMD_GLOB_CHANGE_TEAM_INFO_URL] = "Serve.cfg:global:team_info_url",
+  [SSERV_CMD_GLOB_CHANGE_PROB_INFO_URL] = "Serve.cfg:global:prob_info_url",
+  [SSERV_CMD_GLOB_CHANGE_STAND_FILE_NAME] = "Serve.cfg:global:stand_file_name",
+  [SSERV_CMD_GLOB_CHANGE_USERS_ON_PAGE] = "Serve.cfg:global:users_on_page",
+  [SSERV_CMD_GLOB_CHANGE_STAND_HEADER_FILE] = "Serve.cfg:global:stand_header_file",
+  [SSERV_CMD_GLOB_CHANGE_STAND_FOOTER_FILE] = "Serve.cfg:global:stand_footer_file",
+  [SSERV_CMD_GLOB_CHANGE_STAND_SYMLINK_DIR] = "Serve.cfg:global:stand_symlink_dir",
+  [SSERV_CMD_GLOB_CHANGE_STAND_IGNORE_AFTER] = "Serve.cfg:global:stand_ignore_after",
+  [SSERV_CMD_GLOB_CHANGE_APPEAL_DEADLINE] = "Serve.cfg:global:appeal_deadline",
+  [SSERV_CMD_GLOB_CHANGE_CONTEST_FINISH_TIME] = "Serve.cfg:global:contest_finish_time",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_STAND2] = "Serve.cfg:global:enable_stand2",
+  [SSERV_CMD_GLOB_CHANGE_STAND2_FILE_NAME] = "Serve.cfg:global:stand2_file_name",
+  [SSERV_CMD_GLOB_CHANGE_STAND2_HEADER_FILE] = "Serve.cfg:global:stand2_header_file",
+  [SSERV_CMD_GLOB_CHANGE_STAND2_FOOTER_FILE] = "Serve.cfg:global:stand2_footer_file",
+  [SSERV_CMD_GLOB_CHANGE_STAND2_SYMLINK_DIR] = "Serve.cfg:global:stand2_symlink_dir",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_PLOG] = "Serve.cfg:global:enable_plog",
+  [SSERV_CMD_GLOB_CHANGE_PLOG_FILE_NAME] = "Serve.cfg:global:plog_file_name",
+  [SSERV_CMD_GLOB_CHANGE_PLOG_HEADER_FILE] = "Serve.cfg:global:plog_header_file",
+  [SSERV_CMD_GLOB_CHANGE_PLOG_FOOTER_FILE] = "Serve.cfg:global:plog_footer_file",
+  [SSERV_CMD_GLOB_CHANGE_PLOG_SYMLINK_DIR] = "Serve.cfg:global:plog_symlink_dir",
+  [SSERV_CMD_GLOB_CHANGE_PLOG_UPDATE_TIME] = "Serve.cfg:global:plog_update_time",
+  [SSERV_CMD_GLOB_CHANGE_EXTERNAL_XML_UPDATE_TIME] = "Serve.cfg:global:external_xml_update_time",
+  [SSERV_CMD_GLOB_CHANGE_INTERNAL_XML_UPDATE_TIME] = "Serve.cfg:global:internal_xml_update_time",
+  [SSERV_CMD_GLOB_CHANGE_STAND_FANCY_STYLE] = "Serve.cfg:global:stand_fancy_style",
+  [SSERV_CMD_GLOB_CHANGE_STAND_TABLE_ATTR] = "Serve.cfg:global:stand_table_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_PLACE_ATTR] = "Serve.cfg:global:stand_place_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_TEAM_ATTR] = "Serve.cfg:global:stand_team_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_PROB_ATTR] = "Serve.cfg:global:stand_prob_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_SOLVED_ATTR] = "Serve.cfg:global:stand_solved_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_SCORE_ATTR] = "Serve.cfg:global:stand_score_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_PENALTY_ATTR] = "Serve.cfg:global:stand_penalty_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_USE_LOGIN] = "Serve.cfg:global:stand_use_login",
+  [SSERV_CMD_GLOB_CHANGE_STAND_SHOW_OK_TIME] = "Serve.cfg:global:stand_show_ok_time",
+  [SSERV_CMD_GLOB_CHANGE_STAND_SHOW_ATT_NUM] = "Serve.cfg:global:stand_show_att_num",
+  [SSERV_CMD_GLOB_CHANGE_STAND_SORT_BY_SOLVED] = "Serve.cfg:global:stand_sort_by_solved",
+  [SSERV_CMD_GLOB_CHANGE_IGNORE_SUCCESS_TIME] = "Serve.cfg:global:ignore_success_time",
+  [SSERV_CMD_GLOB_CHANGE_STAND_COLLATE_NAME] = "Serve.cfg:global:stand_collate_name",
+  [SSERV_CMD_GLOB_CHANGE_STAND_ENABLE_PENALTY] = "Serve.cfg:global:stand_enable_penalty",
+  [SSERV_CMD_GLOB_CHANGE_STAND_TIME_ATTR] = "Serve.cfg:global:stand_time_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_SUCCESS_ATTR] = "Serve.cfg:global:stand_success_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_FAIL_ATTR] = "Serve.cfg:global:stand_fail_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_TRANS_ATTR] = "Serve.cfg:global:stand_trans_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_DISQ_ATTR] = "Serve.cfg:global:stand_disq_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_SELF_ROW_ATTR] = "Serve.cfg:global:stand_self_row_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_V_ROW_ATTR] = "Serve.cfg:global:stand_v_row_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_R_ROW_ATTR] = "Serve.cfg:global:stand_r_row_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_U_ROW_ATTR] = "Serve.cfg:global:stand_u_row_attr",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_EXTRA_COL] = "Serve.cfg:global:enable_extra_col",
+  [SSERV_CMD_GLOB_CHANGE_STAND_EXTRA_FORMAT] = "Serve.cfg:global:stand_extra_format",
+  [SSERV_CMD_GLOB_CHANGE_STAND_EXTRA_LEGEND] = "Serve.cfg:global:stand_extra_legend",
+  [SSERV_CMD_GLOB_CHANGE_STAND_EXTRA_ATTR] = "Serve.cfg:global:stand_extra_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_SHOW_WARN_NUMBER] = "Serve.cfg:global:stand_show_warn_number",
+  [SSERV_CMD_GLOB_CHANGE_STAND_WARN_NUMBER_ATTR] = "Serve.cfg:global:stand_warn_number_attr",
+  [SSERV_CMD_GLOB_CHANGE_SLEEP_TIME] = "Serve.cfg:global:sleep_time",
+  [SSERV_CMD_GLOB_CHANGE_SERVE_SLEEP_TIME] = "Serve.cfg:global:serve_sleep_time",
+  [SSERV_CMD_GLOB_CHANGE_AUTOUPDATE_STANDINGS] = "Serve.cfg:global:autoupdate_standings",
+  [SSERV_CMD_GLOB_CHANGE_USE_AC_NOT_OK] = "Serve.cfg:global:use_ac_not_ok",
+  [SSERV_CMD_GLOB_CHANGE_ROUNDING_MODE] = "Serve.cfg:global:rounding_mode",
+  [SSERV_CMD_GLOB_CHANGE_MAX_FILE_LENGTH] = "Serve.cfg:global:max_file_length",
+  [SSERV_CMD_GLOB_CHANGE_MAX_LINE_LENGTH] = "Serve.cfg:global:max_line_length",
+  [SSERV_CMD_GLOB_CHANGE_INACTIVITY_TIMEOUT] = "Serve.cfg:global:inactivity_timeout",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_TESTING] = "Serve.cfg:global:disable_auto_testing",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_TESTING] = "Serve.cfg:global:disable_testing",
+  [SSERV_CMD_GLOB_CHANGE_CR_SERIALIZATION_KEY] = "Serve.cfg:global:cr_serialization_key",
+  [SSERV_CMD_GLOB_CHANGE_SHOW_ASTR_TIME] = "Serve.cfg:global:show_astr_time",
+  [SSERV_CMD_GLOB_CHANGE_MEMOIZE_USER_RESULTS] = "Serve.cfg:global:memoize_user_results",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_CONTINUE] = "Serve.cfg:global:enable_continue",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_REPORT_UPLOAD] = "Serve.cfg:global:enable_report_upload",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_RUNLOG_MERGE] = "Serve.cfg:global:enable_runlog_merge",
+  [SSERV_CMD_GLOB_CHANGE_USE_COMPILATION_SERVER] = "Serve.cfg:global:use_compilation_server",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_WIN32_LANGUAGES] = "Serve.cfg:global:enable_win32_languages",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_L10N] = "Serve.cfg:global:enable_l10n",
+  [SSERV_CMD_GLOB_CHANGE_CHARSET] = "Serve.cfg:global:charset",
+  [SSERV_CMD_GLOB_CHANGE_STANDINGS_CHARSET] = "Serve.cfg:global:standings_charset",
+  [SSERV_CMD_GLOB_CHANGE_STAND2_CHARSET] = "Serve.cfg:global:stand2_charset",
+  [SSERV_CMD_GLOB_CHANGE_PLOG_CHARSET] = "Serve.cfg:global:plog_charset",
+  [SSERV_CMD_GLOB_CHANGE_TEAM_DOWNLOAD_TIME] = "Serve.cfg:global:team_download_time",
+  [SSERV_CMD_GLOB_CHANGE_CPU_BOGOMIPS] = "Serve.cfg:global:cpu_bogomips",
+  [SSERV_CMD_GLOB_CHANGE_SECURE_RUN] = "Serve.cfg:global:secure_run",
+  [SSERV_CMD_GLOB_CHANGE_DETECT_VIOLATIONS] = "Serve.cfg:global:detect_violations",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_MEMORY_LIMIT_ERROR] = "Serve.cfg:global:enable_memory_limit_error",
+  [SSERV_CMD_GLOB_CHANGE_SEPARATE_USER_SCORE] = "Serve.cfg:global:separate_user_score",
+  [SSERV_CMD_GLOB_CHANGE_STAND_ROW_ATTR] = "Serve.cfg:global:stand_row_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_PAGE_TABLE_ATTR] = "Serve.cfg:global:stand_page_table_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_PAGE_CUR_ATTR] = "Serve.cfg:global:stand_page_cur_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_PAGE_ROW_ATTR] = "Serve.cfg:global:stand_page_row_attr",
+  [SSERV_CMD_GLOB_CHANGE_STAND_PAGE_COL_ATTR] = "Serve.cfg:global:stand_page_col_attr",
+  [SSERV_CMD_GLOB_CHANGE_LOAD_USER_GROUP] = "Serve.cfg:global:load_user_group",
+  [SSERV_CMD_GLOB_CHANGE_CLARDB_PLUGIN] = "Serve.cfg:global:clardb_plugin",
+  [SSERV_CMD_GLOB_CHANGE_RUNDB_PLUGIN] = "Serve.cfg:global:rundb_plugin",
+  [SSERV_CMD_GLOB_CHANGE_XUSER_PLUGIN] = "Serve.cfg:global:xuser_plugin",
+  [SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_VM_SIZE] = "Serve.cfg:global:compile_max_vm_size",
+  [SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_STACK_SIZE] = "Serve.cfg:global:compile_max_stack_size",
+  [SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_FILE_SIZE] = "Serve.cfg:global:compile_max_file_size",
+
+  [SSERV_CMD_LANG_CHANGE_DISABLED] = "Serve.cfg:language:disabled",
+  [SSERV_CMD_LANG_CHANGE_INSECURE] = "Serve.cfg:language:insecure",
+  [SSERV_CMD_LANG_CHANGE_LONG_NAME] = "Serve.cfg:language:long_name",
+  [SSERV_CMD_LANG_CHANGE_DISABLE_SECURITY] = "Serve.cfg:language:disable_security",
+  [SSERV_CMD_LANG_CHANGE_DISABLE_AUTO_TESTING] = "Serve.cfg:language:disable_auto_testing",
+  [SSERV_CMD_LANG_CHANGE_DISABLE_TESTING] = "Serve.cfg:language:disable_testing",
+  [SSERV_CMD_LANG_CHANGE_BINARY] = "Serve.cfg:language:binary",
+  [SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE] = "Serve.cfg:language:max_vm_size",
+  [SSERV_CMD_LANG_CHANGE_MAX_STACK_SIZE] = "Serve.cfg:language:max_stack_size",
+  [SSERV_CMD_LANG_CHANGE_MAX_FILE_SIZE] = "Serve.cfg:language:max_file_size",
+  [SSERV_CMD_LANG_CHANGE_CONTENT_TYPE] = "Serve.cfg:language:content_type",
+  [SSERV_CMD_LANG_CHANGE_OPTS] = "Serve.cfg:language:compiler_options",
+  [SSERV_CMD_LANG_CHANGE_STYLE_CHECKER_CMD] = "Serve.cfg:language:style_checker_cmd",
+  [SSERV_CMD_LANG_CHANGE_STYLE_CHECKER_ENV] = "Serve.cfg:language:style_checker_env",
+
+  [SSERV_CMD_PROB_CHANGE_SHORT_NAME] = "Serve.cfg:problem:short_name",
+  [SSERV_CMD_PROB_CHANGE_LONG_NAME] = "Serve.cfg:problem:long_name",
+  [SSERV_CMD_PROB_CHANGE_STAND_NAME] = "Serve.cfg:problem:stand_name",
+  [SSERV_CMD_PROB_CHANGE_STAND_COLUMN] = "Serve.cfg:problem:stand_column",
+  [SSERV_CMD_PROB_CHANGE_INTERNAL_NAME] = "Serve.cfg:problem:internal_name",
+  [SSERV_CMD_PROB_CHANGE_SUPER] = "Serve.cfg:problem:super",
+  [SSERV_CMD_PROB_CHANGE_TYPE] = "Serve.cfg:problem:type",
+  [SSERV_CMD_PROB_CHANGE_SCORING_CHECKER] = "Serve.cfg:problem:scoring_checker",
+  [SSERV_CMD_PROB_CHANGE_MANUAL_CHECKING] = "Serve.cfg:problem:manual_checking",
+  [SSERV_CMD_PROB_CHANGE_EXAMINATOR_NUM] = "Serve.cfg:problem:examinator_num",
+  [SSERV_CMD_PROB_CHANGE_CHECK_PRESENTATION] = "Serve.cfg:problem:check_presentation",
+  [SSERV_CMD_PROB_CHANGE_USE_STDIN] = "Serve.cfg:problem:use_stdin",
+  [SSERV_CMD_PROB_CHANGE_USE_STDOUT] = "Serve.cfg:problem:use_stdout",
+  [SSERV_CMD_PROB_CHANGE_COMBINED_STDIN] = "Serve.cfg:problem:combined_stdin",
+  [SSERV_CMD_PROB_CHANGE_COMBINED_STDOUT] = "Serve.cfg:problem:combined_stdout",
+  [SSERV_CMD_PROB_CHANGE_BINARY_INPUT] = "Serve.cfg:problem:binary_input",
+  [SSERV_CMD_PROB_CHANGE_BINARY] = "Serve.cfg:problem:binary",
+  [SSERV_CMD_PROB_CHANGE_IGNORE_EXIT_CODE] = "Serve.cfg:problem:ignore_exit_code",
+  [SSERV_CMD_PROB_CHANGE_OLYMPIAD_MODE] = "Serve.cfg:problem:olympiad_mode",
+  [SSERV_CMD_PROB_CHANGE_SCORE_LATEST] = "Serve.cfg:problem:score_latest",
+  [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED] = "Serve.cfg:problem:score_latest_or_unmarked",
+  [SSERV_CMD_PROB_CHANGE_TIME_LIMIT] = "Serve.cfg:problem:time_limit",
+  [SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS] = "Serve.cfg:problem:time_limit_millis",
+  [SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT] = "Serve.cfg:problem:real_time_limit",
+  [SSERV_CMD_PROB_CHANGE_USE_AC_NOT_OK] = "Serve.cfg:problem:use_ac_not_ok",
+  [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_REP_VIEW] = "Serve.cfg:problem:team_enable_rep_view",
+  [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_CE_VIEW] = "Serve.cfg:problem:team_enable_ce_view",
+  [SSERV_CMD_PROB_CHANGE_TEAM_SHOW_JUDGE_REPORT] = "Serve.cfg:problem:team_show_judge_report",
+  [SSERV_CMD_PROB_CHANGE_IGNORE_COMPILE_ERRORS] = "Serve.cfg:problem:ignore_compile_errors",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_USER_SUBMIT] = "Serve.cfg:problem:disable_user_submit",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_TAB] = "Serve.cfg:problem:disable_tab",
+  [SSERV_CMD_PROB_CHANGE_RESTRICTED_STATEMENT] = "Serve.cfg:problem:restricted_statement",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = "Serve.cfg:problem:disable_submit_after_ok",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_SECURITY] = "Serve.cfg:problem:disable_security",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_TESTING] = "Serve.cfg:problem:disable_testing",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_AUTO_TESTING] = "Serve.cfg:problem:disable_auto_testing",
+  [SSERV_CMD_PROB_CHANGE_ENABLE_COMPILATION] = "Serve.cfg:problem:enable_compilation",
+  [SSERV_CMD_PROB_CHANGE_FULL_SCORE] = "Serve.cfg:problem:full_score",
+  [SSERV_CMD_PROB_CHANGE_FULL_USER_SCORE] = "Serve.cfg:problem:full_user_score",
+  [SSERV_CMD_PROB_CHANGE_TEST_SCORE] = "Serve.cfg:problem:test_score",
+  [SSERV_CMD_PROB_CHANGE_RUN_PENALTY] = "Serve.cfg:problem:run_penalty",
+  [SSERV_CMD_PROB_CHANGE_ACM_RUN_PENALTY] = "Serve.cfg:problem:acm_run_penalty",
+  [SSERV_CMD_PROB_CHANGE_DISQUALIFIED_PENALTY] = "Serve.cfg:problem:disqualified_penalty",
+  [SSERV_CMD_PROB_CHANGE_VARIABLE_FULL_SCORE] = "Serve.cfg:problem:variable_full_score",
+  [SSERV_CMD_PROB_CHANGE_TEST_SCORE_LIST] = "Serve.cfg:problem:test_score_list",
+  [SSERV_CMD_PROB_CHANGE_SCORE_TESTS] = "Serve.cfg:problem:score_tests",
+  [SSERV_CMD_PROB_CHANGE_TESTS_TO_ACCEPT] = "Serve.cfg:problem:tests_to_accept",
+  [SSERV_CMD_PROB_CHANGE_ACCEPT_PARTIAL] = "Serve.cfg:problem:accept_partial",
+  [SSERV_CMD_PROB_CHANGE_MIN_TESTS_TO_ACCEPT] = "Serve.cfg:problem:min_tests_to_accept",
+  [SSERV_CMD_PROB_CHANGE_HIDDEN] = "Serve.cfg:problem:hidden",
+  [SSERV_CMD_PROB_CHANGE_STAND_HIDE_TIME] = "Serve.cfg:problem:stand_hide_time",
+  [SSERV_CMD_PROB_CHANGE_ADVANCE_TO_NEXT] = "Serve.cfg:problem:advance_to_next",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_CTRL_CHARS] = "Serve.cfg:problem:disable_ctrl_chars",
+  [SSERV_CMD_PROB_CHANGE_VALUER_SETS_MARKED] = "Serve.cfg:problem:valuer_sets_marked",
+  [SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED] = "Serve.cfg:problem:ignore_unmarked",
+  [SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM] = "Serve.cfg:problem:enable_text_form",
+  [SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE] = "Serve.cfg:problem:stand_ignore_score",
+  [SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN] = "Serve.cfg:problem:stand_last_column",
+  [SSERV_CMD_PROB_CHANGE_CHECKER_REAL_TIME_LIMIT] = "Serve.cfg:problem:checker_real_time_limit",
+  [SSERV_CMD_PROB_CHANGE_INTERACTOR_TIME_LIMIT] = "Serve.cfg:problem:interactor_time_limit",
+  [SSERV_CMD_PROB_CHANGE_MAX_VM_SIZE] = "Serve.cfg:problem:max_vm_size",
+  [SSERV_CMD_PROB_CHANGE_MAX_STACK_SIZE] = "Serve.cfg:problem:max_stack_size",
+  [SSERV_CMD_PROB_CHANGE_MAX_CORE_SIZE] = "Serve.cfg:problem:max_core_size",
+  [SSERV_CMD_PROB_CHANGE_MAX_FILE_SIZE] = "Serve.cfg:problem:max_file_size",
+  [SSERV_CMD_PROB_CHANGE_MAX_OPEN_FILE_COUNT] = "Serve.cfg:problem:max_open_file_count",
+  [SSERV_CMD_PROB_CHANGE_MAX_PROCESS_COUNT] = "Serve.cfg:problem:max_process_count",
+  [SSERV_CMD_PROB_CHANGE_INPUT_FILE] = "Serve.cfg:problem:input_file",
+  [SSERV_CMD_PROB_CHANGE_OUTPUT_FILE] = "Serve.cfg:problem:output_file",
+  [SSERV_CMD_PROB_CHANGE_USE_CORR] = "Serve.cfg:problem:use_corr",
+  [SSERV_CMD_PROB_CHANGE_USE_INFO] = "Serve.cfg:problem:use_info",
+  [SSERV_CMD_PROB_CHANGE_TEST_DIR] = "Serve.cfg:problem:test_dir",
+  [SSERV_CMD_PROB_CHANGE_CORR_DIR] = "Serve.cfg:problem:corr_dir",
+  [SSERV_CMD_PROB_CHANGE_INFO_DIR] = "Serve.cfg:problem:info_dir",
+  [SSERV_CMD_PROB_CHANGE_TEST_SFX] = "Serve.cfg:problem:test_sfx",
+  [SSERV_CMD_PROB_CHANGE_TEST_PAT] = "Serve.cfg:problem:test_pat",
+  [SSERV_CMD_PROB_CHANGE_CORR_SFX] = "Serve.cfg:problem:corr_sfx",
+  [SSERV_CMD_PROB_CHANGE_CORR_PAT] = "Serve.cfg:problem:corr_pat",
+  [SSERV_CMD_PROB_CHANGE_INFO_SFX] = "Serve.cfg:problem:info_sfx",
+  [SSERV_CMD_PROB_CHANGE_INFO_PAT] = "Serve.cfg:problem:info_pat",
+  [SSERV_CMD_PROB_CHANGE_STANDARD_CHECKER] = "Serve.cfg:problem:standard_checker",
+  [SSERV_CMD_PROB_CHANGE_SCORE_BONUS] = "Serve.cfg:problem:score_bonus",
+  [SSERV_CMD_PROB_CHANGE_OPEN_TESTS] = "Serve.cfg:problem:open_tests",
+  [SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS] = "Serve.cfg:problem:final_open_tests",
+  [SSERV_CMD_PROB_CHANGE_CHECK_CMD] = "Serve.cfg:problem:check_cmd",
+  [SSERV_CMD_PROB_CHANGE_CHECKER_ENV] = "Serve.cfg:problem:checker_env",
+  [SSERV_CMD_PROB_CHANGE_VALUER_CMD] = "Serve.cfg:problem:valuer_cmd",
+  [SSERV_CMD_PROB_CHANGE_VALUER_ENV] = "Serve.cfg:problem:valuer_env",
+  [SSERV_CMD_PROB_CHANGE_INTERACTOR_CMD] = "Serve.cfg:problem:interactor_cmd",
+  [SSERV_CMD_PROB_CHANGE_INTERACTOR_ENV] = "Serve.cfg:problem:interactor_env",
+  [SSERV_CMD_PROB_CHANGE_STYLE_CHECKER_CMD] = "Serve.cfg:problem:style_checker_cmd",
+  [SSERV_CMD_PROB_CHANGE_STYLE_CHECKER_ENV] = "Serve.cfg:problem:style_checker_env",
+  [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_CMD] = "Serve.cfg:problem:test_checker_cmd",
+  [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV] = "Serve.cfg:problem:test_checker_env",
+  [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ] = "Serve.cfg:problem:lang_time_adj",
+  [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ_MILLIS] = "Serve.cfg:problem:lang_time_adj_millis",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_LANGUAGE] = "Serve.cfg:problem:disable_language",
+  [SSERV_CMD_PROB_CHANGE_ENABLE_LANGUAGE] = "Serve.cfg:problem:enable_language",
+  [SSERV_CMD_PROB_CHANGE_REQUIRE] = "Serve.cfg:problem:require",
+  [SSERV_CMD_PROB_CHANGE_TEST_SETS] = "Serve.cfg:problem:test_sets",
+  [SSERV_CMD_PROB_CHANGE_SCORE_VIEW] = "Serve.cfg:problem:score_view",
+  [SSERV_CMD_PROB_CHANGE_START_DATE] = "Serve.cfg:problem:start_date",
+  [SSERV_CMD_PROB_CHANGE_DEADLINE] = "Serve.cfg:problem:deadline",
+  [SSERV_CMD_PROB_CHANGE_VARIANT_NUM] = "Serve.cfg:problem:variant_num",
+  [SSERV_CMD_PROB_CHANGE_XML_FILE] = "Serve.cfg:problem:xml_file",
+  [SSERV_CMD_PROB_CHANGE_ALTERNATIVES_FILE] = "Serve.cfg:problem:alternatives_file",
+  [SSERV_CMD_PROB_CHANGE_PLUGIN_FILE] = "Serve.cfg:problem:plugin_file",
+  [SSERV_CMD_PROB_CHANGE_STAND_ATTR] = "Serve.cfg:problem:stand_attr",
+  [SSERV_CMD_PROB_CHANGE_SOURCE_HEADER] = "Serve.cfg:problem:source_header",
+  [SSERV_CMD_PROB_CHANGE_SOURCE_FOOTER] = "Serve.cfg:problem:source_footer",
+};
+
 static void
 html_edit_text_form_1(FILE *f,
                       int size,
@@ -180,6 +569,40 @@ html_hidden_var(FILE *f, const unsigned char *name, const unsigned char *value)
   fprintf(f, "<input type=\"hidden\" name=\"%s\" value=\"%s\"/>", name, value);
 }
 
+void
+print_help_url(FILE *f, int action)
+{
+  const unsigned char *help_url = 0;
+
+  if (action > 0 && action < SSERV_CMD_LAST) {
+    help_url = action_to_help_url_map[action];
+  }
+  if (help_url) {
+    fprintf(f, "<td><a target=\"_blank\" href=\"http://www.ejudge.ru/wiki/index.php/%s\">%s</a></td>",
+            help_url, "Help");
+  } else {
+    fprintf(f, "<td>&nbsp;</td>");
+  }
+}
+
+/*
+static void
+print_language_help_url(FILE *f, int action)
+{
+  const unsigned char *help_url = 0;
+
+  if (action > 0 && action < SSERV_CMD_LAST) {
+    help_url = action_to_help_url_map[action];
+  }
+  if (help_url) {
+    fprintf(f, "<td><a target=\"_blank\" href=\"http://www.ejudge.ru/wiki/index.php/Serve.cfg:language:%s\">%s</a></td>",
+            help_url, "Help");
+  } else {
+    fprintf(f, "<td>&nbsp;</td>");
+  }
+}
+*/
+
 static void
 print_string_editing_row(FILE *f,
                          const unsigned char *title,
@@ -207,7 +630,9 @@ print_string_editing_row(FILE *f,
     fprintf(f, "%sEdit file</a>",
             html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
                           "action=%d", edit_action));
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, change_action);
+  fprintf(f, "</tr></form>\n");
 }
 
 static void
@@ -232,7 +657,9 @@ print_string_editing_row_2(FILE *f,
   if (clear_action > 0) {
     html_submit_button(f, clear_action, "Clear");
   }
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, change_action);
+  fprintf(f, "</tr></form>\n");
 }
 
 static void
@@ -257,7 +684,9 @@ print_string_editing_row_3(FILE *f,
   if (clear_action > 0) {
     html_submit_button(f, clear_action, "Clear");
   }
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, change_action);
+  fprintf(f, "</tr></form>\n");
 }
 
 static void
@@ -281,7 +710,9 @@ print_int_editing_row(FILE *f,
   html_edit_text_form(f, 0, 0, "param", vbuf);
   fprintf(f, "%s</td><td>", extra_text);
   html_submit_button(f, change_action, "Change");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, change_action);
+  fprintf(f, "</tr></form>\n");
 }
 
 static void
@@ -301,7 +732,9 @@ print_boolean_select_row(FILE *f,
   html_boolean_select(f, value, "param", 0, 0);
   fprintf(f, "</td><td>");
   html_submit_button(f, change_action, "Change");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, change_action);
+  fprintf(f, "</tr></form>\n");
 }
 
 /*
@@ -525,7 +958,9 @@ super_html_edit_global_parameters(FILE *f,
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DURATION, "Change");
     html_submit_button(f, SSERV_CMD_GLOB_UNLIMITED_DURATION, "Set unlimited");
   }
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_GLOB_CHANGE_DURATION);
+  fprintf(f, "</tr></form>\n");
 
   if (!global->contest_time) {
     //GLOBAL_PARAM(contest_finish_time, "t"),
@@ -536,7 +971,9 @@ super_html_edit_global_parameters(FILE *f,
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_CONTEST_FINISH_TIME, "Change");
     html_submit_button(f, SSERV_CMD_GLOB_CLEAR_CONTEST_FINISH_TIME, "Clear");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_CONTEST_FINISH_TIME);
+    fprintf(f, "</tr></form>\n");
   }
 
   //GLOBAL_PARAM(score_system, "s"),
@@ -555,7 +992,9 @@ super_html_edit_global_parameters(FILE *f,
   html_select(f, param, "param", contest_types);
   fprintf(f, "</td><td>");
   html_submit_button(f, SSERV_CMD_GLOB_CHANGE_TYPE, "Change");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_GLOB_CHANGE_TYPE);
+  fprintf(f, "</tr></form>\n");
 
   //GLOBAL_PARAM(board_fog_time, "d"),
   //GLOBAL_PARAM(board_unfog_time, "d"),
@@ -570,14 +1009,18 @@ super_html_edit_global_parameters(FILE *f,
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_FOG_TIME, "Change");
     html_submit_button(f, SSERV_CMD_GLOB_DISABLE_FOG, "Disable");
   }
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_GLOB_CHANGE_FOG_TIME);
+  fprintf(f, "</tr></form>\n");
   if (global->board_fog_time) {
     html_start_form(f, 1, self_url, hidden_vars);
     fprintf(f, "<tr%s><td>Standings unfreeze time (HH:MM) after finish:</td>",
             form_row_attrs[row ^= 1]);
     fprintf(f, "<td><input type=\"text\" name=\"param\" value=\"%d:%02d\" size=\"8\"/></td><td>", global->board_unfog_time / 60, global->board_unfog_time % 60);
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_UNFOG_TIME, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_UNFOG_TIME);
+    fprintf(f, "</tr></form>\n");
   }
 
   //use standard compilation server?
@@ -587,7 +1030,9 @@ super_html_edit_global_parameters(FILE *f,
   html_boolean_select(f, !sstate->disable_compilation_server, "param", 0, 0);
   fprintf(f, "</td><td>");
   html_submit_button(f, SSERV_CMD_GLOB_CHANGE_USE_COMPILATION_SERVER, "Change");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_GLOB_CHANGE_USE_COMPILATION_SERVER);
+  fprintf(f, "</tr></form>\n");
 
   //enable support for windows languages
   html_start_form(f, 1, self_url, hidden_vars);
@@ -596,7 +1041,16 @@ super_html_edit_global_parameters(FILE *f,
   html_boolean_select(f, sstate->enable_win32_languages, "param", 0, 0);
   fprintf(f, "</td><td>");
   html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_WIN32_LANGUAGES, "Change");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_WIN32_LANGUAGES);
+  fprintf(f, "</tr></form>\n");
+
+  //GLOBAL_PARAM(separate_user_score, "d"),
+  print_boolean_select_row(f, "Calculate and store user-visible score separately:",
+                           global->separate_user_score,
+                           SSERV_CMD_GLOB_CHANGE_SEPARATE_USER_SCORE,
+                           session_id, form_row_attrs[row ^= 1],
+                           self_url, extra_args, hidden_vars);
 
   //GLOBAL_PARAM(secure_run, "d"),
   print_boolean_select_row(f, "Run programs securely:",
@@ -632,10 +1086,12 @@ super_html_edit_global_parameters(FILE *f,
   html_select(f, param, "param", standings_languages);
   fprintf(f, "</td><td>");
   html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_LOCALE, "Change");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_LOCALE);
+  fprintf(f, "</tr></form>\n");
 
   html_start_form(f, 1, self_url, hidden_vars);
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Contestant's capabilities</b>", head_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Contestant's capabilities</b>", head_row_attr);
   row = 1;
   if (sstate->show_global_1) {
     html_submit_button(f, SSERV_CMD_GLOB_HIDE_1, "Hide");
@@ -652,7 +1108,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->team_enable_src_view, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_SRC_VIEW, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_SRC_VIEW);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(disable_failed_test_view, "d"),
     if (global->score_system == SCORE_ACM
@@ -662,7 +1120,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->disable_failed_test_view, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_FAILED_TEST_VIEW, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_FAILED_TEST_VIEW);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(team_enable_rep_view, "d"),
@@ -672,7 +1132,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->team_enable_rep_view, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_REP_VIEW, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_REP_VIEW);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(team_enable_ce_view, "d"),
     if (!global->team_enable_rep_view) {
@@ -682,7 +1144,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->team_enable_ce_view, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_CE_VIEW, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_CE_VIEW);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(team_show_judge_report, "d"),
@@ -692,7 +1156,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->team_show_judge_report, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_JUDGE_REPORT, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_JUDGE_REPORT);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(report_error_code, "d"),
@@ -702,7 +1168,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->report_error_code, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_REPORT_ERROR_CODE, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_REPORT_ERROR_CODE);
+      fprintf(f, "</tr></form>\n");
     }
     
     //GLOBAL_PARAM(disable_clars, "d"),
@@ -711,7 +1179,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->disable_clars, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_CLARS, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_CLARS);
+    fprintf(f, "</tr></form>\n");
     
     //GLOBAL_PARAM(disable_team_clars, "d"),
     if (!global->disable_clars) {
@@ -720,7 +1190,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->disable_team_clars, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_TEAM_CLARS, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_TEAM_CLARS);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(disable_submit_after_ok, "d"),
@@ -730,7 +1202,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->disable_submit_after_ok, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_SUBMIT_AFTER_OK, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_SUBMIT_AFTER_OK);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(ignore_compile_errors, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -738,7 +1212,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->ignore_compile_errors, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_IGNORE_COMPILE_ERRORS, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_IGNORE_COMPILE_ERRORS);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(ignore_duplicated_runs, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -746,7 +1222,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->ignore_duplicated_runs, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_IGNORE_DUPICATED_RUNS, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_IGNORE_DUPICATED_RUNS);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(show_deadline, "d"),
     if (!global->contest_time) {
@@ -755,7 +1233,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->show_deadline, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_SHOW_DEADLINE, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_SHOW_DEADLINE);
+      fprintf(f, "</tr></form>\n");
     }
     
     //GLOBAL_PARAM(enable_printing, "d"),
@@ -765,7 +1245,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->enable_printing, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_PRINTING, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_PRINTING);
+    fprintf(f, "</tr></form>\n");
 
     if (global->enable_printing > 0) {
       //GLOBAL_PARAM(disable_banner_page, "d"),
@@ -775,7 +1257,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->disable_banner_page, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(prune_empty_users, "d"),
@@ -784,7 +1268,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->prune_empty_users, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(enable_full_archive, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -792,7 +1278,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->enable_full_archive, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(always_show_problems, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -801,7 +1289,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->always_show_problems, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ALWAYS_SHOW_PROBLEMS, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ALWAYS_SHOW_PROBLEMS);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(disable_user_standings, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -810,7 +1300,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->disable_user_standings, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(disable_language, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -819,7 +1311,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->disable_language, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_LANGUAGE, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_LANGUAGE);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(problem_navigation, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -828,7 +1322,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->problem_navigation, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_PROBLEM_NAVIGATION, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_PROBLEM_NAVIGATION);
+    fprintf(f, "</tr></form>\n");
 
     if (global->problem_navigation) {
       //GLOBAL_PARAM(vertical_navigation, "d"),
@@ -838,7 +1334,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->vertical_navigation, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_VERTICAL_NAVIGATION,"Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_VERTICAL_NAVIGATION);
+      fprintf(f, "</tr></form>\n");
     }
 
     if (global->is_virtual) {
@@ -849,7 +1347,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->disable_virtual_start, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_VIRTUAL_START, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_VIRTUAL_START);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(disable_virtual_auto_judge, "d"),
@@ -860,7 +1360,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->disable_virtual_auto_judge, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_VIRTUAL_AUTO_JUDGE, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_VIRTUAL_AUTO_JUDGE);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(enable_auto_print_protocol, "d"),
@@ -871,7 +1373,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->enable_auto_print_protocol, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_AUTO_PRINT_PROTOCOL, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_AUTO_PRINT_PROTOCOL);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(notify_clar_reply, "d"),
@@ -881,7 +1385,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->notify_clar_reply, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_NOTIFY_CLAR_REPLY, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_NOTIFY_CLAR_REPLY);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(notify_status_change, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -890,7 +1396,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->notify_status_change, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_NOTIFY_STATUS_CHANGE, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_NOTIFY_STATUS_CHANGE);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(disable_auto_refresh, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -898,11 +1406,13 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->disable_auto_refresh, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH);
+    fprintf(f, "</tr></form>\n");
   }
 
   html_start_form(f, 1, self_url, hidden_vars);
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Files and directories</b>", head_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Files and directories</b>", head_row_attr);
   row = 1;
   if (sstate->show_global_2) {
     html_submit_button(f, SSERV_CMD_GLOB_HIDE_2, "Hide");
@@ -918,7 +1428,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->advanced_layout, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT);
+    fprintf(f, "</tr></form>\n");
   }
 
   if (sstate->show_global_2) {
@@ -1035,7 +1547,7 @@ super_html_edit_global_parameters(FILE *f,
   }
 
   html_start_form(f, 1, self_url, hidden_vars);
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Contestant's quotas</b>", head_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Contestant's quotas</b>", head_row_attr);
   row = 1;
   if (sstate->show_global_3) {
     html_submit_button(f, SSERV_CMD_GLOB_HIDE_3, "Hide");
@@ -1138,7 +1650,7 @@ super_html_edit_global_parameters(FILE *f,
   }
 
   html_start_form(f, 1, self_url, hidden_vars);
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Standings files and URLs:</b>", head_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Standings files and URLs:</b>", head_row_attr);
   row = 1;
   if (sstate->show_global_4) {
     html_submit_button(f, SSERV_CMD_GLOB_HIDE_4, "Hide");
@@ -1243,7 +1755,9 @@ super_html_edit_global_parameters(FILE *f,
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_IGNORE_AFTER, "Change");
     html_submit_button(f, SSERV_CMD_GLOB_CLEAR_STAND_IGNORE_AFTER, "Clear");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_IGNORE_AFTER);
+    fprintf(f, "</tr></form>\n");
 
     // whether supplementary standings are enabled?
     html_start_form(f, 1, self_url, hidden_vars);
@@ -1252,7 +1766,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, sstate->enable_stand2, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_STAND2, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_STAND2);
+    fprintf(f, "</tr></form>\n");
 
     if (sstate->enable_stand2) {
       //GLOBAL_PARAM(stand2_file_name, "s"),
@@ -1311,7 +1827,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, sstate->enable_plog, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_PLOG, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_PLOG);
+    fprintf(f, "</tr></form>\n");
 
     if (sstate->enable_plog) {
       //GLOBAL_PARAM(plog_file_name, "s"),
@@ -1404,7 +1922,7 @@ super_html_edit_global_parameters(FILE *f,
   }
 
   html_start_form(f, 1, self_url, hidden_vars);
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Standings table attributes</b>", head_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Standings table attributes</b>", head_row_attr);
   row = 1;
   if (sstate->show_global_5) {
     html_submit_button(f, SSERV_CMD_GLOB_HIDE_5, "Hide");
@@ -1421,7 +1939,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->stand_fancy_style, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_FANCY_STYLE, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_FANCY_STYLE);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(stand_success_attr, "s"),
     print_string_editing_row(f, "HTML attributes for \"Last success\" note:",
@@ -1546,7 +2066,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->stand_use_login, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_USE_LOGIN, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_USE_LOGIN);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(stand_show_ok_time, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -1555,7 +2077,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->stand_show_ok_time, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_SHOW_OK_TIME, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_SHOW_OK_TIME);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(stand_show_att_num, "d"),
     if (global->score_system == SCORE_KIROV
@@ -1565,8 +2089,10 @@ super_html_edit_global_parameters(FILE *f,
               form_row_attrs[row ^= 1]);
       html_boolean_select(f, global->stand_show_att_num, "param", 0, 0);
       fprintf(f, "</td><td>");
-      html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_SHOW_ATT_NUM, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_SHOW_ATT_NUM,"Change");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_SHOW_ATT_NUM);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(stand_sort_by_solved, "d"),
@@ -1577,7 +2103,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->stand_sort_by_solved, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_SORT_BY_SOLVED, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_SORT_BY_SOLVED);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(stand_collate_name, "d"),
@@ -1589,7 +2117,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->stand_collate_name, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_COLLATE_NAME, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_COLLATE_NAME);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(stand_enable_penalty, "d"),
@@ -1601,7 +2131,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->stand_enable_penalty, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_ENABLE_PENALTY, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_ENABLE_PENALTY);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(ignore_success_time, "d"),
@@ -1612,7 +2144,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->ignore_success_time, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_IGNORE_SUCCESS_TIME, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_IGNORE_SUCCESS_TIME);
+      fprintf(f, "</tr></form>\n");
     }
 
     if (global->stand_show_ok_time) {
@@ -1721,7 +2255,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, sstate->enable_extra_col, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_EXTRA_COL, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_EXTRA_COL);
+    fprintf(f, "</tr></form>\n");
 
     if (sstate->enable_extra_col) {
       //GLOBAL_PARAM(stand_extra_format, "s"),
@@ -1768,7 +2304,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->stand_show_warn_number, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_STAND_SHOW_WARN_NUMBER, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_SHOW_WARN_NUMBER);
+    fprintf(f, "</tr></form>\n");
 
     if (global->stand_show_warn_number) {
       //GLOBAL_PARAM(stand_warn_number_attr, "s"),
@@ -1840,7 +2378,7 @@ super_html_edit_global_parameters(FILE *f,
   }
 
   html_start_form(f, 1, self_url, hidden_vars);
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Advanced settings</b>", head_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Advanced settings</b>", head_row_attr);
   row = 1;
   if (sstate->show_global_6) {
     html_submit_button(f, SSERV_CMD_GLOB_HIDE_6, "Hide");
@@ -1858,7 +2396,9 @@ super_html_edit_global_parameters(FILE *f,
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_APPEAL_DEADLINE, "Change");
     html_submit_button(f, SSERV_CMD_GLOB_CLEAR_APPEAL_DEADLINE, "Clear");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_APPEAL_DEADLINE);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(sleep_time, "d"),
     snprintf(hbuf, sizeof(hbuf), "%d", global->sleep_time);
@@ -1892,7 +2432,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->autoupdate_standings, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_AUTOUPDATE_STANDINGS, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_AUTOUPDATE_STANDINGS);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(use_ac_not_ok, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -1900,7 +2442,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->use_ac_not_ok, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_USE_AC_NOT_OK, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_USE_AC_NOT_OK);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(rounding_mode, "s"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -1909,7 +2453,9 @@ super_html_edit_global_parameters(FILE *f,
     html_select(f, global->rounding_mode, "param", rounding_modes);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ROUNDING_MODE, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ROUNDING_MODE);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(max_file_length, "d"),
     print_string_editing_row(f, "Maximal file size to be included into testing protocol:",
@@ -1955,7 +2501,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->disable_testing, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_TESTING, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_TESTING);
+    fprintf(f, "</tr></form>\n");
 
     if (!global->disable_testing) {
       //GLOBAL_PARAM(disable_auto_testing, "d"),
@@ -1964,7 +2512,9 @@ super_html_edit_global_parameters(FILE *f,
       html_boolean_select(f, global->disable_auto_testing, "param", 0, 0);
       fprintf(f, "</td><td>");
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_TESTING, "Change");
-      fprintf(f, "</td></tr></form>\n");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_TESTING);
+      fprintf(f, "</tr></form>\n");
     }
 
     //GLOBAL_PARAM(cr_serialization_key, "d"),
@@ -1986,7 +2536,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->show_astr_time, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_SHOW_ASTR_TIME, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_SHOW_ASTR_TIME);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(memoize_user_results, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -1994,7 +2546,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->memoize_user_results, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_MEMOIZE_USER_RESULTS, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_MEMOIZE_USER_RESULTS);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(enable_continue, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -2003,7 +2557,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->enable_continue, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_CONTINUE, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_CONTINUE);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(enable_report_upload, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -2012,7 +2568,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->enable_report_upload, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_REPORT_UPLOAD, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_REPORT_UPLOAD);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(enable_runlog_merge, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -2021,7 +2579,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->enable_runlog_merge, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_RUNLOG_MERGE, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_RUNLOG_MERGE);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(enable_l10n, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -2030,7 +2590,9 @@ super_html_edit_global_parameters(FILE *f,
     html_boolean_select(f, global->enable_l10n, "param", 0, 0);
     fprintf(f, "</td><td>");
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_L10N, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_L10N);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(charset, "s"),
     print_string_editing_row(f, "Character set:",
@@ -2099,7 +2661,9 @@ super_html_edit_global_parameters(FILE *f,
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_TEAM_DOWNLOAD_TIME, "Change");
       html_submit_button(f, SSERV_CMD_GLOB_DISABLE_TEAM_DOWNLOAD_TIME, "Disable");
     }
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_TEAM_DOWNLOAD_TIME);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(cpu_bogomips, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -2112,7 +2676,9 @@ super_html_edit_global_parameters(FILE *f,
     }
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_CPU_BOGOMIPS, "Change");
     html_submit_button(f, SSERV_CMD_GLOB_DETECT_CPU_BOGOMIPS, "Detect");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_CPU_BOGOMIPS);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(load_user_group, "x"),
     if (!global->load_user_group || !global->load_user_group[0]) {
@@ -2165,7 +2731,7 @@ super_html_edit_global_parameters(FILE *f,
 
   if (global->unhandled_vars) {
     html_start_form(f, 1, self_url, hidden_vars);
-    fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Uneditable parameters</b>", head_row_attr);
+    fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Uneditable parameters</b>", head_row_attr);
     row = 1;
     if (sstate->show_global_7) {
       html_submit_button(f, SSERV_CMD_GLOB_HIDE_7, "Hide");
@@ -2202,13 +2768,14 @@ super_html_global_param(struct sid_state *sstate, int cmd,
                         int param3, int param4)
 {
   struct section_global_data *global = sstate->global;
-  int hh, mm, n, val, default_val;
+  int hh, mm, n, val, default_val, mult;
   unsigned char *s;
   int *p_int;
   unsigned char *p_str;
   size_t str_size;
   unsigned char **pp_str;
   char **tmp_env = 0;
+  size_t *p_size, zval;
 
   if (!global) return -SSERV_ERR_CONTEST_NOT_EDITED;
 
@@ -2525,6 +3092,31 @@ super_html_global_param(struct sid_state *sstate, int cmd,
   case SSERV_CMD_GLOB_CHANGE_TEAM_PAGE_QUOTA:
     p_int = &global->team_page_quota;
     goto handle_int;
+
+  case SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_VM_SIZE:
+    p_size = &global->compile_max_vm_size;
+
+  handle_size_t:
+    if (!param2) return -SSERV_ERR_INVALID_PARAMETER;
+    if (sscanf(param2, "%d%n", &val, &n) == 1 && !param2[n] && val == -1) {
+      *p_size = -1L;
+      return 0;
+    }
+    if (sscanf(param2, "%zu%n", &zval, &n) != 1)
+      return -SSERV_ERR_INVALID_PARAMETER;
+    if (!(mult = num_suffix(param2 + n))) return -SSERV_ERR_INVALID_PARAMETER;
+    // FIXME: check for overflow
+    zval *= mult;
+    *p_size = zval;
+    return 0;
+
+  case SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_STACK_SIZE:
+    p_size = &global->compile_max_stack_size;
+    goto handle_size_t;
+
+  case SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_FILE_SIZE:
+    p_size = &global->compile_max_file_size;
+    goto handle_size_t;
 
   case SSERV_CMD_GLOB_CHANGE_TEAM_INFO_URL:
     GLOB_SET_STRING(team_info_url);
@@ -2946,6 +3538,10 @@ super_html_global_param(struct sid_state *sstate, int cmd,
     p_int = &global->enable_memory_limit_error;
     goto handle_boolean;
 
+  case SSERV_CMD_GLOB_CHANGE_SEPARATE_USER_SCORE:
+    p_int = &global->separate_user_score;
+    goto handle_boolean;
+
   case SSERV_CMD_GLOB_CHANGE_ENABLE_L10N:
     p_int = &global->enable_l10n;
     goto handle_boolean;
@@ -3348,6 +3944,7 @@ super_html_edit_languages(
   path_t lang_hidden_vars;
   int row = 1;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  unsigned char num_buf[1024];
 
   if (!global) {
     super_html_contest_page_menu(f, session_id, sstate, 3, self_url,
@@ -3387,6 +3984,54 @@ super_html_edit_languages(
                                extra_args);
 
   fprintf(f, "<table border=\"0\">\n");
+
+  //GLOBAL_PARAM(compile_max_vm_size, "z"),
+  if (((ssize_t) global->compile_max_vm_size) <= 0) {
+    num_buf[0] = 0;
+  } else {
+    num_to_size_str(num_buf, sizeof(num_buf), global->compile_max_vm_size);
+  }
+  html_start_form(f, 1, self_url, hidden_vars);
+  fprintf(f, "<tr%s><td>%s</td><td>",
+          form_row_attrs[row ^= 1], "Maximum VM size for compilers:");
+  html_edit_text_form(f, 0, 0, "param", num_buf);
+  fprintf(f, "</td><td>");
+  html_submit_button(f, SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_VM_SIZE, "Change");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_VM_SIZE);
+  fprintf(f, "</tr></form>\n");
+
+  //GLOBAL_PARAM(compile_max_stack_size, "z"),
+  if (((ssize_t) global->compile_max_stack_size) <= 0) {
+    num_buf[0] = 0;
+  } else {
+    num_to_size_str(num_buf, sizeof(num_buf), global->compile_max_stack_size);
+  }
+  html_start_form(f, 1, self_url, hidden_vars);
+  fprintf(f, "<tr%s><td>%s</td><td>",
+          form_row_attrs[row ^= 1], "Maximum stack size for compilers:");
+  html_edit_text_form(f, 0, 0, "param", num_buf);
+  fprintf(f, "</td><td>");
+  html_submit_button(f, SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_STACK_SIZE,"Change");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_STACK_SIZE);
+  fprintf(f, "</tr></form>\n");
+
+  //GLOBAL_PARAM(compile_max_file_size, "z"),
+  if (((ssize_t) global->compile_max_file_size) <= 0) {
+    num_buf[0] = 0;
+  } else {
+    num_to_size_str(num_buf, sizeof(num_buf), global->compile_max_file_size);
+  }
+  html_start_form(f, 1, self_url, hidden_vars);
+  fprintf(f, "<tr%s><td>%s</td><td>",
+          form_row_attrs[row ^= 1], "Maximum file size for compilers:");
+  html_edit_text_form(f, 0, 0, "param", num_buf);
+  fprintf(f, "</td><td>");
+  html_submit_button(f, SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_FILE_SIZE, "Change");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_FILE_SIZE);
+  fprintf(f, "</tr></form>\n");
 
   for (i = 1; i < sstate->cs_lang_total; i++) {
     if (!(cs_lang = sstate->cs_langs[i])) continue;
@@ -3437,36 +4082,36 @@ super_html_edit_languages(
     } else {
       html_submit_button(f, SSERV_CMD_LANG_ACTIVATE, "Activate");
     }
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td><td%s>&nbsp;</td></tr></form>\n", td_attr);
     row = 1;
 
     if (!lang || !sstate->lang_flags[lang->id]) continue;
     ASSERT(lang->compile_id == i);
 
     //LANGUAGE_PARAM(id, "d"),
-    fprintf(f, "<tr%s><td>Language ID:</td><td>%d</td><td>&nbsp;</td></tr>\n",
+    fprintf(f, "<tr%s><td>Language ID:</td><td>%d</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
             form_row_attrs[row ^= 1],
             lang->id);
     //LANGUAGE_PARAM(compile_id, "d"),
-    fprintf(f, "<tr%s><td>Compilation server ID:</td><td>%d</td><td>&nbsp;</td></tr>\n",
+    fprintf(f, "<tr%s><td>Compilation server ID:</td><td>%d</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
             form_row_attrs[row ^= 1],
             lang->compile_id);
     //LANGUAGE_PARAM(short_name, "s"),
-    fprintf(f, "<tr%s><td>Language short name:</td><td>%s</td><td>&nbsp;</td></tr>\n",
+    fprintf(f, "<tr%s><td>Language short name:</td><td>%s</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
             form_row_attrs[row ^= 1], ARMOR(lang->short_name));
     //LANGUAGE_PARAM(arch, "s"),
     s = html_armor_string_dup(lang->arch);
-    fprintf(f, "<tr%s><td>Language architecture:</td><td>%s%s</td><td>&nbsp;</td></tr>\n",
+    fprintf(f, "<tr%s><td>Language architecture:</td><td>%s%s</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
             form_row_attrs[row ^= 1],
             s, *s?"":"<i>(Default)</i>");
     xfree(s);
     //LANGUAGE_PARAM(src_sfx, "s"),
-    fprintf(f, "<tr%s><td>Suffix of the source files:</td><td>%s</td><td>&nbsp;</td></tr>\n",
+    fprintf(f, "<tr%s><td>Suffix of the source files:</td><td>%s</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
             form_row_attrs[row ^= 1],
             ARMOR(lang->src_sfx));
     //LANGUAGE_PARAM(exe_sfx, "s"),
     s = html_armor_string_dup(lang->exe_sfx);
-    fprintf(f, "<tr%s><td>Suffix of the executable files:</td><td>%s%s</td><td>&nbsp;</td></tr>\n",
+    fprintf(f, "<tr%s><td>Suffix of the executable files:</td><td>%s%s</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
             form_row_attrs[row ^= 1],
             s, *s?"":"<i>(Empty)</i>");
     xfree(s);
@@ -3533,6 +4178,54 @@ super_html_edit_languages(
                              session_id,
                              form_row_attrs[row ^= 1],
                              self_url, extra_args, lang_hidden_vars);
+
+    //LANGUAGE_PARAM(max_vm_size, "d"),
+    if (lang->max_vm_size == -1L || lang->max_vm_size == 0) {
+      num_buf[0] = 0;
+    } else {
+      num_to_size_str(num_buf, sizeof(num_buf), lang->max_vm_size);
+    }
+    html_start_form(f, 1, self_url, lang_hidden_vars);
+    fprintf(f, "<tr%s><td>%s</td><td>",
+            form_row_attrs[row ^= 1], "Maximum VM size:");
+    html_edit_text_form(f, 0, 0, "param", num_buf);
+    fprintf(f, "</td><td>");
+    html_submit_button(f, SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE, "Change");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE);
+    fprintf(f, "</tr></form>\n");
+
+    //LANGUAGE_PARAM(max_stack_size, "d"),
+    if (lang->max_stack_size == -1L || lang->max_stack_size == 0) {
+      num_buf[0] = 0;
+    } else {
+      num_to_size_str(num_buf, sizeof(num_buf), lang->max_stack_size);
+    }
+    html_start_form(f, 1, self_url, lang_hidden_vars);
+    fprintf(f, "<tr%s><td>%s</td><td>",
+            form_row_attrs[row ^= 1], "Maximum stack size:");
+    html_edit_text_form(f, 0, 0, "param", num_buf);
+    fprintf(f, "</td><td>");
+    html_submit_button(f, SSERV_CMD_LANG_CHANGE_MAX_STACK_SIZE, "Change");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_LANG_CHANGE_MAX_STACK_SIZE);
+    fprintf(f, "</tr></form>\n");
+
+    //LANGUAGE_PARAM(max_file_size, "d"),
+    if (lang->max_file_size == -1L || lang->max_file_size == 0) {
+      num_buf[0] = 0;
+    } else {
+      num_to_size_str(num_buf, sizeof(num_buf), lang->max_file_size);
+    }
+    html_start_form(f, 1, self_url, lang_hidden_vars);
+    fprintf(f, "<tr%s><td>%s</td><td>",
+            form_row_attrs[row ^= 1], "Maximum file size:");
+    html_edit_text_form(f, 0, 0, "param", num_buf);
+    fprintf(f, "</td><td>");
+    html_submit_button(f, SSERV_CMD_LANG_CHANGE_MAX_FILE_SIZE, "Change");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_LANG_CHANGE_MAX_FILE_SIZE);
+    fprintf(f, "</tr></form>\n");
 
     if (lang->binary) {
       //LANGUAGE_PARAM(content_type, "s"),
@@ -3743,6 +4436,9 @@ super_html_lang_activate(
   lang->insecure = cs_lang->insecure;
   strcpy(lang->content_type, cs_lang->content_type);
   lang->compile_dir_index = cs_lang->compile_dir_index;
+  lang->max_vm_size = cs_lang->max_vm_size;
+  lang->max_stack_size = cs_lang->max_stack_size;
+  lang->max_file_size = cs_lang->max_file_size;
 }
 
 void
@@ -3774,8 +4470,9 @@ super_html_lang_cmd(struct sid_state *sstate, int cmd,
                     int param3, int param4)
 {
   struct section_language_data *pl_old, *pl_new;
-  int val, n;
+  int val, n, mult;
   int *p_int;
+  size_t *p_size, zval;
   char **tmp_env = 0;
 
   if (!sstate->cs_langs) {
@@ -3886,6 +4583,31 @@ super_html_lang_cmd(struct sid_state *sstate, int cmd,
     p_int = &pl_new->binary;
     goto handle_boolean;
 
+  case SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE:
+    p_size = &pl_new->max_vm_size;
+
+  handle_size_t:
+    if (!param2) return -SSERV_ERR_INVALID_PARAMETER;
+    if (sscanf(param2, "%d%n", &val, &n) == 1 && !param2[n] && val == -1) {
+      *p_size = -1L;
+      return 0;
+    }
+    if (sscanf(param2, "%zu%n", &zval, &n) != 1)
+      return -SSERV_ERR_INVALID_PARAMETER;
+    if (!(mult = num_suffix(param2 + n))) return -SSERV_ERR_INVALID_PARAMETER;
+    // FIXME: check for overflow
+    zval *= mult;
+    *p_size = zval;
+    return 0;
+
+  case SSERV_CMD_LANG_CHANGE_MAX_STACK_SIZE:
+    p_size = &pl_new->max_stack_size;
+    goto handle_size_t;
+
+  case SSERV_CMD_LANG_CHANGE_MAX_FILE_SIZE:
+    p_size = &pl_new->max_file_size;
+    goto handle_size_t;
+
   case SSERV_CMD_LANG_CHANGE_OPTS:
     if (!pl_new) return 0;
     xfree(sstate->lang_opts[lang_id]);
@@ -3952,7 +4674,9 @@ print_boolean_3_select_row(FILE *f,
   }
   fprintf(f, "</td><td>");
   html_submit_button(f, change_action, "Change");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, change_action);
+  fprintf(f, "</tr></form>\n");
 }
 
 struct std_checker_info super_html_std_checkers[] =
@@ -4012,7 +4736,9 @@ print_std_checker_row(FILE *f,
   }
   fprintf(f, "</select></td><td>");
   html_submit_button(f, SSERV_CMD_PROB_CHANGE_STANDARD_CHECKER, "Change");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_PROB_CHANGE_STANDARD_CHECKER);
+  fprintf(f, "</tr></form>\n");
 }
 
 /*
@@ -4131,7 +4857,7 @@ super_html_print_problem(FILE *f,
       }
     }
   }
-  fprintf(f, "<tr%s><td colspan=\"2\" align=\"center\">%s</td><td>",
+  fprintf(f, "<tr%s><td colspan=\"2\" align=\"center\">%s</td><td colspan=\"2\">",
           prob_row_attr, ARMOR(name_buf));
   if (!show_details) {
     html_submit_button(f, SSERV_CMD_PROB_SHOW_DETAILS, "Show details");
@@ -4149,7 +4875,7 @@ super_html_print_problem(FILE *f,
   if (!show_details) goto cleanup;
 
   if (!prob->abstract) {
-    fprintf(f, "<tr%s><td>Problem ID:</td><td>%d</td><td>&nbsp;</td></tr>\n",
+    fprintf(f, "<tr%s><td>Problem ID:</td><td>%d</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
             form_row_attrs[row ^= 1],
             prob->id);
     print_string_editing_row(f, "Problem short name:", prob->short_name,
@@ -4190,9 +4916,11 @@ super_html_print_problem(FILE *f,
     }
     fprintf(f, "</select></td><td>");
     html_submit_button(f, SSERV_CMD_PROB_CHANGE_SUPER, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_PROB_CHANGE_SUPER);
+    fprintf(f, "</tr></form>\n");
   } else {
-    fprintf(f, "<tr%s><td>Problem Name:</td><td>%s</td><td>&nbsp;</td></tr>\n",
+    fprintf(f, "<tr%s><td>Problem Name:</td><td>%s</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
             form_row_attrs[row ^= 1], ARMOR(prob->short_name));
   }
 
@@ -4228,7 +4956,9 @@ super_html_print_problem(FILE *f,
   }
   fprintf(f, "</select></td><td>");
   html_submit_button(f, SSERV_CMD_PROB_CHANGE_TYPE, "Change");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_PROB_CHANGE_TYPE);
+  fprintf(f, "</tr></form>\n");
 
   //PROBLEM_PARAM(stand_name, "s")
   if (!prob->abstract && show_adv) {
@@ -4313,7 +5043,9 @@ super_html_print_problem(FILE *f,
     }
     fprintf(f, "</select>%s</td><td>", extra_msg);
     html_submit_button(f, SSERV_CMD_PROB_CHANGE_EXAMINATOR_NUM, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_PROB_CHANGE_EXAMINATOR_NUM);
+    fprintf(f, "</tr></form>\n");
   }
 
   //PROBLEM_PARAM(check_presentation, "d")
@@ -4918,11 +5650,13 @@ super_html_print_problem(FILE *f,
     html_edit_text_form(f, 0, 0, "param", num_buf);
     fprintf(f, "%s</td><td>", extra_msg);
     html_submit_button(f, SSERV_CMD_PROB_CHANGE_MAX_VM_SIZE, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_PROB_CHANGE_MAX_VM_SIZE);
+    fprintf(f, "</tr></form>\n");
   }
 
   if (!problem_type_flag && show_adv) {
-    //PROBLEM_PARAM(max_stack_size, "d"),
+    //PROBLEM_PARAM(max_stack_size, "z"),
     extra_msg = "";
     if (prob->abstract) {
       /*
@@ -4954,7 +5688,153 @@ super_html_print_problem(FILE *f,
     html_edit_text_form(f, 0, 0, "param", num_buf);
     fprintf(f, "%s</td><td>", extra_msg);
     html_submit_button(f, SSERV_CMD_PROB_CHANGE_MAX_STACK_SIZE, "Change");
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_PROB_CHANGE_MAX_STACK_SIZE);
+    fprintf(f, "</tr></form>\n");
+  }
+
+  //PROBLEM_PARAM(max_core_size, "z"),
+  if (show_adv) {
+    extra_msg = "";
+    if (prob->abstract) {
+      if (prob->max_core_size == -1L)
+        extra_msg = "<i>(OS Limit)</i>";
+    } else {
+      if (prob->max_core_size == -1L) {
+        prepare_set_prob_value(CNTSPROB_max_core_size,
+                               tmp_prob, sup_prob, sstate->global);
+        if (tmp_prob->max_core_size == -1L)
+          snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - OS Limit)</i>");
+      else
+        snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - %s)</i>",
+                 size_t_to_size_str(num_buf, sizeof(num_buf), tmp_prob->max_core_size));
+        extra_msg = msg_buf;
+      }
+    }
+    if (prob->max_core_size == -1L) {
+      num_buf[0] = 0;
+    } else {
+      size_t_to_size_str(num_buf, sizeof(num_buf), tmp_prob->max_core_size);
+    }
+    if (!problem_type_flag) {
+      html_start_form(f, 1, self_url, prob_hidden_vars);
+      fprintf(f, "<tr%s><td>%s</td><td>", form_row_attrs[row ^= 1],
+              "Maximum core file size:");
+      html_edit_text_form(f, 0, 0, "param", num_buf);
+      fprintf(f, "%s</td><td>", extra_msg);
+      html_submit_button(f, SSERV_CMD_PROB_CHANGE_MAX_CORE_SIZE, "Change");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_PROB_CHANGE_MAX_CORE_SIZE);
+      fprintf(f, "</tr></form>\n");
+    }
+  }
+
+  //PROBLEM_PARAM(max_file_size, "z"),
+  if (show_adv) {
+    extra_msg = "";
+    if (prob->abstract) {
+      if (prob->max_file_size == -1L)
+        extra_msg = "<i>(OS Limit)</i>";
+    } else {
+      if (prob->max_file_size == -1L) {
+        prepare_set_prob_value(CNTSPROB_max_file_size,
+                               tmp_prob, sup_prob, sstate->global);
+        if (tmp_prob->max_file_size == -1L)
+          snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - OS Limit)</i>");
+      else
+        snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - %s)</i>",
+                 size_t_to_size_str(num_buf, sizeof(num_buf), tmp_prob->max_file_size));
+        extra_msg = msg_buf;
+      }
+    }
+    if (prob->max_file_size == -1L) {
+      num_buf[0] = 0;
+    } else {
+      size_t_to_size_str(num_buf, sizeof(num_buf), tmp_prob->max_file_size);
+    }
+    if (!problem_type_flag) {
+      html_start_form(f, 1, self_url, prob_hidden_vars);
+      fprintf(f, "<tr%s><td>%s</td><td>", form_row_attrs[row ^= 1],
+              "Maximum file size:");
+      html_edit_text_form(f, 0, 0, "param", num_buf);
+      fprintf(f, "%s</td><td>", extra_msg);
+      html_submit_button(f, SSERV_CMD_PROB_CHANGE_MAX_FILE_SIZE, "Change");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_PROB_CHANGE_MAX_FILE_SIZE);
+      fprintf(f, "</tr></form>\n");
+    }
+  }
+
+  //PROBLEM_PARAM(max_open_file_count, "d"),
+  if (show_adv) {
+    extra_msg = "";
+    if (prob->abstract) {
+      if (prob->max_open_file_count < 0)
+        extra_msg = "<i>(OS Limit)</i>";
+    } else {
+      if (prob->max_open_file_count < 0) {
+        prepare_set_prob_value(CNTSPROB_max_open_file_count,
+                               tmp_prob, sup_prob, sstate->global);
+        if (tmp_prob->max_open_file_count < 0)
+          snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - OS Limit)</i>");
+        else
+          snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - %d)</i>",
+                   tmp_prob->max_open_file_count);
+        extra_msg = msg_buf;
+      }
+    }
+    if (prob->max_open_file_count < 0) {
+      num_buf[0] = 0;
+    } else {
+      snprintf(num_buf, sizeof(num_buf), "%d", tmp_prob->max_open_file_count);
+    }
+    if (!problem_type_flag) {
+      html_start_form(f, 1, self_url, prob_hidden_vars);
+      fprintf(f, "<tr%s><td>%s</td><td>", form_row_attrs[row ^= 1],
+              "Maximum open file count:");
+      html_edit_text_form(f, 0, 0, "param", num_buf);
+      fprintf(f, "%s</td><td>", extra_msg);
+      html_submit_button(f,SSERV_CMD_PROB_CHANGE_MAX_OPEN_FILE_COUNT,"Change");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_PROB_CHANGE_MAX_OPEN_FILE_COUNT);
+      fprintf(f, "</tr></form>\n");
+    }
+  }
+
+  //PROBLEM_PARAM(max_process_count, "d"),
+  if (show_adv) {
+    extra_msg = "";
+    if (prob->abstract) {
+      if (prob->max_process_count < 0)
+        extra_msg = "<i>(OS Limit)</i>";
+    } else {
+      if (prob->max_process_count < 0) {
+        prepare_set_prob_value(CNTSPROB_max_process_count,
+                               tmp_prob, sup_prob, sstate->global);
+        if (tmp_prob->max_process_count < 0)
+          snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - OS Limit)</i>");
+        else
+          snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - %d)</i>",
+                   tmp_prob->max_process_count);
+        extra_msg = msg_buf;
+      }
+    }
+    if (prob->max_process_count < 0) {
+      num_buf[0] = 0;
+    } else {
+      snprintf(num_buf, sizeof(num_buf), "%d", tmp_prob->max_process_count);
+    }
+    if (!problem_type_flag) {
+      html_start_form(f, 1, self_url, prob_hidden_vars);
+      fprintf(f, "<tr%s><td>%s</td><td>", form_row_attrs[row ^= 1],
+              "Maximum process count:");
+      html_edit_text_form(f, 0, 0, "param", num_buf);
+      fprintf(f, "%s</td><td>", extra_msg);
+      html_submit_button(f,SSERV_CMD_PROB_CHANGE_MAX_PROCESS_COUNT, "Change");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_PROB_CHANGE_MAX_PROCESS_COUNT);
+      fprintf(f, "</tr></form>\n");
+    }
   }
 
   //PROBLEM_PARAM(checker_real_time_limit, "d"),
@@ -5264,6 +6144,21 @@ super_html_print_problem(FILE *f,
                                extra_msg,
                                session_id, form_row_attrs[row ^= 1],
                                self_url, extra_args, prob_hidden_vars);
+
+    //PROBLEM_PARAM(score_latest_or_unmarked, "d"),
+    extra_msg = 0;
+    if (!prob->abstract) {
+      prepare_set_prob_value(CNTSPROB_score_latest_or_unmarked,
+                             tmp_prob, sup_prob, sstate->global);
+      snprintf(msg_buf, sizeof(msg_buf), "Default (%s)",
+               tmp_prob->score_latest_or_unmarked?"Yes":"No");
+      extra_msg = msg_buf;
+    }
+    print_boolean_3_select_row(f, "Score the latest or the best unmarked?", prob->score_latest_or_unmarked,
+                               SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
   }
 
   if (sstate->global && sstate->global->score_system != SCORE_ACM) {
@@ -5283,6 +6178,28 @@ super_html_print_problem(FILE *f,
     print_int_editing_row(f, "Score for full solution:",
                           prob->full_score, extra_msg,
                           SSERV_CMD_PROB_CHANGE_FULL_SCORE,
+                          session_id, form_row_attrs[row ^= 1],
+                          self_url, extra_args, prob_hidden_vars);
+  }
+
+  if (sstate->global && sstate->global->score_system != SCORE_ACM
+      && sstate->global->separate_user_score > 0) {
+    //PROBLEM_PARAM(full_user_score, "d"),
+    extra_msg = "";
+    if (prob->full_user_score == -1) {
+      if (prob->abstract) {
+        extra_msg = "<i>(Undefined)</i>";
+      } else {
+        prepare_set_prob_value(CNTSPROB_full_user_score,
+                               tmp_prob, sup_prob, sstate->global);
+        snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - %d)</i>",
+                 tmp_prob->full_user_score);
+        extra_msg = msg_buf;
+      }
+    }
+    print_int_editing_row(f, "Score for user-visible full solution:",
+                          prob->full_user_score, extra_msg,
+                          SSERV_CMD_PROB_CHANGE_FULL_USER_SCORE,
                           session_id, form_row_attrs[row ^= 1],
                           self_url, extra_args, prob_hidden_vars);
   }
@@ -5477,6 +6394,29 @@ super_html_print_problem(FILE *f,
                                session_id, form_row_attrs[row ^= 1],
                                self_url, extra_args, prob_hidden_vars);
 
+  //PROBLEM_PARAM(final_open_tests, "s"),
+  extra_msg = 0;
+  if (show_adv && !prob->abstract) {
+    if (prob->abstract && (show_adv || prob->final_open_tests[0])) extra_msg = "";
+    if (!prob->abstract) {
+      prepare_set_prob_value(CNTSPROB_final_open_tests,
+                             tmp_prob, sup_prob, sstate->global);
+      if (show_adv || tmp_prob->final_open_tests[0]) {
+        snprintf(msg_buf, sizeof(msg_buf), "<i>(%s\"%s\")</i>",
+                 prob->final_open_tests[0]?"Default - ":"",
+                 ARMOR(tmp_prob->final_open_tests));
+        extra_msg = msg_buf;
+      }
+    }
+  }
+  if (extra_msg)
+    print_string_editing_row_3(f, "Tests open for participants finally:",
+                               prob->final_open_tests,
+                               SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS,
+                               SSERV_CMD_PROB_CLEAR_FINAL_OPEN_TESTS,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
 
   if (sstate->global && sstate->global->score_system == SCORE_OLYMPIAD) {
     //PROBLEM_PARAM(tests_to_accept, "d"),
@@ -5714,7 +6654,7 @@ super_html_print_problem(FILE *f,
   extra_msg = 0;
   if (show_adv) {
     if (prob->abstract) extra_msg = "";
-    if (!prob->abstract && !prob->standard_checker[0]) {
+    if (!prob->abstract) {
       extra_msg = "";
       prepare_set_prob_value(CNTSPROB_valuer_cmd,
                              tmp_prob, sup_prob, sstate->global);
@@ -5768,7 +6708,7 @@ super_html_print_problem(FILE *f,
   }
 
   //PROBLEM_PARAM(valuer_env, "x"),
-  if (!prob->abstract) {
+  if (!prob->abstract && show_adv) {
     if (!prob->valuer_env || !prob->valuer_env[0]) {
       extra_msg = "(not set)";
       checker_env = xstrdup("");
@@ -6097,7 +7037,9 @@ super_html_print_problem(FILE *f,
               html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
                             "action=%d", SSERV_CMD_PROB_EDIT_VARIANTS));
     }
-    fprintf(f, "</td></tr></form>\n");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_PROB_CHANGE_VARIANT_NUM);
+    fprintf(f, "</tr></form>\n");
   }
 
   //PROBLEM_PARAM(start_date, "t"),
@@ -6196,7 +7138,7 @@ super_html_edit_problems(FILE *f,
                                hidden_vars, extra_args);
 
   fprintf(f, "<table border=\"0\">\n");
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Abstract problems</b></td></tr>\n", head_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Abstract problems</b></td></tr>\n", head_row_attr);
 
   for (i = 0; i < sstate->aprob_u; i++) {
     super_html_print_problem(f, i, 1, sstate, session_id, self_url,
@@ -6204,16 +7146,18 @@ super_html_edit_problems(FILE *f,
   }
 
   // add new abstract problem
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Add new abstract problem</b></td></tr>\n", prob_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Add new abstract problem</b></td></tr>\n", prob_row_attr);
   html_start_form(f, 1, self_url, hidden_vars);
   fprintf(f, "<tr%s><td>Name:</td><td>", form_row_attrs[0]);
   html_edit_text_form(f, 0, 0, "prob_name", "");
   fprintf(f, "</td><td>");
   html_submit_button(f, SSERV_CMD_PROB_ADD_ABSTRACT, "Add");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_PROB_ADD_ABSTRACT);
+  fprintf(f, "</tr></form>\n");
 
 
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Concrete problems</b></td></tr>\n", head_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Concrete problems</b></td></tr>\n", head_row_attr);
 
   for (i = 1; i < sstate->prob_a; i++) {
     if (!sstate->probs[i]) continue;
@@ -6222,13 +7166,15 @@ super_html_edit_problems(FILE *f,
   }
 
   // add new concrete problem
-  fprintf(f, "<tr%s><td colspan=\"3\" align=\"center\"><b>Add new problem</b></td></tr>\n", prob_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Add new problem</b></td></tr>\n", prob_row_attr);
   html_start_form(f, 1, self_url, hidden_vars);
   fprintf(f, "<tr%s><td>Id (optional):</td><td>", form_row_attrs[0]);
   html_edit_text_form(f, 0, 0, "prob_id", "");
   fprintf(f, "</td><td>");
   html_submit_button(f, SSERV_CMD_PROB_ADD, "Add");
-  fprintf(f, "</td></tr></form>\n");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_PROB_ADD);
+  fprintf(f, "</tr></form>\n");
 
   fprintf(f, "</table>\n");
 
@@ -6349,6 +7295,7 @@ super_html_add_abstract_problem(
   prob->ignore_exit_code = 0;
   prob->olympiad_mode = 0;
   prob->score_latest = 0;
+  prob->score_latest_or_unmarked = 0;
   prob->time_limit = 1;
   prob->time_limit_millis = 0;
   prob->real_time_limit = 5;
@@ -6620,6 +7567,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     p_int = &prob->score_latest;
     goto handle_boolean_1;
 
+  case SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED:
+    p_int = &prob->score_latest_or_unmarked;
+    goto handle_boolean_1;
+
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT:
     p_int = &prob->time_limit;
 
@@ -6698,6 +7649,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CHANGE_FULL_SCORE:
     p_int = &prob->full_score;
+    goto handle_int_1;
+
+  case SSERV_CMD_PROB_CHANGE_FULL_USER_SCORE:
+    p_int = &prob->full_user_score;
     goto handle_int_1;
 
   case SSERV_CMD_PROB_CHANGE_TEST_SCORE:
@@ -6819,6 +7774,22 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
   case SSERV_CMD_PROB_CHANGE_MAX_STACK_SIZE:
     p_size = &prob->max_stack_size;
     goto handle_size_t;
+
+  case SSERV_CMD_PROB_CHANGE_MAX_CORE_SIZE:
+    p_size = &prob->max_core_size;
+    goto handle_size_t;
+
+  case SSERV_CMD_PROB_CHANGE_MAX_FILE_SIZE:
+    p_size = &prob->max_file_size;
+    goto handle_size_t;
+
+  case SSERV_CMD_PROB_CHANGE_MAX_OPEN_FILE_COUNT:
+    p_int = &prob->max_open_file_count;
+    goto handle_int_1;
+
+  case SSERV_CMD_PROB_CHANGE_MAX_PROCESS_COUNT:
+    p_int = &prob->max_process_count;
+    goto handle_int_1;
 
   case SSERV_CMD_PROB_CHANGE_INPUT_FILE:
     PROB_ASSIGN_STRING(input_file);
@@ -6948,6 +7919,14 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CLEAR_OPEN_TESTS:
     PROB_CLEAR_STRING(open_tests);
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS:
+    PROB_ASSIGN_STRING(final_open_tests);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_FINAL_OPEN_TESTS:
+    PROB_CLEAR_STRING(final_open_tests);
     return 0;
 
   case SSERV_CMD_PROB_CHANGE_CHECK_CMD:
@@ -8944,6 +9923,7 @@ super_html_check_tests(FILE *f,
     prepare_set_prob_value(CNTSPROB_test_pat, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_test_score, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_full_score, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_full_user_score, tmp_prob, abstr, global);
     mkpath(test_path, g_test_path, tmp_prob->test_dir, "");
     if (tmp_prob->use_corr) {
       prepare_set_prob_value(CNTSPROB_corr_dir, tmp_prob, abstr, 0);

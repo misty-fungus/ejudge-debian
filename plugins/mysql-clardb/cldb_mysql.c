@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cldb_mysql.c 5568 2009-05-02 20:29:04Z cher $ */
+/* $Id: cldb_mysql.c 6139 2011-03-26 10:35:56Z cher $ */
 
-/* Copyright (C) 2008-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -28,8 +28,8 @@
 #include "prepare.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <mysql.h>
 

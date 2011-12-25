@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: userlist-server-control.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: userlist-server-control.c 6185 2011-03-27 15:16:29Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,7 +24,7 @@
 #include "userlist_proto.h"
 #include "startstop.h"
 
-#include <reuse/osdeps.h>
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>

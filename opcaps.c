@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: opcaps.c 5992 2010-09-17 05:05:22Z cher $ */
+/* $Id: opcaps.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2003-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,9 +17,9 @@
 
 #include "opcaps.h"
 
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <string.h>
 #include <ctype.h>

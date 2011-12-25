@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: compile.c 5882 2010-06-14 18:07:19Z cher $ */
+/* $Id: compile.c 6214 2011-04-01 20:03:14Z cher $ */
 
-/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -39,10 +39,10 @@
 #include "ejudge_cfg.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/exec.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
+#include "reuse_exec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -119,6 +119,7 @@ check_style_only(
   task_AddArg(tsk, work_src_path);
   task_SetPathAsArg0(tsk);
   task_SetWorkingDir(tsk, global->compile_work_dir);
+  task_EnableProcessGroup(tsk);
   task_SetRedir(tsk, 0, TSR_FILE, "/dev/null", TSK_WRITE);
   task_SetRedir(tsk, 1, TSR_FILE, work_txt_path, TSK_REWRITE, 0777);
   task_SetRedir(tsk, 2, TSR_FILE, work_log_path, TSK_REWRITE, 0777);
@@ -126,9 +127,7 @@ check_style_only(
     for (i = 0; i < req->sc_env_num; i++)
       task_PutEnv(tsk, req->sc_env_vars[i]);
   }
-#if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
   task_EnableAllSignals(tsk);
-#endif /* HAVE_TASK_ENABLEALLSIGNALS */
   if (task_Start(tsk) < 0) {
     err("Failed to start style checker process");
     snprintf(msgbuf, sizeof(msgbuf), "Failed to start style checker %s\n",
@@ -391,6 +390,7 @@ do_loop(void)
         task_AddArg(tsk, src_path);
         task_SetPathAsArg0(tsk);
         task_SetWorkingDir(tsk, global->compile_work_dir);
+        task_EnableProcessGroup(tsk);
         task_SetRedir(tsk, 1, TSR_FILE, log_path, TSK_REWRITE, 0777);
         task_SetRedir(tsk, 0, TSR_FILE, "/dev/null", TSK_WRITE);
         task_SetRedir(tsk, 2, TSR_DUP, 1);
@@ -401,9 +401,7 @@ do_loop(void)
         if (lang->compile_real_time_limit > 0) {
           task_SetMaxRealTime(tsk, lang->compile_real_time_limit);
         }
-#if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
         task_EnableAllSignals(tsk);
-#endif /* HAVE_TASK_ENABLEALLSIGNALS */
         if (task_Start(tsk) < 0) {
           err("Failed to start style checker process");
           tail_message = "\n\nFailed to start style checker";
@@ -436,6 +434,28 @@ do_loop(void)
         task_AddArg(tsk, src_name);
         task_AddArg(tsk, exe_name);
         task_SetPathAsArg0(tsk);
+        task_EnableProcessGroup(tsk);
+        if (((ssize_t) req->max_vm_size) > 0) {
+          task_SetVMSize(tsk, req->max_vm_size);
+        } else if (((ssize_t) lang->max_vm_size) > 0) {
+          task_SetVMSize(tsk, lang->max_vm_size);
+        } else if (((ssize_t) global->compile_max_vm_size) > 0) {
+          task_SetVMSize(tsk, global->compile_max_vm_size);
+        }
+        if (((ssize_t) req->max_stack_size) > 0) {
+          task_SetStackSize(tsk, req->max_stack_size);
+        } else if (((ssize_t) lang->max_stack_size) > 0) {
+          task_SetStackSize(tsk, lang->max_stack_size);
+        } else if (((ssize_t) global->compile_max_stack_size) > 0) {
+          task_SetStackSize(tsk, global->compile_max_stack_size);
+        }
+        if (((ssize_t) req->max_file_size) > 0) {
+          task_SetMaxFileSize(tsk, req->max_file_size);
+        } else if (((ssize_t) lang->max_file_size) > 0) {
+          task_SetMaxFileSize(tsk, lang->max_file_size);
+        } else if (((ssize_t) global->compile_max_file_size) > 0) {
+          task_SetMaxFileSize(tsk, global->compile_max_file_size);
+        }
 
         if (req->env_num > 0) {
           for (i = 0; i < req->env_num; i++)
@@ -448,9 +468,8 @@ do_loop(void)
         if (lang->compile_real_time_limit > 0) {
           task_SetMaxRealTime(tsk, lang->compile_real_time_limit);
         }
-#if HAVE_TASK_ENABLEALLSIGNALS - 0 == 1
         task_EnableAllSignals(tsk);
-#endif /* HAVE_TASK_ENABLEALLSIGNALS */
+        
 
         if (cr_serialize_lock(&serve_state) < 0) {
           // FIXME: propose reasonable recovery?

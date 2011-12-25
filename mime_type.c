@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: mime_type.c 5964 2010-07-25 19:12:15Z cher $ */
+/* $Id: mime_type.c 6163 2011-03-27 07:09:00Z cher $ */
 
-/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,7 +22,7 @@
 #include "errlog.h"
 #include "fileutl.h"
 
-#include <reuse/osdeps.h>
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <string.h>

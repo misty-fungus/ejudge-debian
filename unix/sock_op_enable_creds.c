@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: sock_op_enable_creds.c 5554 2009-03-24 06:20:46Z cher $ */
+/* $Id: sock_op_enable_creds.c 6161 2011-03-27 07:01:28Z cher $ */
 
-/* Copyright (C) 2008-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,7 +24,7 @@
 #if defined PYTHON
 #include <Python.h>
 #else
-#include <reuse/osdeps.h>
+#include "reuse_osdeps.h"
 #endif
 
 #include <string.h>

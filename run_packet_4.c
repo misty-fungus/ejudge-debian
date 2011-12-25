@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_packet_4.c 5773 2010-02-23 10:14:13Z cher $ */
+/* $Id: run_packet_4.c 6172 2011-03-27 12:40:30Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,9 +26,9 @@
 #include "prepare.h"
 #include "runlog.h"
 
-#include <reuse/integral.h>
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -67,9 +67,17 @@ run_reply_packet_read(
   pout->score = cvt_bin_to_host_32(pin->score);
   FAIL_IF(pout->score < -1 || pout->score > EJ_MAX_SCORE);
 
+  pout->user_status = cvt_bin_to_host_32(pin->user_status);
+  FAIL_IF(pout->user_status < -1 || pout->user_status > RUN_MAX_STATUS);
+  pout->user_tests_passed = cvt_bin_to_host_32(pin->user_tests_passed);
+  FAIL_IF(pout->user_tests_passed < -1 || pout->user_tests_passed > EJ_MAX_TEST_NUM);
+  pout->user_score = cvt_bin_to_host_32(pin->user_score);
+  FAIL_IF(pout->user_score < -1 || pout->user_score > EJ_MAX_SCORE);
+
   flags = cvt_bin_to_host_32(pin->flags);
   if ((flags & FLAGS_NOTIFY)) pout->notify_flag = 1;
   if ((flags & FLAGS_MARKED)) pout->marked_flag = 1;
+  if ((flags & FLAGS_HAS_USER_SCORE)) pout->has_user_score = 1;
 
   pout->ts1 = cvt_bin_to_host_32(pin->ts1);
   pout->ts1_us = cvt_bin_to_host_32(pin->ts1_us);
@@ -90,14 +98,12 @@ run_reply_packet_read(
   return 0;
 
  failed:
-  err("run_reply_packet_read: error %s, %d", "$Revision: 5773 $", errcode);
+  err("run_reply_packet_read: error %s, %d", "$Revision: 6172 $", errcode);
   run_reply_packet_free(pout);
   return -1;
 }
 
 /*
  * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

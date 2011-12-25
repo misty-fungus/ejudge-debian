@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: parse_date.c 5677 2010-01-19 09:59:15Z cher $ */
+/* $Id: parse_date.c 6129 2011-03-26 09:12:45Z cher $ */
 
-/* Copyright (C) 2004-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 #include "xml_utils.h"
 #include "errlog.h"
 
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
 
 #include <string.h>
 #include <stdlib.h>

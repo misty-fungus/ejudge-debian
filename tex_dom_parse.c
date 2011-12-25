@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: tex_dom_parse.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: tex_dom_parse.c 6185 2011-03-27 15:16:29Z cher $ */
 
-/* Copyright (C) 2004 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,9 +17,9 @@
 
 #include "tex_dom.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/hash.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_hash.h"
 
 #include <string.h>
 #include <ctype.h>

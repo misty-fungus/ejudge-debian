@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: tex_dom_doc.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: tex_dom_doc.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2004 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,8 +17,8 @@
 
 #include "tex_dom.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <string.h>
 

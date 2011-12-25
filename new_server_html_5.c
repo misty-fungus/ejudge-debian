@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_5.c 5551 2009-02-28 17:49:41Z cher $ */
+/* $Id: new_server_html_5.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2007-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -31,8 +31,8 @@
 #include "l10n.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <stdio.h>
 #include <errno.h>

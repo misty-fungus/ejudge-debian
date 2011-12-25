@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: reports.c 5844 2010-06-04 21:58:59Z cher $ */
+/* $Id: reports.c 6178 2011-03-27 12:55:07Z cher $ */
 
-/* Copyright (C) 2007-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -33,9 +33,9 @@
 #include "testing_report_xml.h"
 #include "mime_type.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/exec.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_osdeps.h"
+#include "reuse_exec.h"
 
 #include <stdio.h>
 #include <stdlib.h>

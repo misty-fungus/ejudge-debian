@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: prepare.c 6012 2010-10-23 13:13:26Z cher $ */
+/* $Id: prepare.c 6229 2011-04-07 08:49:11Z cher $ */
 
-/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -34,9 +34,9 @@
 #include "xml_utils.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -282,6 +282,7 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(prune_empty_users, "d"),
   GLOBAL_PARAM(enable_report_upload, "d"),
   GLOBAL_PARAM(ignore_success_time, "d"),
+  GLOBAL_PARAM(separate_user_score, "d"),
 
   GLOBAL_PARAM(use_gzip, "d"),
   GLOBAL_PARAM(min_gzip_size, "d"),
@@ -319,6 +320,10 @@ static const struct config_parse_info section_global_params[] =
 
   GLOBAL_PARAM(load_user_group, "x"),
 
+  GLOBAL_PARAM(compile_max_vm_size, "z"),
+  GLOBAL_PARAM(compile_max_stack_size, "z"),
+  GLOBAL_PARAM(compile_max_file_size, "z"),
+
   { 0, 0, 0, 0 }
 };
 
@@ -345,6 +350,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(ignore_exit_code, "d"),
   PROBLEM_PARAM(olympiad_mode, "d"),
   PROBLEM_PARAM(score_latest, "d"),
+  PROBLEM_PARAM(score_latest_or_unmarked, "d"),
   PROBLEM_PARAM(time_limit, "d"),
   PROBLEM_PARAM(time_limit_millis, "d"),
   PROBLEM_PARAM(real_time_limit, "d"),
@@ -354,6 +360,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(team_show_judge_report, "d"),
   PROBLEM_PARAM(ignore_compile_errors, "d"),
   PROBLEM_PARAM(full_score, "d"),
+  PROBLEM_PARAM(full_user_score, "d"),
   PROBLEM_PARAM(test_score, "d"),
   PROBLEM_PARAM(run_penalty, "d"),
   PROBLEM_PARAM(acm_run_penalty, "d"),
@@ -393,6 +400,10 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(max_vm_size, "z"),
   PROBLEM_PARAM(max_stack_size, "z"),
   PROBLEM_PARAM(max_data_size, "z"),
+  PROBLEM_PARAM(max_core_size, "z"),
+  PROBLEM_PARAM(max_file_size, "z"),
+  PROBLEM_PARAM(max_open_file_count, "d"),
+  PROBLEM_PARAM(max_process_count, "d"),
   PROBLEM_PARAM_2(type, do_problem_parse_type),
   PROBLEM_PARAM(interactor_time_limit, "d"),
 
@@ -445,6 +456,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(personal_deadline, "x"),
   PROBLEM_PARAM(score_bonus, "s"),
   PROBLEM_PARAM(open_tests, "s"),
+  PROBLEM_PARAM(final_open_tests, "s"),
   PROBLEM_PARAM(statement_file, "s"),
   PROBLEM_PARAM(alternatives_file, "s"),
   PROBLEM_PARAM(plugin_file, "s"),
@@ -454,6 +466,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(source_header, "s"),
   PROBLEM_PARAM(source_footer, "s"),
   PROBLEM_PARAM(score_view, "x"),
+  PROBLEM_PARAM(extid, "S"),
 
   { 0, 0, 0, 0 }
 };
@@ -483,6 +496,9 @@ static const struct config_parse_info section_language_params[] =
 
   LANGUAGE_PARAM(disable_auto_testing, "d"),
   LANGUAGE_PARAM(disable_testing, "d"),
+  LANGUAGE_PARAM(max_vm_size, "z"),
+  LANGUAGE_PARAM(max_stack_size, "z"),
+  LANGUAGE_PARAM(max_file_size, "z"),
 
   LANGUAGE_PARAM(compile_dir, "s"),
   LANGUAGE_PARAM(compile_dir_index, "d"),
@@ -746,6 +762,10 @@ global_init_func(struct generic_section_config *gp)
   p->xml_report = -1;
   p->advanced_layout = -1;
   p->disable_auto_refresh = -1;
+
+  p->compile_max_vm_size = -1L;
+  p->compile_max_stack_size = -1L;
+  p->compile_max_file_size = -1L;
 }
 
 static void free_user_adjustment_info(struct user_adjustment_info*);
@@ -826,6 +846,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->ignore_exit_code = -1;
   p->olympiad_mode = -1;
   p->score_latest = -1;
+  p->score_latest_or_unmarked = -1;
   p->time_limit = -1;
   p->time_limit_millis = -1;
   p->real_time_limit = -1;
@@ -860,6 +881,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->skip_testing = -1;
   p->test_score = -1;
   p->full_score = -1;
+  p->full_user_score = -1;
   p->variable_full_score = -1;
   p->hidden = -1;
   p->advance_to_next = -1;
@@ -877,6 +899,10 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->max_vm_size = -1L;
   p->max_stack_size = -1L;
   p->max_data_size = -1L;
+  p->max_core_size = -1L;
+  p->max_file_size = -1L;
+  p->max_open_file_count = -1;
+  p->max_process_count = -1;
   p->interactor_time_limit = -1;
 }
 
@@ -914,6 +940,7 @@ prepare_problem_free_func(struct generic_section_config *gp)
   sarray_free(p->alternative);
   xfree(p->score_bonus_val);
   xfree(p->open_tests_val);
+  xfree(p->final_open_tests_val);
   free_testsets(p->ts_total, p->ts_infos);
   free_deadline_penalties(p->dp_total, p->dp_infos);
   free_personal_deadlines(p->pd_total, p->pd_infos);
@@ -921,6 +948,7 @@ prepare_problem_free_func(struct generic_section_config *gp)
   sarray_free(p->score_view);
   xfree(p->score_view_score);
   xfree(p->score_view_text);
+  xfree(p->extid);
 
   if (p->variant_num > 0 && p->xml.a) {
     for (i = 1; i <= p->variant_num; i++) {
@@ -2081,27 +2109,19 @@ parse_score_bonus(const unsigned char *str, int *p_total, int **p_values)
   return -1;
 }
 
-static int
-int_sort_func(const void *p1, const void *p2)
-{
-  int v1 = *(const int*) p1;
-  int v2 = *(const int*) p2;
-
-  if (v1 < v2) return -1;
-  if (v1 > v2) return 1;
-  return 0;
-}
-
 int
-prepare_parse_open_tests(FILE *flog, const unsigned char *str, int **p_vals)
+prepare_parse_open_tests(
+        FILE *flog,
+        const unsigned char *str,
+        int **p_vals,
+        int *p_count)
 {
-  int *vals = 0;
   int *x = 0;
   int x_a = 0;
-  int x_u = 0;
-  const unsigned char *p = str;
+  const unsigned char *p = str, *q;
   int n;
-  int v1, v2, i, j;
+  int v1, v2;
+  int visibility;
 
   if (*p_vals) *p_vals = 0;
   if (!str || !*str) return 0;
@@ -2116,7 +2136,7 @@ prepare_parse_open_tests(FILE *flog, const unsigned char *str, int **p_vals)
       goto fail;
     }
     v1 = -1; n = -1;
-    if (sscanf(p, "%d%n", &v1, &n) != 1 || v1 <= 0 || v1 > 100000) {
+    if (sscanf(p, "%d%n", &v1, &n) != 1 || v1 <= 0 || v1 > 1000) {
       if (flog) {
         fprintf(flog, "parse_open_tests: invalid test number\n");
       }
@@ -2128,12 +2148,13 @@ prepare_parse_open_tests(FILE *flog, const unsigned char *str, int **p_vals)
     if (*p == '-') {
       ++p;
       while (isspace(*p)) ++p;
-      if (sscanf(p, "%d%n", &v2, &n) != 1 || v2 <= 0 || v2 > 100000) {
+      if (sscanf(p, "%d%n", &v2, &n) != 1 || v2 <= 0 || v2 > 1000) {
         if (flog) {
           fprintf(flog, "parse_open_tests: invalid test number\n");
         }
         goto fail;
       }
+      p += n;
       if (v2 < v1) {
         if (flog) {
           fprintf(flog, "parse_open_tests: second test in range is < than the first");
@@ -2142,54 +2163,63 @@ prepare_parse_open_tests(FILE *flog, const unsigned char *str, int **p_vals)
       }
       while (isspace(*p)) ++p;
     }
+    visibility = TV_FULL;
+    if (*p == ':') {
+      // parse visibility specification
+      ++p;
+      while (isspace(*p)) ++p;
+      q = p;
+      while (*q && isalpha(*q)) ++q;
+      if (q == p) {
+        if (flog) {
+          fprintf(flog, "parse_open_tests: empty visibility specification");
+        }
+        goto fail;
+      }
+      visibility = test_visibility_parse_mem(p, q - p);
+      if (visibility < 0) {
+        if (flog) {
+          fprintf(flog, "parse_open_tests: invalid visibility");
+        }
+        goto fail;
+      }
+      p = q;
+      while (isspace(*p)) ++p;      
+    }
     if (*p == ',') {
       ++p;
     }
 
-    if (x_u + v2 - v1 + 1 > x_a) {
+    // set visibility for [v1;v2]
+
+    if (v2 >= x_a) {
       int new_a = x_a;
       int *new_x = 0;
       if (!new_a) new_a = 8;
-      while (new_a < x_u + v2 - v1 + 1) new_a *= 2;
+      while (v2 >= new_a) new_a *= 2;
       XCALLOC(new_x, new_a);
-      if (x_u > 0) {
-        memcpy(new_x, x, x_u * sizeof(new_x[0]));
+      if (x_a > 0) {
+        memcpy(new_x, x, x_a * sizeof(new_x[0]));
       }
       xfree(x);
       x = new_x;
       x_a = new_a;
     }
+
     for (; v1 <= v2; ++v1)
-      x[x_u++] = v1;
+      x[v1] = visibility;
   }
-
-  if (x_u > 0) {
-    // remove duplicates
-    qsort(x, x_u, sizeof(x[0]), int_sort_func);
-    for (i = 0, j = 1; j < x_u; ++j) {
-      if (x[i] != x[j]) {
-        x[++i] = x[j];
-      }
-    }
-    x_u = i + 1;
-  }
-
-  if (x_u > 0) {
-    XCALLOC(vals, x_u + 1);
-    memcpy(vals, x, x_u * sizeof(vals[0]));
-  }
-  xfree(x); x = 0; x_a = x_u = 0;
 
   if (p_vals) {
-    *p_vals = vals;
+    *p_vals = x;
+    *p_count = x_a;
   } else {
-    xfree(vals); vals = 0;
+    xfree(x); x = 0;
   }
   return 0;
 
 fail:
   xfree(x);
-  xfree(vals);
   return -1;
 }
 
@@ -3028,8 +3058,8 @@ set_defaults(
       }
     }
 
-    if (lang->style_checker_cmd[0]) {
-      pathmake2(lang->style_checker_cmd, g->checker_dir,
+    if (lang->style_checker_cmd[0] && lang->style_checker_cmd[0] != '@') {
+      pathmake2(lang->style_checker_cmd, g->ejudge_checkers_dir,
                 "/", lang->style_checker_cmd, NULL);
     }
 
@@ -3192,6 +3222,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_disable_security, prob, aprob, g);
 
     prepare_set_prob_value(CNTSPROB_full_score, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_full_user_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_variable_full_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_test_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_run_penalty, prob, aprob, g);
@@ -3219,6 +3250,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_ignore_exit_code, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_olympiad_mode, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_score_latest_or_unmarked, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit_millis, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_real_time_limit, prob, aprob, g);
@@ -3243,6 +3275,10 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_max_vm_size, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_max_stack_size, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_max_data_size, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_max_core_size, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_max_file_size, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_max_open_file_count, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_max_process_count, prob, aprob, g);
 
     prepare_set_prob_value(CNTSPROB_source_header, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_source_footer, prob, aprob, g);
@@ -3371,11 +3407,6 @@ set_defaults(
         if (parse_score_bonus(prob->score_bonus, &prob->score_bonus_total,
                               &prob->score_bonus_val) < 0) return -1;
       }
-      if (prob->open_tests[0]) {
-        if (prepare_parse_open_tests(stderr, prob->open_tests,
-                                     &prob->open_tests_val) < 0)
-          return -1;
-      }
     }
 
     if (mode == PREPARE_SERVE) {
@@ -3475,6 +3506,17 @@ set_defaults(
       if (prob->use_tgz) {
         path_add_dir(prob->tgz_dir, g->tgz_dir);
         vinfo("problem.%s.tgz_dir is '%s'", ish, prob->tgz_dir);
+      }
+      if (prob->open_tests[0]) {
+        if (prepare_parse_open_tests(stderr, prob->open_tests,
+                                     &prob->open_tests_val, &prob->open_tests_count) < 0)
+          return -1;
+      }
+      if (prob->final_open_tests[0]) {
+        if (prepare_parse_open_tests(stderr, prob->final_open_tests,
+                                     &prob->final_open_tests_val,
+                                     &prob->final_open_tests_count) < 0)
+          return -1;
       }
     }
 
@@ -4903,6 +4945,7 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->ignore_exit_code < 0) prob->ignore_exit_code = 0;
   if (prob->olympiad_mode < 0) prob->olympiad_mode = 0;
   if (prob->score_latest < 0) prob->score_latest = 0;
+  if (prob->score_latest_or_unmarked < 0) prob->score_latest_or_unmarked = 0;
   if (prob->time_limit < 0) prob->time_limit = 0;
   if (prob->time_limit_millis < 0) prob->time_limit_millis = 0;
   if (prob->real_time_limit < 0) prob->real_time_limit = 0;
@@ -5085,6 +5128,10 @@ prepare_new_global_section(int contest_id, const unsigned char *root_dir,
 
   strcpy(global->standings_file_name, DFLT_G_STANDINGS_FILE_NAME);
   global->plog_update_time = DFLT_G_PLOG_UPDATE_TIME;
+
+  global->compile_max_vm_size = -1L;
+  global->compile_max_stack_size = -1L;
+  global->compile_max_file_size = -1L;
 
   /*
   GLOBAL_PARAM(test_sfx, "s"),
@@ -5321,11 +5368,13 @@ prepare_copy_problem(const struct section_problem_data *in)
   out->score_bonus_total = 0;
   out->score_bonus_val = 0;
   out->open_tests_val = 0;
+  out->final_open_tests_val = 0;
   out->unhandled_vars = 0;
   out->score_view = 0;
   out->score_view_score = 0;
   out->score_view_text = 0;
   out->xml.p = 0;
+  out->extid = 0;
 
   return out;
 }
@@ -5414,6 +5463,11 @@ prepare_set_prob_value(
   case CNTSPROB_score_latest:
     if (out->score_latest == -1 && abstr) out->score_latest = abstr->score_latest;
     if (out->score_latest == -1) out->score_latest = 0;
+    break;
+
+  case CNTSPROB_score_latest_or_unmarked:
+    if (out->score_latest_or_unmarked == -1 && abstr) out->score_latest_or_unmarked = abstr->score_latest_or_unmarked;
+    if (out->score_latest_or_unmarked == -1) out->score_latest_or_unmarked = 0;
     break;
 
   case CNTSPROB_time_limit:
@@ -5558,6 +5612,10 @@ prepare_set_prob_value(
     if (out->full_score == -1) out->full_score = DFLT_P_FULL_SCORE;
     break;
 
+  case CNTSPROB_full_user_score:
+    if (out->full_user_score < 0 && abstr) out->full_user_score = abstr->full_user_score;
+    break;
+
   case CNTSPROB_test_score:
     if (out->test_score == -1 && abstr) out->test_score = abstr->test_score;
     if (out->test_score == -1) out->test_score = DFLT_P_TEST_SCORE;
@@ -5693,6 +5751,26 @@ prepare_set_prob_value(
       out->max_data_size = abstr->max_data_size;
     if (out->max_data_size == -1L)
       out->max_data_size = 0;
+    break;
+
+  case CNTSPROB_max_core_size:
+    if (out->max_core_size == -1L && abstr)
+      out->max_core_size = abstr->max_core_size;
+    break;
+
+  case CNTSPROB_max_file_size:
+    if (out->max_file_size == -1L && abstr)
+      out->max_file_size = abstr->max_file_size;
+    break;
+
+  case CNTSPROB_max_open_file_count:
+    if (out->max_open_file_count < 0 && abstr)
+      out->max_open_file_count = abstr->max_open_file_count;
+    break;
+
+  case CNTSPROB_max_process_count:
+    if (out->max_process_count < 0 && abstr)
+      out->max_process_count = abstr->max_process_count;
     break;
 
   case CNTSPROB_input_file:
@@ -6018,6 +6096,9 @@ prepare_set_prob_value(
   case CNTSPROB_open_tests:
     break;
 
+  case CNTSPROB_final_open_tests:
+    break;
+
   default:
     abort();
   }
@@ -6034,11 +6115,11 @@ static const int prob_settable_list[] =
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
   CNTSPROB_binary_input, CNTSPROB_binary, CNTSPROB_ignore_exit_code,
   CNTSPROB_olympiad_mode,
-  CNTSPROB_score_latest, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
+  CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
   CNTSPROB_real_time_limit, CNTSPROB_interactor_time_limit, CNTSPROB_use_ac_not_ok,
   CNTSPROB_team_enable_rep_view, CNTSPROB_team_enable_ce_view,
   CNTSPROB_team_show_judge_report, CNTSPROB_ignore_compile_errors,
-  CNTSPROB_full_score, CNTSPROB_test_score, CNTSPROB_run_penalty,
+  CNTSPROB_full_score, CNTSPROB_full_user_score, CNTSPROB_test_score, CNTSPROB_run_penalty,
   CNTSPROB_acm_run_penalty, CNTSPROB_disqualified_penalty,
   CNTSPROB_ignore_penalty, CNTSPROB_use_corr, CNTSPROB_use_info,
   CNTSPROB_use_tgz, CNTSPROB_tests_to_accept, CNTSPROB_accept_partial,
@@ -6055,6 +6136,8 @@ static const int prob_settable_list[] =
   CNTSPROB_stand_ignore_score, CNTSPROB_stand_last_column,
   CNTSPROB_score_multiplier, CNTSPROB_prev_runs_to_show,
   CNTSPROB_max_vm_size, CNTSPROB_max_stack_size, CNTSPROB_max_data_size,
+  CNTSPROB_max_core_size, CNTSPROB_max_file_size,
+  CNTSPROB_max_open_file_count, CNTSPROB_max_process_count,
   CNTSPROB_test_dir, CNTSPROB_test_sfx,
   CNTSPROB_corr_dir, CNTSPROB_corr_sfx, CNTSPROB_info_dir, CNTSPROB_info_sfx,
   CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx, CNTSPROB_input_file,
@@ -6073,7 +6156,7 @@ static const int prob_settable_list[] =
   CNTSPROB_alternatives_file, CNTSPROB_plugin_file, CNTSPROB_xml_file,
   CNTSPROB_alternative, CNTSPROB_stand_attr, CNTSPROB_source_header,
   CNTSPROB_source_footer, CNTSPROB_score_view,
-  CNTSPROB_open_tests,
+  CNTSPROB_open_tests, CNTSPROB_final_open_tests,
 
   0
 };
@@ -6096,6 +6179,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_ignore_exit_code] = 1,
   [CNTSPROB_olympiad_mode] = 1,
   [CNTSPROB_score_latest] = 1,
+  [CNTSPROB_score_latest_or_unmarked] = 1,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
@@ -6106,6 +6190,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_team_show_judge_report] = 1,
   [CNTSPROB_ignore_compile_errors] = 1,
   [CNTSPROB_full_score] = 1,
+  [CNTSPROB_full_user_score] = 1,
   [CNTSPROB_test_score] = 1,
   [CNTSPROB_run_penalty] = 1,
   [CNTSPROB_acm_run_penalty] = 1,
@@ -6144,6 +6229,10 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_max_vm_size] = 1,
   [CNTSPROB_max_stack_size] = 1,
   [CNTSPROB_max_data_size] = 1,
+  [CNTSPROB_max_core_size] = 1,
+  [CNTSPROB_max_file_size] = 1,
+  [CNTSPROB_max_open_file_count] = 1,
+  [CNTSPROB_max_process_count] = 1,
   [CNTSPROB_super] = 1,
   [CNTSPROB_short_name] = 1,
   [CNTSPROB_long_name] = 1,
@@ -6203,6 +6292,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_source_footer] = 1,
   [CNTSPROB_score_view] = 1,
   [CNTSPROB_open_tests] = 1,
+  [CNTSPROB_final_open_tests] = 1,
 };
 
 static const int prob_inheritable_list[] =
@@ -6212,12 +6302,12 @@ static const int prob_inheritable_list[] =
   CNTSPROB_use_stdin, CNTSPROB_use_stdout,
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
   CNTSPROB_binary_input, CNTSPROB_binary,
-  CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode, CNTSPROB_score_latest,
+  CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode, CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked,
   CNTSPROB_time_limit, CNTSPROB_time_limit_millis, CNTSPROB_real_time_limit,
   CNTSPROB_interactor_time_limit,
   CNTSPROB_use_ac_not_ok, CNTSPROB_team_enable_rep_view,
   CNTSPROB_team_enable_ce_view, CNTSPROB_team_show_judge_report,
-  CNTSPROB_ignore_compile_errors, CNTSPROB_full_score, CNTSPROB_test_score,
+  CNTSPROB_ignore_compile_errors, CNTSPROB_full_score, CNTSPROB_full_user_score, CNTSPROB_test_score,
   CNTSPROB_run_penalty, CNTSPROB_acm_run_penalty, 
   CNTSPROB_disqualified_penalty, CNTSPROB_ignore_penalty,
   CNTSPROB_use_corr, CNTSPROB_use_info, CNTSPROB_use_tgz,
@@ -6236,6 +6326,8 @@ static const int prob_inheritable_list[] =
   CNTSPROB_stand_last_column, CNTSPROB_score_multiplier,
   CNTSPROB_prev_runs_to_show, CNTSPROB_max_vm_size,
   CNTSPROB_max_stack_size, CNTSPROB_max_data_size,
+  CNTSPROB_max_core_size, CNTSPROB_max_file_size,
+  CNTSPROB_max_open_file_count, CNTSPROB_max_process_count,
   CNTSPROB_test_dir, CNTSPROB_test_sfx, CNTSPROB_corr_dir, CNTSPROB_corr_sfx,
   CNTSPROB_info_dir, CNTSPROB_info_sfx, CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx,
   CNTSPROB_input_file, CNTSPROB_output_file, CNTSPROB_test_score_list,
@@ -6274,6 +6366,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_ignore_exit_code] = 1,
   [CNTSPROB_olympiad_mode] = 1,
   [CNTSPROB_score_latest] = 1,
+  [CNTSPROB_score_latest_or_unmarked] = 1,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
@@ -6284,6 +6377,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_team_show_judge_report] = 1,
   [CNTSPROB_ignore_compile_errors] = 1,
   [CNTSPROB_full_score] = 1,
+  [CNTSPROB_full_user_score] = 1,
   [CNTSPROB_test_score] = 1,
   [CNTSPROB_run_penalty] = 1,
   [CNTSPROB_acm_run_penalty] = 1, 
@@ -6322,6 +6416,10 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_max_vm_size] = 1,
   [CNTSPROB_max_stack_size] = 1,
   [CNTSPROB_max_data_size] = 1,
+  [CNTSPROB_max_core_size] = 1,
+  [CNTSPROB_max_file_size] = 1,
+  [CNTSPROB_max_open_file_count] = 1,
+  [CNTSPROB_max_process_count] = 1,
   [CNTSPROB_test_dir] = 1,
   [CNTSPROB_test_sfx] = 1,
   [CNTSPROB_corr_dir] = 1,
@@ -6396,6 +6494,7 @@ static const struct section_problem_data prob_undef_values =
   .ignore_exit_code = -1,
   .olympiad_mode = -1,
   .score_latest = -1,
+  .score_latest_or_unmarked = -1,
   .real_time_limit = -1,
   .time_limit = -1,
   .time_limit_millis = -1,
@@ -6406,6 +6505,7 @@ static const struct section_problem_data prob_undef_values =
   .team_show_judge_report = -1,
   .ignore_compile_errors = -1,
   .full_score = -1,
+  .full_user_score = -1,
   .variable_full_score = -1,
   .test_score = -1,
   .run_penalty = -1,
@@ -6501,6 +6601,10 @@ static const struct section_problem_data prob_undef_values =
   .max_vm_size = (size_t) -1,
   .max_data_size = (size_t) -1,
   .max_stack_size = (size_t) -1,
+  .max_core_size = (size_t) -1,
+  .max_file_size = (size_t) -1,
+  .max_open_file_count = -1,
+  .max_process_count = -1,
   .score_view = 0,
 };
 
@@ -6522,6 +6626,7 @@ static const struct section_problem_data prob_default_values =
   .ignore_exit_code = 0,
   .olympiad_mode = 0,
   .score_latest = 0,
+  .score_latest_or_unmarked = 0,
   .real_time_limit = 0,
   .time_limit = 0,
   .time_limit_millis = 0,
@@ -6532,6 +6637,7 @@ static const struct section_problem_data prob_default_values =
   .team_show_judge_report = 0,
   .ignore_compile_errors = 0,
   .full_score = 50,
+  .full_user_score = -1,
   .variable_full_score = 0,
   .test_score = 1,
   .run_penalty = 1,
@@ -6613,6 +6719,10 @@ static const struct section_problem_data prob_default_values =
   .max_vm_size = 0,
   .max_data_size = 0,
   .max_stack_size = 0,
+  .max_core_size = -1L,
+  .max_file_size = -1L,
+  .max_open_file_count = -1,
+  .max_process_count = -1,
 };
 
 static const int prob_global_map[CNTSPROB_LAST_FIELD] =
@@ -7089,6 +7199,24 @@ get_advanced_layout_path(
   }
 
   return buf;
+}
+
+int
+cntsprob_get_test_visibility(
+        const struct section_problem_data *prob,
+        int num,
+        int final_mode)
+{
+  if (!prob) return TV_NORMAL;
+  if (final_mode && prob->final_open_tests_val) {
+    if (num <= 0 || num >= prob->final_open_tests_count)
+      return TV_NORMAL;
+    return prob->final_open_tests_val[num];
+  }
+  if (!prob->open_tests_val
+      || num <= 0 || num >= prob->open_tests_count)
+    return TV_NORMAL;
+  return prob->open_tests_val[num];
 }
 
 /*

@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_packet_5.c 5773 2010-02-23 10:14:13Z cher $ */
+/* $Id: run_packet_5.c 6172 2011-03-27 12:40:30Z cher $ */
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,9 +26,9 @@
 #include "prepare.h"
 #include "runlog.h"
 
-#include <reuse/integral.h>
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -63,9 +63,13 @@ run_reply_packet_write(
   out_data->failed_test = cvt_host_to_bin_32(in_data->failed_test);
   FAIL_IF(in_data->score < -1 || in_data->score > EJ_MAX_SCORE);
   out_data->score = cvt_host_to_bin_32(in_data->score);
+  out_data->user_status = cvt_host_to_bin_32(in_data->user_status);
+  out_data->user_tests_passed = cvt_host_to_bin_32(in_data->user_tests_passed);
+  out_data->user_score = cvt_host_to_bin_32(in_data->user_score);
 
   if (in_data->notify_flag) flags |= FLAGS_NOTIFY;
   if (in_data->marked_flag) flags |= FLAGS_MARKED;
+  if (in_data->has_user_score) flags |= FLAGS_HAS_USER_SCORE;
   out_data->flags = cvt_host_to_bin_32(flags);
 
   out_data->ts1 = cvt_host_to_bin_32(in_data->ts1);
@@ -88,14 +92,12 @@ run_reply_packet_write(
   return 0;
 
  failed:
-  err("run_reply_packet_write: error %s, %d", "$Revision: 5773 $", errcode);
+  err("run_reply_packet_write: error %s, %d", "$Revision: 6172 $", errcode);
   xfree(out_data);
   return -1;
 }
 
 /*
  * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

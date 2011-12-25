@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: lang_config_vis.c 6029 2010-11-03 14:16:30Z cher $ */
+/* $Id: lang_config_vis.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -25,8 +25,8 @@
 #include "compat.h"
 #include "varsubst.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -1003,6 +1003,9 @@ lang_config_generate_compile_cfg(
     }
     if ((s = shellconfig_get(p->cfg, "insecure"))) {
       fprintf(f, "insecure\n");
+    }
+    if ((s = shellconfig_get(p->cfg, "secure"))) {
+      fprintf(f, "disable_security\n");
     }
     if (!(s = shellconfig_get(p->cfg, "cmd"))) s = p->lang;
     fprintf(f, "cmd = \"%s\"\n", s);

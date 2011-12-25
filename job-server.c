@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: job-server.c 6029 2010-11-03 14:16:30Z cher $ */
+/* $Id: job-server.c 6162 2011-03-27 07:07:27Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,9 +26,9 @@
 #include "startstop.h"
 #include "compat.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <string.h>
 #include <unistd.h>

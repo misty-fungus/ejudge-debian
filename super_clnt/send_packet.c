@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: send_packet.c 5682 2010-01-19 10:03:27Z cher $ */
+/* $Id: send_packet.c 6171 2011-03-27 12:36:18Z cher $ */
 
-/* Copyright (C) 2004-2005 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,8 +19,8 @@
 #include "super_proto.h"
 #include "errlog.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/integral.h>
+#include "reuse_osdeps.h"
+#include "reuse_integral.h"
 
 #include <sys/uio.h>
 #include <stdlib.h>
@@ -80,9 +80,8 @@ super_clnt_send_packet(int sock_fd, size_t size, const void *buf)
   return -SSERV_ERR_WRITE_TO_SERVER;
 }
 
-/**
+/*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

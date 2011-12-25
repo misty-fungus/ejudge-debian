@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: sformat.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: sformat.c 6185 2011-03-27 15:16:29Z cher $ */
 
-/* Copyright (C) 2001-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2001-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -21,9 +21,7 @@
 #include "userlist.h"
 #include "misctext.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/number_io.h>
-#include <reuse/format_io.h>
+#include "reuse_xalloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -910,7 +908,7 @@ sformat_message(
 
     if (is_invalid) {
       // FIXME: need reasonable behavour
-      os_snprintf(tbuf, sizeof(tbuf), "<invalid:%.*s>", (int) (pf-specstart), specstart);
+      snprintf(tbuf, sizeof(tbuf), "<invalid:%.*s>", (int) (pf-specstart), specstart);
       papp = tbuf;
     }
 
@@ -918,9 +916,9 @@ sformat_message(
       // FIXME: ugly hack
       if (width > 100) width = 100;
       if (width >= 0 && put_zeros) {
-        os_snprintf(tbuf, sizeof(tbuf), "%0*d", width, int_format_value);
+        snprintf(tbuf, sizeof(tbuf), "%0*d", width, int_format_value);
       } else {
-        os_snprintf(tbuf, sizeof(tbuf), "%d", int_format_value);
+        snprintf(tbuf, sizeof(tbuf), "%d", int_format_value);
       }
       papp = tbuf;
     }
@@ -929,9 +927,9 @@ sformat_message(
       // FIXME: ugly hack
       if (width > 100) width = 100;
       if (width >= 0 && put_zeros) {
-        os_snprintf(tbuf, sizeof(tbuf), "%0*" EJ_PRINTF_LLSPEC "x", width, ullong_format_value);
+        snprintf(tbuf, sizeof(tbuf), "%0*" EJ_PRINTF_LLSPEC "x", width, ullong_format_value);
       } else {
-        os_snprintf(tbuf, sizeof(tbuf), "%" EJ_PRINTF_LLSPEC "x", ullong_format_value);
+        snprintf(tbuf, sizeof(tbuf), "%" EJ_PRINTF_LLSPEC "x", ullong_format_value);
       }
       papp = tbuf;
     }

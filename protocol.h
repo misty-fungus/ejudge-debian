@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: protocol.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: protocol.h 6116 2011-03-17 07:41:59Z cher $ */
 
 #ifndef __PROTOCOL_H__
 #define __PROTOCOL_H__
 
-/* Copyright (C) 2002-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -81,11 +81,11 @@ struct prot_serve_status_v2
 
   // upsolving mode
   unsigned char upsolving_mode;
-  unsigned char freeze_standings;
-  unsigned char view_source;
-  unsigned char view_protocol;
-  unsigned char full_protocol;
-  unsigned char disable_clars;
+  unsigned char upsolving_freeze_standings;
+  unsigned char upsolving_view_source;
+  unsigned char upsolving_view_protocol;
+  unsigned char upsolving_full_protocol;
+  unsigned char upsolving_disable_clars;
   unsigned char testing_finished;
 
   ej_time64_t   max_online_time;
@@ -94,7 +94,12 @@ struct prot_serve_status_v2
   // priority adjustments for problems
   signed char   prob_prio[EJ_SERVE_STATUS_TOTAL_PROBS];
 
-  unsigned char _pad[16];
+  signed char online_view_source;
+  signed char online_view_report;
+  unsigned char online_view_judge_score;
+  unsigned char online_final_visibility;
+
+  unsigned char _pad[12];
 };
 
 #define PROT_SERVE_PACKET_MAGIC (0xe342)

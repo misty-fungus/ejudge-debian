@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_mysql.c 5826 2010-06-02 04:30:22Z cher $ */
+/* $Id: uldb_mysql.c 6153 2011-03-27 06:52:33Z cher $ */
 
-/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -30,9 +30,9 @@
 #include "../mysql-common/common_mysql.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <mysql.h>
 

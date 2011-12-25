@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: recv_packet.c 3309 2006-09-06 08:55:50Z cher $ */
+/* $Id: recv_packet.c 6155 2011-03-27 06:57:30Z cher $ */
 
-/* Copyright (C) 2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,8 +19,8 @@
 #include "new_server_proto.h"
 #include "errlog.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_osdeps.h"
 
 #include <unistd.h>
 

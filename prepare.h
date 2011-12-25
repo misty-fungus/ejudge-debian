@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: prepare.h 6010 2010-10-23 10:20:57Z cher $ */
+/* $Id: prepare.h 6214 2011-04-01 20:03:14Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
-/* Copyright (C) 2000-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -111,7 +111,7 @@ struct user_adjustment_info
 };
 struct user_adjustment_map;
 
-/* sizeof(struct section_global_data) == 350012 */
+/* sizeof(struct section_global_data) == 350028 */
 struct section_global_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -622,6 +622,8 @@ struct section_global_data
   int checker_real_time_limit;
   /** show problem deadlines to participants? */
   ejintbool_t show_deadline;
+  /** store separate scores for participants */
+  ejintbool_t separate_user_score;
 
   /** use gzip compression for large files */
   ejintbool_t use_gzip;
@@ -651,6 +653,13 @@ struct section_global_data
   ejintbool_t disable_banner_page;
   /** printing quota (in pages) */
   int team_page_quota;
+
+  /* common compilation virtual address space size limit */
+  size_t compile_max_vm_size;
+  /* common compilation stack size limit */
+  size_t compile_max_stack_size;
+  /* common file size limit */
+  size_t compile_max_file_size;
 
   /** per participant testing priority adjustment */
   char **user_priority_adjustments;
@@ -703,7 +712,7 @@ struct section_global_data
   +path_t test_checker_cmd;
  */
 
-/* sizeof(struct section_problem_data) == 64920 */
+/* sizeof(struct section_problem_data) == 65216 */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -741,6 +750,8 @@ struct section_problem_data
   ejintbool_t olympiad_mode;
   /** for KIROV contests: score the latest submit */
   ejintbool_t score_latest;
+  /** for KIROV contests: score the latest submit or the best unmarked */
+  ejintbool_t score_latest_or_unmarked;
   /** maximum astronomical time for a problem (seconds) */
   int real_time_limit;
   /** time limit in seconds */
@@ -759,6 +770,8 @@ struct section_problem_data
   ejintbool_t ignore_compile_errors;
   /** score for successful solution */
   int full_score;
+  /** score for successful user-visible solution (separate_user_score mode) */
+  int full_user_score;
   /** allow changing the score for successful solutions */
   ejintbool_t variable_full_score;
   /** score for one test */
@@ -971,7 +984,13 @@ struct section_problem_data
 
   /** number of tests, open for unprivileged users */
   unsigned char open_tests[256];
+  int open_tests_count META_ATTRIB((meta_private));
   int *open_tests_val META_ATTRIB((meta_private));
+
+  /** test visibility in the final final mode */
+  unsigned char final_open_tests[256];
+  int final_open_tests_count META_ATTRIB((meta_private));
+  int *final_open_tests_val META_ATTRIB((meta_private));
 
   /** max virtual size limit  */
   size_t max_vm_size;
@@ -979,6 +998,17 @@ struct section_problem_data
   size_t max_data_size;
   /** max stack size limit */
   size_t max_stack_size;
+  /** max allowed size of the core file */
+  size_t max_core_size;
+  /** max file size */
+  size_t max_file_size;
+  /** max number of opened files per process */
+  int max_open_file_count;
+  /** max number of processes per user */
+  int max_process_count;
+
+  /** external id (for external application binding) */
+  unsigned char *extid;
 
   /** these fields are for CGI editing of contest configuration files */
   unsigned char *unhandled_vars;
@@ -996,7 +1026,7 @@ struct section_problem_data
   } xml META_ATTRIB((meta_hidden));
 };
 
-/* sizeof(struct section_language_data) == 33664 */
+/* sizeof(struct section_language_data) == 33676 */
 struct section_language_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -1041,6 +1071,13 @@ struct section_language_data
   ejintbool_t disable_auto_testing;
   /** do not test this language at all */
   ejintbool_t disable_testing;
+
+  /** max virtual size limit  */
+  size_t max_vm_size;
+  /** max stack size limit */
+  size_t max_stack_size;
+  /** max file size limit */
+  size_t max_file_size;
 
   /** index of the compile directory in the list of compile servers */
   int compile_dir_index;
@@ -1325,5 +1362,11 @@ get_advanced_layout_path(
         const struct section_problem_data *prob,
         const unsigned char *entry,
         int variant);
+
+int
+cntsprob_get_test_visibility(
+        const struct section_problem_data *prob,
+        int num,
+        int final_mode);
 
 #endif /* __PREPARE_H__ */

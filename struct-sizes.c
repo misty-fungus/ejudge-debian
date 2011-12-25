@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: struct-sizes.c 5932 2010-07-07 09:00:22Z cher $ */
+/* $Id: struct-sizes.c 6219 2011-04-03 20:50:09Z cher $ */
 
 /* Copyright (C) 2007-2010 Alexander Chernov <cher@ejudge.ru> */
 
@@ -23,6 +23,7 @@
 #include "clarlog.h"
 #include "prepare.h"
 #include "super-serve.h"
+#include "compile_packet_priv.h"
 
 #include <stdio.h>
 
@@ -37,5 +38,6 @@ int main(void)
   printf("section_language_data: %zu\n", sizeof(struct section_language_data));
   printf("section_tester_data:   %zu\n", sizeof(struct section_tester_data));
   printf("sid_state:             %zu\n", sizeof(struct sid_state));
+  printf("compile_packet:        %zu\n", sizeof(struct compile_request_bin_packet));
   return 0;
 }

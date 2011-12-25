@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: do_pass_fd.c 5682 2010-01-19 10:03:27Z cher $ */
+/* $Id: do_pass_fd.c 6158 2011-03-27 06:59:28Z cher $ */
 
-/* Copyright (C) 2004-2008 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 #include "sock_op.h"
 #include "errlog.h"
 
-#include <reuse/osdeps.h>
+#include "reuse_osdeps.h"
 
 int
 super_clnt_do_pass_fd(

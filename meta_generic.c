@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: meta_generic.c 5352 2008-11-20 12:50:06Z cher $ */
+/* $Id: meta_generic.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,8 +17,8 @@
 
 #include "meta_generic.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <stdio.h>
 #include <string.h>

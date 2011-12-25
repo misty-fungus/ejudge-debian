@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-setup.c 5992 2010-09-17 05:05:22Z cher $ */
+/* $Id: ejudge-setup.c 6224 2011-04-04 17:56:50Z cher $ */
 
-/* Copyright (C) 2004-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -31,9 +31,9 @@
 #include "fileutl.h"
 #include "compat.h"
 
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
-#include <reuse/osdeps.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <limits.h>
 #include <string.h>
@@ -2327,6 +2327,10 @@ generate_serve_cfg(FILE *f)
 
   fprintf(f, "\n");
 
+  fprintf(f, "compile_max_vm_size = 256M\n");
+  fprintf(f, "compile_max_file_size = 32M\n");
+  fprintf(f, "\n");
+
   for (i = 0; i < lang_num; i++) {
     p = langs[i];
     if (!p->cfg) continue;
@@ -2357,6 +2361,9 @@ generate_serve_cfg(FILE *f)
     }
     if ((s = shellconfig_get(p->cfg, "insecure"))) {
       fprintf(f, "insecure\n");
+    }
+    if ((s = shellconfig_get(p->cfg, "secure"))) {
+      fprintf(f, "disable_security\n");
     }
     fprintf(f, "\n");
   }
@@ -2638,6 +2645,7 @@ generate_serve_cfg(FILE *f)
         "xml_file = \"%Ps.xml\"\n"
         "max_vm_size = 64M\n"
         "max_stack_size = 64M\n"
+        "max_file_size = 64M\n"
         "time_limit = 1\n"
         "test_sfx = \".dat\"\n"
         "corr_sfx = \".ans\"\n"

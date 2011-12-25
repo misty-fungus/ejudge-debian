@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 6006 2010-10-15 18:53:41Z cher $ */
+/* $Id: new_server_html.c 6200 2011-03-29 19:19:28Z cher $ */
 
-/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -54,9 +54,9 @@
 #include "charsets.h"
 #include "compat.h"
 
-#include <reuse/osdeps.h>
-#include <reuse/xalloc.h>
-#include <reuse/logger.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
+#include "reuse_osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -1015,6 +1015,11 @@ ns_check_contest_events(serve_state_t cs, const struct contest_desc *cnts)
 
   run_get_times(cs->runlog_state, &start_time, &sched_time,
                 &duration, &stop_time, &finish_time);
+
+  if (start_time > 0 && finish_time > 0 && finish_time < start_time) {
+    // this is not right, ignore this situation
+    finish_time = 0;
+  }
 
   if (!global->is_virtual) {
     if (start_time > 0 && stop_time <= 0 && duration <= 0 && finish_time > 0
@@ -2140,6 +2145,7 @@ priv_contest_operation(FILE *fout,
   const struct section_global_data *global = cs->global;
   opcap_t caps;
   time_t start_time, stop_time, duration;
+  int param = 0;
 
   if (opcaps_find(&cnts->capabilities, phr->login, &caps) < 0
       || opcaps_check(caps, OPCAP_CONTROL_CONTEST) < 0) {
@@ -2290,6 +2296,39 @@ priv_contest_operation(FILE *fout,
 
   case NEW_SRV_ACTION_SQUEEZE_RUNS:
     serve_squeeze_runs(cs);
+    break;
+
+  case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_SOURCE:
+  case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT:
+  case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE:
+  case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY:
+    if (ns_cgi_param_int(phr, "param", &param) < 0) {
+      ns_error(log_f, NEW_SRV_ERR_INV_PARAM);
+      goto cleanup;
+    }
+
+    switch (phr->action) {
+    case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_SOURCE:
+      if (param < 0) param = -1;
+      else if (param > 0) param = 1;
+      cs->online_view_source = param;
+      break;
+    case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT:
+      if (param < 0) param = -1;
+      else if (param > 0) param = 1;
+      cs->online_view_report = param;
+      break;
+    case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE:
+      if (param) param = 1;
+      cs->online_view_judge_score = param;
+      break;
+    case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY:
+      if (param) param = 1;
+      cs->online_final_visibility = param;
+      break;
+    }
+
+    serve_update_status_file(cs, 1);
     break;
   }
 
@@ -2497,6 +2536,8 @@ priv_submit_run(FILE *fout,
   int skip_mime_type_test = 0;
   const unsigned char *text_form_text = 0;
   size_t text_form_size = 0;
+  unsigned char *utf8_str = 0;
+  int utf8_len = 0;
 
   if (ns_cgi_param_int(phr, "problem", &prob_id) < 0) {
     errmsg = "problem is not set or binary";
@@ -2659,7 +2700,14 @@ priv_submit_run(FILE *fout,
 
   switch (prob->type) {
   case PROB_TYPE_STANDARD:
-    if (!lang->binary && strlen(run_text) != run_size) goto binary_submission;
+    if (!lang->binary && strlen(run_text) != run_size) {
+      // guess utf-16/ucs-2
+      if (((int) run_size) < 0) goto binary_submission;
+      if ((utf8_len = ucs2_to_utf8(&utf8_str, run_text, run_size)) < 0)
+        goto binary_submission;
+      run_text = utf8_str;
+      run_size = (size_t) utf8_len;
+    }
     if (prob->enable_text_form > 0 && text_form_text
         && strlen(text_form_text) != text_form_size)
       goto binary_submission;
@@ -2812,7 +2860,7 @@ priv_submit_run(FILE *fout,
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)
         || lang->disable_auto_testing || lang->disable_testing) {
-      run_change_status(cs->runlog_state, run_id, RUN_PENDING, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: pending\n"
@@ -2820,13 +2868,14 @@ priv_submit_run(FILE *fout,
                       "  Testing disabled for this problem or language\n",
                       run_id);
     } else {
-      if (serve_compile_request(cs, run_text, run_size, run_id, phr->user_id,
+      if (serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                run_id, phr->user_id,
                                 lang->compile_id, phr->locale_id, 0,
                                 lang->src_sfx,
                                 lang->compiler_env,
                                 0, prob->style_checker_cmd,
                                 prob->style_checker_env,
-                                -1, 0, 0, prob, lang) < 0) {
+                                -1, 0, 0, prob, lang, 0) < 0) {
         ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
         goto cleanup;
       }
@@ -2838,7 +2887,7 @@ priv_submit_run(FILE *fout,
   } else if (prob->manual_checking > 0) {
     // manually tested outputs
     if (prob->check_presentation <= 0) {
-      run_change_status(cs->runlog_state, run_id, RUN_ACCEPTED, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: accepted for testing\n"
@@ -2847,8 +2896,8 @@ priv_submit_run(FILE *fout,
                       run_id);
     } else {
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_compile_request(cs, run_text, run_size, run_id,
-                              phr->user_id, 0 /* lang_id */,
+        serve_compile_request(cs, run_text, run_size, global->contest_id, 
+                              run_id, phr->user_id, 0 /* lang_id */,
                               0 /* locale_id */, 1 /* output_only*/,
                               mime_type_get_suffix(mime_type),
                               NULL /* compiler_env */,
@@ -2858,11 +2907,13 @@ priv_submit_run(FILE *fout,
                               0 /* accepting_mode */,
                               0 /* priority_adjustment */,
                               0 /* notify flag */,
-                              prob, NULL /* lang */);
+                              prob, NULL /* lang */,
+                              0 /* no_db_flag */);
       } else {
-        if (serve_run_request(cs, log_f, run_text, run_size, run_id,
+        if (serve_run_request(cs, log_f, run_text, run_size,
+                              global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0) < 0) {
+                              mime_type, 0, 0, 0) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto cleanup;
         }
@@ -2876,7 +2927,7 @@ priv_submit_run(FILE *fout,
     // automatically tested outputs
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)) {
-      run_change_status(cs->runlog_state, run_id, RUN_PENDING, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: pending\n"
@@ -2886,8 +2937,8 @@ priv_submit_run(FILE *fout,
     } else {
       /* FIXME: check for XML problem */
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_compile_request(cs, run_text, run_size, run_id,
-                              phr->user_id, 0 /* lang_id */,
+        serve_compile_request(cs, run_text, run_size, global->contest_id,
+                              run_id, phr->user_id, 0 /* lang_id */,
                               0 /* locale_id */, 1 /* output_only*/,
                               mime_type_get_suffix(mime_type),
                               NULL /* compiler_env */,
@@ -2897,11 +2948,13 @@ priv_submit_run(FILE *fout,
                               0 /* accepting_mode */,
                               0 /* priority_adjustment */,
                               0 /* notify flag */,
-                              prob, NULL /* lang */);
+                              prob, NULL /* lang */,
+                              0 /* no_db_flag */);
       } else {      
-        if (serve_run_request(cs, log_f, run_text, run_size, run_id,
+        if (serve_run_request(cs, log_f, run_text, run_size,
+                              global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0) < 0) {
+                              mime_type, 0, 0, 0) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto cleanup;
         }
@@ -2914,10 +2967,12 @@ priv_submit_run(FILE *fout,
   }
 
  cleanup:
+  xfree(utf8_str);
   return retval;
 
  invalid_param:
   ns_html_err_inv_param(fout, phr, 0, errmsg);
+  xfree(utf8_str);
   return -1;
 }
 
@@ -3173,8 +3228,7 @@ priv_set_run_style_error_status(
              global->xml_report_archive_dir, run_id, text2_len);
     goto invalid_param;
   }
-  if (run_change_status(cs->runlog_state, run_id,
-                        RUN_STYLE_ERR, 0, -1, 0) < 0)
+  if (run_change_status_4(cs->runlog_state, run_id, RUN_STYLE_ERR) < 0)
     goto invalid_param;
   if (global->notify_status_change > 0 && !re.is_hidden) {
     serve_notify_user_run_status_change(cnts, cs, re.user_id,
@@ -3259,13 +3313,24 @@ priv_submit_run_comment(
   }
 
   if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE) {
-    run_change_status(cs->runlog_state, run_id, RUN_IGNORED, 0, -1, 0);
+    run_change_status_4(cs->runlog_state, run_id, RUN_IGNORED);
   } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK) {
     struct section_problem_data *prob = 0;
     int full_score = 0;
+    int user_status = 0, user_score = 0;
     if (re.prob_id > 0 && re.prob_id <= cs->max_prob) prob = cs->probs[re.prob_id];
     if (prob) full_score = prob->full_score;
-    run_change_status(cs->runlog_state, run_id, RUN_OK, full_score, re.test, 0);
+    if (global->separate_user_score > 0 && re.is_saved) {
+      user_status = RUN_OK;
+      user_score = -1;
+      if (prob) user_score = prob->full_user_score;
+      if (prob && user_score < 0) user_score = prob->full_score;
+      if (user_score < 0) user_score = 0;
+    }
+    run_change_status_3(cs->runlog_state, run_id, RUN_OK,
+                        full_score, re.test, 0, 0,
+                        re.saved_score, user_status, re.saved_test,
+                        user_score);
   }
 
   if (global->notify_clar_reply) {
@@ -3579,12 +3644,8 @@ priv_clear_run(FILE *fout, FILE *log_f,
   archive_remove(cs, global->run_archive_dir, run_id, 0);
   archive_remove(cs, global->xml_report_archive_dir, run_id, 0);
   archive_remove(cs, global->report_archive_dir, run_id, 0);
-  if (global->team_enable_rep_view) {
-    archive_remove(cs, global->team_report_archive_dir, run_id, 0);
-  }
-  if (global->enable_full_archive) {
-    archive_remove(cs, global->full_archive_dir, run_id, 0);
-  }
+  archive_remove(cs, global->team_report_archive_dir, run_id, 0);
+  archive_remove(cs, global->full_archive_dir, run_id, 0);
   archive_remove(cs, global->audit_log_dir, run_id, 0);
 
  cleanup:
@@ -6104,11 +6165,11 @@ priv_upsolving_operation(
     run_stop_contest(cs->runlog_state, cs->current_time);
     serve_invoke_stop_script(cs);
     cs->upsolving_mode = 0;
-    cs->freeze_standings = 0;
-    cs->view_source = 0;
-    cs->view_protocol = 0;
-    cs->full_protocol = 0;
-    cs->disable_clars = 0;
+    cs->upsolving_freeze_standings = 0;
+    cs->upsolving_view_source = 0;
+    cs->upsolving_view_protocol = 0;
+    cs->upsolving_full_protocol = 0;
+    cs->upsolving_disable_clars = 0;
     serve_update_status_file(cs, 1);
     extra->last_access_time = 0;          // force reload
     break;
@@ -6118,16 +6179,16 @@ priv_upsolving_operation(
     run_stop_contest(cs->runlog_state, 0);
     run_set_finish_time(cs->runlog_state, 0);
     cs->upsolving_mode = 1;
-    cs->freeze_standings = 0;
-    cs->view_source = 0;
-    cs->view_protocol = 0;
-    cs->full_protocol = 0;
-    cs->disable_clars = 0;
-    if (freeze_standings && *freeze_standings) cs->freeze_standings = 1;
-    if (view_source && *view_source) cs->view_source = 1;
-    if (view_protocol && *view_protocol) cs->view_protocol = 1;
-    if (full_proto && *full_proto) cs->full_protocol = 1;
-    if (disable_clars && *disable_clars) cs->disable_clars = 1;
+    cs->upsolving_freeze_standings = 0;
+    cs->upsolving_view_source = 0;
+    cs->upsolving_view_protocol = 0;
+    cs->upsolving_full_protocol = 0;
+    cs->upsolving_disable_clars = 0;
+    if (freeze_standings && *freeze_standings) cs->upsolving_freeze_standings = 1;
+    if (view_source && *view_source) cs->upsolving_view_source = 1;
+    if (view_protocol && *view_protocol) cs->upsolving_view_protocol = 1;
+    if (full_proto && *full_proto) cs->upsolving_full_protocol = 1;
+    if (disable_clars && *disable_clars) cs->upsolving_disable_clars = 1;
     serve_update_status_file(cs, 1);
     extra->last_access_time = 0;          // force reload
     break;
@@ -6643,6 +6704,31 @@ priv_stand_filter_operation(
   default:
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
+
+ cleanup:
+  return retval;
+}
+
+static int
+priv_admin_contest_settings(
+        FILE *fout,
+        FILE *log_f,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
+{
+  int retval = 0;
+
+  if (phr->role != USER_ROLE_ADMIN) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+
+  l10n_setlocale(phr->locale_id);
+  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id,
+            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
+            phr->name_arm, phr->contest_id, extra->contest_arm,
+            _("Contest settings"));
+  ns_write_admin_contest_settings(fout, log_f, phr, cnts, extra);
+  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
+  l10n_setlocale(0);
 
  cleanup:
   return retval;
@@ -7222,6 +7308,10 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_TESTING_DOWN_ALL] = priv_whole_testing_queue_operation,
   [NEW_SRV_ACTION_SET_STAND_FILTER] = priv_stand_filter_operation,
   [NEW_SRV_ACTION_RESET_STAND_FILTER] = priv_stand_filter_operation,
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_SOURCE] = priv_contest_operation,
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT] = priv_contest_operation,
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE] = priv_contest_operation,
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY] = priv_contest_operation,
 
   /* for priv_generic_page */
   [NEW_SRV_ACTION_VIEW_REPORT] = priv_view_report,
@@ -7284,6 +7374,7 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_VIEW_TESTING_QUEUE] = priv_view_testing_queue,
   [NEW_SRV_ACTION_MARK_DISPLAYED_2] = priv_clear_displayed,
   [NEW_SRV_ACTION_UNMARK_DISPLAYED_2] = priv_clear_displayed,
+  [NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS] = priv_admin_contest_settings,
 };
 
 static void
@@ -7769,12 +7860,16 @@ priv_get_file(
     FAIL(NEW_SRV_ERR_INV_FILE_NAME);
 
   os_rGetSuffix(s, sfx, sizeof(sfx));
-  if (variant > 0) {
-    snprintf(fpath, sizeof(fpath), "%s/%s-%d/%s",
-             global->statement_dir, prob->short_name, variant, s);
+  if (global->advanced_layout) {
+    get_advanced_layout_path(fpath, sizeof(fpath), global, prob, s, variant);
   } else {
-    snprintf(fpath, sizeof(fpath), "%s/%s/%s",
-             global->statement_dir, prob->short_name, s);
+    if (variant > 0) {
+      snprintf(fpath, sizeof(fpath), "%s/%s-%d/%s",
+               global->statement_dir, prob->short_name, variant, s);
+    } else {
+      snprintf(fpath, sizeof(fpath), "%s/%s/%s",
+               global->statement_dir, prob->short_name, s);
+    }
   }
   mime_type = mime_type_parse_suffix(sfx);
   content_type = mime_type_get_type(mime_type);
@@ -7929,6 +8024,11 @@ priv_main_page(FILE *fout,
   fprintf(fout, "<li>%s%s</a></li>\n",
           ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_TESTING_QUEUE,0),
           _("View testing queue"));
+  if (phr->role >= USER_ROLE_ADMIN) {
+    fprintf(fout, "<li>%s%s</a></li>\n",
+            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS, 0),
+            _("Contest settings"));
+  }
   if (cnts->problems_url) {
     fprintf(fout, "<li><a href=\"%s\" target=_blank>%s</a>\n",
             cnts->problems_url, _("Problems"));
@@ -7992,6 +8092,28 @@ priv_main_page(FILE *fout,
   if (cs->printing_suspended) {
     fprintf(fout, "<p><big><b>%s</b></big></p>\n",
             _("Print requests are suspended"));
+  }
+  if (cs->online_view_source < 0) {
+    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
+            _("Source code is closed"));
+  } else if (cs->online_view_source > 0) {
+    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
+            _("Source code is open"));
+  }
+  if (cs->online_view_report < 0) {
+    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
+            _("Testing reports are closed"));
+  } else if (cs->online_view_report > 0) {
+    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
+            _("Testing reports are open"));
+  }
+  if (cs->online_view_judge_score > 0) {
+    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
+            _("Judge scores are opened"));
+  }
+  if (cs->online_final_visibility > 0) {
+    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
+            _("Final visibility rules are active"));
   }
 
   // count online users
@@ -8675,6 +8797,11 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_UNMARK_DISPLAYED_2] = priv_generic_operation,
   [NEW_SRV_ACTION_SET_STAND_FILTER] = priv_generic_operation,
   [NEW_SRV_ACTION_RESET_STAND_FILTER] = priv_generic_operation,
+  [NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS] = priv_generic_page,
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_SOURCE] = priv_generic_operation,
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT] = priv_generic_operation,
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE] = priv_generic_operation,
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY] = priv_generic_operation,
 };
 
 static void
@@ -8800,7 +8927,7 @@ privileged_entry_point(
   if (serve_state_load_contest(ejudge_config, phr->contest_id,
                                ul_conn,
                                &callbacks,
-                               &extra->serve_state, 0) < 0) {
+                               &extra->serve_state, 0, 0) < 0) {
     return ns_html_err_cnts_unavailable(fout, phr, 0, 0);
   }
 
@@ -9682,6 +9809,8 @@ unpriv_submit_run(FILE *fout,
   problem_xml_t px = 0;
   struct run_entry re;
   int skip_mime_type_test = 0;
+  unsigned char *utf8_str = 0;
+  int utf8_len = 0;
 
   l10n_setlocale(phr->locale_id);
   log_f = open_memstream(&log_txt, &log_len);
@@ -9795,8 +9924,14 @@ unpriv_submit_run(FILE *fout,
   switch (prob->type) {
   case PROB_TYPE_STANDARD:
     if (!lang->binary && strlen(run_text) != run_size) {
-      ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
-      goto done;
+      // guess utf-16/ucs-2
+      if (((int) run_size) < 0
+          || (utf8_len = ucs2_to_utf8(&utf8_str, run_text, run_size)) < 0) {
+        ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
+        goto done;
+      }
+      run_text = utf8_str;
+      run_size = (size_t) utf8_len;
     }
     if (prob->enable_text_form > 0 && text_form_text
         && strlen(text_form_text) != text_form_size) {
@@ -10074,7 +10209,7 @@ unpriv_submit_run(FILE *fout,
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)
         || lang->disable_auto_testing || lang->disable_testing
         || cs->testing_suspended) {
-      run_change_status(cs->runlog_state, run_id, RUN_PENDING, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: pending\n"
@@ -10082,13 +10217,14 @@ unpriv_submit_run(FILE *fout,
                       "  Testing disabled for this problem or language\n",
                       run_id);
     } else {
-      if (serve_compile_request(cs, run_text, run_size, run_id, phr->user_id,
+      if (serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                run_id, phr->user_id,
                                 lang->compile_id, phr->locale_id, 0,
                                 lang->src_sfx,
                                 lang->compiler_env,
                                 0, prob->style_checker_cmd,
                                 prob->style_checker_env,
-                                -1, 0, 1, prob, lang) < 0) {
+                                -1, 0, 1, prob, lang, 0) < 0) {
         ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
         goto done;
       }
@@ -10100,7 +10236,7 @@ unpriv_submit_run(FILE *fout,
   } else if (prob->manual_checking > 0 && !accept_immediately) {
     // manually tested outputs
     if (prob->check_presentation <= 0) {
-      run_change_status(cs->runlog_state, run_id, RUN_ACCEPTED, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: accepted for testing\n"
@@ -10109,8 +10245,8 @@ unpriv_submit_run(FILE *fout,
                       run_id);
     } else {
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_compile_request(cs, run_text, run_size, run_id,
-                              phr->user_id, 0 /* lang_id */,
+        serve_compile_request(cs, run_text, run_size, global->contest_id,
+                              run_id, phr->user_id, 0 /* lang_id */,
                               0 /* locale_id */, 1 /* output_only*/,
                               mime_type_get_suffix(mime_type),
                               NULL /* compiler_env */,
@@ -10120,11 +10256,13 @@ unpriv_submit_run(FILE *fout,
                               0 /* accepting_mode */,
                               0 /* priority_adjustment */,
                               0 /* notify flag */,
-                              prob, NULL /* lang */);
+                              prob, NULL /* lang */,
+                              0 /* no_db_flag */);
       } else {
-        if (serve_run_request(cs, log_f, run_text, run_size, run_id,
+        if (serve_run_request(cs, log_f, run_text, run_size,
+                              global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                              mime_type, 0, 0) < 0) {
+                              mime_type, 0, 0, 0) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto done;
         }
@@ -10137,14 +10275,14 @@ unpriv_submit_run(FILE *fout,
     }
   } else {
     if (accept_immediately) {
-      run_change_status(cs->runlog_state, run_id, RUN_ACCEPTED, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: accepted\n"
                       "Run-id: %d\n", run_id);
     } else if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)) {
-      run_change_status(cs->runlog_state, run_id, RUN_PENDING, 0, -1, 0);
+      run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       "Command: submit\n"
                       "Status: pending\n"
@@ -10167,8 +10305,8 @@ unpriv_submit_run(FILE *fout,
       }
 
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_compile_request(cs, run_text, run_size, run_id,
-                              phr->user_id, 0 /* lang_id */,
+        serve_compile_request(cs, run_text, run_size, global->contest_id,
+                              run_id, phr->user_id, 0 /* lang_id */,
                               0 /* locale_id */, 1 /* output_only*/,
                               mime_type_get_suffix(mime_type),
                               NULL /* compiler_env */,
@@ -10178,11 +10316,13 @@ unpriv_submit_run(FILE *fout,
                               0 /* accepting_mode */,
                               0 /* priority_adjustment */,
                               0 /* notify flag */,
-                              prob, NULL /* lang */);
+                              prob, NULL /* lang */,
+                              0 /* no_db_flag */);
       } else {
-        if (serve_run_request(cs, log_f, run_text, run_size, run_id,
+        if (serve_run_request(cs, log_f, run_text, run_size,
+                              global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                              mime_type, 0, 0) < 0) {
+                              mime_type, 0, 0, 0) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto done;
         }
@@ -10229,6 +10369,7 @@ unpriv_submit_run(FILE *fout,
   //cleanup:;
   if (log_f) fclose(log_f);
   xfree(log_txt);
+  xfree(utf8_str);
 }
 
 static void
@@ -10713,7 +10854,7 @@ unpriv_view_source(FILE *fout,
     ns_error(log_f, NEW_SRV_ERR_CLIENTS_SUSPENDED);
     goto done;
   }
-  if (!global->team_enable_src_view) {
+  if (cs->online_view_source < 0 || (!cs->online_view_source && global->team_enable_src_view <= 0)) {
     ns_error(log_f, NEW_SRV_ERR_SOURCE_VIEW_DISABLED);
     goto done;
   }
@@ -10790,8 +10931,6 @@ unpriv_view_test(FILE *fout,
                  const struct contest_desc *cnts,
                  struct contest_extra *extra)
 {
-
-
   const serve_state_t cs = extra->serve_state;
   const struct section_global_data *global = cs->global;
   int run_id, test_num, n;
@@ -10800,6 +10939,7 @@ unpriv_view_test(FILE *fout,
   FILE *log_f = 0;
   char *log_txt = 0;
   size_t log_len = 0;
+  int enable_rep_view;
 
   // run_id, test_num
   if (unpriv_parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0)
@@ -10810,13 +10950,15 @@ unpriv_view_test(FILE *fout,
     goto cleanup;
   }
 
+  enable_rep_view = (cs->online_view_report > 0 || (!cs->online_view_report && global->team_enable_rep_view > 0));
+
   log_f = open_memstream(&log_txt, &log_len);
 
   if (cs->clients_suspended) {
     ns_error(log_f, NEW_SRV_ERR_CLIENTS_SUSPENDED);
     goto done;
   }
-  if (global->team_enable_rep_view <= 0) {
+  if (enable_rep_view <= 0) {
     ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
     goto done;
   }
@@ -10877,6 +11019,7 @@ unpriv_view_report(FILE *fout,
   unsigned char *html_report;
   time_t start_time, stop_time;
   int accepting_mode = 0;
+  int enable_rep_view = 0;
 
   static const int new_actions_vector[] =
   {
@@ -10907,6 +11050,8 @@ unpriv_view_report(FILE *fout,
 
   if (unpriv_parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0)
     goto cleanup;
+
+  enable_rep_view = (cs->online_view_report > 0 || (!cs->online_view_report && global->team_enable_rep_view > 0));
 
   log_f = open_memstream(&log_txt, &log_len);
 
@@ -10949,7 +11094,8 @@ unpriv_view_report(FILE *fout,
     goto done;
   }
 
-  if (!prob->team_enable_rep_view
+  if (enable_rep_view) enable_rep_view = prob->team_enable_rep_view;
+  if (!enable_rep_view
       && (!prob->team_enable_ce_view
           || (re.status != RUN_COMPILE_ERR && re.status != RUN_STYLE_ERR))) {
     ns_error(log_f, NEW_SRV_ERR_REPORT_VIEW_DISABLED);
@@ -11039,6 +11185,7 @@ unpriv_view_report(FILE *fout,
       } else {
         write_xml_team_testing_report(cs, prob, fout,
                                       prob->type != PROB_TYPE_STANDARD,
+                                      re.is_marked,
                                       rep_start, "b1");
       }
     }
@@ -11300,10 +11447,10 @@ unpriv_view_standings(FILE *fout,
   } else if (global->score_system == SCORE_OLYMPIAD) {
     //fprintf(fout, _("<p>Information is not available.</p>"));
     do_write_kirov_standings(cs, cnts, fout, 0, 1, 1, 0, 0, 0, 0, 1, cur_time,
-                             0, NULL);
+                             0, NULL, 1 /* user_mode */);
   } else if (global->score_system == SCORE_KIROV) {
     do_write_kirov_standings(cs, cnts, fout, 0, 1, 1, 0, 0, 0, 0, 1, cur_time,
-                             0, NULL);
+                             0, NULL, 1 /* user_mode */);
   } else if (global->score_system == SCORE_MOSCOW) {
     do_write_moscow_standings(cs, cnts, fout, 0, 1, 1, phr->user_id,
                               0, 0, 0, 0, 1, cur_time, 0, NULL);
@@ -13538,12 +13685,16 @@ unpriv_get_file(
     FAIL(NEW_SRV_ERR_INV_FILE_NAME);
 
   os_rGetSuffix(s, sfx, sizeof(sfx));
-  if (variant > 0) {
-    snprintf(fpath, sizeof(fpath), "%s/%s-%d/%s",
-             global->statement_dir, prob->short_name, variant, s);
+  if (global->advanced_layout) {
+    get_advanced_layout_path(fpath, sizeof(fpath), global, prob, s, variant);
   } else {
-    snprintf(fpath, sizeof(fpath), "%s/%s/%s",
-             global->statement_dir, prob->short_name, s);
+    if (variant > 0) {
+      snprintf(fpath, sizeof(fpath), "%s/%s-%d/%s",
+               global->statement_dir, prob->short_name, variant, s);
+    } else {
+      snprintf(fpath, sizeof(fpath), "%s/%s/%s",
+               global->statement_dir, prob->short_name, s);
+    }
   }
   mime_type = mime_type_parse_suffix(sfx);
   content_type = mime_type_get_type(mime_type);
@@ -13793,7 +13944,7 @@ unprivileged_entry_point(
   if (serve_state_load_contest(ejudge_config, phr->contest_id,
                                ul_conn,
                                &callbacks,
-                               &extra->serve_state, 0) < 0) {
+                               &extra->serve_state, 0, 0) < 0) {
     return ns_html_err_cnts_unavailable(fout, phr, 0, 0);
   }
 
@@ -14135,6 +14286,11 @@ static const unsigned char * const symbolic_action_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_UNMARK_DISPLAYED_2] = "UNMARK_DISPLAYED_2",
   [NEW_SRV_ACTION_SET_STAND_FILTER] = "SET_STAND_FILTER",
   [NEW_SRV_ACTION_RESET_STAND_FILTER] = "RESET_STAND_FILTER",
+  [NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS] = "ADMIN_CONTEST_SETTINGS",
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_SOURCE] = "ADMIN_CHANGE_ONLINE_VIEW_SOURCE",
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT] = "ADMIN_CHANGE_ONLINE_VIEW_REPORT",
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE] = "ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE",
+  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY] = "ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY",
 };
 
 void

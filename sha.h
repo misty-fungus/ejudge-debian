@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: sha.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: sha.h 6172 2011-03-27 12:40:30Z cher $ */
 
 #ifndef __SHA_H__
 #define __SHA_H__ 1
@@ -28,12 +28,7 @@
    Copyright (C) 1999, Scott G. Miller
 */
 
-#include <reuse/ReuseDefs.h>
-#if defined REUSE_VERSION && REUSE_VERSION >= 4
-#include <reuse/integral.h>
-#else
-#include <p_integral.h>
-#endif /* reuse version >= 4 */
+#include "reuse_integral.h"
 
 #include <stdio.h>
 

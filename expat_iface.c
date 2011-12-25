@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: expat_iface.c 5515 2008-12-27 19:43:16Z cher $ */
+/* $Id: expat_iface.c 6146 2011-03-26 10:47:14Z cher $ */
 
-/* Copyright (C) 2002-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -23,8 +23,8 @@
 #include "errlog.h"
 #include "misctext.h"
 
-#include <reuse/logger.h>
-#include <reuse/xalloc.h>
+#include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <expat.h>
 
@@ -276,8 +276,9 @@ encoding_hnd(void *data, const XML_Char *name, XML_Encoding *info)
   char *p_out_buf;
   size_t in_size, out_size, conv_size;
 
-  if ((conv_hnd = iconv_open("utf-16le", name)) == (iconv_t) -1)
+  if ((conv_hnd = iconv_open("utf-16le", name)) == (iconv_t) -1) {
     return 0;
+  }
 
   info->data = 0;
   info->convert = 0;
@@ -285,7 +286,11 @@ encoding_hnd(void *data, const XML_Char *name, XML_Encoding *info)
 
   /* fill up the translation table */
   /* FIXME: this supports only one byte encodings */
-  for (i = 0; i < 256; i++) {
+  for (i = 0; i < 128; ++i) {
+    info->map[i] = i;
+  }
+
+  for (; i < 256; i++) {
     in_size = 1;
     p_in_buf = (iconv_src_str_t) in_buf;
     in_buf[0] = i;
@@ -293,7 +298,7 @@ encoding_hnd(void *data, const XML_Char *name, XML_Encoding *info)
     p_out_buf = out_buf;
     conv_size = iconv(conv_hnd, &p_in_buf, &in_size, &p_out_buf, &out_size);
     if (conv_size == (size_t) -1) {
-      info->map[i] = '?';
+      info->map[i] = '@';
       out_size = sizeof(out_buf);
       p_out_buf = out_buf;
       // reset the shift state
@@ -302,6 +307,7 @@ encoding_hnd(void *data, const XML_Char *name, XML_Encoding *info)
       ASSERT(!in_size);
       ASSERT(out_size + 2 == sizeof(out_buf));
       info->map[i] = out_buf[0] | (out_buf[1] << 8);
+      //if (info->map[i] >= 0x2000) info->map[i] = '?';
     }
   }
 
