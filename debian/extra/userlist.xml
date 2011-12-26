@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <userlist member_serial="1" name="unknown">
-  <user id="1" never_clean="yes" registered="2010/07/23 16:17:09" last_login="2010/07/23 16:17:09">
+  <user id="1" never_clean="yes" registered="2011/12/26 16:20:27" last_login="2011/12/26 16:20:27">
     <login public="no">ejudge</login>
     <password method="sha1">bdce9473ce403707618df5a2484a59017310cab9</password>
     <team_password method="sha1">bdce9473ce403707618df5a2484a59017310cab9</team_password>
-    <name>ejudge</name>
-    <email public="no">root@localhost</email>
+    <name>ejudge administrator</name>
+    <email public="no">ejudge@localhost</email>
     <contests>
       <contest id="1" status="ok"/>
     </contests>

@@ -18,10 +18,10 @@
 
   <email_program>/bin/true</email_program>
   <register_url>http://localhost/cgi-bin/register</register_url>
-  <register_email>root@localhost</register_email>
-  <server_name>Ejudge contest server at ejudge</server_name>
-  <server_name_en>Ejudge contest server at ejudge</server_name_en>
-  <server_main_url>http://locahost</server_main_url>
+  <register_email>ejudge@localhost</register_email>
+  <server_name>Ejudge contest server at localhost</server_name>
+  <server_name_en>Ejudge contest server at localhost</server_name_en>
+  <server_main_url>http://localhost</server_main_url>
   <user_map>
     <map system_user="ejudge" ejudge_user="ejudge"/>
   </user_map>
