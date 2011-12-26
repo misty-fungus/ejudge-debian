@@ -1,3 +1,11 @@
+ejudge (2.3.19-1~1.gbp2568db) UNRELEASED; urgency=low
+
+  ** SNAPSHOT build @2568dba31dc5d1e32ebfed53f81d7b7517e36e60 **
+
+  * New upstream version 2.3.19
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Sun, 25 Dec 2011 23:30:56 +0300
+
 ejudge (2.3.18-1) unstable; urgency=low
 
   * New upstream version 2.3.18
