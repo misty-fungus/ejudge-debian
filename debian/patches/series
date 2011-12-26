@@ -1,3 +1,4 @@
 01_fix_configure
 02_fix_ncursesw
 03_fix_compile_log
+04_dont_run_ejudge-setup_on_install

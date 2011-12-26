@@ -1,0 +1,22 @@
+Index: ejudge-debian/Makefile.unix.in
+===================================================================
+--- ejudge-debian.orig/Makefile.unix.in	2011-12-26 19:09:42.000000000 +0300
++++ ejudge-debian/Makefile.unix.in	2011-12-26 19:11:04.000000000 +0300
+@@ -233,7 +233,7 @@
+ 	install -m 0755 style/ejudge-upgrade-web "${DESTDIR}${bindir}"
+ 	mkdir -p "${DESTDIR}${includedir}/ejudge"
+ 	for i in problem_plugin_impl.h problem_plugin.h ejudge_plugin.h ej_types.h iterators.h contest_plugin.h; do install -m 644 $$i "${DESTDIR}${includedir}/ejudge"; done
+-	if [ ! -f "${INSTALLSCRIPT}" ]; then ./ejudge-setup -b; fi
++	if [ ! -f "${INSTALLSCRIPT}" ]; then true; fi
+ 	if [ -f "${INSTALLSCRIPT}" ]; then install -m 0755 "${INSTALLSCRIPT}" "${DESTDIR}${bindir}"; fi
+ 
+ install: local_install
+@@ -342,7 +342,7 @@
+ 	$(LD) $(LDFLAGS) $^ -o $@ $(LDLIBS) ${EXPAT_LIB}
+ 
+ ejudge-install.sh : ejudge-setup
+-	./ejudge-setup -b
++	touch ejudge-install.sh
+ 
+ local_clean:
+ 	-rm -f *.o *~ *.a $(TARGETS) revinfo version.c $(ARCH)/*.o ejudge.po mkChangeLog2 userlist_clnt/*.o xml_utils/*.o super_clnt/*.o cdeps deps.make filter_expr.[ch] filter_scan.c users users${CGI_PROG_SUFFIX} ejudge-config serve-control serve-control${CGI_PROG_SUFFIX} prjutils/*.o make-js-actions new_server_clnt/*.o mktable struct-sizes
