@@ -1,7 +1,7 @@
 Index: ejudge-debian/edit-userlist.c
 ===================================================================
---- ejudge-debian.orig/edit-userlist.c	2011-12-25 23:26:39.000000000 +0300
-+++ ejudge-debian/edit-userlist.c	2011-12-25 23:26:47.000000000 +0300
+--- ejudge-debian.orig/edit-userlist.c	2011-12-26 18:54:35.000000000 +0300
++++ ejudge-debian/edit-userlist.c	2011-12-26 18:57:24.000000000 +0300
 @@ -37,9 +37,9 @@
  #include <stdlib.h>
  #include <stdarg.h>
@@ -17,8 +17,8 @@ Index: ejudge-debian/edit-userlist.c
  #include <regex.h>
 Index: ejudge-debian/ncurses_utils.h
 ===================================================================
---- ejudge-debian.orig/ncurses_utils.h	2011-12-25 23:26:39.000000000 +0300
-+++ ejudge-debian/ncurses_utils.h	2011-12-25 23:26:47.000000000 +0300
+--- ejudge-debian.orig/ncurses_utils.h	2011-12-26 18:54:35.000000000 +0300
++++ ejudge-debian/ncurses_utils.h	2011-12-26 18:57:24.000000000 +0300
 @@ -18,9 +18,9 @@
   * GNU General Public License for more details.
   */
@@ -32,3 +32,20 @@ Index: ejudge-debian/ncurses_utils.h
  
  extern WINDOW *root_window;
  
+Index: ejudge-debian/ncurses_utils.c
+===================================================================
+--- ejudge-debian.orig/ncurses_utils.c	2011-12-26 18:59:01.000000000 +0300
++++ ejudge-debian/ncurses_utils.c	2011-12-26 18:59:24.000000000 +0300
+@@ -24,9 +24,9 @@
+ #include "reuse_osdeps.h"
+ 
+ #include <limits.h>
+-#include <menu.h>
+-#include <panel.h>
+-#include <ncurses.h>
++#include <ncursesw/menu.h>
++#include <ncursesw/panel.h>
++#include <ncursesw/ncurses.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
