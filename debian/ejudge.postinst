@@ -16,9 +16,12 @@
 
 set -e
 
+action="$1"
+oldversion="$2"
+
 #. /usr/share/debconf/confmodule
 
-case "${1}" in
+case "${action}" in
     configure|abort-upgrade)
 #        db_version 2.0
 #
@@ -84,8 +87,14 @@ case "${1}" in
              echo "not installing sample contest --- something is on the way."
         fi
 
-        if [ ! -e /var/lib/ejudge/db/userlist.xml ]; then
-            cp /usr/share/ejudge/sample_config/userlist.xml /var/lib/ejudge/db/userlist.xml
+        if dpkg --compare-versions "$oldversion" le-nl 2.3.19-1~1.gbp2568db; then
+          [ -d /var/lib/ejudge/db ] && mv /var/lib/ejudge/db /srv/ejudge/user_db
+        fi
+        
+        [ -d /srv/ejudge/user_db ] || mkdir /srv/ejudge/user_db
+
+        if [ ! -e /srv/ejudge/user_db/userlist.xml ]; then
+            cp /usr/share/ejudge/sample_config/userlist.xml /srv/ejudge/user_db/userlist.xml
         else
             echo "not updating userlist.xml --- file exists"
         fi

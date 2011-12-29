@@ -3,7 +3,7 @@
 <!-- Generation date: 2008/09/02 22:21:49 -->
 <config l10n="yes">
 
-  <userdb_file>/var/lib/ejudge/db/userlist.xml</userdb_file>
+  <userdb_file>/srv/ejudge/user_db/userlist.xml</userdb_file>
   <full_cgi_data_dir>/usr/lib/ejudge/cgi-data</full_cgi_data_dir>
   <compile_home_dir>/var/lib/ejudge/compile</compile_home_dir>
   <testing_work_dir>/var/spool/ejudge/work-disk</testing_work_dir>
