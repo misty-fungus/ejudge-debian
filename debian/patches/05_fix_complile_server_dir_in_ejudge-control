@@ -1,0 +1,16 @@
+Index: ejudge-debian/ejudge-control.c
+===================================================================
+--- ejudge-debian.orig/ejudge-control.c	2011-12-29 16:20:49.000000000 +0400
++++ ejudge-debian/ejudge-control.c	2011-12-29 16:32:29.000000000 +0400
+@@ -221,7 +221,10 @@
+       task_AddArg(tsk, group);
+     }
+     if (workdir) {
+-      snprintf(path, sizeof(path), "%s/compile", workdir);
++      if ( config->compile_home_dir )
++        snprintf(path, sizeof(path), config->compile_home_dir);
++      else
++        snprintf(path, sizeof(path), "%s/compile", workdir);
+       task_AddArg(tsk, "-C");
+       task_AddArg(tsk, path);
+     }

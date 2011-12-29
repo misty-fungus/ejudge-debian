@@ -2,3 +2,4 @@
 02_fix_ncursesw
 03_fix_compile_log
 04_dont_run_ejudge-setup_on_install
+05_fix_complile_server_dir_in_ejudge-control
