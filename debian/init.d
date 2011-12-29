@@ -33,12 +33,14 @@ SCRIPTNAME=/etc/init.d/$NAME
 
 do_start()
 {
+  umask $UMASK
   $DAEMON $DAEMON_OPTS start
   return $?
 }
 
 do_stop()
 {
+  umask $UMASK
   $DAEMON $DAEMON_OPTS stop
   return $?
 }

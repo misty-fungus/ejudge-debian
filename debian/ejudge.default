@@ -8,3 +8,4 @@
 
 # Additional options that are passed to the Daemon.
 DAEMON_OPTS=" -u ejudge -g ejudge "
+UMASK=0002
