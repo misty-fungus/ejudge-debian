@@ -62,9 +62,6 @@ case "${1}" in
             echo "ejudge user (${_USERNAME}) already exists, doing nothing."
         fi
 
-        #configuring compilers
-        ejudge-configure-compilers --batch
-
         #create contests dir if needed
         if [ ! -d "${_DIRECTORY}/contests" ]; then
             mkdir "${_DIRECTORY}/contests"
@@ -72,7 +69,7 @@ case "${1}" in
         fi
 
         #FIXME: patch ejudge to remove this dirty hook
-        [ -L "${_DIRECTORY}/compile" ] || ln -s /var/lib/ejudge/compile "${_DIRECTORY}/compile"
+        #[ -L "${_DIRECTORY}/compile" ] || ln -s /var/lib/ejudge/compile "${_DIRECTORY}/compile"
 
         [ -d /var/run/ejudge ] || mkdir /var/run/ejudge
 
@@ -112,10 +109,13 @@ case "${1}" in
 
         cgi_data_dir="/usr/share/ejudge/style"
         if [ -e /var/www ]; then
-            [ -L /var/www/ejudge ] || ln -s ../../$cgi_data_dir /var/www/ejudge
+            [ -L /var/www/ejudge ] || ln -s $cgi_data_dir /var/www/ejudge
         else
             echo "WARNING: can not find '/var/www' httpd document root. You'll have to create link for ejudge styles dir" >&2
         fi
+
+        #configuring compilers
+        ejudge-configure-compilers --batch
 
         #creating links to dojox
         for folder in dijit dojo dojox; do

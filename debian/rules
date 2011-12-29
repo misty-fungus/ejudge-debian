@@ -14,9 +14,9 @@ export DH_VERBOSE=1
 override_dh_auto_configure:
 	[ -f ejudge.ru_RU.KOI8-R.po.bak ] || cp -a ejudge.ru_RU.KOI8-R.po ejudge.ru_RU.KOI8-R.po.bak
 	./configure --build=x86_64-linux-gnu \
-	--prefix=/usr --includedir=${prefix}/include \
-	--mandir=${prefix}/share/man \
-	--infodir=${prefix}/share/info \
+	--prefix=/usr --includedir=\$${prefix}/include \
+	--mandir=\$${prefix}/share/man \
+	--infodir=/usr/share/info \
 	--sysconfdir=/etc \
 	--localstatedir=/var \
 	--libexecdir=/usr/lib \
@@ -32,14 +32,16 @@ override_dh_auto_configure:
 	--enable-socket-path=/var/run/ejudge/userlist-socket \
 	--enable-super-serve-socket=/var/run/ejudge/super-serve-socket \
 	--enable-new-server-socket=/var/run/ejudge/new-server-socket \
-	--enable-cgi-conf-dir=${prefix}/lib/ejudge/cgi-data \
-	--enable-cgi-bin-dir=${prefix}/lib/ejudge/cgi-bin \
+	--enable-cgi-conf-dir=/usr/lib/ejudge/cgi-data \
+	--enable-cgi-bin-dir=/usr/lib/ejudge/cgi-bin \
 	--enable-local-dir=/var/spool/ejudge \
 	--with-mysql=/usr/lib/mysql/lib
 
+# note: dont change /var/... to \$${localstatedir}. configure will write it to config.h as is
+#       same for $${prefix}
+
 override_dh_auto_install:
 	dh_auto_install
-	mv $(CURDIR)/debian/ejudge/include $(CURDIR)/debian/ejudge/usr
 	mkdir -p $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-control $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-config $(CURDIR)/debian/ejudge/usr/sbin/
