@@ -1,10 +1,26 @@
-ejudge (2.3.19-1~1.gbp2568db) UNRELEASED; urgency=low
-
-  ** SNAPSHOT build @2568dba31dc5d1e32ebfed53f81d7b7517e36e60 **
+ejudge (2.3.19-1) unstable; urgency=low
 
   * New upstream version 2.3.19
+  * refreshed compile log name in debian/patches/03_fix_compile_log
+  * removed depencency libreuse: not needed any more
+  * added gawk build dependency
+  * extended patch debian/patches/02_fix_ncursesw on ncurses_utils.c
+  * added patch debian/patches/04_dont_run_ejudge-setup_on_install
+  * updated compile options and minor bugs
+  * updated sample contest and configs
+  * cosmetic changes to postinst and rules
+  * removed depencency libreuse: not needed any more
+  * added gawk build dependency
+  * extended patch debian/patches/02_fix_ncursesw on ncurses_utils.c
+  * added patch debian/patches/04_dont_run_ejudge-setup_on_install
+  * updated compile options and minor bugs
+  * updated sample contest and configs
+  * cosmetic changes to postinst and rules
+  * fixed compile server work dir in ejudge-control
+  * updated user_db location
+  * changed default umask to 002 for ejudge daemons
 
- -- Yaroslav Leonov <alximik43@gmail.com>  Sun, 25 Dec 2011 23:30:56 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Thu, 29 Dec 2011 16:45:23 +0400
 
 ejudge (2.3.18-1) unstable; urgency=low
 
