@@ -1,3 +1,12 @@
+ejudge (2.3.19-2) unstable; urgency=low
+
+  * fixed compile_dir in sample contest
+  * renamed daemon log names to sync with upstream
+  * removed obsolete dir from debian/ejudge.dirs
+  * added logrotate config
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Sat, 07 Jan 2012 23:12:35 +0400
+
 ejudge (2.3.19-1) unstable; urgency=low
 
   * New upstream version 2.3.19
