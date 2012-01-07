@@ -1,0 +1,21 @@
+# ejudge logrotate configuration file
+
+/var/log/ejudge/ej-users.log
+/var/log/ejudge/ej-super-server.log
+/var/log/ejudge/ej-jobs.log
+/var/log/ejudge/ej-compile.log
+/var/log/ejudge/ej-contests.log
+{
+    rotate 42
+    weekly
+    nocompress
+    nocreate
+    missingok
+    prerotate
+        invoke-rc.d --quiet ejudge stop 2>&1 > /dev/null
+    endscript
+    postrotate
+        invoke-rc.d --quiet ejudge start 2>&1 > /dev/null
+    endscript
+}
+
