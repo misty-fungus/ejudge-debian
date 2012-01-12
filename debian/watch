@@ -11,7 +11,7 @@ version=3
 #http://www.example.com/downloads.php ejudge-(.*)\.tar\.gz
 
 # Uncomment to examine a Webserver directory
-http://www.ejudge.ru/download/ejudge-(.*).tgz 
+http://www.ejudge.ru/download/ejudge-([\d\.]*).tgz 
 # Uncommment to examine a FTP server
 #ftp://ftp.example.com/pub/ejudge-(.*)\.tar\.gz debian uupdate
 
