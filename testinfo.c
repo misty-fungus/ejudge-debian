@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: testinfo.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: testinfo.c 6586 2011-12-21 12:20:43Z cher $ */
 
-/* Copyright (C) 2003-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -247,6 +247,123 @@ parse_cmdline(const unsigned char *str, struct cmdline_buf *pcmd)
 }
 
 static void
+append_char(unsigned char **p_t, int *p_a, int *p_u, int c)
+{
+  if (!*p_t || !*p_a) {
+    *p_a = 32;
+    *p_t = (unsigned char*) malloc(*p_a);
+  } else if (*p_u == *p_a) {
+    *p_a *= 2;
+    *p_t = (unsigned char *) realloc(*p_t, *p_a);
+  }
+  if (!*p_t) return;
+  (*p_t)[(*p_u)++] = c;
+}
+
+static void
+append_string(unsigned char **p_t, int *p_a, int *p_u, const unsigned char *s)
+{
+  int slen;
+
+  if (!s || !*s) return;
+  slen = strlen(s);
+  if (*p_u + slen > *p_a) {
+    if (*p_a <= 0) *p_a = 32;
+    while (*p_u + slen > *p_a) *p_a *= 2;
+    *p_t = (unsigned char *) realloc(*p_t, *p_a);
+    if (!*p_t) return;
+  }
+  while (*s) {
+    (*p_t)[(*p_u)++] = *s++;
+  }
+}
+
+static int
+need_quotes(const unsigned char *str)
+{
+  if (!str) return 0;
+  for (; *str; ++str) {
+    if (*str <= ' ' || *str == 0177 || *str == '\'' || *str == '\"' || *str == '\\')
+      return 1;
+  }
+  return 0;
+}
+
+static void
+append_string_quoted(unsigned char **p_t, int *p_a, int *p_u, const unsigned char *s)
+{
+  unsigned char buf[16];
+  if (!s || !*s) return;
+  for (; *s; ++s) {
+    switch (*s) {
+    case '\t':
+      append_string(p_t, p_a, p_u, "\\t");
+      break;
+    case '\r':
+      append_string(p_t, p_a, p_u, "\\r");
+      break;
+    case '\n':
+      append_string(p_t, p_a, p_u, "\\n");
+      break;
+    case '\'':
+      append_string(p_t, p_a, p_u, "\\\'");
+      break;
+    case '\"':
+      append_string(p_t, p_a, p_u, "\\\"");
+      break;
+    case '\\':
+      append_string(p_t, p_a, p_u, "\\\\");
+      break;
+    default:
+      if (*s < ' ' || *s == 0177) {
+        snprintf(buf, sizeof(buf), "\\%03o", *s);
+        append_string(p_t, p_a, p_u, buf);
+      } else {
+        append_char(p_t, p_a, p_u, *s);
+      }
+      break;
+    }
+  }
+}
+
+static unsigned char *
+unparse_str_array(int arr_u, char **arr_v)
+{
+  int i, a = 0, u = 0;
+  unsigned char *t = NULL;
+
+  if (arr_u <= 0 || !arr_v) return strdup("");
+  for (i = 0; i < arr_u; ++i) {
+    if (i > 0) append_char(&t, &a, &u, ' ');
+    if (!arr_v[i]) {
+      append_string(&t, &a, &u, "(null)");
+    } else {
+      if (need_quotes(arr_v[i])) {
+        append_char(&t, &a, &u, '\"');
+        append_string_quoted(&t, &a, &u, arr_v[i]);
+        append_char(&t, &a, &u, '\"');
+      } else {
+        append_string(&t, &a, &u, arr_v[i]);
+      }
+    }
+  }
+  append_char(&t, &a, &u, 0);
+  return t;
+}
+
+unsigned char *
+testinfo_unparse_cmdline(const struct testinfo_struct *ti)
+{
+  return unparse_str_array(ti->cmd_argc, ti->cmd_argv);
+}
+
+unsigned char *
+testinfo_unparse_environ(const struct testinfo_struct *ti)
+{
+  return unparse_str_array(ti->env_u, ti->env_v);
+}
+
+static void
 free_cmdline(struct cmdline_buf *pcmd)
 {
   int i;
@@ -310,6 +427,11 @@ parse_line(const unsigned char *str, size_t len, testinfo_t *pt)
     pt->cmd_argc = cmd.u;
     pt->cmd_argv = (char**) cmd.v;
     memset(&cmd, 0, sizeof(cmd));
+  } else if (!strcmp(name_buf, "environ")) {
+    if (pt->env_u > 0) FAIL(TINF_E_VAR_REDEFINED);
+    pt->env_u = cmd.u;
+    pt->env_v = (char**) cmd.v;
+    memset(&cmd, 0, sizeof(cmd));    
   } else if (!strcmp(name_buf, "comment")
              || !strcmp(name_buf, "team_comment")) {
     if (!strcmp(name_buf, "comment")) {
@@ -339,6 +461,16 @@ parse_line(const unsigned char *str, size_t len, testinfo_t *pt)
         FAIL(TINF_E_INVALID_VALUE);
     }
     pt->check_stderr = x;
+  } else if (!strcmp(name_buf, "disable_stderr")) {
+    if (cmd.u < 1) {
+      x = 1;
+    } else {
+      if (cmd.u > 1) FAIL(TINF_E_MULTIPLE_VALUE);
+      if (sscanf(cmd.v[0], "%d%n", &x, &n) != 1 || cmd.v[0][n]
+          || x < 0 || x > 1)
+        FAIL(TINF_E_INVALID_VALUE);
+    }
+    pt->disable_stderr = x;
   } else {
     FAIL(TINF_E_INVALID_VAR_NAME);
   }
@@ -385,6 +517,7 @@ testinfo_parse(const char *path, testinfo_t *pt)
 
   memset(pt, 0, sizeof(*pt));
   pt->cmd_argc = -1;
+  pt->disable_stderr = -1;
   if (!(fin = fopen(path, "r"))) {
     memset(pt, 0, sizeof(*pt));
     return -TINF_E_CANNOT_OPEN;
@@ -407,6 +540,12 @@ testinfo_free(testinfo_t *pt)
     for (i = 0; i < pt->cmd_argc; i++)
       if (pt->cmd_argv[i]) free(pt->cmd_argv[i]);
     free(pt->cmd_argv);
+  }
+  if (pt->env_u > 0 && pt->env_v) {
+    for (i = 0; i < pt->env_u; ++i) {
+      if (pt->env_v[i]) free(pt->env_v[i]);
+    }
+    free(pt->env_v);
   }
   if (pt->comment) free(pt->comment);
   if (pt->team_comment) free(pt->team_comment);

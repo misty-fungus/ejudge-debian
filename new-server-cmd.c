@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new-server-cmd.c 6381 2011-06-25 18:52:12Z cher $ */
+/* $Id: new-server-cmd.c 6595 2011-12-24 15:02:39Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -715,6 +715,22 @@ prepare_force_start_virtual(
   put_cgi_param_f("action", "%d", action);
 }
 
+static void
+prepare_unload_2(
+        const unsigned char *cmd,
+        int argc,
+        char *argv[],
+        int role,
+        int action)
+{
+  if (argc != 2)
+    startup_error("invalid number of arguments for `%s'", cmd);
+  put_cgi_param_f("contest_id", "%d", contest_id);
+  put_cgi_param("login", argv[0]);
+  put_cgi_param("password", argv[1]);
+  put_cgi_param_f("action", "%d", action);
+}
+
 struct command_handler
 {
   const char *cmd;
@@ -780,6 +796,7 @@ static const struct command_handler handler_table[] =
   { "rejudge-all", prepare_simple, 0, 0, NEW_SRV_ACTION_REJUDGE_ALL_2 },
   { "schedule", prepare_schedule, 0, 0, NEW_SRV_ACTION_SCHEDULE },
   { "force-start-virtual", prepare_force_start_virtual, 0, 0, NEW_SRV_ACTION_FORCE_START_VIRTUAL },
+  { "unload-2", prepare_unload_2, 0, 0, NEW_SRV_ACTION_RELOAD_SERVER_2 },
 
   { 0, 0 },
 };
@@ -865,11 +882,11 @@ main(int argc, char *argv[])
   while (i < argc) {
     if (!strcmp(argv[i], "--ip")) {
       if (i + 1 >= argc) startup_error("argument expected for --ip");
-      if (xml_parse_ip(NULL, 0, 0, argv[i + 1], &ip_address) < 0)
+      if (xml_parse_ip(NULL, NULL, 0, 0, argv[i + 1], &ip_address) < 0)
         return 1;
       shift_args(&argc, argv, i, 2);
     } else if (!strncmp(argv[i], "--ip=", 5)) {
-      if (xml_parse_ip(NULL, 0, 0, argv[i] + 5, &ip_address) < 0)
+      if (xml_parse_ip(NULL, NULL, 0, 0, argv[i] + 5, &ip_address) < 0)
         return 1;
       shift_args(&argc, argv, i, 1);
     } else if (!strcmp(argv[i], "--ssl")) {

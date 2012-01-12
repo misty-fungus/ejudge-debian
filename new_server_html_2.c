@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 6393 2011-07-04 20:54:33Z cher $ */
+/* $Id: new_server_html_2.c 6589 2011-12-23 12:08:00Z cher $ */
 
-/* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -135,8 +135,12 @@ ns_write_priv_all_runs(
   const struct section_problem_data *prob = 0;
   unsigned char cl[128];
   int prob_type = 0;
+  int enable_js_status_menu = 0;
 
   if (!u) u = user_filter_info_allocate(cs, phr->user_id, phr->session_id);
+
+  // FIXME: check permissions
+  enable_js_status_menu = 1;
 
   if (!filter_expr || !*filter_expr ||
       (u->prev_filter_expr && !strcmp(u->prev_filter_expr, filter_expr))){
@@ -351,14 +355,17 @@ ns_write_priv_all_runs(
     if (str2) {
       fprintf(f, "<th%s>%s</th>", cl, str2);
     }
+    /*
     if (phr->role == USER_ROLE_ADMIN) {
       fprintf(f, "<th%s>%s</th>", cl, _("New result"));
       fprintf(f, "<th%s>%s</th>", cl, _("Change result"));
     }
+    */
     fprintf(f, "<th%s>%s</th><th%s>%s</th></tr>\n",
             cl, _("View source"), cl, _("View report"));
     if (phr->role == USER_ROLE_ADMIN) {
-      snprintf(endrow, sizeof(endrow), "</tr></form>\n");
+      //snprintf(endrow, sizeof(endrow), "</tr></form>\n");
+      snprintf(endrow, sizeof(endrow), "</tr>\n");
     } else {
       snprintf(endrow, sizeof(endrow), "</tr>\n");
     }
@@ -370,10 +377,12 @@ ns_write_priv_all_runs(
 
       displayed_mask[rid / BITS_PER_LONG] |= (1L << (rid % BITS_PER_LONG));
 
+      /*
       if (phr->role == USER_ROLE_ADMIN) {
         html_start_form(f, 1, phr->self_url, phr->hidden_vars);
         html_hidden(f, "run_id", "%d", rid);
       }
+      */
       fprintf(f, "<tr>");
 
       if (pe->status == RUN_EMPTY) {
@@ -395,10 +404,12 @@ ns_write_priv_all_runs(
         }
         fprintf(f, "<td%s>&nbsp;</td>", cl);
         fprintf(f, "<td%s>&nbsp;</td>", cl);
+        /*
         if (phr->role == USER_ROLE_ADMIN) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
+        */
         fprintf(f, "%s", endrow);
         continue;
       }
@@ -440,10 +451,12 @@ ns_write_priv_all_runs(
         } else {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
+        /*
         if (phr->role == USER_ROLE_ADMIN) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
+        */
         fprintf(f, "%s", endrow);
         continue;
       }
@@ -542,11 +555,14 @@ ns_write_priv_all_runs(
       }
       run_status_str(pe->status, statstr, sizeof(statstr), prob_type, 0);
       write_html_run_status(cs, f, pe, 0, 1, attempts, disq_attempts,
-                            prev_successes, "b1", 0);
+                            prev_successes, "b1", 0,
+                            enable_js_status_menu);
+      /*
       if (phr->role == USER_ROLE_ADMIN) {
         write_change_status_dialog(cs, f, "status", pe->is_imported, "b1");
         fprintf(f, "<td%s>%s</td>", cl, BUTTON(NEW_SRV_ACTION_CHANGE_STATUS));
       }
+      */
 
       fprintf(f, "<td%s><a href=\"%s\">%s</a></td>", cl, 
               ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_SOURCE,
@@ -561,9 +577,11 @@ ns_write_priv_all_runs(
                 _("View"));
       }
       fprintf(f, "</tr>\n");
+      /*
       if (phr->role == USER_ROLE_ADMIN) {
         fprintf(f, "</form>\n");
       }
+      */
     }
 
     fprintf(f, "</table>\n");
@@ -1715,10 +1733,12 @@ ns_write_priv_source(const serve_state_t state,
   fprintf(f, "<table%s><tr>", cl);
   fprintf(f, "<td%s>%s</td>", cl,
           BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT));
+  /*
   fprintf(f, "<td%s>%s</td>", cl,
           BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE));
   fprintf(f, "<td%s>%s</td>", cl,
           BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK));
+  */
   fprintf(f, "<td%s>%s</td>", cl,
           BUTTON(NEW_SRV_ACTION_PRIV_SET_RUN_STYLE_ERR));
   fprintf(f, "</tr></table>\n");
@@ -5786,13 +5806,18 @@ ns_write_user_problems_summary(
       switch (status) {
       case RUN_OK:
       case RUN_PARTIAL:
-        fprintf(fout, "<td%s>%d</td><td%s>%s</td>",
-                cl, test - 1, cl,
-                score_view_display(score_buf, sizeof(score_buf),
-                                   cur_prob, best_score[prob_id]));
+        if (global->disable_passed_tests <= 0) {
+          fprintf(fout, "<td%s>%d</td>", cl, test - 1);
+        }
+        fprintf(fout, "<td%s>%s</td>",
+                cl, score_view_display(score_buf, sizeof(score_buf),
+                                       cur_prob, best_score[prob_id]));
         break;
       default:
-        fprintf(fout, "<td%s>&nbsp;</td><td%s>&nbsp;</td>", cl, cl);
+        if (global->disable_passed_tests <= 0) {
+          fprintf(fout, "<td%s>&nbsp;</td>", cl);
+        }
+        fprintf(fout, "<td%s>&nbsp;</td>", cl);
         break;
       }
     } else if (global->score_system == SCORE_MOSCOW) {

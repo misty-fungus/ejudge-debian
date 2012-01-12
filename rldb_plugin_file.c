@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: rldb_plugin_file.c 6493 2011-10-21 06:48:27Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -62,7 +62,7 @@ finish_func(struct common_plugin_data *);
 static int
 prepare_func(
         struct common_plugin_data *data,
-        struct ejudge_cfg *config,
+        const struct ejudge_cfg *config,
         struct xml_tree *plugin_config);
 static struct rldb_plugin_cnts *
 open_func(
@@ -268,7 +268,7 @@ finish_func(struct common_plugin_data *data)
 static int
 prepare_func(
         struct common_plugin_data *data,
-        struct ejudge_cfg *config,
+        const struct ejudge_cfg *config,
         struct xml_tree *plugin_config)
 {
   return 0;
@@ -369,7 +369,7 @@ run_read_entry_v0(struct rldb_file_cnts *cs, int n)
   if (r != 11) ERR_R("[%d]: sscanf returned %d", n, r);
   if (buf[k] != 0) ERR_R("[%d]: excess data", n);
   if (strlen(tip) > RUN_MAX_IP_LEN) ERR_R("[%d]: ip is to long", n);
-  if (xml_parse_ip(0, 0, 0, tip, &ip) < 0) ERR_R("[%d]: cannot parse IP");
+  if (xml_parse_ip(NULL, 0, 0, 0, tip, &ip) < 0) ERR_R("[%d]: cannot parse IP");
   rls->runs[n].a.ip = ip;
   return 0;
 }

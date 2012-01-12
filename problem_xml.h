@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: problem_xml.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: problem_xml.h 6500 2011-10-29 14:03:52Z cher $ */
 
 #ifndef __PROBLEM_XML_H__
 #define __PROBLEM_XML_H__
 
-/* Copyright (C) 2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -129,10 +129,11 @@ struct problem_desc
   time_t last_update;
 };
 
-problem_xml_t problem_xml_parse(const unsigned char *path);
-problem_xml_t problem_xml_parse_string(const unsigned char *path,
+problem_xml_t problem_xml_parse(FILE *log_f, const unsigned char *path);
+problem_xml_t problem_xml_parse_safe(FILE *log_f, const unsigned char *path);
+problem_xml_t problem_xml_parse_string(FILE *log_f, const unsigned char *path,
                                        const unsigned char *str);
-problem_xml_t problem_xml_parse_stream(const unsigned char *path, FILE *f);
+problem_xml_t problem_xml_parse_stream(FILE *log_f, const unsigned char *path, FILE *f);
 
 problem_xml_t problem_xml_free(problem_xml_t r);
 
@@ -159,5 +160,33 @@ problem_xml_find_language(
         const unsigned char *lang,
         int tr_num,
         unsigned char **tr_names);
+
+void
+problem_xml_unparse(FILE *out_f, problem_xml_t prob_xml);
+
+const struct xml_parse_spec *
+problem_xml_get_parse_spec(void);
+
+void
+problem_xml_delete_test(problem_xml_t prob_xml, int test_num);
+
+struct xml_tree *
+problem_xml_parse_text(
+        FILE *log_f,
+        const unsigned char *text,
+        int root_node);
+struct xml_tree *
+problem_xml_free_text(struct xml_tree *xml);
+problem_xml_t
+problem_xml_create(const unsigned char *package, const unsigned char *id);
+struct problem_stmt *
+problem_xml_create_statement(problem_xml_t prob_xml, const unsigned char *lang);
+
+void problem_xml_attach_title(struct problem_stmt *stmt, struct xml_tree *title_node);
+void problem_xml_attach_description(struct problem_stmt *stmt, struct xml_tree *description_node);
+void problem_xml_attach_input_format(struct problem_stmt *stmt, struct xml_tree *input_format_node);
+void problem_xml_attach_output_format(struct problem_stmt *stmt, struct xml_tree *output_format_node);
+void problem_xml_attach_notes(struct problem_stmt *stmt, struct xml_tree *notes_node);
+void problem_xml_add_example(problem_xml_t prob_xml, struct xml_tree *input_node, struct xml_tree *output_node);
 
 #endif /* __PROBLEM_XML_H__ */

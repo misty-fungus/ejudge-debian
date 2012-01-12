@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.h 6103 2011-03-01 18:42:57Z cher $ */
+/* $Id: runlog.h 6412 2011-07-17 09:24:58Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
@@ -75,7 +75,7 @@ runlog_state_t run_destroy(runlog_state_t);
 int
 run_open(
         runlog_state_t state,
-        struct ejudge_cfg *config,
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         const struct section_global_data *global,
         const unsigned char *plugin_name,

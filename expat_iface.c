@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: expat_iface.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: expat_iface.c 6500 2011-10-29 14:03:52Z cher $ */
 
 /* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <iconv.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #if defined __GNUC__ && defined __MINGW32__
 #include <malloc.h>
@@ -63,6 +64,7 @@ struct parser_data
   struct xml_tree *tree;
   const struct xml_parse_spec *spec;
   iconv_t conv_hnd;
+  FILE *log_f;
 };
 
 #if CONF_ICONV_NEEDS_CONST - 0 == 1
@@ -70,6 +72,29 @@ typedef const char *iconv_src_str_t;
 #else
 typedef char *iconv_src_str_t;
 #endif
+
+static void
+parse_err(const struct parser_data *pd, const char *format, ...)
+  __attribute__((format(printf, 2, 3)));
+static void
+parse_err(const struct parser_data *pd, const char *format, ...)
+{
+  va_list args;
+
+  if (!pd || !pd->log_f) {
+    va_start(args, format);
+    vverr(format, args);
+    va_end(args);
+  } else {
+    char buf[1024];
+
+    va_start(args, format);
+    vsnprintf(buf, sizeof(buf), format, args);
+    va_end(args);
+
+    fprintf(pd->log_f, "%s\n", buf);
+  }
+}
 
 /*
  * returns:
@@ -375,8 +400,7 @@ start_hnd(void *data, const XML_Char *name, const XML_Char **atts)
     itag = pd->spec->default_elem;
     generic_flag = 1;
     if (itag <= 0) {
-      err("unknown tag <%s> at line %ld, skipping",
-          cur_tag, (long) XML_GetCurrentLineNumber(p));
+      parse_err(pd, "unknown tag <%s> at line %ld, skipping", cur_tag, (long) XML_GetCurrentLineNumber(p));
       pd->err_cntr++;
       goto start_skipping;
     }
@@ -388,8 +412,7 @@ start_hnd(void *data, const XML_Char *name, const XML_Char **atts)
       itag = pd->spec->default_elem;
       generic_flag = 1;
       if (itag <= 0) {
-        err("unknown tag <%s> at line %ld, skipping",
-            cur_tag, (long) XML_GetCurrentLineNumber(p));
+        parse_err(pd, "unknown tag <%s> at line %ld, skipping", cur_tag, (long) XML_GetCurrentLineNumber(p));
         pd->err_cntr++;
         goto start_skipping;
       }
@@ -436,8 +459,7 @@ start_hnd(void *data, const XML_Char *name, const XML_Char **atts)
       iattr = pd->spec->default_attr;
       generic_flag = 1;
       if (iattr <= 0) {
-        err("unknown attribute <%s> at line %ld",
-            cur_attr, (long) XML_GetCurrentLineNumber(p));
+        parse_err(pd, "unknown attribute <%s> at line %ld", cur_attr, (long) XML_GetCurrentLineNumber(p));
         pd->err_cntr++;
         atts += 2;
         xfree(cur_val); cur_val = 0;
@@ -451,8 +473,7 @@ start_hnd(void *data, const XML_Char *name, const XML_Char **atts)
         iattr = pd->spec->default_attr;
         generic_flag = 1;
         if (iattr <= 0) {
-          err("unknown attribute <%s> at line %ld",
-              cur_attr, (long) XML_GetCurrentLineNumber(p));
+          parse_err(pd, "unknown attribute <%s> at line %ld", cur_attr, (long) XML_GetCurrentLineNumber(p));
           pd->err_cntr++;
           atts += 2;
           xfree(cur_val); cur_val = 0;
@@ -613,7 +634,7 @@ xml_skipped_entity_handler(
 }
 
 struct xml_tree *
-xml_build_tree(char const *path, const struct xml_parse_spec *spec)
+xml_build_tree(FILE *log_f, char const *path, const struct xml_parse_spec *spec)
 {
   XML_Parser p = 0;
   FILE *f = 0;
@@ -623,21 +644,22 @@ xml_build_tree(char const *path, const struct xml_parse_spec *spec)
   struct parser_data data;
 
   memset(&data, 0, sizeof(data));
+  data.log_f = log_f;
   ASSERT(path);
   ASSERT(spec);
 
   if (!(conv_hnd = iconv_open(EJUDGE_CHARSET, "UTF-8"))) {
-    err("no conversion is possible from UTF-8 to %s", EJUDGE_CHARSET);
+    parse_err(&data, "no conversion is possible from UTF-8 to %s", EJUDGE_CHARSET);
     goto cleanup_and_exit;
   }
 
   if (!(f = fopen(path, "r"))) {
-    err("cannot open input file `%s'", path);
+    parse_err(&data, "cannot open input file `%s'", path);
     goto cleanup_and_exit;
   }
 
   if (!(p = XML_ParserCreate(NULL))) {
-    err("cannot create an XML parser");
+    parse_err(&data, "cannot create an XML parser");
     goto cleanup_and_exit;
   }
 
@@ -659,15 +681,14 @@ xml_build_tree(char const *path, const struct xml_parse_spec *spec)
   while (fgets(buf, sizeof(buf), f)) {
     len = strlen(buf);
     if (XML_Parse(p, buf, len, 0) == XML_STATUS_ERROR) {
-      err("%s: %ld: parse error: %s",
-          path, (long) XML_GetCurrentLineNumber(p),
-          XML_ErrorString(XML_GetErrorCode(p)));
+      parse_err(&data, "%s: %ld: parse error: %s", path, (long) XML_GetCurrentLineNumber(p),
+                XML_ErrorString(XML_GetErrorCode(p)));
       goto cleanup_and_exit;
     }
   }
 
   if (ferror(f)) {
-    err("input error");
+    parse_err(&data, "input error");
     goto cleanup_and_exit;
   }
   if (data.err_cntr) goto cleanup_and_exit;
@@ -686,7 +707,7 @@ xml_build_tree(char const *path, const struct xml_parse_spec *spec)
 }
 
 struct xml_tree *
-xml_build_tree_str(char const *str, const struct xml_parse_spec *spec)
+xml_build_tree_str(FILE *log_f, char const *str, const struct xml_parse_spec *spec)
 {
   XML_Parser p = 0;
   int len;
@@ -694,17 +715,18 @@ xml_build_tree_str(char const *str, const struct xml_parse_spec *spec)
   struct parser_data data;
 
   memset(&data, 0, sizeof(data));
+  data.log_f = log_f;
   ASSERT(str);
   ASSERT(spec);
   len = strlen(str);
 
   if (!(conv_hnd = iconv_open(EJUDGE_CHARSET, "UTF-8"))) {
-    err("no conversion is possible from UTF-8 to %s", EJUDGE_CHARSET);
+    parse_err(&data, "no conversion is possible from UTF-8 to %s", EJUDGE_CHARSET);
     goto cleanup_and_exit;
   }
 
   if (!(p = XML_ParserCreate(NULL))) {
-    err("cannot create an XML parser");
+    parse_err(&data, "cannot create an XML parser");
     goto cleanup_and_exit;
   }
 
@@ -724,9 +746,8 @@ xml_build_tree_str(char const *str, const struct xml_parse_spec *spec)
   data.conv_hnd = conv_hnd;
 
   if (XML_Parse(p, str, len, 0) == XML_STATUS_ERROR) {
-    err("%ld: parse error: %s",
-        (long) XML_GetCurrentLineNumber(p),
-        XML_ErrorString(XML_GetErrorCode(p)));
+    parse_err(&data, "%ld: parse error: %s", (long) XML_GetCurrentLineNumber(p),
+              XML_ErrorString(XML_GetErrorCode(p)));
     goto cleanup_and_exit;
   }
   if (data.err_cntr) goto cleanup_and_exit;
@@ -743,7 +764,7 @@ xml_build_tree_str(char const *str, const struct xml_parse_spec *spec)
 }
 
 struct xml_tree *
-xml_build_tree_file(FILE *f, const struct xml_parse_spec *spec)
+xml_build_tree_file(FILE *log_f, FILE *f, const struct xml_parse_spec *spec)
 {
   XML_Parser p = 0;
   char buf[512];
@@ -752,15 +773,16 @@ xml_build_tree_file(FILE *f, const struct xml_parse_spec *spec)
   struct parser_data data;
 
   memset(&data, 0, sizeof(data));
+  data.log_f = log_f;
   ASSERT(spec);
 
   if (!(conv_hnd = iconv_open(EJUDGE_CHARSET, "UTF-8"))) {
-    err("no conversion is possible from UTF-8 to %s", EJUDGE_CHARSET);
+    parse_err(&data, "no conversion is possible from UTF-8 to %s", EJUDGE_CHARSET);
     goto cleanup_and_exit;
   }
 
   if (!(p = XML_ParserCreate(NULL))) {
-    err("cannot create an XML parser");
+    parse_err(&data, "cannot create an XML parser");
     goto cleanup_and_exit;
   }
 
@@ -782,15 +804,14 @@ xml_build_tree_file(FILE *f, const struct xml_parse_spec *spec)
   while (fgets(buf, sizeof(buf), f)) {
     len = strlen(buf);
     if (XML_Parse(p, buf, len, 0) == XML_STATUS_ERROR) {
-      err("%ld: parse error: %s",
-          (long) XML_GetCurrentLineNumber(p),
-          XML_ErrorString(XML_GetErrorCode(p)));
+      parse_err(&data, "%ld: parse error: %s", (long) XML_GetCurrentLineNumber(p),
+                XML_ErrorString(XML_GetErrorCode(p)));
       goto cleanup_and_exit;
     }
   }
 
   if (ferror(f)) {
-    err("input error");
+    parse_err(&data, "input error");
     goto cleanup_and_exit;
   }
   if (data.err_cntr) goto cleanup_and_exit;
@@ -1030,7 +1051,7 @@ do_subst(
 }
 
 void
-xml_unparse_raw_tree(
+xml_unparse_raw_tree_subst(
         FILE *fout,
         const struct xml_tree *tree,
         const struct xml_parse_spec *spec,
@@ -1066,7 +1087,7 @@ xml_unparse_raw_tree(
         fprintf(fout, "/>");
       } else {
         fprintf(fout, ">");
-        xml_unparse_raw_tree(fout, p, spec, vars, vals);
+        xml_unparse_raw_tree_subst(fout, p, spec, vars, vals);
         if (p->tag == spec->default_elem) {
           fprintf(fout, "</%s>", p->name[0]);
         } else {
@@ -1080,6 +1101,129 @@ xml_unparse_raw_tree(
 
   html_armor_free(&ab);
   html_armor_free(&sb);
+}
+
+void
+xml_unparse_raw_tree(
+        FILE *fout,
+        const struct xml_tree *tree,
+        const struct xml_parse_spec *spec)
+{
+  struct xml_tree *p;
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  struct html_armor_buffer sb = HTML_ARMOR_INITIALIZER;
+  struct xml_attr *a;
+
+  if (!tree) return;
+
+  for (p = tree->first_down; p; p = p->right) {
+    if (p->tag == spec->text_elem) {
+      if (p->text) fprintf(fout, "%s", p->text);
+    } else {
+      if (p->tag == spec->default_elem) {
+        fprintf(fout, "<%s", p->name[0]);
+      } else {
+        fprintf(fout, "<%s", spec->elem_map[p->tag]);
+      }
+      for (a = p->first; a; a = a->next) {
+        if (a->tag == spec->default_attr) {
+          fprintf(fout, " %s=\"%s\"", a->name[0], html_armor_buf(&ab, a->text));
+        } else {
+          fprintf(fout, " %s=\"%s\"", spec->attr_map[a->tag], html_armor_buf(&ab, a->text));
+        }
+      }
+      if (!p->first_down && (!p->text || !*p->text)) {
+        fprintf(fout, "/>");
+      } else {
+        fprintf(fout, ">");
+        xml_unparse_raw_tree(fout, p, spec);
+        if (p->tag == spec->default_elem) {
+          fprintf(fout, "</%s>", p->name[0]);
+        } else {
+          fprintf(fout, "</%s>", spec->elem_map[p->tag]);
+        }
+      }
+    }
+  }
+
+  if (tree->text) fprintf(fout, "%s", tree->text);
+
+  html_armor_free(&ab);
+  html_armor_free(&sb);
+}
+
+struct xml_tree *
+xml_parse_text(
+        FILE *log_f,
+        const unsigned char *text,
+        int root_node,
+        const struct xml_parse_spec *spec)
+{
+  XML_Parser p = 0;
+  int len, text_len, xml_header_len, elem_len;
+  iconv_t conv_hnd = 0;
+  struct parser_data data;
+  unsigned char xml_header[1024];
+  unsigned char *buf = NULL;
+
+  if (!text) return NULL;
+  if (!spec || !spec->elem_map || !spec->elem_map[root_node]) return NULL;
+
+  memset(&data, 0, sizeof(data));
+  data.log_f = log_f;
+
+  text_len = strlen(text);
+  snprintf(xml_header, sizeof(xml_header), "<?xml version=\"1.0\" encoding=\"%s\"?>\n", EJUDGE_CHARSET);
+  xml_header_len = strlen(xml_header);
+  elem_len = strlen(spec->elem_map[root_node]);
+  len = 1024 + text_len + xml_header_len + elem_len * 2;
+  buf = (unsigned char*) xmalloc(len * sizeof(buf[0]));
+  sprintf(buf, "%s<%s>%s</%s>", xml_header, spec->elem_map[root_node], text, spec->elem_map[root_node]);
+  len = strlen(buf);
+
+  if (!(conv_hnd = iconv_open(EJUDGE_CHARSET, "UTF-8"))) {
+    parse_err(&data, "no conversion is possible from UTF-8 to %s", EJUDGE_CHARSET);
+    goto cleanup_and_exit;
+  }
+
+  if (!(p = XML_ParserCreate(NULL))) {
+    parse_err(&data, "cannot create an XML parser");
+    goto cleanup_and_exit;
+  }
+
+  XML_SetUnknownEncodingHandler(p, encoding_hnd, NULL);
+  XML_SetStartElementHandler(p, start_hnd);
+  XML_SetEndElementHandler(p, end_hnd);
+  XML_SetCharacterDataHandler(p, chardata_hnd);
+  XML_SetUserData(p, &data);
+  XML_UseParserAsHandlerArg(p);
+  if (spec->unparse_entity) {
+    //XML_SetDefaultHandler(p, xml_default_handler);
+    XML_UseForeignDTD(p, 1);
+    XML_SetSkippedEntityHandler(p, xml_skipped_entity_handler);
+  }
+
+  data.spec = spec;
+  data.conv_hnd = conv_hnd;
+
+  if (XML_Parse(p, buf, len, 0) == XML_STATUS_ERROR) {
+    parse_err(&data, "%ld: parse error: %s", (long) XML_GetCurrentLineNumber(p),
+              XML_ErrorString(XML_GetErrorCode(p)));
+    goto cleanup_and_exit;
+  }
+  if (data.err_cntr) goto cleanup_and_exit;
+
+  xfree(buf); buf = NULL;
+  XML_ParserFree(p);
+  iconv_close(conv_hnd);
+  return data.tree;
+
+cleanup_and_exit:
+  xfree(buf);
+  if (conv_hnd) iconv_close(conv_hnd);
+  if (p) XML_ParserFree(p);
+  if (data.tree) xml_tree_free(data.tree, spec);
+  return 0;
 }
 
 /*

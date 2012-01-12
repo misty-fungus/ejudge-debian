@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new_server_proto.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: new_server_proto.h 6573 2011-12-18 07:09:09Z cher $ */
 
 #ifndef __NEW_SERVER_PROTO_H__
 #define __NEW_SERVER_PROTO_H__
@@ -197,6 +197,8 @@ enum
   NEW_SRV_ERR_INV_FILE_NAME,
   NEW_SRV_ERR_VIRTUAL_START_FAILED,
   NEW_SRV_ERR_INV_CHAR,
+  NEW_SRV_ERR_DATABASE_FAILED,
+  NEW_SRV_ERR_PROB_CONFIG,
 
   NEW_SRV_ERR_LAST,
 };

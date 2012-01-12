@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: userlist_proto.h 6377 2011-06-19 19:49:48Z cher $ */
+/* $Id: userlist_proto.h 6595 2011-12-24 15:02:39Z cher $ */
 
 #ifndef __USERLIST_PROTO_H__
 #define __USERLIST_PROTO_H__
@@ -122,6 +122,7 @@ enum
     ULS_LIST_ALL_USERS_3,
     ULS_LIST_ALL_USERS_4,
     ULS_GET_GROUP_INFO,
+    ULS_PRIV_CHECK_PASSWORD,
 
     ULS_LAST_CMD
   };

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: misctext.h 6347 2011-05-23 19:06:12Z cher $ */
+/* $Id: misctext.h 6506 2011-11-02 12:35:52Z cher $ */
 #ifndef __MISCTEXT_H__
 #define __MISCTEXT_H__
 
@@ -216,7 +216,8 @@ enum
   TEXT_FIX_CR = 1,              /* dos2unix conversion */
   TEXT_FIX_TR_SP = 2,           /* trailing space removal */
   TEXT_FIX_FINAL_NL = 4,        /* final newline append */
-  TEXT_FIX_TR_NL = 8            /* trailing newline removal */
+  TEXT_FIX_TR_NL = 8,           /* trailing newline removal */
+  TEXT_FIX_NP = 16              /* replace non-printables, except \n, \t, \r with space */
 };
 
 /**
@@ -258,5 +259,10 @@ size_str_to_size_t(const unsigned char *str, size_t *p_size);
 
 int
 is_valid_email_address(const unsigned char *email_address);
+
+size_t csv_armored_memlen(char const *str, size_t size);
+size_t csv_armored_strlen(char const *str);
+int csv_armor_needed(const unsigned char *str, size_t *psz);
+const unsigned char *csv_armor_buf(struct html_armor_buffer *pb, const unsigned char *s);
 
 #endif /* __MISCTEXT_H__ */

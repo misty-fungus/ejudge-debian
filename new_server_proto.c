@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_proto.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: new_server_proto.c 6573 2011-12-18 07:09:09Z cher $ */
 
 /* Copyright (C) 2006-2009 Alexander Chernov <cher@ejudge.ru> */
 
@@ -176,6 +176,8 @@ static const unsigned char * const ns_error_messages[NEW_SRV_ERR_LAST]=
   [NEW_SRV_ERR_INV_FILE_NAME] = __("Invalid file name"),
   [NEW_SRV_ERR_VIRTUAL_START_FAILED] = __("Virtual start failed"),
   [NEW_SRV_ERR_INV_CHAR] = __("Invalid character"),
+  [NEW_SRV_ERR_DATABASE_FAILED] = __("Database error"),
+  [NEW_SRV_ERR_PROB_CONFIG] = __("Problem configuration error"),
 };
 
 const unsigned char *

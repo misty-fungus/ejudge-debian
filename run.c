@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run.c 6239 2011-04-08 19:04:20Z cher $ */
+/* $Id: run.c 6586 2011-12-21 12:20:43Z cher $ */
 
 /* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -733,24 +733,34 @@ static void
 setup_environment(
         tpTask tsk,
         char **envs,
-        const unsigned char *ejudge_prefix_dir_env)
+        const unsigned char *ejudge_prefix_dir_env,
+        const struct testinfo_struct *pt)
 {
   int jj;
-
-  if (!envs) return;
-
-  for (jj = 0; envs[jj]; jj++) {
-    if (!strcmp(envs[jj], "EJUDGE_PREFIX_DIR")) {
-      task_PutEnv(tsk, ejudge_prefix_dir_env);
-    } else if (!strchr(envs[jj], '=')) {
-      const unsigned char *envval = getenv(envs[jj]);
-      if (envval) {
-        unsigned char env_buf[1024];
-        snprintf(env_buf, sizeof(env_buf), "%s=%s", envs[jj], envval);
-        task_PutEnv(tsk, env_buf);
+  unsigned char env_buf[1024];
+  const unsigned char *envval = NULL;
+  
+  if (envs) {
+    for (jj = 0; envs[jj]; jj++) {
+      if (!strcmp(envs[jj], "EJUDGE_PREFIX_DIR")) {
+        task_PutEnv(tsk, ejudge_prefix_dir_env);
+      } else if (!strchr(envs[jj], '=')) {
+        envval = getenv(envs[jj]);
+        if (envval) {
+          snprintf(env_buf, sizeof(env_buf), "%s=%s", envs[jj], envval);
+          task_PutEnv(tsk, env_buf);
+        }
+      } else {
+        task_PutEnv(tsk, envs[jj]);
       }
-    } else {
-      task_PutEnv(tsk, envs[jj]);
+    }
+  }
+
+  if (pt && pt->env_u && pt->env_v) {
+    for (jj = 0; jj < pt->env_u; ++jj) {
+      if (pt->env_v[jj]) {
+        task_PutEnv(tsk, pt->env_v[jj]);
+      }
     }
   }
 }
@@ -848,7 +858,7 @@ invoke_valuer(
   if (prb->checker_real_time_limit > 0) {
     task_SetMaxRealTime(tsk, prb->checker_real_time_limit);
   }
-  setup_environment(tsk, prb->valuer_env, ejudge_prefix_dir_env);
+  setup_environment(tsk, prb->valuer_env, ejudge_prefix_dir_env, NULL);
   if (global->separate_user_score > 0) {
     snprintf(strbuf, sizeof(strbuf), "EJUDGE_USER_SCORE=1");
     task_PutEnv(tsk, strbuf);
@@ -1470,7 +1480,9 @@ run_tests(struct section_tester_data *tst,
 
   long expected_free_space = 0;
   const struct section_global_data *global = serve_state.global;
+  int disable_stderr;
 
+  memset(&tstinfo, 0, sizeof(tstinfo));
   ASSERT(tst->problem > 0);
   ASSERT(tst->problem <= serve_state.max_prob);
   ASSERT(serve_state.probs[tst->problem]);
@@ -1681,6 +1693,9 @@ run_tests(struct section_tester_data *tst,
     pathmake(check_out_path, global->run_work_dir, "/", "checkout", NULL);
     pathmake(score_out_path, global->run_work_dir, "/", "scoreout", NULL);
 
+    unlink(check_out_path);
+    unlink(score_out_path);
+
     if (tst->nwrun_spool_dir[0]) {
       status = invoke_nwrun(global, tst, req_pkt, prb, far,
                             cur_test, 0, &has_real_time,
@@ -1719,6 +1734,17 @@ run_tests(struct section_tester_data *tst,
       }
     }
 
+    disable_stderr = -1;
+    if (prb->use_info > 0 && tstinfo.disable_stderr >= 0) {
+      disable_stderr = tstinfo.disable_stderr;
+    }
+    if (disable_stderr < 0) {
+      disable_stderr = req_pkt->disable_stderr;
+    }
+    if (disable_stderr < 0) {
+      disable_stderr = 0;
+    }
+
     make_writable(tst->check_dir);
     clear_directory(tst->check_dir);
     check_free_space(tst->check_dir, expected_free_space);
@@ -1734,10 +1760,10 @@ run_tests(struct section_tester_data *tst,
     if (prb->use_tgz) {
       snprintf(tgz_src, sizeof(path_t), "%s/%03d%s",
                var_tgz_dir, cur_test, prb->tgz_sfx);
-      snprintf(tgz_src_dir, sizeof(path_t), "%s/%03d",
-               var_tgz_dir, cur_test);
-      snprintf(prog_working_dir, sizeof(path_t), "%s/%03d",
-               tst->check_dir, cur_test);
+      snprintf(tgz_src_dir, sizeof(path_t), "%s/%03d%s",
+               var_tgz_dir, cur_test, prb->tgzdir_sfx);
+      snprintf(prog_working_dir, sizeof(path_t), "%s/%03d%s",
+               tst->check_dir, cur_test, prb->tgzdir_sfx);
       info("starting: %s", "/bin/tar");
       tsk = task_New();
       task_AddArg(tsk, "/bin/tar");
@@ -1806,7 +1832,7 @@ run_tests(struct section_tester_data *tst,
         }
         task_SetPathAsArg0(tsk_int);
         task_SetWorkingDir(tsk_int, prog_working_dir);
-        setup_environment(tsk_int, prb->interactor_env, ejudge_prefix_dir_env);
+        setup_environment(tsk_int, prb->interactor_env, ejudge_prefix_dir_env, NULL);
         task_SetRedir(tsk_int, 0, TSR_DUP, pfd1[0]);
         task_SetRedir(tsk_int, 1, TSR_DUP, pfd2[1]);
         task_SetRedir(tsk_int, pfd1[0], TSR_CLOSE);
@@ -1879,7 +1905,7 @@ run_tests(struct section_tester_data *tst,
             task_SetRedir(tsk, 2, TSR_FILE,output_path,TSK_REWRITE,TSK_FULL_RW);
           } else if (prb->use_stdout && !tst->no_redirect) {
             task_SetRedir(tsk, 1,TSR_FILE,output_path,TSK_REWRITE,TSK_FULL_RW);
-            if (tst->ignore_stderr > 0) {
+            if (tst->ignore_stderr > 0 && disable_stderr <= 0) {
               task_SetRedir(tsk, 2,TSR_FILE, "/dev/null",TSK_WRITE,TSK_FULL_RW);
             } else {
               task_SetRedir(tsk, 2,TSR_FILE,error_path,TSK_REWRITE,TSK_FULL_RW);
@@ -1889,7 +1915,7 @@ run_tests(struct section_tester_data *tst,
             // create empty output file
             tmpfd = open(output_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
             if (tmpfd >= 0) close(tmpfd);
-            if (tst->ignore_stderr > 0) {
+            if (tst->ignore_stderr > 0 && disable_stderr <= 0) {
               task_SetRedir(tsk, 2, TSR_FILE,"/dev/null",TSK_WRITE,TSK_FULL_RW);
             } else {
               task_SetRedir(tsk, 2,TSR_FILE,error_path,TSK_REWRITE,TSK_FULL_RW);
@@ -1899,14 +1925,16 @@ run_tests(struct section_tester_data *tst,
           // create empty output file
           tmpfd = open(output_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
           if (tmpfd >= 0) close(tmpfd);
-          if (tst->ignore_stderr > 0) {
+          if (tst->ignore_stderr > 0 && disable_stderr <= 0) {
             task_SetRedir(tsk, 2, TSR_FILE, "/dev/null",TSK_WRITE,TSK_FULL_RW);
+          } else {
+            task_SetRedir(tsk, 2,TSR_FILE,error_path,TSK_REWRITE,TSK_FULL_RW);
           }
         }
       }
 
       if (tst->clear_env) task_ClearEnv(tsk);
-      setup_environment(tsk, tst->start_env, ejudge_prefix_dir_env);
+      setup_environment(tsk, tst->start_env, ejudge_prefix_dir_env, &tstinfo);
 
       if (time_limit_value > 0) {
         if ((time_limit_value % 1000)) {
@@ -2360,6 +2388,13 @@ run_tests(struct section_tester_data *tst,
     }
 
   run_checker:;
+    if (disable_stderr > 0 && tests[cur_test].error_size > 0) {
+      append_msg_to_log(check_out_path, "non-empty output to stderr");
+      status = RUN_PRESENTATION_ERR;
+      failed_test = cur_test;
+      total_failed_tests++;
+      goto read_checker_output;
+    }
 
     if (prb->variant_num > 0 && !tst->standard_checker_used) {
       var_check_cmd = (unsigned char*) alloca(sizeof(path_t));
@@ -2440,8 +2475,8 @@ run_tests(struct section_tester_data *tst,
     if (prb->checker_real_time_limit > 0) {
       task_SetMaxRealTime(tsk, prb->checker_real_time_limit);
     }
-    setup_environment(tsk, prb->checker_env, ejudge_prefix_dir_env);
-    setup_environment(tsk, tst->checker_env, ejudge_prefix_dir_env);
+    setup_environment(tsk, prb->checker_env, ejudge_prefix_dir_env, NULL);
+    setup_environment(tsk, tst->checker_env, ejudge_prefix_dir_env, NULL);
     task_EnableAllSignals(tsk);
 
     task_Start(tsk);
@@ -2470,7 +2505,6 @@ run_tests(struct section_tester_data *tst,
     if (prb->scoring_checker && !task_IsTimeout(tsk)
         && task_Status(tsk) == TSK_EXITED
         && (task_ExitCode(tsk) == RUN_WRONG_ANSWER_ERR
-            || task_ExitCode(tsk) == RUN_PRESENTATION_ERR
             || task_ExitCode(tsk) == RUN_OK)) {
       switch (score_system_val) {
       case SCORE_KIROV:

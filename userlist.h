@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: userlist.h 5814 2010-05-29 13:55:19Z cher $ */
+/* $Id: userlist.h 6420 2011-09-11 14:40:31Z cher $ */
 
 #ifndef __USERLIST_H__
 #define __USERLIST_H__
 
-/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -809,5 +809,10 @@ const void *
 userlist_group_get_ptr(const struct userlist_group *grp, int field);
 void *
 userlist_group_get_ptr_nc(struct userlist_group *grp, int field);
+
+int
+userlist_lookup_csv_field_name(const unsigned char *str);
+const unsigned char *
+userlist_get_csv_field_name(int field_id);
 
 #endif /* __USERLIST_H__ */

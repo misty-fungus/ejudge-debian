@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new-client.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: new-client.c 6493 2011-10-21 06:48:27Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -119,7 +119,7 @@ check_access_rules(char **rules, ej_ip_t ip, int ssl_flag)
     } else if (!strcasecmp(b1, "deny")) {
       mode = -1;
     } else goto failed;
-    if (xml_parse_ip_mask(0, -1, 0, b2, &cur_ip, &cur_mask) < 0) goto failed;
+    if (xml_parse_ip_mask(NULL, 0, -1, 0, b2, &cur_ip, &cur_mask) < 0) goto failed;
     ssl_mode = -1;
     if (r == 3) {
       if (!strcasecmp(b3, "ssl")) {

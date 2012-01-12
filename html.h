@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: html.h 6343 2011-05-22 21:20:22Z cher $ */
+/* $Id: html.h 6589 2011-12-23 12:08:00Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
@@ -162,7 +162,8 @@ write_html_run_status(
         int disq_attempts,
         int prev_successes,
         const unsigned char *td_class,
-        int disable_failed);
+        int disable_failed,
+        int enable_js_status_menu);
 
 int write_xml_testing_report(FILE *f, int user_mode, unsigned char const *txt,
                              ej_cookie_t sid,

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super-serve.h 6359 2011-06-10 20:04:28Z cher $ */
+/* $Id: super-serve.h 6565 2011-12-17 18:33:53Z cher $ */
 #ifndef __SUPER_SERVE_H__
 #define __SUPER_SERVE_H__
 
@@ -83,13 +83,15 @@ struct section_global_data;
 struct section_language_data;
 struct section_problem_data;
 struct section_tester_data;
+struct serve_state;
 
-/* sizeof(struct sid_state) == 480 */
+/* sizeof(struct sid_state) == 496 */
 struct sid_state
 {
   struct sid_state *next;
   struct sid_state *prev;
   ej_cookie_t sid;
+  ej_ip_t remote_addr;
   time_t init_time;
   unsigned long flags;
   struct contest_desc *edited_cnts;
@@ -230,6 +232,9 @@ struct sid_state
   int group_user_count;
 
   bitset_t marked;
+
+  /* serve state for test editing */
+  struct serve_state *te_state;
 };
 
 struct sid_state;
@@ -257,8 +262,8 @@ struct super_http_request_info
   // the URL
   ej_ip_t ip;
   int ssl_flag;
-  const unsigned char *self_url; // points into stack buffer
-  const unsigned char *script_name; // points into stack buffer
+  unsigned char self_url[4096];
+  const unsigned char *script_name;
   const unsigned char *system_login;
 
   unsigned long long session_id;
@@ -276,6 +281,22 @@ struct super_http_request_info
 
   // should we use json for reply?
   int json_reply;
+  // should we suspend reply because of background process?
+  int suspend_reply;
+  // pointer to suspend data (client_state actually)
+  void *suspend_context;
+  void (*continuation)(struct super_http_request_info *);
+
+  // output streams
+  FILE *out_f;
+  char *out_t;
+  size_t out_z;
+
+  FILE *log_f;
+  char *log_t;
+  size_t log_z;
+
+  unsigned char data[0];
 };
 
 void super_serve_clear_edited_contest(struct sid_state *sstate);
@@ -288,5 +309,11 @@ int super_serve_start_serve_test_mode(const struct contest_desc *cnts,
 int super_serve_sid_state_get_max_edited_cnts(void);
 const struct sid_state* super_serve_sid_state_get_cnts_editor(int contest_id);
 struct sid_state* super_serve_sid_state_get_cnts_editor_nc(int contest_id);
+const struct sid_state* super_serve_sid_state_get_test_editor(int contest_id);
+struct sid_state* super_serve_sid_state_get_test_editor_nc(int contest_id);
+
+struct background_process;
+void super_serve_register_process(struct background_process *prc);
+struct background_process *super_serve_find_process(const unsigned char *name);
 
 #endif /* __SUPER_SERVE_H__ */

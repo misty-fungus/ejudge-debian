@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: html_checkbox.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: html_checkbox.c 6593 2011-12-23 19:01:05Z cher $ */
 
-/* Copyright (C) 2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,12 +22,18 @@ html_checkbox(
         unsigned char *buf,
         size_t size,
         const unsigned char *var_name,
+        const unsigned char *value,
         int is_checked)
 {
   const unsigned char *ch = "";
+  unsigned char valbuf[1024];
 
   if (is_checked) ch = " checked=\"checked\"";
-  snprintf(buf, size, "<input type=\"checkbox\" name=\"%s\"%s/>", var_name, ch);
+  valbuf[0] = 0;
+  if (value) {
+    snprintf(valbuf, sizeof(valbuf), " value=\"%s\"", value);
+  }
+  snprintf(buf, size, "<input type=\"checkbox\" name=\"%s\"%s%s/>", var_name, valbuf, ch);
   return buf;
 }
 

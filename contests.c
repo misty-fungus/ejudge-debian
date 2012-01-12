@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: contests.c 6349 2011-05-24 05:20:31Z cher $ */
+/* $Id: contests.c 6593 2011-12-23 19:01:05Z cher $ */
 
 /* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -127,6 +127,10 @@ const int contests_tag_to_meta_map[CONTEST_LAST_TAG] =
   [CONTEST_USER_CONTEST] = CNTS_user_contest,
   [CONTEST_LOGO_URL] = CNTS_logo_url,
   [CONTEST_CSS_URL] = CNTS_css_url,
+  [CONTEST_REGISTER_SUBJECT] = CNTS_register_subject,
+  [CONTEST_REGISTER_SUBJECT_EN] = CNTS_register_subject_en,
+  [CONTEST_OPEN_TIME] = CNTS_open_time,
+  [CONTEST_CLOSE_TIME] = CNTS_close_time,
 };
 const int contests_attr_to_meta_map[CONTEST_LAST_ATTR] =
 {
@@ -239,6 +243,10 @@ char const * const contests_elem_map[] =
   "user_contest",
   "logo_url",
   "css_url",
+  "register_subject",
+  "register_subject_en",
+  "open_time",
+  "close_time",
 
   0
 };
@@ -279,6 +287,7 @@ char const * const contests_attr_map[] =
   "disable_member_delete",
   "separator",
   "options",
+  "checkbox",
 
   0
 };
@@ -482,7 +491,7 @@ parse_access(struct contest_access *acc, char const *path)
     }
     if (ip->allow == -1) ip->allow = 0;
 
-    if (xml_parse_ip_mask(path, ip->b.line, ip->b.column,
+    if (xml_parse_ip_mask(NULL, path, ip->b.line, ip->b.column,
                           ip->b.text, &ip->addr, &ip->mask) < 0) return -1;
     xfree(t->text); t->text = 0;
   }
@@ -759,6 +768,8 @@ static const unsigned char contest_final_set[CONTEST_LAST_TAG] =
   [CONTEST_USER_CONTEST] = 1,
   [CONTEST_LOGO_URL] = 1,
   [CONTEST_CSS_URL] = 1,
+  [CONTEST_REGISTER_SUBJECT] = 1,
+  [CONTEST_REGISTER_SUBJECT_EN] = 1,
 };
 
 static const unsigned char contest_access_set[CONTEST_LAST_TAG] =
@@ -882,11 +893,13 @@ parse_contest(struct contest_desc *cnts, char const *path, int no_subst_flag)
       break;
     case CONTEST_REGISTRATION_DEADLINE:
     case CONTEST_SCHED_TIME:
+    case CONTEST_OPEN_TIME:
+    case CONTEST_CLOSE_TIME:
       if (handle_final_tag(path, t, &date_str) < 0) {
         xfree(date_str);
         return -1;
       }
-      if (xml_parse_date(path, t->line, t->column, date_str, (time_t*) contest_desc_get_ptr_nc(cnts, contests_tag_to_meta_map[t->tag])) < 0) {
+      if (xml_parse_date(NULL, path, t->line, t->column, date_str, (time_t*) contest_desc_get_ptr_nc(cnts, contests_tag_to_meta_map[t->tag])) < 0) {
         xfree(date_str); date_str = 0;
         return -1;
       }
@@ -965,6 +978,9 @@ parse_contest(struct contest_desc *cnts, char const *path, int no_subst_flag)
             break;
           case CONTEST_A_OPTIONS:
             pf->options = a->text; a->text = 0;
+            break;
+          case CONTEST_A_CHECKBOX:
+            if (xml_attr_bool(a, &pf->checkbox) < 0) return -1;
             break;
           default:
             return xml_err_attr_not_allowed(t, a);
@@ -1086,7 +1102,7 @@ parse_one_contest_xml(char const *path, int number, int no_subst_flag)
   xml_err_path = path;
   xml_err_spec = &contests_parse_spec;
 
-  tree = xml_build_tree(path, &contests_parse_spec);
+  tree = xml_build_tree(NULL, path, &contests_parse_spec);
   if (!tree) goto failed;
   if (tree->tag != CONTEST_CONTEST) {
     xml_err_top_level(tree, CONTEST_CONTEST);
@@ -1186,6 +1202,8 @@ contests_merge(struct contest_desc *pold, struct contest_desc *pnew)
   pold->last_check_time = pnew->last_check_time;
   pold->last_file_time = pnew->last_file_time;
   pold->user_contest_num = pnew->user_contest_num;
+  pold->open_time = pnew->open_time;
+  pold->close_time = pnew->close_time;
 
   pold->default_locale_num = l10n_parse_locale(pold->default_locale);
 }

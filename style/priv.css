@@ -1,4 +1,4 @@
-/* $Id: priv.css 5595 2009-09-27 20:55:54Z cher $ */
+/* $Id: priv.css 6588 2011-12-23 12:03:49Z cher $ */
 
 body 
 {
@@ -409,4 +409,13 @@ th.cnts_edit_legend {
         border-collapse: collapse;
         margin: 0;
         padding: 0;
+}
+
+div.ej_dd {
+        position: absolute;
+        display: none;
+        margin: 5px; padding: 5px;
+        border: 1px solid #aaa;
+        background-color: #efefef;
+        float: none;
 }

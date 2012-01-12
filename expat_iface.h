@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: expat_iface.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: expat_iface.h 6500 2011-10-29 14:03:52Z cher $ */
 
 #ifndef __EXPAT_IFACE_H__
 #define __EXPAT_IFACE_H__ 1
 
-/* Copyright (C) 2002-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -63,11 +63,11 @@ struct xml_parse_spec
 };
 
 struct xml_tree *
-xml_build_tree(char const *path, const struct xml_parse_spec *spec);
+xml_build_tree(FILE *log_f, char const *path, const struct xml_parse_spec *spec);
 struct xml_tree *
-xml_build_tree_str(char const *str, const struct xml_parse_spec *spec);
+xml_build_tree_str(FILE *log_f, char const *str, const struct xml_parse_spec *spec);
 struct xml_tree *
-xml_build_tree_file(FILE *f, const struct xml_parse_spec *spec);
+xml_build_tree_file(FILE *log_f, FILE *f, const struct xml_parse_spec *spec);
 
 struct xml_tree *
 xml_tree_free(struct xml_tree *tree, const struct xml_parse_spec *spec);
@@ -83,13 +83,6 @@ xml_unparse_tree(FILE *out,
                  int (*attr_print)(FILE *, struct xml_attr const *),
                  void (*fmt_print)(FILE *, struct xml_tree const *, int, int));
 void
-xml_unparse_raw_tree(
-        FILE *out,
-        const struct xml_tree *tree,
-        const struct xml_parse_spec *spec,
-        const unsigned char **vars,
-        const unsigned char **vals);
-void
 xml_unparse_tree_str(char *buf,
                      int buf_size,
                      struct xml_tree const *tree,
@@ -104,5 +97,25 @@ void xml_link_node_last(struct xml_tree *p, struct xml_tree *c);
 
 struct xml_tree *xml_elem_alloc(int tag, const size_t *sizes);
 struct xml_attr *xml_attr_alloc(int tag, const size_t *sizes);
+
+void
+xml_unparse_raw_tree_subst(
+        FILE *out,
+        const struct xml_tree *tree,
+        const struct xml_parse_spec *spec,
+        const unsigned char **vars,
+        const unsigned char **vals);
+void
+xml_unparse_raw_tree(
+        FILE *fout,
+        const struct xml_tree *tree,
+        const struct xml_parse_spec *spec);
+
+struct xml_tree *
+xml_parse_text(
+        FILE *log_f,
+        const unsigned char *text,
+        int root_node,
+        const struct xml_parse_spec *spec);
 
 #endif /* __EXPAT_IFACE_H__ */

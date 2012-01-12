@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_types.h 6302 2011-05-04 04:22:17Z cher $ */
+/* $Id: ej_types.h 6443 2011-10-01 08:21:38Z cher $ */
 #ifndef __EJ_TYPES_H__
 #define __EJ_TYPES_H__
 
@@ -104,5 +104,21 @@ enum test_visibility
 int test_visibility_parse(const unsigned char*);
 int test_visibility_parse_mem(const unsigned char*, int len);
 const unsigned char *test_visibility_unparse(int visibility);
+
+/* test normalization modes */
+enum
+{
+  TEST_NORM_FIRST = 0,
+  TEST_NORM_NONE = TEST_NORM_FIRST,
+  TEST_NORM_DEFAULT,
+  TEST_NORM_NL,
+  TEST_NORM_NLWS,
+  TEST_NORM_NLWSNP,
+  TEST_NORM_NLNP,
+  TEST_NORM_LAST
+};
+
+int test_normalization_parse(const unsigned char *);
+const unsigned char *test_normalization_unparse(int normalization);
 
 #endif /* __EJ_TYPES_H__ */

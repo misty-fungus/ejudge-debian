@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: runlog.c 6412 2011-07-17 09:24:58Z cher $ */
 
 /* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -153,7 +153,7 @@ static void teamdb_update_callback(void *);
 int
 run_open(
         runlog_state_t state,
-        struct ejudge_cfg *config,
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         const struct section_global_data *global,
         const unsigned char *plugin_name,

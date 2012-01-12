@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: reuse_dirname.c 6227 2011-04-04 19:10:59Z cher $ */
+/* $Id: reuse_dirname.c 6528 2011-11-25 18:08:26Z cher $ */
 
 /* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -17,6 +17,8 @@
 
 #include "reuse_xalloc.h"
 #include "reuse_osdeps.h"
+
+#include <string.h>
 
 /**
  * NAME:    os_DirName

@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-setup.c 6347 2011-05-23 19:06:12Z cher $ */
+/* $Id: ejudge-setup.c 6419 2011-09-07 05:24:02Z cher $ */
 
 /* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -2350,7 +2350,7 @@ generate_serve_cfg(FILE *f)
 
   fprintf(f, "\n");
 
-  fprintf(f, "compile_max_vm_size = 256M\n");
+  fprintf(f, "compile_max_vm_size = 512M\n");
   fprintf(f, "compile_max_file_size = 32M\n");
   fprintf(f, "\n");
 
@@ -3467,7 +3467,7 @@ generate_install_script(FILE *f)
 
   fprintf(f,
           "echo \"This script will ERASE the exising user database and contests!\"\n"
-          "echo \"Are you sure to proseed (yes/no)?\"\n"
+          "echo \"Are you sure to proceed (yes/no)?\"\n"
           "read confirm\n"
           "if [ \"${confirm}\" != \"yes\" ];\n"
           "then\n"

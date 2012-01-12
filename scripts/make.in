@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: make.in 6385 2011-06-30 05:21:01Z cher $
+# $Id: make.in 6557 2011-12-14 11:33:04Z cher $
 # Copyright (c) 2011 Alexander Chernov <cher@ejudge.ru>
 
 # Environment variables:
@@ -84,7 +84,19 @@ then
     exit 1
 fi
 
-${EJ_MAKE_COMMAND} ${EJ_MAKE_ARGS}
+if [ "${EJ_MAKE_CFLAGS}" != "" -a "${EJ_MAKE_CXXFLAGS}" != "" ]
+then
+    ${EJ_MAKE_COMMAND} CFLAGS="${EJ_MAKE_CFLAGS}" CXXFLAGS="${EJ_MAKE_CXXFLAGS}"
+elif [ "${EJ_MAKE_CXXFLAGS}" != "" ]
+then
+    ${EJ_MAKE_COMMAND} CXXFLAGS="${EJ_MAKE_CXXFLAGS}"
+elif [ "${EJ_MAKE_CFLAGS}" != "" ]
+then
+    ${EJ_MAKE_COMMAND} CFLAGS="${EJ_MAKE_CFLAGS}"
+else
+    ${EJ_MAKE_COMMAND}
+fi
+
 if [ $? != 0 ]
 then
     echo "Build failed" 1>&2
@@ -93,7 +105,7 @@ fi
 
 if [ ! -x "${EJ_PROGRAM_NAME}" ]
 then
-    echo "The executable file is not created or non-existable" 1>&2
+    echo "The executable file is not created or non-executable" 1>&2
     exit 1
 fi
 

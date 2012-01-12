@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: cldb_plugin_file.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: cldb_plugin_file.c 6493 2011-10-21 06:48:27Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -70,7 +70,7 @@ finish_func(struct common_plugin_data *);
 static int
 prepare_func(
         struct common_plugin_data *,
-        struct ejudge_cfg *,
+        const struct ejudge_cfg *,
         struct xml_tree*);
 static struct cldb_plugin_cnts *
 open_func(
@@ -145,7 +145,7 @@ finish_func(struct common_plugin_data *data)
 static int
 prepare_func(
         struct common_plugin_data *data,
-        struct ejudge_cfg *config,
+        const struct ejudge_cfg *config,
         struct xml_tree *plugin_config)
 {
   return 0;
@@ -223,7 +223,7 @@ clar_read_entry(
     ERR_R("[%d]: bad flags: %d", n, cl_state->clars.v[n].flags);
   if (strlen(b2) > IP_STRING_SIZE) ERR_R("[%d]: ip is too long", n);
   if (strlen(b3) > SUBJ_STRING_SIZE) ERR_R("[%d]: subj is too long", n);
-  if (xml_parse_ip(0, n + 1, 0, b2, &r_ip) < 0) ERR_R("[%d]: ip is invalid", n);
+  if (xml_parse_ip(NULL, 0, n + 1, 0, b2, &r_ip) < 0) ERR_R("[%d]: ip is invalid", n);
   cl_state->clars.v[n].a.ip = r_ip;
   base64_decode_str(b3, cl_state->clars.v[n].subj, 0);
   return 0;

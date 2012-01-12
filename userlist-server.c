@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: userlist-server.c 6377 2011-06-19 19:49:48Z cher $ */
+/* $Id: userlist-server.c 6595 2011-12-24 15:02:39Z cher $ */
 
 /* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1620,12 +1620,32 @@ send_registration_email(
     email_template_size = strlen(email_template);
   }
 
+  unsigned char *email_subject = NULL;
+
+  if (locale_id == 1) {
+    // russian
+    if (cnts->register_subject) {
+      email_subject = cnts->register_subject;
+    } else if (cnts->register_subject_en) {
+      email_subject = cnts->register_subject_en;
+    }
+  } else {
+    // default - english
+    if (cnts->register_subject_en) {
+      email_subject = cnts->register_subject_en;
+    } else if (cnts->register_subject) {
+      email_subject = cnts->register_subject;
+    }
+  }
+
   size_t email_text_size = email_template_size * 4;
   if (email_text_size < 4096) email_text_size = 4096;
   unsigned char *email_text = (unsigned char *) xcalloc(email_text_size, 1);
   sformat_message(email_text, email_text_size, 0, email_template,
                   0, 0, 0, 0, 0, u, cnts, &sformat_data);
-  unsigned char *email_subject = _("You have been registered");
+  if (email_subject == NULL) {
+    email_subject = _("You have been registered");
+  }
   l10n_setlocale(0);
 
   const unsigned char *sender_address = get_email_sender(cnts);
@@ -1890,9 +1910,31 @@ cmd_register_new_2(struct client_state *p,
     sformat_message(buf, buf_size, 0, email_tmpl,
                     0, 0, 0, 0, 0, u, cnts, &sformat_data);
 
+    unsigned char *register_subject = NULL;
+
+    if (data->locale_id == 1) {
+      // russian
+      if (cnts->register_subject) {
+        register_subject = cnts->register_subject;
+      } else if (cnts->register_subject_en) {
+        register_subject = cnts->register_subject_en;
+      }
+    } else {
+      // default - english
+      if (cnts->register_subject_en) {
+        register_subject = cnts->register_subject_en;
+      } else if (cnts->register_subject) {
+        register_subject = cnts->register_subject;
+      }
+    }
+
+    if (register_subject == NULL) {
+      register_subject = _("You have been registered");
+    }
+
     mail_args[0] = "mail";
     mail_args[1] = "";
-    mail_args[2] = _("You have been registered");
+    mail_args[2] = register_subject;
     mail_args[3] = originator_email;
     mail_args[4] = email;
     mail_args[5] = buf;
@@ -3549,6 +3591,120 @@ cmd_priv_check_user(struct client_state *p, int pkt_len,
 }
 
 static void
+cmd_priv_check_password(
+        struct client_state *p,
+        int pkt_len,
+        struct userlist_pk_do_login *data)
+{
+  unsigned char *login_ptr, *passwd_ptr, *name_ptr;
+  struct passwd_internal pwdint;
+  const struct userlist_user *u = 0;
+  const struct userlist_contest *c = 0;
+  struct userlist_pk_login_ok *out = 0;
+  int login_len, name_len;
+  size_t out_size = 0;
+  ej_tsc_t tsc1, tsc2;
+  unsigned char logbuf[1024];
+  int user_id;
+  const struct userlist_user_info *ui;
+  const unsigned char *name = 0;
+
+  if (pkt_len < sizeof(*data)) {
+    CONN_BAD("packet length too small: %d", pkt_len);
+    return;
+  }
+  login_ptr = data->data;
+  if (strlen(login_ptr) != data->login_length) {
+    CONN_BAD("login length mismatch");
+    return;
+  }
+  passwd_ptr = login_ptr + data->login_length + 1;
+  if (strlen(passwd_ptr) != data->password_length) {
+    CONN_BAD("password length mismatch");
+    return;
+  }
+  if (pkt_len != sizeof(*data) + data->login_length + data->password_length) {
+    CONN_BAD("packet length mismatch");
+    return;
+  }
+
+  snprintf(logbuf, sizeof(logbuf),
+           "PRIV_CHECK_PASSWORD: %s", login_ptr);
+
+  if (p->user_id <= 0) {
+    err("%s -> not authentificated", logbuf);
+    send_reply(p, -ULS_ERR_NO_PERMS);
+    return;
+  }
+
+  if (is_db_capable(p, OPCAP_LIST_USERS, logbuf)) return;
+
+  if (passwd_convert_to_internal(passwd_ptr, &pwdint) < 0) {
+    err("%s -> invalid password", logbuf);
+    send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+    return;
+  }
+
+  rdtscll(tsc1);
+  if ((user_id = default_get_user_by_login(login_ptr)) <= 0) {
+    err("%s -> WRONG LOGIN", logbuf);
+    send_reply(p, -ULS_ERR_INVALID_LOGIN);
+    return;
+  }
+  if (default_get_user_info_3(user_id, 0, &u, &ui, &c) < 0 || !u) {
+    err("%s -> database error", logbuf);
+    send_reply(p, -ULS_ERR_DB_ERROR);
+    return;
+  }
+  rdtscll(tsc2);
+  if (cpu_frequency > 0) {
+    tsc2 = (tsc2 - tsc1) * 1000000 / cpu_frequency;
+  } else {
+    tsc2 = tsc2 - tsc1;
+  }
+
+  if (!u) {
+    err("%s -> WRONG LOGIN", logbuf);
+    send_reply(p, -ULS_ERR_INVALID_LOGIN);
+    return;
+  }
+  if (!u->passwd) {
+    err("%s -> EMPTY PASSWORD", logbuf);
+    send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+    return;
+  }
+  if (passwd_check(&pwdint, u->passwd, u->passwd_method) < 0) {
+    err("%s -> WRONG PASSWORD", logbuf);
+    send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+    return;
+  }
+
+  if (ui) name = ui->name;
+  if (!name || !*name) name = u->login;
+  if (!name) name = "";
+
+  login_len = strlen(u->login);
+  name_len = strlen(name);
+  out_size = sizeof(*out) + login_len + name_len;
+  out = alloca(out_size);
+  memset(out, 0, out_size);
+  login_ptr = out->data;
+  name_ptr = login_ptr + login_len + 1;
+  out->reply_id = ULS_LOGIN_OK;
+  out->user_id = u->id;
+  out->contest_id = 0;
+  out->locale_id = 0;
+  out->priv_level = 0;
+  out->login_len = login_len;
+  out->name_len = name_len;
+  strcpy(login_ptr, u->login);
+  strcpy(name_ptr, name);
+  
+  enqueue_reply_to_client(p, out_size, out);
+  info("%s -> OK, %d", logbuf, out->user_id);
+}
+
+static void
 cmd_check_cookie(struct client_state *p,
                  int pkt_len,
                  struct userlist_pk_check_cookie * data)
@@ -4477,15 +4633,14 @@ cmd_list_all_users(
   close_memstream(f); f = 0;
   ASSERT(xml_size == strlen(xml_ptr));
   out_size = sizeof(*out) + xml_size;
-  out = alloca(out_size);
-  ASSERT(out);
-  memset(out, 0, out_size);
+  out = (typeof(out)) xcalloc(1, out_size);
   out->reply_id = ULS_XML_DATA;
   out->info_len = xml_size;
   memcpy(out->data, xml_ptr, xml_size + 1);
   xfree(xml_ptr);
   enqueue_reply_to_client(p, out_size, out);
   info("%s -> OK, size = %zu", logbuf, xml_size); 
+  xfree(out);
 }
 
 static void
@@ -4555,15 +4710,14 @@ cmd_list_standings_users(
   close_memstream(f); f = 0;
   ASSERT(xml_size == strlen(xml_ptr));
   out_size = sizeof(*out) + xml_size;
-  out = alloca(out_size);
-  ASSERT(out);
-  memset(out, 0, out_size);
+  out = (typeof(out)) xcalloc(1, out_size);
   out->reply_id = ULS_XML_DATA;
   out->info_len = xml_size;
   memcpy(out->data, xml_ptr, xml_size + 1);
   xfree(xml_ptr);
   enqueue_reply_to_client(p, out_size, out);
   info("%s -> OK, size = %zu", logbuf, xml_size); 
+  xfree(out);
 }
 
 static void
@@ -8128,6 +8282,8 @@ cmd_priv_set_passwd_2(
   info("%s -> OK, %d", logbuf, cloned_flag);
 }
 
+#define CSVARMOR(s)  csv_armor_buf(&ab, s)
+
 static void
 do_get_database(FILE *f, int contest_id, const struct contest_desc *cnts)
 {
@@ -8144,7 +8300,7 @@ do_get_database(FILE *f, int contest_id, const struct contest_desc *cnts)
   size_t gen_size = 0;
   const unsigned char *s;
   unsigned char vbuf[1024];
-  const unsigned char *notset = "";
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
 
   static const unsigned char * const cnts_field_names[CONTEST_LAST_FIELD] =
   {
@@ -8186,7 +8342,7 @@ do_get_database(FILE *f, int contest_id, const struct contest_desc *cnts)
       need_members = 1;
 
   // print the header row
-  fprintf(f, "Id;Login;Name;Email;Reg.St;Ban;Lock;Inv");
+  fprintf(f, "Id;Login;Name;Email;Reg;St;Ban;Lock;Inv");
   for (i = 0; i < CONTEST_LAST_FIELD; i++) {
     if (cnts->fields[i] && cnts_field_names[i])
       fprintf(f, ";%s", cnts_field_names[i]);
@@ -8207,7 +8363,14 @@ do_get_database(FILE *f, int contest_id, const struct contest_desc *cnts)
     if (ui) mm = ui->members;
 
     gen_f = open_memstream(&gen_text, &gen_size);
-    fprintf(gen_f, "%d;%s;%s;%s", u->id, u->login, (ui && ui->name)?ui->name:notset, u->email);
+    fprintf(gen_f, "%d;%s", u->id, CSVARMOR(u->login));
+    s = NULL;
+    if (ui) s = ui->name;
+    if (!s) s = "";
+    fprintf(gen_f, ";%s", CSVARMOR(s));
+    s = u->email;
+    if (!s) s = "";
+    fprintf(gen_f, ";%s", CSVARMOR(s));
 
     switch (c->status) {
     case USERLIST_REG_OK:       s = "OK";       break;
@@ -8233,9 +8396,10 @@ do_get_database(FILE *f, int contest_id, const struct contest_desc *cnts)
 
     for (i = 0; i < CONTEST_LAST_FIELD; i++) {
       if (!cnts->fields[i] || !userlist_contest_field_ids[i]) continue;
+      vbuf[0] = 0;
       userlist_get_user_info_field_str(vbuf, sizeof(vbuf),
                                        ui, userlist_contest_field_ids[i], 0);
-      fprintf(gen_f, ";%s", vbuf);
+      fprintf(gen_f, ";%s", CSVARMOR(vbuf));
     }
     close_memstream(gen_f); gen_f = 0;
 
@@ -8254,9 +8418,10 @@ do_get_database(FILE *f, int contest_id, const struct contest_desc *cnts)
 
         for (i = 0; i < CONTEST_LAST_MEMBER_FIELD; i++) {
           if (!cm->fields[i] || !userlist_member_field_ids[i]) continue;
+          vbuf[0] = 0;
           userlist_get_member_field_str(vbuf, sizeof(vbuf), m,
                                         userlist_member_field_ids[i], 0, 0);
-          fprintf(f, ";%s", vbuf);
+          fprintf(f, ";%s", CSVARMOR(vbuf));
         }
         fprintf(f, "\n");
       }
@@ -8270,6 +8435,7 @@ do_get_database(FILE *f, int contest_id, const struct contest_desc *cnts)
     default_unlock_user(u);
   }
   iter->destroy(iter);
+  html_armor_free(&ab);
 }
 
 static void
@@ -8598,7 +8764,7 @@ cmd_edit_field_seq(
         goto cannot_change;
       cloned_flag |= f;
     } else {
-      err("%s -> invalid field %d", logbuf, deleted_ids[i]);
+      err("%s -> invalid field %d", logbuf, edited_ids[i]);
       send_reply(p, -ULS_ERR_BAD_FIELD);
       return;
     }
@@ -10097,6 +10263,7 @@ static void (*cmd_table[])() =
   [ULS_LIST_ALL_USERS_3] =      cmd_list_all_users_3,
   [ULS_LIST_ALL_USERS_4] =      cmd_list_all_users_4,
   [ULS_GET_GROUP_INFO] =        cmd_get_group_info,
+  [ULS_PRIV_CHECK_PASSWORD] =   cmd_priv_check_password,
 
   [ULS_LAST_CMD] 0
 };
