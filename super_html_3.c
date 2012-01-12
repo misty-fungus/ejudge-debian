@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 6351 2011-05-24 19:28:45Z cher $ */
+/* $Id: super_html_3.c 6597 2011-12-24 18:39:30Z cher $ */
 
 /* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -206,6 +206,8 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CHANGE_MEMBER_DELETE] = "Contest.xml:disable_member_delete",
   [SSERV_CMD_CNTS_CHANGE_DEADLINE] = "Contest.xml:registration_deadline",
   [SSERV_CMD_CNTS_CHANGE_SCHED_TIME] = "Contest.xml:sched_time",
+  [SSERV_CMD_CNTS_CHANGE_OPEN_TIME] = "Contest.xml:open_time",
+  [SSERV_CMD_CNTS_CHANGE_CLOSE_TIME] = "Contest.xml:close_time",
   [SSERV_CMD_CNTS_CHANGE_USERS_HEADER] = "Contest.xml:users_header_file",
   [SSERV_CMD_CNTS_CHANGE_USERS_FOOTER] = "Contest.xml:users_footer_file",
   [SSERV_CMD_CNTS_CHANGE_REGISTER_HEADER] = "Contest.xml:register_header_file",
@@ -289,6 +291,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS] = "Serve.cfg:global:prune_empty_users",
   [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = "Serve.cfg:global:enable_full_archive",
   [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = "Serve.cfg:global:advanced_layout",
+  [SSERV_CMD_GLOB_CHANGE_IGNORE_BOM] = "Serve.cfg:global:ignore_bom",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH] = "Serve.cfg:global:disable_auto_refresh",
   [SSERV_CMD_GLOB_CHANGE_ALWAYS_SHOW_PROBLEMS] = "Serve.cfg:global:always_show_problems",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS] = "Serve.cfg:global:disable_user_standings",
@@ -452,6 +455,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS] = "Serve.cfg:problem:time_limit_millis",
   [SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT] = "Serve.cfg:problem:real_time_limit",
   [SSERV_CMD_PROB_CHANGE_USE_AC_NOT_OK] = "Serve.cfg:problem:use_ac_not_ok",
+  [SSERV_CMD_PROB_CHANGE_IGNORE_PREV_AC] = "Serve.cfg:problem:ignore_prev_ac",
   [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_REP_VIEW] = "Serve.cfg:problem:team_enable_rep_view",
   [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_CE_VIEW] = "Serve.cfg:problem:team_enable_ce_view",
   [SSERV_CMD_PROB_CHANGE_TEAM_SHOW_JUDGE_REPORT] = "Serve.cfg:problem:team_show_judge_report",
@@ -482,6 +486,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DISABLE_CTRL_CHARS] = "Serve.cfg:problem:disable_ctrl_chars",
   [SSERV_CMD_PROB_CHANGE_VALUER_SETS_MARKED] = "Serve.cfg:problem:valuer_sets_marked",
   [SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED] = "Serve.cfg:problem:ignore_unmarked",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_STDERR] = "Serve.cfg:problem:disable_stderr",
   [SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM] = "Serve.cfg:problem:enable_text_form",
   [SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE] = "Serve.cfg:problem:stand_ignore_score",
   [SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN] = "Serve.cfg:problem:stand_last_column",
@@ -506,10 +511,15 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_CORR_PAT] = "Serve.cfg:problem:corr_pat",
   [SSERV_CMD_PROB_CHANGE_INFO_SFX] = "Serve.cfg:problem:info_sfx",
   [SSERV_CMD_PROB_CHANGE_INFO_PAT] = "Serve.cfg:problem:info_pat",
+  [SSERV_CMD_PROB_CHANGE_TGZ_SFX] = "Serve.cfg:problem:tgz_sfx",
+  [SSERV_CMD_PROB_CHANGE_TGZ_PAT] = "Serve.cfg:problem:tgz_pat",
+  [SSERV_CMD_PROB_CHANGE_TGZDIR_SFX] = "Serve.cfg:problem:tgzdir_sfx",
+  [SSERV_CMD_PROB_CHANGE_TGZDIR_PAT] = "Serve.cfg:problem:tgzdir_pat",
   [SSERV_CMD_PROB_CHANGE_STANDARD_CHECKER] = "Serve.cfg:problem:standard_checker",
   [SSERV_CMD_PROB_CHANGE_SCORE_BONUS] = "Serve.cfg:problem:score_bonus",
   [SSERV_CMD_PROB_CHANGE_OPEN_TESTS] = "Serve.cfg:problem:open_tests",
   [SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS] = "Serve.cfg:problem:final_open_tests",
+  [SSERV_CMD_PROB_CHANGE_LANG_COMPILER_ENV] = "Serve.cfg:problem:lang_compiler_env",
   [SSERV_CMD_PROB_CHANGE_CHECK_CMD] = "Serve.cfg:problem:check_cmd",
   [SSERV_CMD_PROB_CHANGE_CHECKER_ENV] = "Serve.cfg:problem:checker_env",
   [SSERV_CMD_PROB_CHANGE_VALUER_CMD] = "Serve.cfg:problem:valuer_cmd",
@@ -520,6 +530,8 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_STYLE_CHECKER_ENV] = "Serve.cfg:problem:style_checker_env",
   [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_CMD] = "Serve.cfg:problem:test_checker_cmd",
   [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV] = "Serve.cfg:problem:test_checker_env",
+  [SSERV_CMD_PROB_CHANGE_SOLUTION_SRC] = "Serve.cfg:problem:solution_src",
+  [SSERV_CMD_PROB_CHANGE_SOLUTION_CMD] = "Serve.cfg:problem:solution_cmd",
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ] = "Serve.cfg:problem:lang_time_adj",
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ_MILLIS] = "Serve.cfg:problem:lang_time_adj_millis",
   [SSERV_CMD_PROB_CHANGE_DISABLE_LANGUAGE] = "Serve.cfg:problem:disable_language",
@@ -536,6 +548,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_STAND_ATTR] = "Serve.cfg:problem:stand_attr",
   [SSERV_CMD_PROB_CHANGE_SOURCE_HEADER] = "Serve.cfg:problem:source_header",
   [SSERV_CMD_PROB_CHANGE_SOURCE_FOOTER] = "Serve.cfg:problem:source_footer",
+  [SSERV_CMD_PROB_CHANGE_NORMALIZATION] = "Serve.cfg:problem:normalization",
 };
 
 static void
@@ -2492,6 +2505,16 @@ super_html_edit_global_parameters(FILE *f,
                              extra_args,
                              hidden_vars);
 
+    //GLOBAL_PARAM(ignore_bom, "d"),
+    html_start_form(f, 1, self_url, hidden_vars);
+    fprintf(f, "<tr%s><td>Ignore BOM in text submits:</td><td>", form_row_attrs[row ^= 1]);
+    html_boolean_select(f, global->ignore_bom, "param", 0, 0);
+    fprintf(f, "</td><td>");
+    html_submit_button(f, SSERV_CMD_GLOB_CHANGE_IGNORE_BOM, "Change");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_IGNORE_BOM);
+    fprintf(f, "</tr></form>\n");
+
     //GLOBAL_PARAM(disable_testing, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
     fprintf(f, "<tr%s><td>Disable any testing of submissions:</td><td>",
@@ -2932,6 +2955,10 @@ super_html_global_param(struct sid_state *sstate, int cmd,
     p_int = &global->advanced_layout;
     goto handle_boolean;
 
+  case SSERV_CMD_GLOB_CHANGE_IGNORE_BOM:
+    p_int = &global->ignore_bom;
+    goto handle_boolean;
+
   case SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH:
     p_int = &global->disable_auto_refresh;
     goto handle_boolean;
@@ -3152,7 +3179,7 @@ super_html_global_param(struct sid_state *sstate, int cmd,
     GLOB_CLEAR_STRING(stand_symlink_dir);
 
   case SSERV_CMD_GLOB_CHANGE_STAND_IGNORE_AFTER:
-    if (xml_parse_date("", 0, 0, param2, &global->stand_ignore_after) < 0)
+    if (xml_parse_date(NULL, "", 0, 0, param2, &global->stand_ignore_after) < 0)
       return -SSERV_ERR_INVALID_PARAMETER;
     return 0;
 
@@ -3161,7 +3188,7 @@ super_html_global_param(struct sid_state *sstate, int cmd,
     return 0;
 
   case SSERV_CMD_GLOB_CHANGE_APPEAL_DEADLINE:
-    if (xml_parse_date("", 0, 0, param2, &global->appeal_deadline) < 0)
+    if (xml_parse_date(NULL, "", 0, 0, param2, &global->appeal_deadline) < 0)
       return -SSERV_ERR_INVALID_PARAMETER;
     return 0;
 
@@ -3170,7 +3197,7 @@ super_html_global_param(struct sid_state *sstate, int cmd,
     return 0;
 
   case SSERV_CMD_GLOB_CHANGE_CONTEST_FINISH_TIME:
-    if (xml_parse_date("", 0, 0, param2, &global->contest_finish_time) < 0)
+    if (xml_parse_date(NULL, "", 0, 0, param2, &global->contest_finish_time) < 0)
       return -SSERV_ERR_INVALID_PARAMETER;
     return 0;
 
@@ -4723,6 +4750,19 @@ print_std_checker_row(FILE *f,
   fprintf(f, "</tr></form>\n");
 }
 
+const unsigned char *
+super_html_get_standard_checker_description(const unsigned char *standard_checker)
+{
+  if (!standard_checker) return NULL;
+
+  for (int i = 0; super_html_std_checkers[i].name; ++i) {
+    if (!strcmp(super_html_std_checkers[i].name, standard_checker)) {
+      return super_html_std_checkers[i].desc;
+    }
+  }
+  return NULL;
+}
+
 /*
   PROBLEM_PARAM(tester_id, "d"),
   PROBLEM_PARAM(use_tgz, "d"),
@@ -4732,6 +4772,7 @@ print_std_checker_row(FILE *f,
 
   PROBLEM_PARAM(tgz_dir, "s"),
   PROBLEM_PARAM(tgz_sfx, "s"),
+  PROBLEM_PARAM(tgzdir_sfx, "s"),
   PROBLEM_PARAM(test_sets, "x"),
   PROBLEM_PARAM(score_view, "x"),
   PROBLEM_PARAM(deadline, "s"),
@@ -4745,6 +4786,7 @@ print_std_checker_row(FILE *f,
   PROBLEM_PARAM(require, "x"),
   *PROBLEM_PARAM(checker_env, "x"),
   PROBLEM_PARAM(tgz_pat, "s"),
+  PROBLEM_PARAM(tgzdir_pat, "s"),
   PROBLEM_PARAM(personal_deadline, "x"),
   *PROBLEM_PARAM(score_bonus, "s"),
 
@@ -5161,6 +5203,24 @@ super_html_print_problem(FILE *f,
   }
 
   if (show_adv) {
+    //PROBLEM_PARAM(disable_stderr, "d"),
+    extra_msg = "Undefined";
+    if (!prob->abstract) {
+      prepare_set_prob_value(CNTSPROB_disable_stderr,
+                             tmp_prob, sup_prob, sstate->global);
+      snprintf(msg_buf, sizeof(msg_buf), "Default (%s)",
+               tmp_prob->disable_stderr?"Yes":"No");
+      extra_msg = msg_buf;
+    }
+    print_boolean_3_select_row(f,"Consider output to stderr as PE:",
+                               prob->disable_stderr,
+                               SSERV_CMD_PROB_CHANGE_DISABLE_STDERR,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+  }
+
+  if (show_adv) {
     //PROBLEM_PARAM(binary_input, "d"),
     extra_msg = 0;
     if (!prob->abstract) {
@@ -5172,6 +5232,31 @@ super_html_print_problem(FILE *f,
     }
     print_boolean_3_select_row(f, "Input data is binary", prob->binary_input,
                                SSERV_CMD_PROB_CHANGE_BINARY_INPUT,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+  }
+
+  if (show_adv && tmp_prob->binary_input <= 0) {
+    //PROBLEM_PARAM(normalization, "s"),
+    msg_buf[0] = 0;
+    if (prob->abstract > 0 && !prob->normalization[0]) {
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(Default)</i>");
+    } else if (prob->abstract > 0) {
+      // nothing
+    } else if (prob->abstract <= 0 && !prob->normalization[0]) {
+      if (!tmp_prob->normalization[0]) {
+        snprintf(msg_buf, sizeof(msg_buf), "<i>(Default)</i>");
+      } else {
+        snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - %s)</i>", ARMOR(tmp_prob->normalization));
+      }
+    }
+    extra_msg = msg_buf;
+    print_string_editing_row_3(f,
+                               "Test normalization mode:",
+                               prob->normalization,
+                               SSERV_CMD_PROB_CHANGE_NORMALIZATION,
+                               SSERV_CMD_PROB_CLEAR_NORMALIZATION,
                                extra_msg,
                                session_id, form_row_attrs[row ^= 1],
                                self_url, extra_args, prob_hidden_vars);
@@ -5524,6 +5609,96 @@ super_html_print_problem(FILE *f,
                                session_id, form_row_attrs[row ^= 1],
                                self_url, extra_args, prob_hidden_vars);
 
+  //PROBLEM_PARAM(tgz_sfx, "s"),
+  extra_msg = 0;
+  if (prob->abstract && prob->use_info == 1
+      && (!prob->tgz_pat[0] || prob->tgz_pat[0] == 1)) extra_msg = "";
+  if (!prob->abstract && tmp_prob->use_info && !tmp_prob->tgz_pat[0]) {
+    if (prob->tgz_sfx[0] == 1)
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - \"%s\")</i>",
+               ARMOR(tmp_prob->tgz_sfx));
+    else
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(\"%s\")</i>",
+               ARMOR(tmp_prob->tgz_sfx));
+    extra_msg = msg_buf;
+  }
+  if (extra_msg)
+    print_string_editing_row_3(f, "Suffix of working dir archives:", prob->tgz_sfx,
+                               SSERV_CMD_PROB_CHANGE_TGZ_SFX,
+                               SSERV_CMD_PROB_CLEAR_TGZ_SFX,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+
+  //PROBLEM_PARAM(tgz_pat, "s"),
+  extra_msg = 0;
+  if (show_adv && prob->abstract && prob->use_info == 1) extra_msg = "";
+  if (!prob->abstract && tmp_prob->use_info
+      && (show_adv || tmp_prob->tgz_pat[0])) {
+    extra_msg = "";
+    if (prob->tgz_pat[0] == 1)
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - \"%s\")</i>",
+               ARMOR(tmp_prob->tgz_pat));
+    else
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(\"%s\")</i>",
+               ARMOR(tmp_prob->tgz_pat));
+    extra_msg = msg_buf;
+  }
+  if (extra_msg)
+    print_string_editing_row_3(f,
+                               "Pattern for working dir archives (overrides tgz_sfx):",
+                               prob->tgz_pat,
+                               SSERV_CMD_PROB_CHANGE_TGZ_PAT,
+                               SSERV_CMD_PROB_CLEAR_TGZ_PAT,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+
+  //PROBLEM_PARAM(tgzdir_sfx, "s"),
+  extra_msg = 0;
+  if (prob->abstract && prob->use_info == 1
+      && (!prob->tgzdir_pat[0] || prob->tgzdir_pat[0] == 1)) extra_msg = "";
+  if (!prob->abstract && tmp_prob->use_info && !tmp_prob->tgzdir_pat[0]) {
+    if (prob->tgzdir_sfx[0] == 1)
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - \"%s\")</i>",
+               ARMOR(tmp_prob->tgzdir_sfx));
+    else
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(\"%s\")</i>",
+               ARMOR(tmp_prob->tgzdir_sfx));
+    extra_msg = msg_buf;
+  }
+  if (extra_msg)
+    print_string_editing_row_3(f, "Suffix of master working dirs:", prob->tgzdir_sfx,
+                               SSERV_CMD_PROB_CHANGE_TGZDIR_SFX,
+                               SSERV_CMD_PROB_CLEAR_TGZDIR_SFX,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+
+  //PROBLEM_PARAM(tgzdir_pat, "s"),
+  extra_msg = 0;
+  if (show_adv && prob->abstract && prob->use_info == 1) extra_msg = "";
+  if (!prob->abstract && tmp_prob->use_info
+      && (show_adv || tmp_prob->tgzdir_pat[0])) {
+    extra_msg = "";
+    if (prob->tgzdir_pat[0] == 1)
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - \"%s\")</i>",
+               ARMOR(tmp_prob->tgzdir_pat));
+    else
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(\"%s\")</i>",
+               ARMOR(tmp_prob->tgzdir_pat));
+    extra_msg = msg_buf;
+  }
+  if (extra_msg)
+    print_string_editing_row_3(f,
+                               "Pattern for master working dirs (overrides tgzdir_sfx):",
+                               prob->tgzdir_pat,
+                               SSERV_CMD_PROB_CHANGE_TGZDIR_PAT,
+                               SSERV_CMD_PROB_CLEAR_TGZDIR_PAT,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+
   //PROBLEM_PARAM(time_limit, "d"),
   extra_msg = "";
   if (prob->abstract) {
@@ -5861,6 +6036,24 @@ super_html_print_problem(FILE *f,
                                extra_msg,
                                session_id, form_row_attrs[row ^= 1],
                                self_url, extra_args, prob_hidden_vars);
+
+    if (tmp_prob->use_ac_not_ok > 0) {
+      extra_msg = "Undefined";
+      tmp_prob->ignore_prev_ac = prob->ignore_prev_ac;
+      if (!prob->abstract) {
+        prepare_set_prob_value(CNTSPROB_ignore_prev_ac,
+                               tmp_prob, sup_prob, sstate->global);
+        snprintf(msg_buf, sizeof(msg_buf), "Default (%s)",
+                 tmp_prob->ignore_prev_ac?"Yes":"No");
+        extra_msg = msg_buf;
+      }
+      print_boolean_3_select_row(f, "Mark previous AC as IG:",
+                                 prob->ignore_prev_ac,
+                                 SSERV_CMD_PROB_CHANGE_IGNORE_PREV_AC,
+                                 extra_msg,
+                                 session_id, form_row_attrs[row ^= 1],
+                                 self_url, extra_args, prob_hidden_vars);
+    }
 
     //PROBLEM_PARAM(team_enable_rep_view, "d"),
     extra_msg = "Undefined";
@@ -6812,6 +7005,24 @@ super_html_print_problem(FILE *f,
     xfree(checker_env); checker_env = 0;
   }
 
+  //PROBLEM_PARAM(lang_compiler_env, "x"),
+  if (!prob->abstract) {
+    if (!prob->lang_compiler_env || !prob->lang_compiler_env[0]) {
+      extra_msg = "(not set)";
+      checker_env = xstrdup("");
+    } else {
+      extra_msg = "";
+      checker_env = sarray_unparse(prob->lang_compiler_env);
+    }
+    print_string_editing_row_3(f, "Compiler environment:", checker_env,
+                               SSERV_CMD_PROB_CHANGE_LANG_COMPILER_ENV,
+                               SSERV_CMD_PROB_CLEAR_LANG_COMPILER_ENV,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+    xfree(checker_env); checker_env = 0;
+  }
+
   //PROBLEM_PARAM(test_checker_cmd, "s"),
   extra_msg = 0;
   if (show_adv) {
@@ -6853,6 +7064,54 @@ super_html_print_problem(FILE *f,
                                self_url, extra_args, prob_hidden_vars);
     xfree(checker_env); checker_env = 0;
   }
+
+  //PROBLEM_PARAM(solution_src, "s"),
+  extra_msg = 0;
+  if (show_adv) {
+    if (prob->abstract) extra_msg = "";
+    if (!prob->abstract && !prob->standard_checker[0]) {
+      extra_msg = "";
+      prepare_set_prob_value(CNTSPROB_solution_src,
+                             tmp_prob, sup_prob, sstate->global);
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(%s\"%s\")</i>",
+               prob->solution_src?"Default - ":"",
+               ARMOR(tmp_prob->solution_src));
+      extra_msg = msg_buf;
+      xfree(tmp_prob->solution_src); tmp_prob->solution_src = 0;
+    }
+  }
+  if (extra_msg)
+    print_string_editing_row_3(f, "Solution source name:",
+                               prob->solution_src,
+                               SSERV_CMD_PROB_CHANGE_SOLUTION_SRC,
+                               SSERV_CMD_PROB_CLEAR_SOLUTION_SRC,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+
+  //PROBLEM_PARAM(solution_cmd, "s"),
+  extra_msg = 0;
+  if (show_adv) {
+    if (prob->abstract) extra_msg = "";
+    if (!prob->abstract && !prob->standard_checker[0]) {
+      extra_msg = "";
+      prepare_set_prob_value(CNTSPROB_solution_cmd,
+                             tmp_prob, sup_prob, sstate->global);
+      snprintf(msg_buf, sizeof(msg_buf), "<i>(%s\"%s\")</i>",
+               prob->solution_cmd?"Default - ":"",
+               ARMOR(tmp_prob->solution_cmd));
+      extra_msg = msg_buf;
+      xfree(tmp_prob->solution_cmd); tmp_prob->solution_cmd = 0;
+    }
+  }
+  if (extra_msg)
+    print_string_editing_row_3(f, "Solution command:",
+                               prob->solution_cmd,
+                               SSERV_CMD_PROB_CHANGE_SOLUTION_CMD,
+                               SSERV_CMD_PROB_CLEAR_SOLUTION_CMD,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
 
   // PROBLEM_PARAM(score_view, "x")
   if (!prob->abstract && show_adv) {
@@ -7292,6 +7551,7 @@ super_html_add_abstract_problem(
   prob->use_tgz = 0;
   snprintf(prob->tgz_dir, sizeof(prob->tgz_dir), "%s", "%Ps");
   snprintf(prob->tgz_sfx, sizeof(prob->tgz_sfx), "%s", ".tgz");
+  snprintf(prob->tgzdir_sfx, sizeof(prob->tgzdir_sfx), "%s", ".dir");
   if (sstate->global && sstate->global->advanced_layout > 0) {
     snprintf(prob->check_cmd, sizeof(prob->check_cmd), "%s", DFLT_P_CHECK_CMD);
   } else {
@@ -7570,6 +7830,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     *p_int = val;
     return 0;
 
+  case SSERV_CMD_PROB_CHANGE_IGNORE_PREV_AC:
+    p_int = &prob->ignore_prev_ac;
+    goto handle_boolean_2;
+
   case SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_REP_VIEW:
     p_int = &prob->team_enable_rep_view;
     goto handle_boolean_2;
@@ -7703,6 +7967,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED:
     p_int = &prob->ignore_unmarked;
+    goto handle_boolean_1;
+
+  case SSERV_CMD_PROB_CHANGE_DISABLE_STDERR:
+    p_int = &prob->disable_stderr;
     goto handle_boolean_1;
 
   case SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM:
@@ -7856,6 +8124,42 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     prob->info_pat[1] = 0;
     return 0;
 
+  case SSERV_CMD_PROB_CHANGE_TGZ_SFX:
+    PROB_ASSIGN_STRING(tgz_sfx);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_TGZ_SFX:
+    prob->tgz_sfx[0] = 1;
+    prob->tgz_sfx[1] = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_TGZ_PAT:
+    PROB_ASSIGN_STRING(tgz_pat);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_TGZ_PAT:
+    prob->tgz_pat[0] = 1;
+    prob->tgz_pat[1] = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_TGZDIR_SFX:
+    PROB_ASSIGN_STRING(tgzdir_sfx);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_TGZDIR_SFX:
+    prob->tgzdir_sfx[0] = 1;
+    prob->tgzdir_sfx[1] = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_TGZDIR_PAT:
+    PROB_ASSIGN_STRING(tgzdir_pat);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_TGZDIR_PAT:
+    prob->tgzdir_pat[0] = 1;
+    prob->tgzdir_pat[1] = 0;
+    return 0;
+
   case SSERV_CMD_PROB_CHANGE_STANDARD_CHECKER:
     if (!param2 || !*param2) {
       PROB_CLEAR_STRING(standard_checker);
@@ -7972,6 +8276,18 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     prob->style_checker_env = 0;
     return 0;
 
+  case SSERV_CMD_PROB_CHANGE_LANG_COMPILER_ENV:
+    if (sarray_parse(param2, &tmp_env) < 0)
+      return -SSERV_ERR_INVALID_PARAMETER;
+    sarray_free(prob->lang_compiler_env);
+    prob->lang_compiler_env = tmp_env;
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_LANG_COMPILER_ENV:
+    sarray_free(prob->lang_compiler_env);
+    prob->lang_compiler_env = 0;
+    return 0;
+
   case SSERV_CMD_PROB_CHANGE_TEST_CHECKER_CMD:
     xfree(prob->test_checker_cmd);
     prob->test_checker_cmd = xstrdup(param2);
@@ -7992,6 +8308,26 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
   case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV:
     sarray_free(prob->test_checker_env);
     prob->test_checker_env = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_SOLUTION_SRC:
+    xfree(prob->solution_src);
+    prob->solution_src = xstrdup(param2);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_SOLUTION_SRC:
+    xfree(prob->solution_src);
+    prob->solution_src = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_SOLUTION_CMD:
+    xfree(prob->solution_cmd);
+    prob->solution_cmd = xstrdup(param2);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_SOLUTION_CMD:
+    xfree(prob->solution_cmd);
+    prob->solution_cmd = 0;
     return 0;
 
   case SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ:
@@ -8081,7 +8417,7 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
   case SSERV_CMD_PROB_CHANGE_START_DATE:
     p_time = &prob->start_date;
   handle_date:;
-    if (xml_parse_date(0, 0, 0, param2, p_time) < 0)
+    if (xml_parse_date(NULL, 0, 0, 0, param2, p_time) < 0)
       return -SSERV_ERR_INVALID_PARAMETER;
     return 0;
 
@@ -8147,6 +8483,14 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CLEAR_SOURCE_FOOTER:
     PROB_CLEAR_STRING(source_footer);
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_NORMALIZATION:
+    PROB_ASSIGN_STRING(normalization);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_NORMALIZATION:
+    PROB_CLEAR_STRING(normalization);
     return 0;
 
   default:
@@ -10761,10 +11105,3 @@ super_html_variant_prob_op(struct sid_state *sstate, int cmd, int prob_id)
 
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
- * End:
- */

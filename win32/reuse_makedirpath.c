@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: reuse_makedirpath.c 6165 2011-03-27 10:26:54Z cher $ */
+/* $Id: reuse_makedirpath.c 6528 2011-11-25 18:08:26Z cher $ */
 
 /* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -17,8 +17,10 @@
 
 #include "reuse_logger.h"
 #include "reuse_osdeps.h"
+#include "reuse_xalloc.h"
 
 #include <windows.h>
+#include <ctype.h>
 
 /*
  * NAME:    os_MakeDirPath

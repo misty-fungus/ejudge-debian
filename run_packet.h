@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run_packet.h 6103 2011-03-01 18:42:57Z cher $ */
+/* $Id: run_packet.h 6585 2011-12-21 08:56:52Z cher $ */
 #ifndef __RUN_PACKET_H__
 #define __RUN_PACKET_H__
 
@@ -41,6 +41,7 @@ struct run_request_packet
   int advanced_layout;          /* advanced files layout */
   int mime_type;                /* mime type of the content */
   int separate_user_score;      /* calculate separate user score */
+  int disable_stderr;           /* consider output to stderr as PE */
   /* time when the compile request was queued by serve */
   int ts1;
   int ts1_us;

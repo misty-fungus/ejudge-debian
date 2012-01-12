@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_plugin_xml.c 6379 2011-06-24 18:47:55Z cher $ */
+/* $Id: uldb_plugin_xml.c 6412 2011-07-17 09:24:58Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -44,7 +44,7 @@ static struct common_plugin_data *init_func(void);
 static int finish_func(struct common_plugin_data *);
 static int prepare_func(
         struct common_plugin_data *,
-        struct ejudge_cfg *,
+        const struct ejudge_cfg *,
         struct xml_tree *);
 static int open_func(void *);
 static int close_func(void *);
@@ -430,7 +430,7 @@ finish_func(struct common_plugin_data *data)
 static int
 prepare_func(
         struct common_plugin_data *data,
-        struct ejudge_cfg *ej_cfg,
+        const struct ejudge_cfg *ej_cfg,
         struct xml_tree *t)
 {
   struct uldb_xml_state *state = (struct uldb_xml_state*) data;

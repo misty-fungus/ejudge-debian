@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.c 6345 2011-05-23 04:20:49Z cher $ */
+/* $Id: prepare.c 6584 2011-12-21 08:39:11Z cher $ */
 
 /* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -114,6 +114,7 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(notify_status_change, "d"),
   GLOBAL_PARAM(memoize_user_results, "d"),
   GLOBAL_PARAM(advanced_layout, "d"),
+  GLOBAL_PARAM(ignore_bom, "d"),
   GLOBAL_PARAM(disable_auto_refresh, "d"),
 
   GLOBAL_PARAM(stand_ignore_after, "t"),
@@ -139,11 +140,13 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(corr_sfx, "s"),
   GLOBAL_PARAM(info_sfx, "s"),
   GLOBAL_PARAM(tgz_sfx, "s"),
+  GLOBAL_PARAM(tgzdir_sfx, "s"),
   GLOBAL_PARAM(ejudge_checkers_dir, "s"),
   GLOBAL_PARAM(test_pat, "s"),
   GLOBAL_PARAM(corr_pat, "s"),
   GLOBAL_PARAM(info_pat, "s"),
   GLOBAL_PARAM(tgz_pat, "s"),
+  GLOBAL_PARAM(tgzdir_pat, "s"),
   GLOBAL_PARAM(contest_start_cmd, "s"),
   GLOBAL_PARAM(contest_stop_cmd, "S"),
   GLOBAL_PARAM(description_file, "s"),
@@ -355,6 +358,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(time_limit_millis, "d"),
   PROBLEM_PARAM(real_time_limit, "d"),
   PROBLEM_PARAM(use_ac_not_ok, "d"),
+  PROBLEM_PARAM(ignore_prev_ac, "d"),
   PROBLEM_PARAM(team_enable_rep_view, "d"),
   PROBLEM_PARAM(team_enable_ce_view, "d"),
   PROBLEM_PARAM(team_show_judge_report, "d"),
@@ -391,6 +395,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(disable_ctrl_chars, "d"),
   PROBLEM_PARAM(valuer_sets_marked, "d"),
   PROBLEM_PARAM(ignore_unmarked, "d"),
+  PROBLEM_PARAM(disable_stderr, "d"),
   PROBLEM_PARAM(enable_text_form, "d"),
   PROBLEM_PARAM(stand_ignore_score, "d"),
   PROBLEM_PARAM(stand_last_column, "d"),
@@ -422,6 +427,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(info_sfx, "s"),
   PROBLEM_PARAM(tgz_dir, "s"),
   PROBLEM_PARAM(tgz_sfx, "s"),
+  PROBLEM_PARAM(tgzdir_sfx, "s"),
   PROBLEM_PARAM(input_file, "s"),
   PROBLEM_PARAM(output_file, "s"),
   PROBLEM_PARAM(test_score_list, "s"),
@@ -437,6 +443,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(enable_language, "x"),
   PROBLEM_PARAM(require, "x"),
   PROBLEM_PARAM(standard_checker, "s"),
+  PROBLEM_PARAM(lang_compiler_env, "x"),
   PROBLEM_PARAM(checker_env, "x"),
   PROBLEM_PARAM(valuer_env, "x"),
   PROBLEM_PARAM(interactor_env, "x"),
@@ -449,10 +456,13 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(interactor_cmd, "s"),
   PROBLEM_PARAM(style_checker_cmd, "s"),
   PROBLEM_PARAM(test_checker_cmd, "S"),
+  PROBLEM_PARAM(solution_src, "S"),
+  PROBLEM_PARAM(solution_cmd, "S"),
   PROBLEM_PARAM(test_pat, "s"),
   PROBLEM_PARAM(corr_pat, "s"),
   PROBLEM_PARAM(info_pat, "s"),
   PROBLEM_PARAM(tgz_pat, "s"),
+  PROBLEM_PARAM(tgzdir_pat, "s"),
   PROBLEM_PARAM(personal_deadline, "x"),
   PROBLEM_PARAM(score_bonus, "s"),
   PROBLEM_PARAM(open_tests, "s"),
@@ -467,6 +477,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(source_footer, "s"),
   PROBLEM_PARAM(score_view, "x"),
   PROBLEM_PARAM(extid, "S"),
+  PROBLEM_PARAM(normalization, "s"),
 
   { 0, 0, 0, 0 }
 };
@@ -761,6 +772,7 @@ global_init_func(struct generic_section_config *gp)
   p->html_report = -1;
   p->xml_report = -1;
   p->advanced_layout = -1;
+  p->ignore_bom = -1;
   p->disable_auto_refresh = -1;
 
   p->compile_max_vm_size = -1L;
@@ -851,6 +863,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->time_limit_millis = -1;
   p->real_time_limit = -1;
   p->use_ac_not_ok = -1;
+  p->ignore_prev_ac = -1;
   p->team_enable_rep_view = -1;
   p->team_enable_ce_view = -1;
   p->team_show_judge_report = -1;
@@ -865,6 +878,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->corr_sfx[0] = 1;
   p->info_sfx[0] = 1;
   p->tgz_sfx[0] = 1;
+  p->tgzdir_sfx[0] = 1;
   p->run_penalty = -1;
   p->acm_run_penalty = -1;
   p->disqualified_penalty = -1;
@@ -888,6 +902,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->disable_ctrl_chars = -1;
   p->valuer_sets_marked = -1;
   p->ignore_unmarked = -1;
+  p->disable_stderr = -1;
   p->enable_text_form = -1;
   p->stand_ignore_score = -1;
   p->stand_last_column = -1;
@@ -896,6 +911,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->corr_pat[0] = 1;
   p->info_pat[0] = 1;
   p->tgz_pat[0] = 1;
+  p->tgzdir_pat[0] = 1;
   p->max_vm_size = -1L;
   p->max_stack_size = -1L;
   p->max_data_size = -1L;
@@ -922,6 +938,8 @@ prepare_problem_free_func(struct generic_section_config *gp)
   xfree(p->tscores);
   xfree(p->x_score_tests);
   xfree(p->test_checker_cmd);
+  xfree(p->solution_src);
+  xfree(p->solution_cmd);
   sarray_free(p->test_sets);
   sarray_free(p->date_penalty);
   sarray_free(p->group_start_date);
@@ -929,6 +947,7 @@ prepare_problem_free_func(struct generic_section_config *gp)
   sarray_free(p->disable_language);
   sarray_free(p->enable_language);
   sarray_free(p->require);
+  sarray_free(p->lang_compiler_env);
   sarray_free(p->checker_env);
   sarray_free(p->valuer_env);
   sarray_free(p->interactor_env);
@@ -1359,7 +1378,7 @@ parse_testsets(char **set_in, int *p_total, struct testset_info **p_info)
 static int
 parse_date(const unsigned char *s, time_t *pd)
 {
-  return xml_parse_date(0, 0, 0, s, pd);
+  return xml_parse_date(NULL, 0, 0, 0, s, pd);
 }
 
 static void
@@ -2461,6 +2480,8 @@ set_defaults(
     g->enable_memory_limit_error = DFLT_G_ENABLE_MEMORY_LIMIT_ERROR;
   if (g->advanced_layout < 0)
     g->advanced_layout = 0;
+  if (g->ignore_bom < 0)
+    g->ignore_bom = 0;
   if (g->disable_auto_refresh < 0)
     g->disable_auto_refresh = 0;
 
@@ -2599,6 +2620,10 @@ set_defaults(
     if (!g->tgz_sfx[0]) {
       snprintf(g->tgz_sfx, sizeof(g->tgz_sfx), "%s", DFLT_G_TGZ_SFX);
       vinfo("global.tgz_sfx set to %s", g->tgz_sfx);
+    }
+    if (!g->tgzdir_sfx[0]) {
+      snprintf(g->tgzdir_sfx, sizeof(g->tgzdir_sfx), "%s", DFLT_G_TGZDIR_SFX);
+      vinfo("global.tgzdir_sfx set to %s", g->tgzdir_sfx);
     }
   }
 
@@ -2747,12 +2772,10 @@ set_defaults(
     }
   }
 
-  if (mode == PREPARE_RUN) {
-    if (g->checker_real_time_limit == -1) {
-      g->checker_real_time_limit = DFLT_G_CHECKER_REAL_TIME_LIMIT;
-      vinfo("global.checker_real_time_limit set to %d",
-            g->checker_real_time_limit);
-    }
+  if (g->checker_real_time_limit == -1) {
+    g->checker_real_time_limit = DFLT_G_CHECKER_REAL_TIME_LIMIT;
+    vinfo("global.checker_real_time_limit set to %d",
+          g->checker_real_time_limit);
   }
 
   if (mode == PREPARE_SERVE) {
@@ -3184,24 +3207,25 @@ set_defaults(
         if (g->advanced_layout > 0) {
           get_advanced_layout_path(xml_path, sizeof(xml_path), g,
                                    prob, prob->xml_file, j);
-          if (!(prob->xml.a[j - 1] = problem_xml_parse(xml_path))) return -1;
+          if (!(prob->xml.a[j - 1] = problem_xml_parse_safe(NULL, xml_path))) return -1;
         } else {
           prepare_insert_variant_num(fpath, sizeof(fpath), prob->xml_file, j);
-          if (!(prob->xml.a[j - 1] = problem_xml_parse(fpath))) return -1;
+          if (!(prob->xml.a[j - 1] = problem_xml_parse_safe(NULL, fpath))) return -1;
         }
       }
     } else if (prob->xml_file[0]) {
       if (g->advanced_layout > 0) {
         get_advanced_layout_path(xml_path, sizeof(xml_path), g,
                                  prob, prob->xml_file, -1);
-        if (!(prob->xml.p = problem_xml_parse(xml_path))) return -1;
+        if (!(prob->xml.p = problem_xml_parse_safe(NULL, xml_path))) return -1;
       } else {
-        if (!(prob->xml.p = problem_xml_parse(prob->xml_file))) return -1;
+        if (!(prob->xml.p = problem_xml_parse_safe(NULL, prob->xml_file))) return -1;
       }
     }
 
     prepare_set_prob_value(CNTSPROB_type, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_use_ac_not_ok, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_ignore_prev_ac, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_team_enable_rep_view, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_team_enable_ce_view, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_team_show_judge_report, prob, aprob, g);
@@ -3234,6 +3258,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_disable_ctrl_chars, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_valuer_sets_marked, prob, aprob, g);    
     prepare_set_prob_value(CNTSPROB_ignore_unmarked, prob, aprob, g);    
+    prepare_set_prob_value(CNTSPROB_disable_stderr, prob, aprob, g);    
     prepare_set_prob_value(CNTSPROB_enable_text_form, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_stand_ignore_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_stand_last_column, prob, aprob, g);
@@ -3260,17 +3285,21 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_corr_sfx, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_info_sfx, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_tgz_sfx, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_tgzdir_sfx, prob, aprob, g);
 
     prepare_set_prob_value(CNTSPROB_test_pat, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_corr_pat, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_info_pat, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_tgz_pat, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_tgzdir_pat, prob, aprob, g);
 
     prepare_set_prob_value(CNTSPROB_check_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_valuer_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_interactor_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_style_checker_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_test_checker_cmd, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_solution_src, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_solution_cmd, prob, aprob, g);
 
     prepare_set_prob_value(CNTSPROB_max_vm_size, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_max_stack_size, prob, aprob, g);
@@ -3282,6 +3311,7 @@ set_defaults(
 
     prepare_set_prob_value(CNTSPROB_source_header, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_source_footer, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_normalization, prob, aprob, g);
 
     if (prob->priority_adjustment == -1000 && si != -1 &&
         aprob->priority_adjustment != -1000) {
@@ -3366,6 +3396,22 @@ set_defaults(
                                                   section_language_params,
                                                   section_tester_params);
           if (!prob->interactor_env[j]) return -1;
+        }
+      }
+
+      if (si != -1 && aprob->lang_compiler_env) {
+        prob->lang_compiler_env = sarray_merge_pf(aprob->lang_compiler_env,
+                                                  prob->lang_compiler_env);
+      }
+      if (prob->lang_compiler_env) {
+        for (j = 0; prob->lang_compiler_env[j]; j++) {
+          prob->lang_compiler_env[j] = varsubst_heap(state,
+                                                     prob->lang_compiler_env[j],
+                                                     1, section_global_params,
+                                                     section_problem_params,
+                                                     section_language_params,
+                                                     section_tester_params);
+          if (!prob->lang_compiler_env[j]) return -1;
         }
       }
 
@@ -3520,43 +3566,41 @@ set_defaults(
       }
     }
 
-    if (mode == PREPARE_RUN) {
-      if (!prob->input_file[0] && si != -1 && aprob->input_file[0]) {
-        sformat_message(prob->input_file, PATH_MAX, 0, aprob->input_file,
-                        NULL, prob, NULL, NULL, NULL, 0, 0, 0);
-        vinfo("problem.%s.input_file inherited from problem.%s ('%s')",
-             ish, sish, prob->input_file);
-      }
-      if (!prob->input_file[0]) {
-        vinfo("problem.%s.input_file set to %s", ish, DFLT_P_INPUT_FILE);
-        snprintf(prob->input_file, sizeof(prob->input_file),
-                 "%s", DFLT_P_INPUT_FILE);
-      }
-      if (!prob->output_file[0] && si != -1 && aprob->output_file[0]) {
-        sformat_message(prob->output_file, PATH_MAX, 0, aprob->output_file,
-                        NULL, prob, NULL, NULL, NULL, 0, 0, 0);
-        vinfo("problem.%s.output_file inherited from problem.%s ('%s')",
-             ish, sish, prob->output_file);
-      }
-      if (!prob->output_file[0]) {
-        vinfo("problem.%s.output_file set to %s", ish, DFLT_P_OUTPUT_FILE);
-        snprintf(prob->output_file, sizeof(prob->output_file),
-                 "%s", DFLT_P_OUTPUT_FILE);
-      }
-
-      if (prob->variant_num == -1 && si != -1 && aprob->variant_num != -1) {
-        prob->variant_num = aprob->variant_num;
-        vinfo("problem.%s.variant_num inherited from problem.%s (%d)",
-             ish, sish, prob->variant_num);
-      }
-      if (prob->variant_num == -1) {
-        prob->variant_num = 0;
-      }
-
-      prepare_set_prob_value(CNTSPROB_use_corr, prob, aprob, g);
-
-      prepare_set_prob_value(CNTSPROB_checker_real_time_limit, prob, aprob, g);
+    if (!prob->input_file[0] && si != -1 && aprob->input_file[0]) {
+      sformat_message(prob->input_file, PATH_MAX, 0, aprob->input_file,
+                      NULL, prob, NULL, NULL, NULL, 0, 0, 0);
+      vinfo("problem.%s.input_file inherited from problem.%s ('%s')",
+            ish, sish, prob->input_file);
     }
+    if (!prob->input_file[0]) {
+      vinfo("problem.%s.input_file set to %s", ish, DFLT_P_INPUT_FILE);
+      snprintf(prob->input_file, sizeof(prob->input_file),
+               "%s", DFLT_P_INPUT_FILE);
+    }
+    if (!prob->output_file[0] && si != -1 && aprob->output_file[0]) {
+      sformat_message(prob->output_file, PATH_MAX, 0, aprob->output_file,
+                      NULL, prob, NULL, NULL, NULL, 0, 0, 0);
+      vinfo("problem.%s.output_file inherited from problem.%s ('%s')",
+            ish, sish, prob->output_file);
+    }
+    if (!prob->output_file[0]) {
+      vinfo("problem.%s.output_file set to %s", ish, DFLT_P_OUTPUT_FILE);
+      snprintf(prob->output_file, sizeof(prob->output_file),
+               "%s", DFLT_P_OUTPUT_FILE);
+    }
+
+    if (prob->variant_num == -1 && si != -1 && aprob->variant_num != -1) {
+      prob->variant_num = aprob->variant_num;
+      vinfo("problem.%s.variant_num inherited from problem.%s (%d)",
+            ish, sish, prob->variant_num);
+    }
+    if (prob->variant_num == -1) {
+      prob->variant_num = 0;
+    }
+
+    prepare_set_prob_value(CNTSPROB_use_corr, prob, aprob, g);
+
+    prepare_set_prob_value(CNTSPROB_checker_real_time_limit, prob, aprob, g);
 
     if (prob->test_sets) {
       if (parse_testsets(prob->test_sets,
@@ -4921,6 +4965,8 @@ prepare_set_global_defaults(struct section_global_data *g)
     g->stand_use_login = DFLT_G_STAND_USE_LOGIN;
   if (g->advanced_layout < 0)
     g->advanced_layout = 0;
+  if (g->ignore_bom < 0)
+    g->ignore_bom = 0;
   if (g->disable_auto_refresh < 0)
     g->disable_auto_refresh = 0;
 }
@@ -4966,6 +5012,7 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->disable_ctrl_chars < 0) prob->disable_ctrl_chars = 0;
   if (prob->valuer_sets_marked < 0) prob->valuer_sets_marked = 0;
   if (prob->ignore_unmarked < 0) prob->ignore_unmarked = 0;
+  if (prob->disable_stderr < 0) prob->disable_stderr = 0;
   if (prob->enable_text_form < 0) prob->enable_text_form = 0;
   if (prob->stand_ignore_score < 0) prob->stand_ignore_score = 0;
   if (prob->stand_last_column < 0) prob->stand_last_column = 0;
@@ -4997,6 +5044,13 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
       snprintf(prob->tgz_sfx, sizeof(prob->tgz_sfx), "%s", DFLT_G_TGZ_SFX);
     }
   }
+  if (prob->tgzdir_sfx[0] == 1) {
+    if (global->tgzdir_sfx[0]) {
+      snprintf(prob->tgzdir_sfx, sizeof(prob->tgzdir_sfx), "%s", global->tgzdir_sfx);
+    } else {
+      snprintf(prob->tgzdir_sfx, sizeof(prob->tgzdir_sfx), "%s", DFLT_G_TGZDIR_SFX);
+    }
+  }
   if (prob->test_pat[0] == 1) {
     prob->test_pat[0] = 0;
     if (global->test_pat[0]) {
@@ -5019,6 +5073,12 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
     prob->tgz_pat[0] = 0;
     if (global->tgz_pat[0]) {
       snprintf(prob->tgz_pat, sizeof(prob->tgz_pat), "%s", global->tgz_pat);
+    }
+  }
+  if (prob->tgzdir_pat[0] == 1) {
+    prob->tgzdir_pat[0] = 0;
+    if (global->tgzdir_pat[0]) {
+      snprintf(prob->tgzdir_pat, sizeof(prob->tgzdir_pat), "%s", global->tgzdir_pat);
     }
   }
 }
@@ -5355,9 +5415,16 @@ prepare_copy_problem(const struct section_problem_data *in)
   out->valuer_env = 0;
   out->interactor_env = 0;
   out->style_checker_env = 0;
+  out->lang_compiler_env = 0;
   out->test_checker_env = 0;
   if (in->test_checker_cmd) {
     out->test_checker_cmd = xstrdup(in->test_checker_cmd);
+  }
+  if (in->solution_src) {
+    out->solution_src = xstrdup(in->solution_src);
+  }
+  if (in->solution_cmd) {
+    out->solution_cmd = xstrdup(out->solution_cmd);
   }
   out->lang_time_adj = 0;
   out->lang_time_adj_millis = 0;
@@ -5500,6 +5567,13 @@ prepare_set_prob_value(
       out->use_ac_not_ok = global->use_ac_not_ok;
     if (out->use_ac_not_ok == -1)
       out->use_ac_not_ok = 0;
+    break;
+
+  case CNTSPROB_ignore_prev_ac:
+    if (out->ignore_prev_ac < 0 && abstr)
+      out->ignore_prev_ac = abstr->ignore_prev_ac;
+    if (out->ignore_prev_ac < 0)
+      out->ignore_prev_ac = 0;
     break;
 
   case CNTSPROB_team_enable_rep_view:
@@ -5700,6 +5774,13 @@ prepare_set_prob_value(
       out->ignore_unmarked = abstr->ignore_unmarked;
     if (out->ignore_unmarked == -1)
       out->ignore_unmarked = 0;
+    break;
+
+  case CNTSPROB_disable_stderr:
+    if (out->disable_stderr == -1 && abstr)
+      out->disable_stderr = abstr->disable_stderr;
+    if (out->disable_stderr == -1)
+      out->disable_stderr = 0;
     break;
 
   case CNTSPROB_enable_text_form:
@@ -5912,6 +5993,21 @@ prepare_set_prob_value(
     }
     break;
 
+  case CNTSPROB_tgzdir_sfx:
+    if (out->tgzdir_sfx[0] == 1 && abstr && abstr->tgzdir_sfx[0] != 1) {
+      strcpy(out->tgzdir_sfx, abstr->tgzdir_sfx);
+    }
+    if (out->tgzdir_sfx[0] == 1 && global && global->tgzdir_sfx[0] != 1) {
+      strcpy(out->tgzdir_sfx, global->tgzdir_sfx);
+    }
+    if (out->tgzdir_sfx[0] == 1) {
+      strcpy(out->tgzdir_sfx, DFLT_G_TGZDIR_SFX);
+    }
+    if (out->tgzdir_sfx[0] == 1) {
+      out->tgzdir_sfx[0] = 0;
+    }
+    break;
+
   case CNTSPROB_test_pat:
     if (out->test_pat[0] == 1 && abstr && abstr->test_pat[0] != 1) {
       strcpy(out->test_pat, abstr->test_pat);
@@ -5957,6 +6053,18 @@ prepare_set_prob_value(
     }
     if (out->tgz_pat[0] == 1) {
       out->tgz_pat[0] = 0;
+    }
+    break;
+
+  case CNTSPROB_tgzdir_pat:
+    if (out->tgzdir_pat[0] == 1 && abstr && abstr->tgzdir_pat[0] != 1) {
+      strcpy(out->tgzdir_pat, abstr->tgzdir_pat);
+    }
+    if (out->tgzdir_pat[0] == 1 && global && global->tgzdir_pat[0] != 1) {
+      strcpy(out->tgzdir_pat, global->tgzdir_pat);
+    }
+    if (out->tgzdir_pat[0] == 1) {
+      out->tgzdir_pat[0] = 0;
     }
     break;
 
@@ -6033,6 +6141,38 @@ prepare_set_prob_value(
     }
     break;
 
+  case CNTSPROB_solution_src:
+    if (!out->solution_src && abstr && abstr->solution_src) {
+      sformat_message(tmp_buf, sizeof(tmp_buf), 0, abstr->solution_src,
+                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      out->solution_src = xstrdup(tmp_buf);
+    }
+    if (out->solution_src && out->solution_src[0]
+        && global && global->advanced_layout <= 0
+        && !os_IsAbsolutePath(out->solution_src)) {
+      snprintf(tmp_buf, sizeof(tmp_buf), "%s/%s", global->checker_dir,
+               out->solution_src);
+      xfree(out->solution_src);
+      out->solution_src = xstrdup(tmp_buf);
+    }
+    break;
+
+  case CNTSPROB_solution_cmd:
+    if (!out->solution_cmd && abstr && abstr->solution_cmd) {
+      sformat_message(tmp_buf, sizeof(tmp_buf), 0, abstr->solution_cmd,
+                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      out->solution_cmd = xstrdup(tmp_buf);
+    }
+    if (out->solution_cmd && out->solution_cmd[0]
+        && global && global->advanced_layout <= 0
+        && !os_IsAbsolutePath(out->solution_cmd)) {
+      snprintf(tmp_buf, sizeof(tmp_buf), "%s/%s", global->checker_dir,
+               out->solution_cmd);
+      xfree(out->solution_cmd);
+      out->solution_cmd = xstrdup(tmp_buf);
+    }
+    break;
+
   case CNTSPROB_statement_file:
     if (!out->statement_file[0] && abstr && abstr->statement_file[0]) {
       sformat_message(out->statement_file, PATH_MAX, 0, abstr->statement_file,
@@ -6083,6 +6223,12 @@ prepare_set_prob_value(
     }
     break;
 
+  case CNTSPROB_normalization:
+    if (!out->normalization[0] && abstr && abstr->normalization[0]) {
+      strcpy(out->normalization, abstr->normalization);
+    }
+    break;
+
   case CNTSPROB_xml_file:
     if (!out->xml_file[0] && abstr && abstr->xml_file[0]) {
       sformat_message(out->xml_file, sizeof(out->xml_file), 0,
@@ -6116,7 +6262,7 @@ static const int prob_settable_list[] =
   CNTSPROB_binary_input, CNTSPROB_binary, CNTSPROB_ignore_exit_code,
   CNTSPROB_olympiad_mode,
   CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
-  CNTSPROB_real_time_limit, CNTSPROB_interactor_time_limit, CNTSPROB_use_ac_not_ok,
+  CNTSPROB_real_time_limit, CNTSPROB_interactor_time_limit, CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac,
   CNTSPROB_team_enable_rep_view, CNTSPROB_team_enable_ce_view,
   CNTSPROB_team_show_judge_report, CNTSPROB_ignore_compile_errors,
   CNTSPROB_full_score, CNTSPROB_full_user_score, CNTSPROB_test_score, CNTSPROB_run_penalty,
@@ -6132,7 +6278,7 @@ static const int prob_settable_list[] =
   CNTSPROB_priority_adjustment, CNTSPROB_spelling, CNTSPROB_stand_hide_time,
   CNTSPROB_advance_to_next, CNTSPROB_disable_ctrl_chars,
   CNTSPROB_valuer_sets_marked, CNTSPROB_ignore_unmarked,
-  CNTSPROB_enable_text_form,
+  CNTSPROB_disable_stderr, CNTSPROB_enable_text_form,
   CNTSPROB_stand_ignore_score, CNTSPROB_stand_last_column,
   CNTSPROB_score_multiplier, CNTSPROB_prev_runs_to_show,
   CNTSPROB_max_vm_size, CNTSPROB_max_stack_size, CNTSPROB_max_data_size,
@@ -6140,23 +6286,26 @@ static const int prob_settable_list[] =
   CNTSPROB_max_open_file_count, CNTSPROB_max_process_count,
   CNTSPROB_test_dir, CNTSPROB_test_sfx,
   CNTSPROB_corr_dir, CNTSPROB_corr_sfx, CNTSPROB_info_dir, CNTSPROB_info_sfx,
-  CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx, CNTSPROB_input_file,
+  CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx, CNTSPROB_tgzdir_sfx, CNTSPROB_input_file,
   CNTSPROB_output_file, CNTSPROB_test_score_list, CNTSPROB_score_tests,
   CNTSPROB_test_sets, CNTSPROB_deadline, CNTSPROB_start_date,
   CNTSPROB_variant_num, CNTSPROB_date_penalty, CNTSPROB_group_start_date,
   CNTSPROB_group_deadline, CNTSPROB_disable_language,
   CNTSPROB_enable_language, CNTSPROB_require, CNTSPROB_standard_checker,
+  CNTSPROB_lang_compiler_env,
   CNTSPROB_checker_env, CNTSPROB_valuer_env, CNTSPROB_interactor_env,
   CNTSPROB_style_checker_env, CNTSPROB_test_checker_env, CNTSPROB_lang_time_adj,
   CNTSPROB_lang_time_adj_millis, CNTSPROB_check_cmd, CNTSPROB_valuer_cmd,
   CNTSPROB_interactor_cmd, CNTSPROB_style_checker_cmd,
-  CNTSPROB_test_checker_cmd,
+  CNTSPROB_test_checker_cmd, CNTSPROB_solution_src, CNTSPROB_solution_cmd,
   CNTSPROB_test_pat, CNTSPROB_corr_pat, CNTSPROB_info_pat, CNTSPROB_tgz_pat,
+  CNTSPROB_tgzdir_pat,
   CNTSPROB_personal_deadline, CNTSPROB_score_bonus, CNTSPROB_statement_file,
   CNTSPROB_alternatives_file, CNTSPROB_plugin_file, CNTSPROB_xml_file,
   CNTSPROB_alternative, CNTSPROB_stand_attr, CNTSPROB_source_header,
   CNTSPROB_source_footer, CNTSPROB_score_view,
   CNTSPROB_open_tests, CNTSPROB_final_open_tests,
+  CNTSPROB_normalization,
 
   0
 };
@@ -6185,6 +6334,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_real_time_limit] = 1,
   [CNTSPROB_interactor_time_limit] = 1,
   [CNTSPROB_use_ac_not_ok] = 1,
+  [CNTSPROB_ignore_prev_ac] = 1,
   [CNTSPROB_team_enable_rep_view] = 1,
   [CNTSPROB_team_enable_ce_view] = 1,
   [CNTSPROB_team_show_judge_report] = 1,
@@ -6221,6 +6371,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_ctrl_chars] = 1,
   [CNTSPROB_valuer_sets_marked] = 1,
   [CNTSPROB_ignore_unmarked] = 1,
+  [CNTSPROB_disable_stderr] = 1,
   [CNTSPROB_enable_text_form] = 1,
   [CNTSPROB_stand_ignore_score] = 1,
   [CNTSPROB_stand_last_column] = 1,
@@ -6248,6 +6399,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_info_sfx] = 1,
   [CNTSPROB_tgz_dir] = 1,
   [CNTSPROB_tgz_sfx] = 1,
+  [CNTSPROB_tgzdir_sfx] = 1,
   [CNTSPROB_input_file] = 1,
   [CNTSPROB_output_file] = 1,
   [CNTSPROB_test_score_list] = 1,
@@ -6263,6 +6415,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_enable_language] = 1,
   [CNTSPROB_require] = 1,
   [CNTSPROB_standard_checker] = 1,
+  [CNTSPROB_lang_compiler_env] = 1,
   [CNTSPROB_checker_env] = 1,
   [CNTSPROB_valuer_env] = 1,
   [CNTSPROB_interactor_env] = 1,
@@ -6275,10 +6428,13 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_interactor_cmd] = 1,
   [CNTSPROB_style_checker_cmd] = 1,
   [CNTSPROB_test_checker_cmd] = 1,
+  [CNTSPROB_solution_src] = 1,
+  [CNTSPROB_solution_cmd] = 1,
   [CNTSPROB_test_pat] = 1,
   [CNTSPROB_corr_pat] = 1,
   [CNTSPROB_info_pat] = 1,
   [CNTSPROB_tgz_pat] = 1,
+  [CNTSPROB_tgzdir_pat] = 1,
   [CNTSPROB_personal_deadline] = 1,
   [CNTSPROB_score_bonus] = 1,
   [CNTSPROB_statement_file] = 1,
@@ -6293,6 +6449,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_score_view] = 1,
   [CNTSPROB_open_tests] = 1,
   [CNTSPROB_final_open_tests] = 1,
+  [CNTSPROB_normalization] = 1,
 };
 
 static const int prob_inheritable_list[] =
@@ -6305,7 +6462,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode, CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked,
   CNTSPROB_time_limit, CNTSPROB_time_limit_millis, CNTSPROB_real_time_limit,
   CNTSPROB_interactor_time_limit,
-  CNTSPROB_use_ac_not_ok, CNTSPROB_team_enable_rep_view,
+  CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac, CNTSPROB_team_enable_rep_view,
   CNTSPROB_team_enable_ce_view, CNTSPROB_team_show_judge_report,
   CNTSPROB_ignore_compile_errors, CNTSPROB_full_score, CNTSPROB_full_user_score, CNTSPROB_test_score,
   CNTSPROB_run_penalty, CNTSPROB_acm_run_penalty, 
@@ -6321,7 +6478,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_hidden, CNTSPROB_priority_adjustment, CNTSPROB_spelling,
   CNTSPROB_stand_hide_time, CNTSPROB_advance_to_next,
   CNTSPROB_disable_ctrl_chars, CNTSPROB_valuer_sets_marked,
-  CNTSPROB_ignore_unmarked,
+  CNTSPROB_ignore_unmarked, CNTSPROB_disable_stderr,
   CNTSPROB_enable_text_form, CNTSPROB_stand_ignore_score,
   CNTSPROB_stand_last_column, CNTSPROB_score_multiplier,
   CNTSPROB_prev_runs_to_show, CNTSPROB_max_vm_size,
@@ -6330,23 +6487,25 @@ static const int prob_inheritable_list[] =
   CNTSPROB_max_open_file_count, CNTSPROB_max_process_count,
   CNTSPROB_test_dir, CNTSPROB_test_sfx, CNTSPROB_corr_dir, CNTSPROB_corr_sfx,
   CNTSPROB_info_dir, CNTSPROB_info_sfx, CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx,
+  CNTSPROB_tgzdir_sfx,
   CNTSPROB_input_file, CNTSPROB_output_file, CNTSPROB_test_score_list,
   CNTSPROB_score_tests, CNTSPROB_test_sets, CNTSPROB_deadline,
   CNTSPROB_start_date, CNTSPROB_variant_num, CNTSPROB_date_penalty,
   CNTSPROB_group_start_date, CNTSPROB_group_deadline,
   CNTSPROB_disable_language, CNTSPROB_enable_language, CNTSPROB_require,
   CNTSPROB_standard_checker, CNTSPROB_checker_env, CNTSPROB_valuer_env,
-  CNTSPROB_interactor_env, CNTSPROB_style_checker_env,
+  CNTSPROB_interactor_env, CNTSPROB_style_checker_env, CNTSPROB_lang_compiler_env,
   CNTSPROB_test_checker_env, CNTSPROB_lang_time_adj,
   CNTSPROB_lang_time_adj_millis, CNTSPROB_check_cmd, CNTSPROB_valuer_cmd,
   CNTSPROB_interactor_cmd, CNTSPROB_style_checker_cmd,
-  CNTSPROB_test_checker_cmd,
+  CNTSPROB_test_checker_cmd, CNTSPROB_solution_src, CNTSPROB_solution_cmd,
   CNTSPROB_test_pat, CNTSPROB_corr_pat,
-  CNTSPROB_info_pat, CNTSPROB_tgz_pat, CNTSPROB_personal_deadline,
+  CNTSPROB_info_pat, CNTSPROB_tgz_pat, CNTSPROB_tgzdir_pat, CNTSPROB_personal_deadline,
   CNTSPROB_score_bonus, CNTSPROB_statement_file, CNTSPROB_alternatives_file,
   CNTSPROB_plugin_file, CNTSPROB_xml_file, CNTSPROB_type,
   CNTSPROB_alternative, CNTSPROB_stand_attr, CNTSPROB_source_header,
   CNTSPROB_source_footer, CNTSPROB_score_view,
+  CNTSPROB_normalization,
 
   0,
 };
@@ -6372,6 +6531,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_real_time_limit] = 1,
   [CNTSPROB_interactor_time_limit] = 1,
   [CNTSPROB_use_ac_not_ok] = 1,
+  [CNTSPROB_ignore_prev_ac] = 1,
   [CNTSPROB_team_enable_rep_view] = 1,
   [CNTSPROB_team_enable_ce_view] = 1,
   [CNTSPROB_team_show_judge_report] = 1,
@@ -6408,6 +6568,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_ctrl_chars] = 1,
   [CNTSPROB_valuer_sets_marked] = 1,
   [CNTSPROB_ignore_unmarked] = 1,
+  [CNTSPROB_disable_stderr] = 1,
   [CNTSPROB_enable_text_form] = 1,
   [CNTSPROB_stand_ignore_score] = 1,
   [CNTSPROB_stand_last_column] = 1,
@@ -6428,6 +6589,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_info_sfx] = 1,
   [CNTSPROB_tgz_dir] = 1,
   [CNTSPROB_tgz_sfx] = 1,
+  [CNTSPROB_tgzdir_sfx] = 1,
   [CNTSPROB_input_file] = 1,
   [CNTSPROB_output_file] = 1,
   [CNTSPROB_test_score_list] = 1,
@@ -6443,6 +6605,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_enable_language] = 1,
   [CNTSPROB_require] = 1,
   [CNTSPROB_standard_checker] = 1,
+  [CNTSPROB_lang_compiler_env] = 1,
   [CNTSPROB_checker_env] = 1,
   [CNTSPROB_valuer_env] = 1,
   [CNTSPROB_interactor_env] = 1,
@@ -6455,10 +6618,13 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_interactor_cmd] = 1,
   [CNTSPROB_style_checker_cmd] = 1,
   [CNTSPROB_test_checker_cmd] = 1,
+  [CNTSPROB_solution_src] = 1,
+  [CNTSPROB_solution_cmd] = 1,
   [CNTSPROB_test_pat] = 1,
   [CNTSPROB_corr_pat] = 1,
   [CNTSPROB_info_pat] = 1,
   [CNTSPROB_tgz_pat] = 1,
+  [CNTSPROB_tgzdir_pat] = 1,
   [CNTSPROB_personal_deadline] = 1,
   [CNTSPROB_score_bonus] = 1,
   [CNTSPROB_statement_file] = 1,
@@ -6471,6 +6637,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_source_header] = 1,
   [CNTSPROB_source_footer] = 1,
   [CNTSPROB_score_view] = 1,
+  [CNTSPROB_normalization] = 1,
 
   0,
 };
@@ -6500,6 +6667,7 @@ static const struct section_problem_data prob_undef_values =
   .time_limit_millis = -1,
   .interactor_time_limit = -1,
   .use_ac_not_ok = -1,
+  .ignore_prev_ac = -1,
   .team_enable_rep_view = -1,
   .team_enable_ce_view = -1,
   .team_show_judge_report = -1,
@@ -6536,6 +6704,7 @@ static const struct section_problem_data prob_undef_values =
   .disable_ctrl_chars = -1,
   .valuer_sets_marked = -1,
   .ignore_unmarked = -1,
+  .disable_stderr = -1,
   .enable_text_form = -1,
   .stand_ignore_score = -1,
   .stand_last_column = -1,
@@ -6555,6 +6724,7 @@ static const struct section_problem_data prob_undef_values =
   .info_sfx = { 1, 0 },
   .tgz_dir = { 1, 0 },
   .tgz_sfx = { 1, 0 },
+  .tgzdir_sfx = { 1, 0 },
   .input_file = { 0 },
   .output_file = { 0 },
   .test_score_list = { 1, 0 },
@@ -6572,6 +6742,7 @@ static const struct section_problem_data prob_undef_values =
   .corr_pat = { 1, 0 },
   .info_pat = { 1, 0 },
   .tgz_pat = { 1, 0 },
+  .tgzdir_pat = { 1, 0 },
   .type = -1,
   .test_sets = 0,
   .deadline = -1,
@@ -6583,6 +6754,7 @@ static const struct section_problem_data prob_undef_values =
   .disable_language = 0,
   .enable_language = 0,
   .require = 0,
+  .lang_compiler_env = 0,
   .checker_env = 0,
   .valuer_env = 0,
   .interactor_env = 0,
@@ -6593,6 +6765,8 @@ static const struct section_problem_data prob_undef_values =
   .interactor_cmd = { 1, 0 },
   .style_checker_cmd = { 1, 0 },
   .test_checker_cmd = 0,
+  .solution_src = 0,
+  .solution_cmd = 0,
   .lang_time_adj = 0,
   .lang_time_adj_millis = 0,
   .alternative = 0,
@@ -6606,6 +6780,7 @@ static const struct section_problem_data prob_undef_values =
   .max_open_file_count = -1,
   .max_process_count = -1,
   .score_view = 0,
+  .normalization = { 0 },
 };
 
 static const struct section_problem_data prob_default_values =
@@ -6632,6 +6807,7 @@ static const struct section_problem_data prob_default_values =
   .time_limit_millis = 0,
   .interactor_time_limit = 0,
   .use_ac_not_ok = 0,
+  .ignore_prev_ac = 0,
   .team_enable_rep_view = 0,
   .team_enable_ce_view = 0,
   .team_show_judge_report = 0,
@@ -6668,6 +6844,7 @@ static const struct section_problem_data prob_default_values =
   .disable_ctrl_chars = 0,
   .valuer_sets_marked = 0,
   .ignore_unmarked = 0,
+  .disable_stderr = 0,
   .enable_text_form = 0,
   .stand_ignore_score = 0,
   .stand_last_column = 0,
@@ -6689,6 +6866,7 @@ static const struct section_problem_data prob_default_values =
   .info_sfx = "",
   .tgz_dir = "",
   .tgz_sfx = "",
+  .tgzdir_sfx = "",
   .input_file = "input",
   .output_file = "output",
   .test_score_list = "",
@@ -6706,6 +6884,7 @@ static const struct section_problem_data prob_default_values =
   .corr_pat = "",
   .info_pat = "",
   .tgz_pat = "",
+  .tgzdir_pat = "",
   .type = 0,
   .deadline = 0,
   .start_date = 0,
@@ -6715,6 +6894,8 @@ static const struct section_problem_data prob_default_values =
   .interactor_cmd = "",
   .style_checker_cmd = "",
   .test_checker_cmd = 0,
+  .solution_src = 0,
+  .solution_cmd = 0,
   .score_bonus = "",
   .max_vm_size = 0,
   .max_data_size = 0,
@@ -6723,6 +6904,7 @@ static const struct section_problem_data prob_default_values =
   .max_file_size = -1L,
   .max_open_file_count = -1,
   .max_process_count = -1,
+  .normalization = "",
 };
 
 static const int prob_global_map[CNTSPROB_LAST_FIELD] =
@@ -6742,11 +6924,13 @@ static const int prob_global_map[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_corr_sfx] = CNTSGLOB_corr_sfx,  
   [CNTSPROB_info_sfx] = CNTSGLOB_info_sfx,  
   [CNTSPROB_tgz_sfx] = CNTSGLOB_tgz_sfx,  
+  [CNTSPROB_tgzdir_sfx] = CNTSGLOB_tgzdir_sfx,  
 
   [CNTSPROB_test_pat] = CNTSGLOB_test_pat,
   [CNTSPROB_corr_pat] = CNTSGLOB_corr_pat,
   [CNTSPROB_info_pat] = CNTSGLOB_info_pat,
   [CNTSPROB_tgz_pat] = CNTSGLOB_tgz_pat,
+  [CNTSPROB_tgzdir_pat] = CNTSGLOB_tgzdir_pat,
 };
 
 static const unsigned char prob_format_set[CNTSPROB_LAST_FIELD] =
@@ -6762,6 +6946,8 @@ static const unsigned char prob_format_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_interactor_cmd] = 1,
   [CNTSPROB_style_checker_cmd] = 1,
   [CNTSPROB_test_checker_cmd] = 1,
+  [CNTSPROB_solution_src] = 1,
+  [CNTSPROB_solution_cmd] = 1,
   [CNTSPROB_statement_file] = 1,
   [CNTSPROB_alternatives_file] = 1,
   [CNTSPROB_plugin_file] = 1,

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_2.c 6351 2011-05-24 19:28:45Z cher $ */
+/* $Id: super_html_2.c 6597 2011-12-24 18:39:30Z cher $ */
 
 /* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -76,6 +76,14 @@ super_html_clear_variable(struct sid_state *sstate, int cmd)
   case SSERV_CMD_CNTS_CLEAR_SCHED_TIME:
     cnts->sched_time = 0;
     return 0;
+
+  case SSERV_CMD_CNTS_CLEAR_OPEN_TIME:
+    cnts->open_time = 0;
+    return 0;
+
+  case SSERV_CMD_CNTS_CLEAR_CLOSE_TIME:
+    cnts->close_time = 0;
+    return 0;
     
   case SSERV_CMD_CNTS_CLEAR_NAME: p_str = &cnts->name; break;
   case SSERV_CMD_CNTS_CLEAR_NAME_EN: p_str = &cnts->name_en; break;
@@ -127,6 +135,8 @@ super_html_clear_variable(struct sid_state *sstate, int cmd)
   case SSERV_CMD_CNTS_CLEAR_PROBLEMS_URL: p_str = &cnts->problems_url; break;
   case SSERV_CMD_CNTS_CLEAR_LOGO_URL: p_str = &cnts->logo_url; break;
   case SSERV_CMD_CNTS_CLEAR_CSS_URL: p_str = &cnts->css_url; break;
+  case SSERV_CMD_CNTS_CLEAR_REGISTER_SUBJECT: p_str = &cnts->register_subject; break;
+  case SSERV_CMD_CNTS_CLEAR_REGISTER_SUBJECT_EN: p_str = &cnts->register_subject_en; break;
   case SSERV_CMD_CNTS_CLEAR_ROOT_DIR: p_str = &cnts->root_dir; break;
   case SSERV_CMD_CNTS_CLEAR_CONF_DIR: p_str = &cnts->conf_dir; break;
   case SSERV_CMD_CNTS_CLEAR_DIR_MODE: p_str = &cnts->dir_mode; break;
@@ -365,6 +375,12 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
   case SSERV_CMD_CNTS_CHANGE_SCHED_TIME:
     p_date = &cnts->sched_time;
     break;
+  case SSERV_CMD_CNTS_CHANGE_OPEN_TIME:
+    p_date = &cnts->open_time;
+    break;
+  case SSERV_CMD_CNTS_CHANGE_CLOSE_TIME:
+    p_date = &cnts->close_time;
+    break;
   case SSERV_CMD_CNTS_CHANGE_USERS_HEADER:
     p_str = &cnts->users_header_file;
     break;
@@ -497,6 +513,12 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
   case SSERV_CMD_CNTS_CHANGE_CSS_URL:
     p_str = &cnts->css_url;
     break;
+  case SSERV_CMD_CNTS_CHANGE_REGISTER_SUBJECT:
+    p_str = &cnts->register_subject;
+    break;
+  case SSERV_CMD_CNTS_CHANGE_REGISTER_SUBJECT_EN:
+    p_str = &cnts->register_subject_en;
+    break;
   case SSERV_CMD_CNTS_CHANGE_ROOT_DIR:
     p_str = &cnts->root_dir;
     break;
@@ -576,7 +598,7 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
     if (!(p_access = get_contest_access_by_num(cnts, param1)))
       return -SSERV_ERR_INVALID_PARAMETER;
     if (param3 < 0 || param3 > 1) return -SSERV_ERR_INVALID_PARAMETER;
-    if (xml_parse_ip_mask(0, -1, 0, param2, &ip_addr, &ip_mask) < 0)
+    if (xml_parse_ip_mask(NULL, 0, -1, 0, param2, &ip_addr, &ip_mask) < 0)
       return -SSERV_ERR_INVALID_PARAMETER;
     contests_add_ip(cnts, p_access, access_tags_map[param1],
                     ip_addr, ip_mask, param5, param3);
@@ -732,7 +754,7 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
   }
 
   if (p_date) {
-    if (xml_parse_date("", 0, 0, param2, p_date) < 0)
+    if (xml_parse_date(NULL, "", 0, 0, param2, p_date) < 0)
       return -SSERV_ERR_INVALID_PARAMETER;
     return 0;
   }

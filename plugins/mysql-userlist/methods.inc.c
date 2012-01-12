@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: methods.inc.c 6313 2011-05-08 06:57:00Z cher $ */
+/* $Id: methods.inc.c 6408 2011-07-17 09:12:39Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -22,7 +22,7 @@ finish_func(struct common_plugin_data *);
 static int
 prepare_func(
         struct common_plugin_data *,
-        struct ejudge_cfg *,
+        const struct ejudge_cfg *,
         struct xml_tree *);
 static int
 open_func(void *data);

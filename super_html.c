@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html.c 6390 2011-06-30 19:53:38Z cher $ */
+/* $Id: super_html.c 6597 2011-12-24 18:39:30Z cher $ */
 
 /* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -398,12 +398,13 @@ super_html_main_page(FILE *f,
           "<th>Name</th>\n"
           "<th>Closed?</th>\n"
           "<th>Run status</th>\n"
-          "<th>Users</th>\n"
+          "<th>Edit users</th>\n"
+          "<th>Edit settings</th>\n"
+          "<th>Edit tests</th>\n"
+          "<th>View details</th>\n"
           "<th>Judge</th>\n"
           "<th>Master</th>\n"
           "<th>User</th>\n"
-          "<th>Edit</th>\n"
-          "<th>Details</th>\n"
           "</tr>\n");
   for (contest_id = 1; contest_id < contest_max_id; contest_id++) {
     if (!contests_map[contest_id]) {
@@ -563,7 +564,28 @@ super_html_main_page(FILE *f,
       fprintf(f, "<td>&nbsp;</td>\n");
     }
 
-    fprintf(f, "<td>%sUsers</a></td>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d&contest_id=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_USER_BROWSE_PAGE, contest_id));
+    fprintf(f, "<td>%sEdit users</a></td>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d&contest_id=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_USER_BROWSE_PAGE, contest_id));
+
+    if (priv_level >= PRIV_LEVEL_ADMIN
+        && opcaps_check(caps, OPCAP_CONTROL_CONTEST) >= 0
+        && contests_check_serve_control_ip_2(cnts, ip_address, ssl)) {
+      fprintf(f, "<td>%sEdit settings</a></td>",
+              html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
+                            "contest_id=%d&action=%d", contest_id,
+                            SSERV_CMD_EDIT_CONTEST_XML));
+      fprintf(f, "<td>%sEdit tests</a></td>\n",
+              html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
+                            "action=%d&op=%d&contest_id=%d", SSERV_CMD_HTTP_REQUEST,
+                            SSERV_OP_TESTS_MAIN_PAGE, contest_id));
+      fprintf(f, "<td>%sView details</a></td>\n",
+              html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
+                            "contest_id=%d&action=%d", contest_id,
+                            SSERV_CMD_CONTEST_PAGE));
+    } else {
+      fprintf(f, "<td>&nbsp;</td>\n");
+      fprintf(f, "<td>&nbsp;</td>\n");
+      fprintf(f, "<td>&nbsp;</td>\n");
+    }
 
     // report judge URL
     if (opcaps_check(caps, OPCAP_JUDGE_LOGIN) >= 0 && judge_url[0]
@@ -600,21 +622,6 @@ super_html_main_page(FILE *f,
         fprintf(f, "<td><a href=\"%s?contest_id=%d\" target=\"_blank\">User</a></td>\n",
                 client_url, contest_id);
       }
-    } else {
-      fprintf(f, "<td>&nbsp;</td>\n");
-    }
-
-    if (priv_level >= PRIV_LEVEL_ADMIN
-        && opcaps_check(caps, OPCAP_CONTROL_CONTEST) >= 0
-        && contests_check_serve_control_ip_2(cnts, ip_address, ssl)) {
-      fprintf(f, "<td>%sEdit</a></td>",
-              html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
-                            "contest_id=%d&action=%d", contest_id,
-                            SSERV_CMD_EDIT_CONTEST_XML));
-      fprintf(f, "<td>%sDetails</a></td>\n",
-              html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
-                            "contest_id=%d&action=%d", contest_id,
-                            SSERV_CMD_CONTEST_PAGE));
     } else {
       fprintf(f, "<td>&nbsp;</td>\n");
     }
@@ -1005,7 +1012,7 @@ super_html_contest_page(FILE *f,
   fprintf(f, "</td>");
   fprintf(f, "</tr>\n");
 
-  fprintf(f, "<tr><td>serve configuration file:</td><td>&nbsp;</td>");
+  fprintf(f, "<tr><td>Serve configuration file:</td><td>&nbsp;</td>");
   fprintf(f, "<td>");
   refcount = 0;
   if (opcaps_check(caps, OPCAP_CONTROL_CONTEST) >= 0) {
@@ -1035,12 +1042,12 @@ super_html_contest_page(FILE *f,
   fprintf(f, "</tr>\n");
 
   fprintf(f, "<tr>");
-  fprintf(f, "<td>View problems and tests details</td><td>&nbsp;</td>");
-  fprintf(f, "<td>%sView</a></td>",
+  fprintf(f, "<td>Edit tests:</td><td>&nbsp;</td>");
+  fprintf(f, "<td>%sEdit</a></td>",
           html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
                         "contest_id=%d&action=%d&op=%d",
                         contest_id, SSERV_CMD_HTTP_REQUEST,
-                        SSERV_OP_VIEW_CNTS_DETAILS));
+                        SSERV_OP_TESTS_MAIN_PAGE));
   fprintf(f, "</tr>\n");
 
   fprintf(f, "</table>\n");
@@ -2239,6 +2246,28 @@ super_html_edit_contest_page(FILE *f,
   print_help_url(f, SSERV_CMD_CNTS_CHANGE_SCHED_TIME);
   fprintf(f, "</tr></form>\n");
 
+  html_start_form(f, 1, self_url, hidden_vars);
+  fprintf(f, "<tr%s><td>Virtual contest open date:</td><td>",
+          form_row_attrs[row ^= 1]);
+  html_date_select(f, cnts->open_time);
+  fprintf(f, "</td><td>");
+  html_submit_button(f, SSERV_CMD_CNTS_CHANGE_OPEN_TIME, "Change");
+  html_submit_button(f, SSERV_CMD_CNTS_CLEAR_OPEN_TIME, "Clear");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_CNTS_CHANGE_OPEN_TIME);
+  fprintf(f, "</tr></form>\n");
+
+  html_start_form(f, 1, self_url, hidden_vars);
+  fprintf(f, "<tr%s><td>Virtual contest close date:</td><td>",
+          form_row_attrs[row ^= 1]);
+  html_date_select(f, cnts->close_time);
+  fprintf(f, "</td><td>");
+  html_submit_button(f, SSERV_CMD_CNTS_CHANGE_CLOSE_TIME, "Change");
+  html_submit_button(f, SSERV_CMD_CNTS_CLEAR_CLOSE_TIME, "Clear");
+  fprintf(f, "</td>");
+  print_help_url(f, SSERV_CMD_CNTS_CHANGE_CLOSE_TIME);
+  fprintf(f, "</tr></form>\n");
+
   print_string_editing_row(f, "Registration email sender (From: field):",
                            cnts->register_email,
                            SSERV_CMD_CNTS_CHANGE_REGISTER_EMAIL,
@@ -2253,6 +2282,26 @@ super_html_edit_contest_page(FILE *f,
                            cnts->register_url,
                            SSERV_CMD_CNTS_CHANGE_REGISTER_URL,
                            SSERV_CMD_CNTS_CLEAR_REGISTER_URL,
+                           0,
+                           session_id,
+                           form_row_attrs[row ^= 1],
+                           self_url,
+                           extra_args,
+                           hidden_vars);
+  print_string_editing_row(f, "Registration letter subject:",
+                           cnts->register_subject,
+                           SSERV_CMD_CNTS_CHANGE_REGISTER_SUBJECT,
+                           SSERV_CMD_CNTS_CLEAR_REGISTER_SUBJECT,
+                           0,
+                           session_id,
+                           form_row_attrs[row ^= 1],
+                           self_url,
+                           extra_args,
+                           hidden_vars);
+  print_string_editing_row(f, "Registration letter subject (en):",
+                           cnts->register_subject_en,
+                           SSERV_CMD_CNTS_CHANGE_REGISTER_SUBJECT_EN,
+                           SSERV_CMD_CNTS_CLEAR_REGISTER_SUBJECT_EN,
                            0,
                            session_id,
                            form_row_attrs[row ^= 1],

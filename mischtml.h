@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: mischtml.h 6343 2011-05-22 21:20:22Z cher $ */
+/* $Id: mischtml.h 6593 2011-12-23 19:01:05Z cher $ */
 #ifndef __MISCHTML_H__
 #define __MISCHTML_H__
 
@@ -79,6 +79,7 @@ html_checkbox(
         unsigned char *buf,
         size_t size,
         const unsigned char *var_name,
+        const unsigned char *value,
         int is_checked);
 
 #endif /* __MISCHTML_H__ */

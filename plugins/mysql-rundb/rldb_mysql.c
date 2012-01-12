@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 6141 2011-03-26 10:36:22Z cher $ */
+/* $Id: rldb_mysql.c 6409 2011-07-17 09:13:18Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -134,7 +134,7 @@ finish_func(struct common_plugin_data *data)
 static int
 prepare_func(
         struct common_plugin_data *data,
-        struct ejudge_cfg *config,
+        const struct ejudge_cfg *config,
         struct xml_tree *tree)
 {
   struct rldb_mysql_state *state = (struct rldb_mysql_state*) data;

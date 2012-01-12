@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: parsecfg.c 6246 2011-04-15 04:37:15Z cher $ */
+/* $Id: parsecfg.c 6493 2011-10-21 06:48:27Z cher $ */
 
 /* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1025,7 +1025,7 @@ copy_param(void *cfg, const struct config_parse_info *params,
     }
   } else if (!strcmp(params[i].type, "t")) {
     time_t v = -1, *ptr;
-    if (xml_parse_date(0, 0, 0, varvalue, &v) < 0) {
+    if (xml_parse_date(NULL, 0, 0, 0, varvalue, &v) < 0) {
       fprintf(stderr, "%d: date parameter expected for '%s'\n",
               parsecfg_state.lineno - 1, varname);
       return -1;

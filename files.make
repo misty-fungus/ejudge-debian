@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files.make 6356 2011-06-05 07:47:18Z cher $
+# $Id: files.make 6498 2011-10-27 05:11:28Z cher $
 
 # Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -189,6 +189,7 @@ COMMON_CFILES=\
  printing.c\
  problem_common.c\
  problem_xml.c\
+ problem_xml_2.c\
  protocol.c\
  random.c\
  reports.c\
@@ -218,6 +219,7 @@ COMMON_CFILES=\
  super_html_4.c\
  super_html_5.c\
  super_html_6.c\
+ super_html_7.c\
  super_proto.c\
  sha.c\
  t3m_dir_listener.c\

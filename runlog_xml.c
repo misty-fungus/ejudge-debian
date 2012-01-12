@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: runlog_xml.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: runlog_xml.c 6493 2011-10-21 06:48:27Z cher $ */
 
 /* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -373,7 +373,7 @@ process_run_elements(struct xml_tree *xt, struct run_xml_helpers *helper)
         xr->r.size = sv;
         break;
       case RUNLOG_A_IP:
-        if (xml_parse_ip("<string>", xa->line, xa->column,
+        if (xml_parse_ip(NULL, "<string>", xa->line, xa->column,
                          xa->text, &xr->r.a.ip) < 0) return -1;
         break;
       case RUNLOG_A_SHA1:
@@ -654,7 +654,7 @@ parse_runlog_xml(
   xml_err_path = "<string>";
   xml_err_spec = &runlog_parse_spec;
 
-  xt = xml_build_tree_str(str, &runlog_parse_spec);
+  xt = xml_build_tree_str(NULL, str, &runlog_parse_spec);
   memset(phead, 0, sizeof(*phead));
   if (!xt) return -1;
   if (process_runlog_element(xt, &truns, helper) < 0) {

@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: prepare_dflt.h 5817 2010-05-31 04:03:26Z cher $ */
+/* $Id: prepare_dflt.h 6457 2011-10-08 06:05:42Z cher $ */
 #ifndef __PREPARE_DFLT_H__
 #define __PREPARE_DFLT_H__
 
-/* Copyright (C) 2005-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -40,6 +40,7 @@
 #define DFLT_G_TGZ_DIR            "../tests"
 #define DFLT_G_TGZ_SFX            ".tgz"
 #define DFLT_G_CHECKER_DIR        "../checkers"
+#define DFLT_G_TGZDIR_SFX         ".dir"
 #define DFLT_G_STATEMENT_DIR      "../statements"
 #define DFLT_G_PLUGIN_DIR         "../plugins"
 #define DFLT_G_RUN_LOG_FILE       "run.log"
@@ -159,6 +160,7 @@
 #define DFLT_P_INFO_DIR           "tests"
 #define DFLT_P_TGZ_DIR            "tests"
 #define DFLT_P_CHECK_CMD          "check"
+#define DFLT_P_MAKEFILE           "Makefile"
 
 #define DFLT_T_WORK_DIR           "work"
 #define DFLT_T_TMP_DIR            "tmp"

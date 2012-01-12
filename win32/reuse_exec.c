@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 6227 2011-04-04 19:10:59Z cher $ */
+/* $Id: reuse_exec.c 6528 2011-11-25 18:08:26Z cher $ */
 
 /* Copyright (C) 1999-2011 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 11:05:09 cher> */
@@ -838,9 +838,8 @@ int
 task_Start(tTask *tsk)
 {
   int     cmdlen = 0;
-  int     i, j;
+  int     i;
   HANDLE  hnd = INVALID_HANDLE_VALUE;
-  int     envlen = 1;
   char   *src, *dst;
   envvar_table_t *envtable = 0;
   JOBOBJECT_BASIC_UI_RESTRICTIONS ui_limit;

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: opcaps.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: opcaps.c 6592 2011-12-23 18:14:32Z cher $ */
 
 /* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -68,6 +68,7 @@ const unsigned char * const opcaps_cap_list [] =
   [OPCAP_PRIV_EDIT_PASSWD]        "PRIV_EDIT_PASSWD",
   [OPCAP_RESTART] =               "RESTART",
   [OPCAP_COMMENT_RUN] =           "COMMENT_RUN",
+  [OPCAP_UNLOAD_CONTEST] =        "UNLOAD_CONTEST",
 
   [OPCAP_LAST]                    0
 };
@@ -281,6 +282,5 @@ opcaps_get_predef_caps(int id)
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

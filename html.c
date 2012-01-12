@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 6343 2011-05-22 21:20:22Z cher $ */
+/* $Id: html.c 6589 2011-12-23 12:08:00Z cher $ */
 
 /* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -225,7 +225,8 @@ write_html_run_status(
         int disq_attempts,
         int prev_successes,
         const unsigned char *td_class,
-        int disable_failed)
+        int disable_failed,
+        int enable_js_status_menu)
 {
   const struct section_global_data *global = state->global;
   unsigned char status_str[128], score_str[128];
@@ -254,7 +255,11 @@ write_html_run_status(
     pr = state->probs[pe->prob_id];
   run_status_str(status, status_str, sizeof(status_str),
                  pr?pr->type:0, pr?pr->scoring_checker:0);
-  fprintf(f, "<td%s>%s</td>", cl, status_str);
+  if (enable_js_status_menu) {
+    fprintf(f, "<td%s><a href=\"javascript:ej_stat(%d)\">%s</a><div class=\"ej_dd\" id=\"ej_dd_%d\"></div></td>", cl, pe->run_id, status_str, pe->run_id);
+  } else {
+    fprintf(f, "<td%s>%s</td>", cl, status_str);
+  }
 
   if (global->score_system == SCORE_KIROV
       || global->score_system == SCORE_OLYMPIAD
@@ -528,6 +533,12 @@ new_write_user_runs(
       continue;
     if (re.user_id != uid) continue;
     if (prob_id > 0 && re.prob_id != prob_id) continue;
+
+    cur_prob = 0;
+    if (re.prob_id > 0 && re.prob_id <= state->max_prob)
+      cur_prob = state->probs[re.prob_id];
+    if (!cur_prob) continue;
+
     showed++;
 
     lang = 0;
@@ -547,10 +558,6 @@ new_write_user_runs(
       if (status == RUN_OK || status == RUN_PARTIAL)
         status = RUN_ACCEPTED;
     }
-
-    cur_prob = 0;
-    if (re.prob_id > 0 && re.prob_id <= state->max_prob)
-      cur_prob = state->probs[re.prob_id];
 
     attempts = 0; disq_attempts = 0;
     if (global->score_system == SCORE_KIROV && !re.is_hidden)
@@ -603,7 +610,7 @@ new_write_user_runs(
 
     write_html_run_status(state, f, &re, 1 /* user_mode */,
                           0, attempts, disq_attempts,
-                          prev_successes, table_class, 0);
+                          prev_successes, table_class, 0, 0);
 
     if (enable_src_view) {
       fprintf(f, "<td%s>", cl);
@@ -1541,7 +1548,7 @@ do_write_kirov_standings(
       run_tests = pe->saved_test - 1;
     } else {
       run_status = pe->status;
-      run_score = pe->saved_score;
+      run_score = pe->score;
       if (run_status == RUN_OK && !prob->variable_full_score) {
         run_score = prob->full_score;
       }
@@ -1551,6 +1558,7 @@ do_write_kirov_standings(
     if (global->score_system == SCORE_OLYMPIAD && accepting_mode) {
       if (run_score < 0) run_score = 0;
       if (run_tests < 0) run_tests = 0;
+      if (run_status == RUN_WRONG_ANSWER_ERR && prob->type != 0) run_status = RUN_PARTIAL;
       switch (run_status) {
       case RUN_OK:
       case RUN_ACCEPTED:
@@ -1605,6 +1613,7 @@ do_write_kirov_standings(
     } else if (global->score_system == SCORE_OLYMPIAD) {
       run_score += pe->score_adj;
       if (run_score < 0) run_score = 0;
+      if (run_status == RUN_WRONG_ANSWER_ERR && prob->type != 0) run_status = RUN_PARTIAL;
       switch (run_status) {
       case RUN_OK:
         full_sol[up_ind] = 1;
@@ -1612,8 +1621,7 @@ do_write_kirov_standings(
         prob_score[up_ind] = run_score;
         att_num[up_ind]++;
         if (global->stand_enable_penalty && prob->ignore_penalty <= 0) {
-          penalty[up_ind] += sec_to_min(global->rounding_mode,
-                                        pe->time - start_time);
+          penalty[up_ind] += sec_to_min(global->rounding_mode, pe->time - start_time);
         }
         //if (run_score > prob->full_score) run_score = prob->full_score;
         break;
@@ -1623,8 +1631,7 @@ do_write_kirov_standings(
         trans_num[up_ind] = 0;
         att_num[up_ind]++;
         if (global->stand_enable_penalty && prob->ignore_penalty <= 0) {
-          penalty[up_ind] += sec_to_min(global->rounding_mode,
-                                        pe->time - start_time);
+          penalty[up_ind] += sec_to_min(global->rounding_mode, pe->time - start_time);
         }
         break;
       case RUN_ACCEPTED:
@@ -4504,7 +4511,7 @@ do_write_public_log(
 
     write_html_run_status(state, f, pe, user_mode,
                           0, attempts, disq_attempts,
-                          prev_successes, 0, 1);
+                          prev_successes, 0, 1, 0);
 
     fputs("</tr>\n", f);
   }
@@ -5008,7 +5015,7 @@ write_xml_team_testing_report(
         fprintf(f, _("<u>--- Correct ---</u>\n"));
         fprintf(f, "%s", ARMOR(t->correct));
       }
-      if (t->correct) {
+      if (t->error) {
         fprintf(f, "<a name=\"%dE\"></a>", t->num);
         fprintf(f, _("<u>--- Stderr ---</u>\n"));
         fprintf(f, "%s", ARMOR(t->error));

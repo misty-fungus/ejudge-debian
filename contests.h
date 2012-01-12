@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: contests.h 6349 2011-05-24 05:20:31Z cher $ */
+/* $Id: contests.h 6591 2011-12-23 17:50:06Z cher $ */
 
 #ifndef __CONTESTS_H__
 #define __CONTESTS_H__
@@ -118,6 +118,10 @@ enum
     CONTEST_USER_CONTEST,
     CONTEST_LOGO_URL,
     CONTEST_CSS_URL,
+    CONTEST_REGISTER_SUBJECT,
+    CONTEST_REGISTER_SUBJECT_EN,
+    CONTEST_OPEN_TIME,
+    CONTEST_CLOSE_TIME,
 
     CONTEST_LAST_TAG
   };
@@ -157,6 +161,7 @@ enum
     CONTEST_A_DISABLE_MEMBER_DELETE,
     CONTEST_A_SEPARATOR,
     CONTEST_A_OPTIONS,
+    CONTEST_A_CHECKBOX,
 
     CONTEST_LAST_ATTR
   };
@@ -247,6 +252,7 @@ struct contest_field
   unsigned char *legend;
   unsigned char *separator;
   unsigned char *options;
+  int checkbox;
 };
 
 struct contest_ip
@@ -299,6 +305,8 @@ struct contest_desc
 
   time_t         reg_deadline;
   time_t         sched_time;
+  time_t         open_time;
+  time_t         close_time;
 
   unsigned char *name;
   unsigned char *name_en;
@@ -331,6 +339,8 @@ struct contest_desc
   unsigned char *run_user;
   unsigned char *run_group;
   unsigned char *register_email_file;
+  unsigned char *register_subject;
+  unsigned char *register_subject_en;
   struct contest_access *register_access;
   struct contest_access *users_access;
   struct contest_access *master_access;

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: problem_common.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: problem_common.c 6443 2011-10-01 08:21:38Z cher $ */
 
 /* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -98,6 +98,37 @@ test_visibility_unparse(int value)
 {
   if (value < 0 || value >= TV_LAST) value = 0;
   return test_visibility_str[value];
+}
+
+const unsigned char * const test_normalization_str[] =
+{
+  [TEST_NORM_NONE]    = "none",
+  [TEST_NORM_DEFAULT] = "",
+  [TEST_NORM_NL]      = "nl",
+  [TEST_NORM_NLWS]    = "nlws",
+  [TEST_NORM_NLWSNP]  = "nlwsnp",
+  [TEST_NORM_NLNP]    = "nlnp",
+  [TEST_NORM_LAST] = 0,
+};
+
+int
+test_normalization_parse(const unsigned char *str)
+{
+  int i;
+
+  if (!str || !*str) return TEST_NORM_DEFAULT;
+  for (i = 0; i < TEST_NORM_LAST; ++i) {
+    if (!strcasecmp(test_normalization_str[i], str))
+      return i;
+  }
+  return -1;
+}
+
+const unsigned char *
+test_normalization_unparse(int value)
+{
+  if (value < TEST_NORM_FIRST || value >= TEST_NORM_LAST) return "";
+  return test_normalization_str[value];
 }
 
 /*

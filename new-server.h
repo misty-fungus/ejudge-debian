@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 6381 2011-06-25 18:52:12Z cher $ */
+/* $Id: new-server.h 6595 2011-12-24 15:02:39Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -386,6 +386,7 @@ enum
   NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT,
   NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE,
   NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY,
+  NEW_SRV_ACTION_RELOAD_SERVER_2,
 
   NEW_SRV_ACTION_LAST,
 };
@@ -457,6 +458,7 @@ int nsdb_get_examiner_count(int contest_id, int prob_id);
 
 
 struct contest_extra *ns_get_contest_extra(int contest_id);
+struct contest_extra *ns_try_contest_extra(int contest_id);
 
 void
 ns_html_err_internal_error(FILE *fout,

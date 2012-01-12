@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 6401 2011-07-09 09:38:23Z cher $ */
+/* $Id: super_html_4.c 6597 2011-12-24 18:39:30Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -988,9 +988,13 @@ static const struct cnts_edit_info cnts_edit_info[] =
   { NS_CONTEST, CNTS_reg_deadline, 't', 1, 1, 0, 1, 0, "Registration deadline", "Registration deadline", 0 },
   { NS_CONTEST, CNTS_register_email, 's', 1, 1, 1, 1, 0, "Registration email sender", "From: field for registration email", 0 },
   { NS_CONTEST, CNTS_register_url, 's', 1, 1, 1, 1, 0, "URL to complete registration", "URL to complete registration", 0 },
+  { NS_CONTEST, CNTS_register_subject, 's', 1, 1, 1, 1, 0, "Registration letter subject", "Registration letter subject", 0 },
+  { NS_CONTEST, CNTS_register_subject_en, 's', 1, 1, 1, 1, 0, "Registration letter subject (En)", "Registration letter subject (En)", 0 },
   { NS_CONTEST, CNTS_register_email_file, 'e', 1, 1, 1, 1, SSERV_OP_CONTEST_XML_FIELD_EDIT_PAGE, "Registration letter template file", "Registration letter template file", 0 },
   { 0, 0, '-', 0, 0, 0, 0, 0, "Participation Settings", 0, 0 },
   { NS_CONTEST, CNTS_sched_time, 't', 1, 1, 0, 1, 0, "Scheduled start time", "Scheduled start time", 0 },
+  { NS_CONTEST, CNTS_open_time, 't', 1, 1, 0, 1, 0, "Virtual contest open time", "Virtual contest open time", 0 },
+  { NS_CONTEST, CNTS_close_time, 't', 1, 1, 0, 1, 0, "Virtual contest close time", "Virtual contest close time", 0 },
   { NS_CONTEST, CNTS_team_url, 's', 1, 1, 1, 1, 0, "URL for the client CGI program", "URL for the client CGI program", 0 },
   { NS_CONTEST, CNTS_standings_url, 's', 1, 1, 1, 1, 0, "URL for the current standings", "URL for the current standings", 0 },
   { NS_CONTEST, CNTS_problems_url, 's', 1, 1, 1, 1, 0, "URL for the problemset", "URL for the problemset", 0 },
@@ -1225,6 +1229,7 @@ static const struct cnts_edit_info cnts_global_info[] =
   { NS_GLOBAL, CNTSGLOB_max_file_length, 'z', 1, 1, 1, 1, 0, "Maximum file size to include into testing protocols", 0, "SidState.show_global_6" },
   { NS_GLOBAL, CNTSGLOB_max_line_length, 'z', 1, 1, 1, 1, 0, "Maximum line length to include into testing protocols", 0, "SidState.show_global_6" },
   { NS_GLOBAL, CNTSGLOB_inactivity_timeout, 'd', 1, 1, 1, 1, 0, "Inactivity timeout for `run'", 0, "SidState.show_global_6" },
+  { NS_GLOBAL, CNTSGLOB_ignore_bom, 'Y', 1, 0, 0, 0, 0, "Ignore BOM in text submits", 0, "SidState.show_global_6" },
   { NS_GLOBAL, CNTSGLOB_disable_testing, 'Y', 1, 0, 0, 0, 0, "Disable any testing of submissions", 0, "SidState.show_global_6" },
   { NS_GLOBAL, CNTSGLOB_disable_auto_testing, 'Y', 1, 0, 0, 0, 0, "Disable automatic testing of submissions", 0, "SidState.show_global_6" },
   { NS_GLOBAL, CNTSGLOB_cr_serialization_key, 'd', 1, 1, 1, 1, 0, "Serialization semaphore for `compile' and `run'", 0, "SidState.show_global_6" },
@@ -1303,6 +1308,7 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_use_stdout, 'Y', 1, 0, 0, 0, 0, "Write output to the stdin", 0, "Problem.manual_checking !" },
   { NS_PROBLEM, CNTSPROB_output_file, 'S', 1, 1, 1, 1, 0, "Name of the output file", 0, "Problem.manual_checking !" },
   { NS_PROBLEM, CNTSPROB_combined_stdout, 'Y', 1, 0, 0, 0, 0, "Combine the standard and file output", 0, "Problem.manual_checking !" },
+  { NS_PROBLEM, CNTSPROB_disable_stderr, 'Y', 1, 0, 0, 0, 0, "Consider output to stderr as PE", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_binary_input, 'Y', 1, 0, 0, 0, 0, "Input data in binary", 0, "Problem.manual_checking ! SidState.prob_show_adv &&" },
   { NS_PROBLEM, CNTSPROB_binary, 'Y', 1, 0, 0, 0, 0, "Submit is binary", 0, "Problem.manual_checking ! SidState.prob_show_adv &&" },
   { NS_PROBLEM, CNTSPROB_xml_file, 'S', 1, 1, 1, 1, 0, "Name of XML file with problem statement", 0, 0 },
@@ -1322,6 +1328,8 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_tgz_dir, 'S', 1, 1, 1, 1, 0, "Directory with tgz files", 0, "Problem.use_tgz 0 >" },
   { NS_PROBLEM, CNTSPROB_tgz_sfx, 'S', 1, 1, 1, 1, 0, "Suffix of tgz files", 0, "Problem.manual_checking ! Problem.use_tgz 0 > &&" },
   { NS_PROBLEM, CNTSPROB_tgz_pat, 'S', 1, 1, 1, 1, 0, "Pattern of tgz files", 0, "Problem.manual_checking ! Problem.use_tgz 0 > SidState.prob_show_adv && &&" },
+  { NS_PROBLEM, CNTSPROB_tgzdir_sfx, 'S', 1, 1, 1, 1, 0, "Suffix of master working directories", 0, "Problem.manual_checking ! Problem.use_tgz 0 > &&" },
+  { NS_PROBLEM, CNTSPROB_tgzdir_pat, 'S', 1, 1, 1, 1, 0, "Pattern of master working directories", 0, "Problem.manual_checking ! Problem.use_tgz 0 > SidState.prob_show_adv && &&" },
   { NS_PROBLEM, CNTSPROB_time_limit, 'd', 1, 1, 1, 1, 0, "CPU time limit (s)", 0, "Problem.manual_checking ! Problem.time_limit_millis 0 <= &&" },
   { NS_PROBLEM, CNTSPROB_time_limit_millis, 'd', 1, 1, 1, 1, 0, "CPU time limit (ms)", 0, "Problem.manual_checking ! SidState.prob_show_adv Problem.time_limit_millis 0 > || &&" },
   { NS_PROBLEM, CNTSPROB_real_time_limit, 'd', 1, 1, 1, 1, 0, "Real time limit (s)", 0, "Problem.manual_checking !" },
@@ -1333,6 +1341,7 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_max_process_count, 'd', 1, 1, 1, 1, 0, "Maximum number of processes", 0, "Problem.manual_checking ! SidState.prob_show_adv &&" },
   { NS_PROBLEM, CNTSPROB_checker_real_time_limit, 'd', 1, 1, 1, 1, 0, "Checker real time limit (s)", 0, 0 },
   { NS_PROBLEM, CNTSPROB_use_ac_not_ok, 'Y', 1, 0, 0, 0, 0, "Use AC status instead of OK", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_ignore_prev_ac, 'Y', 1, 0, 0, 0, 0, "Mark previous AC as IG", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_team_enable_rep_view, 'Y', 1, 0, 0, 0, 0, "Contestants may view testing protocols", 0, 0 },
   { NS_PROBLEM, CNTSPROB_team_enable_ce_view, 'Y', 1, 0, 0, 0, 0, "Contestants may view compilation errors", 0, "Problem.team_enable_rep_view !" },
   { NS_PROBLEM, CNTSPROB_team_show_judge_report, 'Y', 1, 0, 0, 0, 0, "Contestants may view FULL testing protocols", 0, "Problem.team_enable_rep_view 0 >" },
@@ -1373,6 +1382,7 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_enable_text_form, 'Y', 1, 0, 0, 0, 0, "Enable text input form", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_stand_attr, 'S', 1, 1, 1, 1, 0, "Standings attributes", 0, 0 },
   { NS_PROBLEM, CNTSPROB_standard_checker, 142, 1, 0, 0, 0, 0, "Standard checker", 0, 0 },
+  { NS_PROBLEM, CNTSPROB_lang_compiler_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Compiler environment", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_check_cmd, 'S', 1, 1, 1, 1, 0, "Checker", 0, 0 /*"Problem.standard_checker"*/ },
   { NS_PROBLEM, CNTSPROB_checker_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Checker environment", 0, 0 },
   { NS_PROBLEM, CNTSPROB_scoring_checker, 'Y', 1, 0, 0, 0, 0, "Checker calculates score", 0, 0 },
@@ -1386,6 +1396,8 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_style_checker_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Style checker environment", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_test_checker_cmd, 's', 1, 1, 1, 1, 0, "Test checker", 0, "SidState.prob_show_adv"  },
   { NS_PROBLEM, CNTSPROB_test_checker_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Test checker environment", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_solution_src, 's', 1, 1, 1, 1, 0, "Solution source", 0, "SidState.prob_show_adv"  },
+  { NS_PROBLEM, CNTSPROB_solution_cmd, 's', 1, 1, 1, 1, 0, "Solution command", 0, "SidState.prob_show_adv"  },
   { NS_PROBLEM, CNTSPROB_score_view, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Special view for score", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_stand_ignore_score, 'Y', 1, 0, 0, 0, 0, "Ignore problem score", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_stand_last_column, 'Y', 1, 0, 0, 0, 0, "Show as the last column", 0, "SidState.prob_show_adv" },
@@ -4175,7 +4187,7 @@ cmd_op_check_ip_mask(
 
   if (ss_cgi_param(phr, "value", &value) <= 0 || !value)
     FAIL(S_ERR_INV_VALUE);
-  if (xml_parse_ip_mask(0, 0, 0, value, &addr, &mask) < 0)
+  if (xml_parse_ip_mask(NULL, 0, 0, 0, value, &addr, &mask) < 0)
     FAIL(S_ERR_INV_VALUE);
   retval = 0;
 
@@ -4209,7 +4221,7 @@ cmd_op_add_ip(
   p_acc = (struct contest_access**) contest_desc_get_ptr(ecnts, f_id);
   if (ss_cgi_param(phr, "ip_mask", &mask_str) <= 0)
     FAIL(S_ERR_INV_VALUE);
-  if (xml_parse_ip_mask(0, 0, 0, mask_str, &addr, &mask) < 0)
+  if (xml_parse_ip_mask(NULL, 0, 0, 0, mask_str, &addr, &mask) < 0)
     FAIL(S_ERR_INV_VALUE);
   if (ss_cgi_param_int(phr, "ssl_flag", &ssl_flag) < 0
       || ssl_flag < -1 || ssl_flag > 1)
@@ -4322,7 +4334,7 @@ cmd_op_set_rule_ip(
     FAIL(S_ERR_INV_FIELD_ID);
   if (ss_cgi_param(phr, "value", &mask_str) <= 0)
     FAIL(S_ERR_INV_VALUE);
-  if (xml_parse_ip_mask(0, 0, 0, mask_str, &addr, &mask) < 0)
+  if (xml_parse_ip_mask(NULL, 0, 0, 0, mask_str, &addr, &mask) < 0)
     FAIL(S_ERR_INV_VALUE);
   if (!(p = contests_get_ip_rule_nc(acc, subf_id)))
     FAIL(S_ERR_INV_FIELD_ID);
@@ -5954,6 +5966,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
   [CNTSPROB_use_ac_not_ok] = 0,
+  [CNTSPROB_ignore_prev_ac] = 0,
   [CNTSPROB_team_enable_rep_view] = 1,
   [CNTSPROB_team_enable_ce_view] = 1,
   [CNTSPROB_team_show_judge_report] = 1,
@@ -5990,6 +6003,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_ctrl_chars] = 0,
   [CNTSPROB_valuer_sets_marked] = 0,
   [CNTSPROB_ignore_unmarked] = 0,
+  [CNTSPROB_disable_stderr] = 0,
   [CNTSPROB_enable_text_form] = 0,
   [CNTSPROB_stand_ignore_score] = 0,
   [CNTSPROB_stand_last_column] = 0,
@@ -6017,6 +6031,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_info_sfx] = 1,
   [CNTSPROB_tgz_dir] = 1,
   [CNTSPROB_tgz_sfx] = 1,
+  [CNTSPROB_tgzdir_sfx] = 1,
   [CNTSPROB_input_file] = 0,
   [CNTSPROB_output_file] = 0,
   [CNTSPROB_test_score_list] = 0,
@@ -6032,6 +6047,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_enable_language] = 0,
   [CNTSPROB_require] = 0,
   [CNTSPROB_standard_checker] = 1,
+  [CNTSPROB_lang_compiler_env] = 0,
   [CNTSPROB_checker_env] = 0,
   [CNTSPROB_valuer_env] = 0,
   [CNTSPROB_interactor_env] = 0,
@@ -6044,10 +6060,13 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_interactor_cmd] = 0,
   [CNTSPROB_style_checker_cmd] = 0,
   [CNTSPROB_test_checker_cmd] = 0,
+  [CNTSPROB_solution_src] = 0,
+  [CNTSPROB_solution_cmd] = 0,
   [CNTSPROB_test_pat] = 1,
   [CNTSPROB_corr_pat] = 1,
   [CNTSPROB_info_pat] = 1,
   [CNTSPROB_tgz_pat] = 1,
+  [CNTSPROB_tgzdir_pat] = 1,
   [CNTSPROB_personal_deadline] = 0,
   [CNTSPROB_score_bonus] = 0,
   [CNTSPROB_open_tests] = 0,
@@ -6299,6 +6318,7 @@ cmd_op_clear_serve_prob_field(
 
 const unsigned char prob_editable_details[CNTSPROB_LAST_FIELD] =
 {
+  [CNTSPROB_lang_compiler_env] = 1,
   [CNTSPROB_checker_env] = 1,
   [CNTSPROB_valuer_env] = 1,
   [CNTSPROB_interactor_env] = 1,
@@ -6451,6 +6471,7 @@ cmd_op_edit_serve_prob_field_detail(
   filt_txt = text_area_process_string(valstr, 0, 0);
 
   switch (f_id) {
+  case CNTSPROB_lang_compiler_env:
   case CNTSPROB_checker_env:
   case CNTSPROB_valuer_env:
   case CNTSPROB_interactor_env:
@@ -6487,203 +6508,6 @@ cmd_op_edit_serve_prob_field_detail(
   sarray_free(lns);
   return retval;
 }
-
-static const unsigned char * const op_names[SSERV_OP_LAST] =
-{
-  [SSERV_OP_VIEW_CNTS_DETAILS] = "VIEW_CNTS_DETAILS",
-  [SSERV_OP_EDITED_CNTS_BACK] = "EDITED_CNTS_BACK",
-  [SSERV_OP_EDITED_CNTS_CONTINUE] = "EDITED_CNTS_CONTINUE",
-  [SSERV_OP_EDITED_CNTS_START_NEW] = "EDITED_CNTS_START_NEW",
-  [SSERV_OP_LOCKED_CNTS_FORGET] = "LOCKED_CNTS_FORGET",
-  [SSERV_OP_LOCKED_CNTS_CONTINUE] = "LOCKED_CNTS_CONTINUE",
-  [SSERV_OP_EDIT_CONTEST_PAGE] = "EDIT_CONTEST_PAGE",
-  [SSERV_OP_EDIT_CONTEST_PAGE_2] = "EDIT_CONTEST_PAGE_2",
-  [SSERV_OP_CLEAR_CONTEST_XML_FIELD] = "CLEAR_CONTEST_XML_FIELD",
-  [SSERV_OP_EDIT_CONTEST_XML_FIELD] = "EDIT_CONTEST_XML_FIELD",
-  [SSERV_OP_TOGGLE_CONTEST_XML_VISIBILITY] = "TOGGLE_CONTEST_XML_VISIBILITY",
-  [SSERV_OP_CONTEST_XML_FIELD_EDIT_PAGE] = "CONTEST_XML_FIELD_EDIT_PAGE",
-  [SSERV_OP_SAVE_FILE_CONTEST_XML] = "SAVE_FILE_CONTEST_XML",
-  [SSERV_OP_CLEAR_FILE_CONTEST_XML] = "CLEAR_FILE_CONTEST_XML",
-  [SSERV_OP_RELOAD_FILE_CONTEST_XML] = "RELOAD_FILE_CONTEST_XML",
-  [SSERV_OP_COPY_ACCESS_RULES_PAGE] = "COPY_ACCESS_RULES_PAGE",
-  [SSERV_OP_COPY_ALL_ACCESS_RULES_PAGE] = "COPY_ALL_ACCESS_RULES_PAGE",
-  [SSERV_OP_COPY_ALL_ACCESS_RULES] = "COPY_ALL_ACCESS_RULES",
-  [SSERV_OP_COPY_ALL_PRIV_USERS_PAGE] = "COPY_ALL_PRIV_USERS_PAGE",
-  [SSERV_OP_COPY_ALL_PRIV_USERS] = "COPY_ALL_PRIV_USERS",
-  [SSERV_OP_ADD_PRIV_USER] = "ADD_PRIV_USER",
-  [SSERV_OP_EDIT_PERMISSIONS_PAGE] = "EDIT_PERMISSIONS_PAGE",
-  [SSERV_OP_EDIT_GENERAL_FIELDS_PAGE] = "EDIT_GENERAL_FIELDS_PAGE",
-  [SSERV_OP_EDIT_MEMBER_FIELDS_PAGE] = "EDIT_MEMBER_FIELDS_PAGE",
-  [SSERV_OP_DELETE_PRIV_USER] = "DELETE_PRIV_USER",
-  [SSERV_OP_SET_PREDEF_PRIV] = "SET_PREDEF_PRIV",
-  [SSERV_OP_SET_PRIV] = "SET_PRIV",
-  [SSERV_OP_SET_DEFAULT_ACCESS] = "SET_DEFAULT_ACCESS",
-  [SSERV_OP_CHECK_IP_MASK] = "CHECK_IP_MASK",
-  [SSERV_OP_ADD_IP] = "ADD_IP",
-  [SSERV_OP_SET_RULE_ACCESS] = "SET_RULE_ACCESS",
-  [SSERV_OP_SET_RULE_SSL] = "SET_RULE_SSL",
-  [SSERV_OP_SET_RULE_IP] = "SET_RULE_IP",
-  [SSERV_OP_DELETE_RULE] = "DELETE_RULE",
-  [SSERV_OP_FORWARD_RULE] = "FORWARD_RULE",
-  [SSERV_OP_BACKWARD_RULE] = "BACKWARD_RULE",
-  [SSERV_OP_COPY_ACCESS_RULES] = "COPY_ACCESS_RULES",
-  [SSERV_OP_EDIT_GENERAL_FIELDS] = "EDIT_GENERAL_FIELDS",
-  [SSERV_OP_EDIT_MEMBER_FIELDS] = "EDIT_MEMBER_FIELDS",
-  [SSERV_OP_CREATE_NEW_CONTEST_PAGE] = "CREATE_NEW_CONTEST_PAGE",
-  [SSERV_OP_CREATE_NEW_CONTEST] = "CREATE_NEW_CONTEST",
-  [SSERV_OP_FORGET_CONTEST] = "FORGET_CONTEST",
-  [SSERV_OP_EDIT_SERVE_GLOBAL_FIELD] = "EDIT_SERVE_GLOBAL_FIELD",
-  [SSERV_OP_CLEAR_SERVE_GLOBAL_FIELD] = "CLEAR_SERVE_GLOBAL_FIELD",
-  [SSERV_OP_EDIT_SID_STATE_FIELD] = "EDIT_SID_STATE_FIELD",
-  [SSERV_OP_EDIT_SID_STATE_FIELD_NEGATED] = "EDIT_SID_STATE_FIELD_NEGATED",
-  [SSERV_OP_EDIT_SERVE_GLOBAL_FIELD_DETAIL_PAGE] = "EDIT_SERVE_GLOBAL_FIELD_DETAIL_PAGE",
-  [SSERV_OP_EDIT_SERVE_GLOBAL_FIELD_DETAIL] = "EDIT_SERVE_GLOBAL_FIELD_DETAIL",
-  [SSERV_OP_SET_SID_STATE_LANG_FIELD] = "SET_SID_STATE_LANG_FIELD",
-  [SSERV_OP_CLEAR_SID_STATE_LANG_FIELD] = "CLEAR_SID_STATE_LANG_FIELD",
-  [SSERV_OP_SET_SERVE_LANG_FIELD] = "SET_SERVE_LANG_FIELD",
-  [SSERV_OP_CLEAR_SERVE_LANG_FIELD] = "CLEAR_SERVE_LANG_FIELD",
-  [SSERV_OP_EDIT_SERVE_LANG_FIELD_DETAIL_PAGE] = "EDIT_SERVE_LANG_FIELD_DETAIL_PAGE",
-  [SSERV_OP_EDIT_SERVE_LANG_FIELD_DETAIL] = "EDIT_SERVE_LANG_FIELD_DETAIL",
-  [SSERV_OP_SERVE_LANG_UPDATE_VERSIONS] = "SERVE_LANG_UPDATE_VERSIONS",
-  [SSERV_OP_CREATE_ABSTR_PROB] = "CREATE_ABSTR_PROB",
-  [SSERV_OP_CREATE_CONCRETE_PROB] = "CREATE_CONCRETE_PROB",
-  [SSERV_OP_DELETE_PROB] = "DELETE_PROB",
-  [SSERV_OP_SET_SID_STATE_PROB_FIELD] = "SET_SID_STATE_PROB_FIELD",
-  [SSERV_OP_SET_SERVE_PROB_FIELD] = "SET_SERVE_PROB_FIELD",
-  [SSERV_OP_CLEAR_SERVE_PROB_FIELD] = "CLEAR_SERVE_PROB_FIELD",
-  [SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE] = "EDIT_SERVE_PROB_FIELD_DETAIL_PAGE",
-  [SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL] = "EDIT_SERVE_PROB_FIELD_DETAIL",
-  [SSERV_OP_BROWSE_PROBLEM_PACKAGES] = "BROWSE_PROBLEM_PACKAGES",
-  [SSERV_OP_CREATE_PACKAGE] = "CREATE_PACKAGE",
-  [SSERV_OP_CREATE_PROBLEM] = "CREATE_PROBLEM",
-  [SSERV_OP_DELETE_ITEM] = "DELETE_ITEM",
-  [SSERV_OP_EDIT_PROBLEM] = "EDIT_PROBLEM",
-  [SSERV_OP_USER_BROWSE_PAGE] = "USER_BROWSE_PAGE",
-  [SSERV_OP_USER_FILTER_CHANGE_ACTION] = "USER_FILTER_CHANGE_ACTION",
-  [SSERV_OP_USER_FILTER_FIRST_PAGE_ACTION] = "USER_FILTER_FIRST_PAGE_ACTION",
-  [SSERV_OP_USER_FILTER_PREV_PAGE_ACTION] = "USER_FILTER_PREV_PAGE_ACTION",
-  [SSERV_OP_USER_FILTER_NEXT_PAGE_ACTION] = "USER_FILTER_NEXT_PAGE_ACTION",
-  [SSERV_OP_USER_FILTER_LAST_PAGE_ACTION] = "USER_FILTER_LAST_PAGE_ACTION",
-  [SSERV_OP_USER_JUMP_CONTEST_ACTION] = "USER_JUMP_CONTEST_ACTION",
-  [SSERV_OP_USER_JUMP_GROUP_ACTION] = "USER_JUMP_GROUP_ACTION",
-  [SSERV_OP_USER_BROWSE_MARK_ALL_ACTION] = "USER_BROWSE_MARK_ALL_ACTION",
-  [SSERV_OP_USER_BROWSE_UNMARK_ALL_ACTION] = "USER_BROWSE_UNMARK_ALL_ACTION",
-  [SSERV_OP_USER_BROWSE_TOGGLE_ALL_ACTION] = "USER_BROWSE_TOGGLE_ALL_ACTION",
-  [SSERV_OP_USER_CREATE_ONE_PAGE] = "USER_CREATE_ONE_PAGE",
-  [SSERV_OP_USER_CREATE_ONE_ACTION] = "USER_CREATE_ONE_ACTION",
-  [SSERV_OP_USER_CREATE_MANY_PAGE] = "USER_CREATE_MANY_PAGE",
-  [SSERV_OP_USER_CREATE_MANY_ACTION] = "USER_CREATE_MANY_ACTION",
-  [SSERV_OP_USER_CREATE_FROM_CSV_PAGE] = "USER_CREATE_FROM_CSV_PAGE",
-  [SSERV_OP_USER_CREATE_FROM_CSV_ACTION] = "USER_CREATE_FROM_CSV_ACTION",
-  [SSERV_OP_USER_DETAIL_PAGE] = "USER_DETAIL_PAGE",
-  [SSERV_OP_USER_PASSWORD_PAGE] = "USER_PASSWORD_PAGE",
-  [SSERV_OP_USER_CHANGE_PASSWORD_ACTION] = "USER_CHANGE_PASSWORD_ACTION",
-  [SSERV_OP_USER_CNTS_PASSWORD_PAGE] = "USER_CNTS_PASSWORD_PAGE",
-  [SSERV_OP_USER_CHANGE_CNTS_PASSWORD_ACTION] = "USER_CHANGE_CNTS_PASSWORD_ACTION",
-  [SSERV_OP_USER_CLEAR_FIELD_ACTION] = "USER_CLEAR_FIELD_ACTION",
-  [SSERV_OP_USER_CREATE_MEMBER_ACTION] = "USER_CREATE_MEMBER_ACTION",
-  [SSERV_OP_USER_DELETE_MEMBER_PAGE] = "USER_DELETE_MEMBER_PAGE",
-  [SSERV_OP_USER_DELETE_MEMBER_ACTION] = "USER_DELETE_MEMBER_ACTION",
-  [SSERV_OP_USER_SAVE_AND_PREV_ACTION] = "USER_SAVE_AND_PREV_ACTION",
-  [SSERV_OP_USER_SAVE_ACTION] = "USER_SAVE_ACTION",
-  [SSERV_OP_USER_SAVE_AND_NEXT_ACTION] = "USER_SAVE_AND_NEXT_ACTION",
-  [SSERV_OP_USER_CANCEL_AND_PREV_ACTION] = "USER_CANCEL_AND_PREV_ACTION",
-  [SSERV_OP_USER_CANCEL_ACTION] = "USER_CANCEL_ACTION",
-  [SSERV_OP_USER_CANCEL_AND_NEXT_ACTION] = "USER_CANCEL_AND_NEXT_ACTION",
-  [SSERV_OP_USER_CREATE_REG_PAGE] = "USER_CREATE_REG_PAGE",
-  [SSERV_OP_USER_CREATE_REG_ACTION] = "USER_CREATE_REG_ACTION",
-  [SSERV_OP_USER_EDIT_REG_PAGE] = "USER_EDIT_REG_PAGE",
-  [SSERV_OP_USER_EDIT_REG_ACTION] = "USER_EDIT_REG_ACTION",
-  [SSERV_OP_USER_DELETE_REG_PAGE] = "USER_DELETE_REG_PAGE",
-  [SSERV_OP_USER_DELETE_REG_ACTION] = "USER_DELETE_REG_ACTION",
-  [SSERV_OP_USER_DELETE_SESSION_ACTION] = "USER_DELETE_SESSION_ACTION",
-  [SSERV_OP_USER_DELETE_ALL_SESSIONS_ACTION] = "USER_DELETE_ALL_SESSIONS_ACTION",
-  [SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE] = "USER_SEL_RANDOM_PASSWD_PAGE",
-  [SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION] = "USER_SEL_RANDOM_PASSWD_ACTION",
-  [SSERV_OP_USER_SEL_CLEAR_CNTS_PASSWD_PAGE] = "USER_SEL_CLEAR_CNTS_PASSWD_PAGE",
-  [SSERV_OP_USER_SEL_CLEAR_CNTS_PASSWD_ACTION] = "USER_SEL_CLEAR_CNTS_PASSWD_ACTION",
-  [SSERV_OP_USER_SEL_RANDOM_CNTS_PASSWD_PAGE] = "USER_SEL_RANDOM_CNTS_PASSWD_PAGE",
-  [SSERV_OP_USER_SEL_RANDOM_CNTS_PASSWD_ACTION] = "USER_SEL_RANDOM_CNTS_PASSWD_ACTION",
-  [SSERV_OP_USER_SEL_CREATE_REG_PAGE] = "USER_SEL_CREATE_REG_PAGE",
-  [SSERV_OP_USER_SEL_CREATE_REG_ACTION] = "USER_SEL_CREATE_REG_ACTION",
-  [SSERV_OP_USER_SEL_CREATE_REG_AND_COPY_PAGE] = "USER_SEL_CREATE_REG_AND_COPY_PAGE",
-  [SSERV_OP_USER_SEL_CREATE_REG_AND_COPY_ACTION] = "USER_SEL_CREATE_REG_AND_COPY_ACTION",
-  [SSERV_OP_USER_SEL_DELETE_REG_PAGE] = "USER_SEL_DELETE_REG_PAGE",
-  [SSERV_OP_USER_SEL_DELETE_REG_ACTION] = "USER_SEL_DELETE_REG_ACTION",
-  [SSERV_OP_USER_SEL_CHANGE_REG_STATUS_PAGE] = "USER_SEL_CHANGE_REG_STATUS_PAGE",
-  [SSERV_OP_USER_SEL_CHANGE_REG_STATUS_ACTION] = "USER_SEL_CHANGE_REG_STATUS_ACTION",
-  [SSERV_OP_USER_SEL_CHANGE_REG_FLAGS_PAGE] = "USER_SEL_CHANGE_REG_FLAGS_PAGE",
-  [SSERV_OP_USER_SEL_CHANGE_REG_FLAGS_ACTION] = "USER_SEL_CHANGE_REG_FLAGS_ACTION",
-  [SSERV_OP_USER_SEL_CANCEL_ACTION] = "USER_SEL_CANCEL_ACTION",
-  [SSERV_OP_USER_SEL_VIEW_PASSWD_PAGE] = "USER_SEL_VIEW_PASSWD_PAGE",
-  [SSERV_OP_USER_SEL_VIEW_CNTS_PASSWD_PAGE] = "USER_SEL_VIEW_CNTS_PASSWD_PAGE",
-  [SSERV_OP_USER_SEL_VIEW_PASSWD_REDIRECT] = "USER_SEL_VIEW_PASSWD_REDIRECT",
-  [SSERV_OP_USER_SEL_VIEW_CNTS_PASSWD_REDIRECT] = "USER_SEL_VIEW_CNTS_PASSWD_REDIRECT",
-  [SSERV_OP_USER_SEL_CREATE_GROUP_MEMBER_PAGE] = "USER_SEL_CREATE_GROUP_MEMBER_PAGE",
-  [SSERV_OP_USER_SEL_CREATE_GROUP_MEMBER_ACTION] = "USER_SEL_CREATE_GROUP_MEMBER_ACTION",
-  [SSERV_OP_USER_SEL_DELETE_GROUP_MEMBER_PAGE] = "USER_SEL_DELETE_GROUP_MEMBER_PAGE",
-  [SSERV_OP_USER_SEL_DELETE_GROUP_MEMBER_ACTION] = "USER_SEL_DELETE_GROUP_MEMBER_ACTION",
-  [SSERV_OP_GROUP_BROWSE_PAGE] = "GROUP_BROWSE_PAGE",
-  [SSERV_OP_GROUP_FILTER_CHANGE_ACTION] = "GROUP_FILTER_CHANGE_ACTION",
-  [SSERV_OP_GROUP_FILTER_FIRST_PAGE_ACTION] = "GROUP_FILTER_FIRST_PAGE_ACTION",
-  [SSERV_OP_GROUP_FILTER_PREV_PAGE_ACTION] = "GROUP_FILTER_PREV_PAGE_ACTION",
-  [SSERV_OP_GROUP_FILTER_NEXT_PAGE_ACTION] = "GROUP_FILTER_NEXT_PAGE_ACTION",
-  [SSERV_OP_GROUP_FILTER_LAST_PAGE_ACTION] = "GROUP_FILTER_LAST_PAGE_ACTION",
-  [SSERV_OP_GROUP_CREATE_PAGE] = "GROUP_CREATE_PAGE",
-  [SSERV_OP_GROUP_CREATE_ACTION] = "GROUP_CREATE_ACTION",
-  [SSERV_OP_GROUP_MODIFY_PAGE] = "GROUP_MODIFY_PAGE",
-  [SSERV_OP_GROUP_MODIFY_PAGE_ACTION] = "GROUP_MODIFY_PAGE_ACTION",
-  [SSERV_OP_GROUP_MODIFY_ACTION] = "GROUP_MODIFY_ACTION",
-  [SSERV_OP_GROUP_DELETE_PAGE] = "GROUP_DELETE_PAGE",
-  [SSERV_OP_GROUP_DELETE_PAGE_ACTION] = "GROUP_DELETE_PAGE_ACTION",
-  [SSERV_OP_GROUP_DELETE_ACTION] = "GROUP_DELETE_ACTION",
-  [SSERV_OP_GROUP_CANCEL_ACTION] = "GROUP_CANCEL_ACTION",
-};
-
-static const int op_redirect[SSERV_OP_LAST] =
-{
-  [SSERV_OP_USER_FILTER_FIRST_PAGE_ACTION] = SSERV_OP_USER_FILTER_CHANGE_ACTION,
-  [SSERV_OP_USER_FILTER_PREV_PAGE_ACTION] = SSERV_OP_USER_FILTER_CHANGE_ACTION,
-  [SSERV_OP_USER_FILTER_NEXT_PAGE_ACTION] = SSERV_OP_USER_FILTER_CHANGE_ACTION,
-  [SSERV_OP_USER_FILTER_LAST_PAGE_ACTION] = SSERV_OP_USER_FILTER_CHANGE_ACTION,
-
-  [SSERV_OP_USER_BROWSE_UNMARK_ALL_ACTION] = SSERV_OP_USER_BROWSE_MARK_ALL_ACTION,
-  [SSERV_OP_USER_BROWSE_TOGGLE_ALL_ACTION] = SSERV_OP_USER_BROWSE_MARK_ALL_ACTION,
-
-  [SSERV_OP_USER_SAVE_AND_PREV_ACTION] = SSERV_OP_USER_SAVE_ACTION,
-  [SSERV_OP_USER_SAVE_AND_NEXT_ACTION] = SSERV_OP_USER_SAVE_ACTION,
-
-  [SSERV_OP_USER_CANCEL_AND_PREV_ACTION] = SSERV_OP_USER_CANCEL_ACTION,
-  [SSERV_OP_USER_CANCEL_AND_NEXT_ACTION] = SSERV_OP_USER_CANCEL_ACTION,
-
-  [SSERV_OP_USER_SEL_CLEAR_CNTS_PASSWD_PAGE] = SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE,
-  [SSERV_OP_USER_SEL_RANDOM_CNTS_PASSWD_PAGE] = SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE,
-  [SSERV_OP_USER_SEL_DELETE_REG_PAGE] = SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE,
-  [SSERV_OP_USER_SEL_CHANGE_REG_STATUS_PAGE] = SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE,
-  [SSERV_OP_USER_SEL_CHANGE_REG_FLAGS_PAGE] = SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE,
-  [SSERV_OP_USER_SEL_CREATE_REG_PAGE] = SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE,
-  [SSERV_OP_USER_SEL_CREATE_REG_AND_COPY_PAGE] = SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE,
-  [SSERV_OP_USER_SEL_CREATE_GROUP_MEMBER_PAGE] = SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE,
-  [SSERV_OP_USER_SEL_DELETE_GROUP_MEMBER_PAGE] = SSERV_OP_USER_SEL_RANDOM_PASSWD_PAGE,
-
-  [SSERV_OP_USER_SEL_CLEAR_CNTS_PASSWD_ACTION] = SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION,
-  [SSERV_OP_USER_SEL_RANDOM_CNTS_PASSWD_ACTION] = SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION,
-  [SSERV_OP_USER_SEL_DELETE_REG_ACTION] = SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION,
-  [SSERV_OP_USER_SEL_CHANGE_REG_STATUS_ACTION] = SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION,
-  [SSERV_OP_USER_SEL_CHANGE_REG_FLAGS_ACTION] = SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION,
-  [SSERV_OP_USER_SEL_CREATE_REG_ACTION] = SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION,
-  [SSERV_OP_USER_SEL_CREATE_REG_AND_COPY_ACTION] = SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION,
-  [SSERV_OP_USER_SEL_CREATE_GROUP_MEMBER_ACTION] = SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION,
-  [SSERV_OP_USER_SEL_DELETE_GROUP_MEMBER_ACTION] = SSERV_OP_USER_SEL_RANDOM_PASSWD_ACTION,
-
-  [SSERV_OP_USER_SEL_VIEW_CNTS_PASSWD_PAGE] = SSERV_OP_USER_SEL_VIEW_PASSWD_PAGE,
-  [SSERV_OP_USER_SEL_VIEW_CNTS_PASSWD_REDIRECT] = SSERV_OP_USER_SEL_VIEW_PASSWD_REDIRECT,
-
-  [SSERV_OP_GROUP_FILTER_FIRST_PAGE_ACTION] = SSERV_OP_GROUP_FILTER_CHANGE_ACTION,
-  [SSERV_OP_GROUP_FILTER_PREV_PAGE_ACTION] = SSERV_OP_GROUP_FILTER_CHANGE_ACTION,
-  [SSERV_OP_GROUP_FILTER_NEXT_PAGE_ACTION] = SSERV_OP_GROUP_FILTER_CHANGE_ACTION,
-  [SSERV_OP_GROUP_FILTER_LAST_PAGE_ACTION] = SSERV_OP_GROUP_FILTER_CHANGE_ACTION,
-};
 
 static handler_func_t op_handlers[SSERV_OP_LAST] =
 {
@@ -6762,6 +6586,8 @@ static handler_func_t op_handlers[SSERV_OP_LAST] =
 
 extern void super_html_6_force_link(void);
 void *super_html_6_force_link_ptr = super_html_6_force_link;
+extern void super_html_7_force_link(void);
+void *super_html_7_force_link_ptr = super_html_7_force_link;
 
 static void *self_dl_handle = 0;
 static int
@@ -6780,7 +6606,7 @@ do_http_request(FILE *log_f, FILE *out_f, struct super_http_request_info *phr)
       || opcode <= 0 || opcode >= SSERV_OP_LAST)
     FAIL(S_ERR_INV_OPER);
 
-  if (!op_names[opcode]) FAIL(S_ERR_INV_OPER);
+  if (!super_proto_op_names[opcode]) FAIL(S_ERR_INV_OPER);
   if (op_handlers[opcode] == (handler_func_t) 1) FAIL(S_ERR_NOT_IMPLEMENTED);
   phr->opcode = opcode;
 
@@ -6794,9 +6620,9 @@ do_http_request(FILE *log_f, FILE *out_f, struct super_http_request_info *phr)
     }
 
     int redir_opcode = opcode;
-    if (op_redirect[opcode] > 0) {
-      redir_opcode = op_redirect[opcode];
-      if (redir_opcode <= 0 || redir_opcode >= SSERV_OP_LAST || !op_names[redir_opcode]) {
+    if (super_proto_op_redirect[opcode] > 0) {
+      redir_opcode = super_proto_op_redirect[opcode];
+      if (redir_opcode <= 0 || redir_opcode >= SSERV_OP_LAST || !super_proto_op_names[redir_opcode]) {
         err("do_http_request: invalid opcode redirect %d->%d", opcode, redir_opcode);
         op_handlers[opcode] = (handler_func_t) 1;
         FAIL(S_ERR_NOT_IMPLEMENTED);
@@ -6812,7 +6638,7 @@ do_http_request(FILE *log_f, FILE *out_f, struct super_http_request_info *phr)
       op_handlers[opcode] = op_handlers[redir_opcode];
     } else {
       unsigned char func_name[512];
-      snprintf(func_name, sizeof(func_name), "super_serve_op_%s", op_names[redir_opcode]);
+      snprintf(func_name, sizeof(func_name), "super_serve_op_%s", super_proto_op_names[redir_opcode]);
       void *void_func = dlsym(self_dl_handle, func_name);
       if (!void_func) {
         err("do_http_request: function %s is not found", func_name);
@@ -6829,72 +6655,17 @@ do_http_request(FILE *log_f, FILE *out_f, struct super_http_request_info *phr)
   return retval;
 }
 
-static unsigned char const * const error_messages[] =
-{
-  [S_ERR_EMPTY_REPLY] = "Reply text is empty",
-  [S_ERR_INV_OPER] = "Invalid operation",
-  [S_ERR_CONTEST_EDITED] = "Cannot edit more than one contest at a time",
-  [S_ERR_INV_SID] = "Invalid session id",
-  [S_ERR_INV_CONTEST] = "Invalid contest id",
-  [S_ERR_PERM_DENIED] = "Permission denied",
-  [S_ERR_INTERNAL] = "Internal error",
-  [S_ERR_ALREADY_EDITED] = "Contest is already edited",
-  [S_ERR_NO_EDITED_CNTS] = "No contest is edited",
-  [S_ERR_INV_FIELD_ID] = "Invalid field ID",
-  [S_ERR_NOT_IMPLEMENTED] = "Not implemented yet",
-  [S_ERR_INV_VALUE] = "Invalid value",
-  [S_ERR_CONTEST_ALREADY_EXISTS] = "Contest with this ID already exists",
-  [S_ERR_CONTEST_ALREADY_EDITED] = "Contest is edited by another person",
-  [S_ERR_INV_LANG_ID] = "Invalid Lang ID",
-  [S_ERR_INV_PROB_ID] = "Invalid Prob ID",
-  [S_ERR_INV_PACKAGE] = "Invalid package",
-  [S_ERR_ITEM_EXISTS] = "Such item already exists",
-  [S_ERR_OPERATION_FAILED] = "System operation failed",
-  [S_ERR_INV_USER_ID] = "Invalid User ID",
-  [S_ERR_NO_CONNECTION] = "No connection to the database",
-  [S_ERR_DB_ERROR] = "Database error",
-  [S_ERR_UNSPEC_PASSWD1] = "Password 1 is not specified",
-  [S_ERR_UNSPEC_PASSWD2] = "Password 2 is not specified",
-  [S_ERR_INV_PASSWD1] = "Password 1 is invalid",
-  [S_ERR_INV_PASSWD2] = "Password 2 is invalid",
-  [S_ERR_PASSWDS_DIFFER] = "Passwords do not match each other",
-  [S_ERR_UNSPEC_LOGIN] = "Login is not specified",
-  [S_ERR_DUPLICATED_LOGIN] = "This login is aready used",
-  [S_ERR_INV_GROUP_ID] = "Invalid group ID",
-  [S_ERR_INV_FIRST_SERIAL] = "Invalid first serial number",
-  [S_ERR_INV_LAST_SERIAL] = "Invalid last serial number",
-  [S_ERR_INV_RANGE] = "Invalid serial number range",
-  [S_ERR_INV_LOGIN_TEMPLATE] = "Invalid login template",
-  [S_ERR_INV_REG_PASSWORD_TEMPLATE] = "Invalid registration password template",
-  [S_ERR_INV_CNTS_PASSWORD_TEMPLATE] = "Invalid contest password template",
-  [S_ERR_INV_CNTS_NAME_TEMPLATE] = "Invalid name template",
-  [S_ERR_INV_CSV_FILE] = "Invalid CSV file",
-  [S_ERR_INV_CHARSET] = "Invalid charset",
-  [S_ERR_INV_SEPARATOR] = "Invalid field separator",
-  [S_ERR_DATA_READ_ONLY] = "Data is read-only",
-  [S_ERR_TOO_MANY_MEMBERS] = "Too many members",
-  [S_ERR_INV_SERIAL] = "Invalid member",
-  [S_ERR_INV_EMAIL] = "Invalid email",
-  [S_ERR_INV_GROUP_NAME] = "Invalid group name",
-  [S_ERR_INV_DESCRIPTION] = "Invalid description",
-  [S_ERR_GROUP_CREATION_FAILED] = "Group creation failed",
-};
-
 void
 super_html_http_request(
         char **p_out_t,
         size_t *p_out_z,
         struct super_http_request_info *phr)
 {
-  FILE *out_f = 0, *log_f = 0;
-  char *out_t = 0, *log_t = 0;
-  size_t out_z = 0, log_z = 0;
   int r = 0, n;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   const unsigned char *http_host = 0;
   const unsigned char *script_name = 0;
   const unsigned char *protocol = "http";
-  unsigned char self_url[4096];
   const unsigned char *s = 0;
 
   if (ss_getenv(phr, "SSL_PROTOCOL") || ss_getenv(phr, "HTTPS")) {
@@ -6904,9 +6675,7 @@ super_html_http_request(
   if (!(http_host = ss_getenv(phr, "HTTP_HOST"))) http_host = "localhost";
   if (!(script_name = ss_getenv(phr, "SCRIPT_NAME")))
     script_name = "/cgi-bin/serve-control";
-  snprintf(self_url, sizeof(self_url), "%s://%s%s", protocol, http_host,
-           script_name);
-  phr->self_url = self_url;
+  snprintf(phr->self_url, sizeof(phr->self_url), "%s://%s%s", protocol, http_host, script_name);
   phr->script_name = script_name;
 
   if ((r = ss_cgi_param(phr, "SID", &s)) < 0) {
@@ -6921,49 +6690,53 @@ super_html_http_request(
   }
 
   if (!r) {
-    out_f = open_memstream(&out_t, &out_z);
-    log_f = open_memstream(&log_t, &log_z);
-    r = do_http_request(log_f, out_f, phr);
-    close_memstream(out_f); out_f = 0;
-    close_memstream(log_f); log_f = 0;
+    phr->out_f = open_memstream(&phr->out_t, &phr->out_z);
+    phr->log_f = open_memstream(&phr->log_t, &phr->log_z);
+    r = do_http_request(phr->log_f, phr->out_f, phr);
+    if (r >= 0 && phr->suspend_reply) {
+      html_armor_free(&ab);
+      return;
+    }
+    close_memstream(phr->out_f); phr->out_f = 0;
+    close_memstream(phr->log_f); phr->log_f = 0;
   }
 
   if (r < 0) {
-    xfree(out_t); out_t = 0; out_z = 0;
-    out_f = open_memstream(&out_t, &out_z);
+    xfree(phr->out_t); phr->out_t = 0; phr->out_z = 0;
+    phr->out_f = open_memstream(&phr->out_t, &phr->out_z);
     if (phr->json_reply) {
-      write_json_header(out_f);
-      fprintf(out_f, "{ \"status\": %d, \"text\": \"%s\" }",
-              r, error_messages[-r]);
+      write_json_header(phr->out_f);
+      fprintf(phr->out_f, "{ \"status\": %d, \"text\": \"%s\" }",
+              r, super_proto_op_error_messages[-r]);
     } else {
-      write_html_header(out_f, phr, "Request failed", 0, 0);
+      write_html_header(phr->out_f, phr, "Request failed", 0, 0);
       if (r < -1 && r > -S_ERR_LAST) {
-        fprintf(out_f, "<h1>Request failed: error %d</h1>\n", -r);
-        fprintf(out_f, "<h2>%s</h2>\n", error_messages[-r]);
+        fprintf(phr->out_f, "<h1>Request failed: error %d</h1>\n", -r);
+        fprintf(phr->out_f, "<h2>%s</h2>\n", super_proto_op_error_messages[-r]);
       } else {
-        fprintf(out_f, "<h1>Request failed</h1>\n");
+        fprintf(phr->out_f, "<h1>Request failed</h1>\n");
       }
-      fprintf(out_f, "<pre><font color=\"red\">%s</font></pre>\n",
-              ARMOR(log_t));
-      write_html_footer(out_f);
+      fprintf(phr->out_f, "<pre><font color=\"red\">%s</font></pre>\n",
+              ARMOR(phr->log_t));
+      write_html_footer(phr->out_f);
     }
-    close_memstream(out_f); out_f = 0;
+    close_memstream(phr->out_f); phr->out_f = 0;
   }
-  xfree(log_t); log_t = 0; log_z = 0;
+  xfree(phr->log_t); phr->log_t = 0; phr->log_z = 0;
 
-  if (!out_t || !*out_t) {
-    xfree(out_t); out_t = 0; out_z = 0;
-    out_f = open_memstream(&out_t, &out_z);
+  if (!phr->out_t || !*phr->out_t) {
+    xfree(phr->out_t); phr->out_t = 0; phr->out_z = 0;
+    phr->out_f = open_memstream(&phr->out_t, &phr->out_z);
     if (phr->json_reply) {
-      write_json_header(out_f);
-      fprintf(out_f, "{ \"status\": %d }", r);
+      write_json_header(phr->out_f);
+      fprintf(phr->out_f, "{ \"status\": %d }", r);
     } else {
-      write_html_header(out_f, phr, "Empty output", 0, 0);
-      fprintf(out_f, "<h1>Empty output</h1>\n");
-      fprintf(out_f, "<p>The output page is empty!</p>\n");
-      write_html_footer(out_f);
+      write_html_header(phr->out_f, phr, "Empty output", 0, 0);
+      fprintf(phr->out_f, "<h1>Empty output</h1>\n");
+      fprintf(phr->out_f, "<p>The output page is empty!</p>\n");
+      write_html_footer(phr->out_f);
     }
-    close_memstream(out_f); out_f = 0;
+    close_memstream(phr->out_f); phr->out_f = 0;
   }
 
   /*
@@ -6972,8 +6745,8 @@ super_html_http_request(
   }
   */
 
-  *p_out_t = out_t;
-  *p_out_z = out_z;
+  *p_out_t = phr->out_t;
+  *p_out_z = phr->out_z;
   html_armor_free(&ab);
 }
 

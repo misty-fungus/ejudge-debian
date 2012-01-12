@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: ejudge_cfg.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: ejudge_cfg.c 6493 2011-10-21 06:48:27Z cher $ */
 
 /* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -456,7 +456,7 @@ ejudge_cfg_parse(char const *path)
   xml_err_path = path;
   xml_err_spec = &ejudge_config_parse_spec;
 
-  tree = xml_build_tree(path, &ejudge_config_parse_spec);
+  tree = xml_build_tree(NULL, path, &ejudge_config_parse_spec);
   if (!tree) return 0;
   if (tree->tag != TG_CONFIG) {
     xml_err_top_level(tree, TG_CONFIG);
@@ -738,7 +738,7 @@ ejudge_cfg_unparse_plugins(struct ejudge_cfg *cfg, FILE *f)
 
 struct xml_tree *
 ejudge_cfg_get_plugin_config(
-        struct ejudge_cfg *cfg,
+        const struct ejudge_cfg *cfg,
         const unsigned char *type,
         const unsigned char *name)
 {

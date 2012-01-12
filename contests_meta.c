@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2011/05/24 09:20:57
+// Generated 2011/12/23 21:50:13
 
 #include "contests_meta.h"
 #include "contests.h"
@@ -35,6 +35,8 @@ static struct meta_info_item meta_info_contest_desc_data[] =
   [CNTS_disable_member_delete] = { CNTS_disable_member_delete, 'b', XSIZE(struct contest_desc, disable_member_delete), "disable_member_delete", XOFFSET(struct contest_desc, disable_member_delete) },
   [CNTS_reg_deadline] = { CNTS_reg_deadline, 't', XSIZE(struct contest_desc, reg_deadline), "reg_deadline", XOFFSET(struct contest_desc, reg_deadline) },
   [CNTS_sched_time] = { CNTS_sched_time, 't', XSIZE(struct contest_desc, sched_time), "sched_time", XOFFSET(struct contest_desc, sched_time) },
+  [CNTS_open_time] = { CNTS_open_time, 't', XSIZE(struct contest_desc, open_time), "open_time", XOFFSET(struct contest_desc, open_time) },
+  [CNTS_close_time] = { CNTS_close_time, 't', XSIZE(struct contest_desc, close_time), "close_time", XOFFSET(struct contest_desc, close_time) },
   [CNTS_name] = { CNTS_name, 's', XSIZE(struct contest_desc, name), "name", XOFFSET(struct contest_desc, name) },
   [CNTS_name_en] = { CNTS_name_en, 's', XSIZE(struct contest_desc, name_en), "name_en", XOFFSET(struct contest_desc, name_en) },
   [CNTS_main_url] = { CNTS_main_url, 's', XSIZE(struct contest_desc, main_url), "main_url", XOFFSET(struct contest_desc, main_url) },
@@ -66,6 +68,8 @@ static struct meta_info_item meta_info_contest_desc_data[] =
   [CNTS_run_user] = { CNTS_run_user, 's', XSIZE(struct contest_desc, run_user), "run_user", XOFFSET(struct contest_desc, run_user) },
   [CNTS_run_group] = { CNTS_run_group, 's', XSIZE(struct contest_desc, run_group), "run_group", XOFFSET(struct contest_desc, run_group) },
   [CNTS_register_email_file] = { CNTS_register_email_file, 's', XSIZE(struct contest_desc, register_email_file), "register_email_file", XOFFSET(struct contest_desc, register_email_file) },
+  [CNTS_register_subject] = { CNTS_register_subject, 's', XSIZE(struct contest_desc, register_subject), "register_subject", XOFFSET(struct contest_desc, register_subject) },
+  [CNTS_register_subject_en] = { CNTS_register_subject_en, 's', XSIZE(struct contest_desc, register_subject_en), "register_subject_en", XOFFSET(struct contest_desc, register_subject_en) },
   [CNTS_register_access] = { CNTS_register_access, '?', XSIZE(struct contest_desc, register_access), "register_access", XOFFSET(struct contest_desc, register_access) },
   [CNTS_users_access] = { CNTS_users_access, '?', XSIZE(struct contest_desc, users_access), "users_access", XOFFSET(struct contest_desc, users_access) },
   [CNTS_master_access] = { CNTS_master_access, '?', XSIZE(struct contest_desc, master_access), "master_access", XOFFSET(struct contest_desc, master_access) },

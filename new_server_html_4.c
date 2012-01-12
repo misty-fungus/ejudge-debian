@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 6381 2011-06-25 18:52:12Z cher $ */
+/* $Id: new_server_html_4.c 6595 2011-12-24 15:02:39Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -40,6 +40,8 @@
 #include "xml_utils.h"
 #include "charsets.h"
 #include "compat.h"
+#include "ejudge_cfg.h"
+#include "errlog.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -47,6 +49,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <pwd.h>
 
 #define FAIL(c) do { retval = -(c); goto cleanup; } while (0)
 
@@ -278,7 +282,7 @@ do_schedule(
 
   if (ns_cgi_param(phr, "sched_time", &s) <= 0)
     return -NEW_SRV_ERR_INV_TIME_SPEC;
-  if (xml_parse_date(0, 0, 0, s, &sloc) < 0 || sloc < 0)
+  if (xml_parse_date(NULL, 0, 0, 0, s, &sloc) < 0 || sloc < 0)
     return -NEW_SRV_ERR_INV_TIME_SPEC;
 
   if (sloc > 0) {
@@ -321,7 +325,7 @@ cmd_operation(
     serve_update_status_file(cs, 1);
     break;
   case NEW_SRV_ACTION_REJUDGE_SUSPENDED_2:
-    serve_judge_suspended(cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
+    serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
     break;
   case NEW_SRV_ACTION_HAS_TRANSIENT_RUNS:
     if (serve_count_transient_runs(cs) > 0)
@@ -402,7 +406,7 @@ cmd_operation(
     serve_update_status_file(cs, 1);
     break;
   case NEW_SRV_ACTION_REJUDGE_ALL_2:
-    serve_rejudge_all(cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
+    serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
     break;
   case NEW_SRV_ACTION_SCHEDULE:
     return do_schedule(phr, cs, cnts);
@@ -768,6 +772,8 @@ cmd_submit_run(
   struct timeval precise_time;
   int arch_flags = 0, hidden_flag = 0;
   path_t run_path;
+  unsigned char *utf8_str = NULL;
+  int utf8_len = 0;
 
   // initial permission check
   switch (phr->role) {
@@ -862,8 +868,15 @@ cmd_submit_run(
   // check for binaryness
   switch (prob->type) {
   case PROB_TYPE_STANDARD:
-    if (!lang->binary && strlen(run_text) != run_size) 
-      FAIL(NEW_SRV_ERR_BINARY_FILE);
+    if (!lang->binary && strlen(run_text) != run_size) {
+      // guess utf-16/ucs-2
+      if (((int) run_size) < 0
+          || (utf8_len = ucs2_to_utf8(&utf8_str, run_text, run_size)) < 0) {
+        FAIL(NEW_SRV_ERR_BINARY_FILE);
+      }
+      run_text = utf8_str;
+      run_size = (size_t) utf8_len;
+    }
     break;
   case PROB_TYPE_OUTPUT_ONLY:
   case PROB_TYPE_TESTS:
@@ -879,6 +892,13 @@ cmd_submit_run(
     break;
   case PROB_TYPE_CUSTOM:
     break;
+  }
+
+  if (global->ignore_bom > 0 && !prob->binary && (!lang || !lang->binary)) {
+    if (run_text && run_size >= 3 && run_text[0] == 0xef
+        && run_text[1] == 0xbb && run_text[2] == 0xbf) {
+      run_text += 3; run_size -= 3;
+    }
   }
 
   /* process special kind of answers */
@@ -1164,6 +1184,7 @@ cmd_submit_run(
  cleanup:
   if (ans_f) fclose(ans_f);
   xfree(run_text_2);
+  xfree(utf8_str);
   return retval;
 }
 
@@ -1791,6 +1812,133 @@ cmd_force_start_virtual(
   return retval;
 }
 
+static int
+cmd_reload_server_2(
+        FILE *fout,
+        struct http_request_info *phr)
+{
+  int retval = -NEW_SRV_ERR_NOT_SUPPORTED, r;
+  const struct contest_desc *cnts = NULL;
+  struct contest_extra *extra = NULL;
+  const unsigned char *login = NULL;
+  const unsigned char *password = NULL;
+  const unsigned char *ejudge_login = NULL;
+  opcap_t caps = 0LL;
+
+  phr->allow_empty_output = 1;
+
+  if (phr->contest_id < 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts)
+    return -NEW_SRV_ERR_INV_CONTEST_ID;
+  if (!cnts->managed)
+    return -NEW_SRV_ERR_INV_CONTEST_ID;
+  extra = ns_try_contest_extra(phr->contest_id);
+
+  //fprintf(fout, "contest_id: %d\n", phr->contest_id);
+
+  if (!extra) return 0;
+  if (!extra->serve_state) return 0;
+
+  if (ns_cgi_param(phr, "login", &login) <= 0)
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  if (ns_cgi_param(phr, "password", &password) <= 0)
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+
+  if (!strcmp(login, "__unix__") && !strcmp(password, "__unix__")) {
+    if (!phr->client_state) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    /*
+    fprintf(fout,
+            "peer_pid: %d\n"
+            "peer_uid: %d\n"
+            "peer_gid: %d\n",
+            phr->client_state->peer_pid,
+            phr->client_state->peer_uid,
+            phr->client_state->peer_gid);
+    */
+
+    if (phr->client_state->peer_uid <= 0) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+
+    struct passwd *pwd = getpwuid(phr->client_state->peer_uid);
+    if (!pwd || !pwd->pw_name) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    //fprintf(fout, "system login: %s\n", pwd->pw_name);
+    if (!ejudge_config) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    if (!ejudge_config->user_map) {
+      fprintf(stderr, "ejudge.xml <user_map> is empty or nonexistant\n");
+      FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    }
+    for (const struct xml_tree *p = ejudge_config->user_map->first_down; p; p = p->right) {
+      const struct ejudge_cfg_user_map *m = (const struct ejudge_cfg_user_map*) p;
+      if (m->system_user_str && !strcmp(pwd->pw_name, m->system_user_str)) {
+        ejudge_login = m->local_user_str;
+        break;
+      }
+    }
+    if (!ejudge_login) {
+      fprintf(stderr, "no system user %s is mapped in <user_map> in ejudge.xml\n", pwd->pw_name);
+      FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    }
+    //fprintf(fout, "ejudge login: %s\n", ejudge_login);
+  } else {
+    if (ns_open_ul_connection(phr->fw_state) < 0)
+      FAIL(NEW_SRV_ERR_USERLIST_SERVER_DOWN);
+
+    r = userlist_clnt_priv_login(ul_conn, ULS_PRIV_CHECK_PASSWORD,
+                                 phr->ip, phr->ssl_flag, 0,
+                                 0, 0, login,
+                                 password, &phr->user_id, &phr->session_id,
+                                 0, &phr->name);
+    if (r < 0) {
+      switch (-r) {
+      case ULS_ERR_INVALID_LOGIN:
+      case ULS_ERR_INVALID_PASSWORD:
+      case ULS_ERR_BAD_CONTEST_ID:
+      case ULS_ERR_IP_NOT_ALLOWED:
+      case ULS_ERR_NO_PERMS:
+      case ULS_ERR_NOT_REGISTERED:
+      case ULS_ERR_CANNOT_PARTICIPATE:
+        FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+      case ULS_ERR_DISCONNECT:
+        FAIL(NEW_SRV_ERR_USERLIST_SERVER_DOWN);
+      default:
+        FAIL(NEW_SRV_ERR_INTERNAL);
+      }
+    }
+    ejudge_login = login;
+    //fprintf(fout, "user_id: %d\nname: %s\n", phr->user_id, phr->name);
+  }
+
+  if (opcaps_find(&ejudge_config->capabilities, ejudge_login, &caps) < 0) {
+    if (opcaps_find(&cnts->capabilities, ejudge_login, &caps) < 0) {
+      fprintf(stderr, "unload_contest_2: %s: ejudge.xml->no caps, contest.xml->no caps\n", ejudge_login);
+      FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    }
+    if (opcaps_check(caps, OPCAP_UNLOAD_CONTEST) < 0) {
+      fprintf(stderr, "unload_contest_2: %s: ejudge.xml->no caps, contest.xml->no cap\n", ejudge_login);
+      FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    }
+  } else if (opcaps_check(caps, OPCAP_UNLOAD_CONTEST) < 0) {
+    if (opcaps_find(&cnts->capabilities, ejudge_login, &caps) < 0) {
+      fprintf(stderr, "unload_contest_2: %s: ejudge.xml->no cap, contest.xml->no caps\n", ejudge_login);
+      FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    }
+    if (opcaps_check(caps, OPCAP_UNLOAD_CONTEST) < 0) {
+      fprintf(stderr, "unload_contest_2: %s: ejudge.xml->no cap, contest.xml->no cap\n", ejudge_login);
+      FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    }
+  }
+
+  info("unload_contest_2: %s: %d: contest unload", ejudge_login, phr->contest_id);
+  if (extra) {
+    extra->last_access_time = 0;
+    if (extra->serve_state) {
+      serve_send_run_quit(extra->serve_state);
+    }
+  }
+  retval = 0;
+
+cleanup:
+  return retval;
+}
+
 typedef int (*cmd_handler_t)(FILE *, struct http_request_info *,
                              const struct contest_desc *,
                              struct contest_extra *);
@@ -1850,6 +1998,9 @@ new_server_cmd_handler(FILE *fout, struct http_request_info *phr)
 
   if (phr->action == NEW_SRV_ACTION_LOGIN)
     return cmd_login(fout, phr);
+
+  if (phr->action == NEW_SRV_ACTION_RELOAD_SERVER_2)
+    return cmd_reload_server_2(fout, phr);
 
   if (ns_open_ul_connection(phr->fw_state) < 0)
     return -NEW_SRV_ERR_USERLIST_SERVER_DOWN;

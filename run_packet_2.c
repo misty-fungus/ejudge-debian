@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run_packet_2.c 6172 2011-03-27 12:40:30Z cher $ */
+/* $Id: run_packet_2.c 6585 2011-12-21 08:56:52Z cher $ */
 
 /* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -88,6 +88,7 @@ run_request_packet_write(
   if (in_data->notify_flag) flags |= FLAGS_NOTIFY;
   if (in_data->advanced_layout) flags |= FLAGS_ADVANCED_LAYOUT;
   if (in_data->separate_user_score) flags |= FLAGS_SEPARATE_USER_SCORE;
+  if (in_data->disable_stderr) flags |= FLAGS_DISABLE_STDERR;
   out_data->flags = cvt_host_to_bin_32(flags);
 
   /* copy timestamps without care */
@@ -134,8 +135,8 @@ run_request_packet_write(
   *p_out_data = out_data;
   return 0;
 
- failed:
-  err("run_request_packet_write: error %s, %d", "$Revision: 6172 $", errcode);
+failed:
+  err("run_request_packet_write: error %s, %d", "$Revision: 6585 $", errcode);
   xfree(out_data);
   return -1;
 }

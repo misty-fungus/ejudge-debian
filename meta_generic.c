@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: meta_generic.c 6286 2011-04-30 20:34:42Z cher $ */
+/* $Id: meta_generic.c 6406 2011-07-15 19:55:49Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -139,6 +139,7 @@ meta_destroy_fields(const struct meta_methods *mth, void *ptr)
     case '0':                   /* ej_int_opt_0_t */
     case '3':                   /* ej_checkbox_t */
     case '4':                   /* ej_int_opt_1_t */
+    case '5':
       break;
     case '1':                   /* ej_textbox_t */
     case '2':                   /* ej_textbox_opt_t */

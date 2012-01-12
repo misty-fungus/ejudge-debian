@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_mysql.c 6376 2011-06-19 19:43:53Z cher $ */
+/* $Id: uldb_mysql.c 6424 2011-09-14 17:54:13Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -449,7 +449,7 @@ init_func(void)
 static int
 prepare_func(
         struct common_plugin_data *data,
-        struct ejudge_cfg *config,
+        const struct ejudge_cfg *config,
         struct xml_tree *tree)
 {
   struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
@@ -2866,7 +2866,7 @@ set_reg_flags_func(
 
   ASSERT(user_id > 0);
   ASSERT(contest_id > 0);
-  ASSERT(cmd >= 0 && cmd <= 3);
+  ASSERT(cmd >= 0 && cmd <= 4);
   value &= USERLIST_UC_ALL;
 
   if (!cmd || !value) return 0;

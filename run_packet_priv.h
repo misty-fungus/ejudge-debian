@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run_packet_priv.h 6172 2011-03-27 12:40:30Z cher $ */
+/* $Id: run_packet_priv.h 6585 2011-12-21 08:56:52Z cher $ */
 #ifndef __RUN_PACKET_PRIV_H__
 #define __RUN_PACKET_PRIV_H__
 
@@ -41,8 +41,9 @@ enum
   FLAGS_ADVANCED_LAYOUT      = 0x2000,
   FLAGS_SEPARATE_USER_SCORE  = 0x4000,
   FLAGS_HAS_USER_SCORE       = 0x8000,
+  FLAGS_DISABLE_STDERR       = 0x10000,
 
-  FLAGS_ALL_MASK             = 0xffff, /* scoring system incl. */
+  FLAGS_ALL_MASK             = 0x1ffff, /* scoring system incl. */
 };
 
 /* serve->run binary packet structure */

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_5.c 6353 2011-05-28 07:35:10Z cher $ */
+/* $Id: new_server_html_5.c 6593 2011-12-23 19:01:05Z cher $ */
 
 /* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1809,6 +1809,7 @@ edit_general_form(
         const struct userlist_user *u)
 {
   unsigned char bb[1024];
+  unsigned char buf[1024];
   unsigned char varname[1024];
   int i, ff, j, rr;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
@@ -1818,6 +1819,7 @@ edit_general_form(
   int *user_lang_map = 0;
   const struct userlist_member *m = 0;
   const struct userlist_user_info *ui = 0;
+  int is_checked = 0;
 
   if (u) ui = u->cnts0;
 
@@ -1925,10 +1927,15 @@ edit_general_form(
         fprintf(fout, "<option%s>%s</option>", s, ARMOR(allowed_regions[j]));
       }
       fprintf(fout, "</select></td>\n");
+    } else if (cnts->fields[ff]->checkbox) {
+      xml_parse_bool(NULL, NULL, 0, 0, bb, &is_checked);
+      snprintf(varname, sizeof(varname), "param_%d", ff);
+      fprintf(fout, "<td class=\"b0\">%s</td>",
+              html_checkbox(buf, sizeof(buf), varname, "yes", is_checked));
     } else {
       snprintf(varname, sizeof(varname), "param_%d", ff);
       fprintf(fout, "<td class=\"b0\">%s</td>",
-              html_input_text(bb, sizeof(bb), varname,
+              html_input_text(buf, sizeof(buf), varname,
                               contest_field_desc[ff].size,
                               ARMOR(bb)));
     }
@@ -1949,10 +1956,10 @@ edit_general_form(
   fprintf(fout, "<table class=\"b0\"><tr>");
   fprintf(fout, "<td class=\"b0\">%s</td>",
           ns_submit_button(bb, sizeof(bb), 0,
-                           NEW_SRV_ACTION_REG_CANCEL_GENERAL_EDITING, 0));
+                           NEW_SRV_ACTION_REG_SUBMIT_GENERAL_EDITING, 0));
   fprintf(fout, "<td class=\"b0\">%s</td>",
           ns_submit_button(bb, sizeof(bb), 0,
-                           NEW_SRV_ACTION_REG_SUBMIT_GENERAL_EDITING, 0));
+                           NEW_SRV_ACTION_REG_CANCEL_GENERAL_EDITING, 0));
   fprintf(fout, "</tr></table>");
   fprintf(fout, "</form>\n");
 
@@ -2242,10 +2249,10 @@ edit_member_form(
     fprintf(fout, "<table class=\"b0\"><tr>");
     fprintf(fout, "<td class=\"b0\">%s</td>",
             ns_submit_button(bb, sizeof(bb), 0,
-                             NEW_SRV_ACTION_REG_CANCEL_MEMBER_EDITING, 0));
+                             NEW_SRV_ACTION_REG_SUBMIT_MEMBER_EDITING, 0));
     fprintf(fout, "<td class=\"b0\">%s</td>",
             ns_submit_button(bb, sizeof(bb), 0,
-                             NEW_SRV_ACTION_REG_SUBMIT_MEMBER_EDITING, 0));
+                             NEW_SRV_ACTION_REG_CANCEL_MEMBER_EDITING, 0));
     fprintf(fout, "</table>");
     fprintf(fout, "</form>\n");
   }

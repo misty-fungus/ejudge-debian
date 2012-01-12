@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: common_mysql.c 6154 2011-03-27 06:55:09Z cher $ */
+/* $Id: common_mysql.c 6492 2011-10-21 06:19:11Z cher $ */
 
 /* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -41,7 +41,7 @@ finish_func(struct common_plugin_data *);
 static int
 prepare_func(
         struct common_plugin_data *,
-        struct ejudge_cfg *,
+        const struct ejudge_cfg *,
         struct xml_tree *);
 static int
 connect_func(struct common_mysql_state *state);
@@ -253,7 +253,7 @@ parse_passwd_file(
 static int
 prepare_func(
         struct common_plugin_data *data,
-        struct ejudge_cfg *config,
+        const struct ejudge_cfg *config,
         struct xml_tree *tree)
 {
   struct common_mysql_state *state = (struct common_mysql_state*) data;
@@ -301,7 +301,7 @@ prepare_func(
       if (p->first) return xml_err_attrs(p);
       if (p->first_down) return xml_err_nested_elems(p);
       if (state->port > 0) return xml_err_elem_redefined(p);
-      if (xml_parse_int("", p->line, p->column, p->text,
+      if (xml_parse_int(NULL, "", p->line, p->column, p->text,
                         &state->port) < 0) return -1;
     } else if (!strcmp(p->name[0], "charset")) {
       if (xml_leaf_elem(p, &state->charset, 1, 0) < 0) return -1;
@@ -784,7 +784,7 @@ parse_spec_func(
       break;
     case 'i':
       p_ip = XPDEREF(ej_ip_t, data, specs[i].offset);
-      if (xml_parse_ip(0, 0, 0, row[i], p_ip) < 0) goto invalid_format;
+      if (xml_parse_ip(NULL, 0, 0, 0, row[i], p_ip) < 0) goto invalid_format;
       break;
 
     default:

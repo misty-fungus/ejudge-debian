@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 6214 2011-04-01 20:03:14Z cher $ */
+/* $Id: prepare.h 6583 2011-12-21 07:49:28Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -111,7 +111,7 @@ struct user_adjustment_info
 };
 struct user_adjustment_map;
 
-/* sizeof(struct section_global_data) == 350028 */
+/* sizeof(struct section_global_data) == 350096 */
 struct section_global_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -159,6 +159,8 @@ struct section_global_data
   ejintbool_t enable_memory_limit_error;
   /** enable advanced problem layout */
   ejintbool_t advanced_layout;
+  /** ignore BOM in submitted text files */
+  ejintbool_t ignore_bom;
 
   /** do not show submits after this time in the standings */
   time_t stand_ignore_after;
@@ -292,6 +294,8 @@ struct section_global_data
   unsigned char info_sfx[32];
   /** suffix of the tgz archive files */
   unsigned char tgz_sfx[32];
+  /** suffix of the working directory master copy */
+  unsigned char tgzdir_sfx[32];
   /** path to the built-in checkers */
   path_t ejudge_checkers_dir;
   /** command to run when the contest starts */
@@ -311,6 +315,8 @@ struct section_global_data
   unsigned char info_pat[32];
   /** printf pattern for the files with the working dir archive */
   unsigned char tgz_pat[32];
+  /** printf pattern for the files with the working directory master copy */
+  unsigned char tgzdir_pat[32];
 
   /** the clarification base storage plugin (file, mysql) */
   unsigned char clardb_plugin[32];
@@ -709,10 +715,12 @@ struct section_global_data
   +path_t valuer_cmd;
   +path_t interactor_cmd;
   +path_t style_checker_cmd;
-  +path_t test_checker_cmd;
+  +unsigned char *test_checker_cmd;
+  +unsigned char *solution_src;
+  +unsigned char *solution_cmd;
  */
 
-/* sizeof(struct section_problem_data) == 65216 */
+/* sizeof(struct section_problem_data) == 65336 */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -760,6 +768,8 @@ struct section_problem_data
   int time_limit_millis;
   /** use AC instead of OK for successful submits */
   ejintbool_t use_ac_not_ok;
+  /** mark previous AC for this problems as IG */
+  ejintbool_t ignore_prev_ac;
   /** enable report viewing for contestants */
   ejintbool_t team_enable_rep_view;
   /** enable compilation error messages viewing for contestants */
@@ -866,6 +876,8 @@ struct section_problem_data
   path_t tgz_dir;
   /** tar test archive suffix */
   unsigned char tgz_sfx[32];
+  /** working directory master copy suffix */
+  unsigned char tgzdir_sfx[32];
   /** input file name */
   unsigned char input_file[256];
   /** output file name */
@@ -898,6 +910,8 @@ struct section_problem_data
   ejintbool_t ignore_unmarked;
   /** time-limit for the interactor */
   int interactor_time_limit;
+  /** consider any output to stderr as presentation error */
+  ejintbool_t disable_stderr;
 
   /** printf pattern for the test files */
   unsigned char test_pat[32];
@@ -907,6 +921,8 @@ struct section_problem_data
   unsigned char info_pat[32];
   /** printf pattern for the tgz archive pattern */
   unsigned char tgz_pat[32];
+  /** printf pattern for the working directory master copy */
+  unsigned char tgzdir_pat[32];
 
   /** number of tests found */
   int ntests META_ATTRIB((meta_private));
@@ -919,6 +935,10 @@ struct section_problem_data
   char **test_sets;
   int ts_total META_ATTRIB((meta_private));
   struct testset_info *ts_infos META_ATTRIB((meta_private));
+
+  /** test normalization type */
+  unsigned char normalization[32];
+  int normalization_val META_ATTRIB((meta_private));
 
   /** deadline for sending this problem */
   time_t deadline;
@@ -943,6 +963,8 @@ struct section_problem_data
   char **disable_language;
   char **enable_language;
   char **require;
+  /** environment variables for compilation */
+  ejenvlist_t lang_compiler_env;
   /** environment variables for the problem checker */
   ejenvlist_t checker_env;
   /** environment variables for the problem valuer */
@@ -963,6 +985,10 @@ struct section_problem_data
   path_t style_checker_cmd;
   /** test checker program */
   unsigned char *test_checker_cmd;
+  /** solution source file */
+  unsigned char *solution_src;
+  /** solution command */
+  unsigned char *solution_cmd;
   /** time limit adjustments depending on language */
   char **lang_time_adj;
   /** time limit milliseconds adjustments depending on language (priority over lang_time_adj) */
@@ -1265,6 +1291,12 @@ void prepare_unparse_prob(FILE *f, const struct section_problem_data *prob,
 void prepare_unparse_unhandled_prob(FILE *f, const struct section_problem_data *prob,
                                     const struct section_global_data *global);
 int prepare_check_forbidden_prob(FILE *f, const struct section_problem_data *prob);
+void
+prepare_unparse_actual_prob(
+        FILE *f,
+        const struct section_problem_data *prob,
+        const struct section_global_data *global,
+        int show_paths);
 
 int prepare_unparse_testers(FILE *f,
                             int secure_run,

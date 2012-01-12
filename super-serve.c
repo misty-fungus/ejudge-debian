@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 6359 2011-06-10 20:04:28Z cher $ */
+/* $Id: super-serve.c 6600 2011-12-28 15:51:06Z cher $ */
 
 /* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -36,6 +36,8 @@
 #include "super-serve_meta.h"
 #include "sock_op.h"
 #include "compat.h"
+#include "ej_process.h"
+#include "ej_byteorder.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -74,6 +76,7 @@ enum
   STATE_WRITE,
   STATE_WRITECLOSE,
   STATE_DISCONNECT,
+  STATE_SUSPENDED,
 };
 struct client_state
 {
@@ -107,6 +110,8 @@ struct client_state
   unsigned char *name;
   unsigned char *html_login;
   unsigned char *html_name;
+
+  void *suspend_context;
 };
 
 static int daemon_mode;
@@ -138,6 +143,19 @@ static int userlist_uid = 0;
 static unsigned char *userlist_login = 0;
 
 struct serve_state serve_state;
+
+static struct background_process_head background_processes;
+
+void
+super_serve_register_process(struct background_process *prc)
+{
+  background_process_register(&background_processes, prc);
+}
+struct background_process *
+super_serve_find_process(const unsigned char *name)
+{
+  return background_process_find(&background_processes, name);
+}
 
 static struct client_state *
 client_state_new(int fd)
@@ -1141,6 +1159,7 @@ release_resources(void)
 {
   int i, alive_children, pid, status;
   sigset_t work_mask;
+  struct rusage usage;
 
   sigfillset(&work_mask);
   sigdelset(&work_mask, SIGTERM);
@@ -1189,7 +1208,7 @@ release_resources(void)
     }
 
     sigchld_flag = 0;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+    while ((pid = wait4(-1, &status, WNOHANG, &usage)) > 0) {
       for (i = 0; i < extra_a; i++) {
         if (!extras[i]) continue;
         if (extras[i]->serve_used && extras[i]->serve_pid == pid) {
@@ -1224,7 +1243,10 @@ release_resources(void)
         }
       }
       if (i >= extra_a) {
-        err("unregistered child %d terminated", pid);
+        if (!background_process_handle_termination(&background_processes,
+                                                   pid, status, &usage)) {
+          err("unregistered child %d terminated", pid);
+        }
         continue;
       }
     }
@@ -1582,6 +1604,7 @@ sid_state_find(ej_cookie_t sid)
 static struct sid_state*
 sid_state_add(
         ej_cookie_t sid,
+        ej_ip_t remote_addr,
         int user_id,
         const unsigned char *user_login,
         const unsigned char *user_name)
@@ -1591,6 +1614,7 @@ sid_state_add(
   ASSERT(sid);
   XCALLOC(n, 1);
   n->sid = sid;
+  n->remote_addr = remote_addr;
   n->init_time = time(0);
   n->flags |= SID_STATE_SHOW_CLOSED;
   n->user_id = user_id;
@@ -1611,6 +1635,7 @@ sid_state_add(
 static struct sid_state*
 sid_state_get(
         ej_cookie_t sid,
+        ej_ip_t remote_addr,
         int user_id,
         const unsigned char *user_login,
         const unsigned char *user_name)
@@ -1618,7 +1643,7 @@ sid_state_get(
   struct sid_state *p;
 
   if (!(p = sid_state_find(sid)))
-    p = sid_state_add(sid, user_id, user_login, user_name);
+    p = sid_state_add(sid, remote_addr, user_id, user_login, user_name);
   return p;
 }
 static void
@@ -1629,6 +1654,7 @@ sid_state_clear(struct sid_state *p)
   xfree(p->user_name);
   xfree(p->user_filter);
   bitset_free(&p->marked);
+  serve_state_destroy(config, p->te_state, NULL, NULL);
   XMEMZERO(p, 1);
 }
 static struct sid_state*
@@ -1694,6 +1720,28 @@ super_serve_sid_state_get_cnts_editor_nc(int contest_id)
 
   for (p = sid_state_first; p; p = p->next)
     if (p->edited_cnts && p->edited_cnts->id == contest_id)
+      return p;
+  return 0;
+}
+
+const struct sid_state*
+super_serve_sid_state_get_test_editor(int contest_id)
+{
+  struct sid_state *p;
+
+  for (p = sid_state_first; p; p = p->next)
+    if (p->te_state && p->te_state->contest_id == contest_id)
+      return p;
+  return 0;
+}
+
+struct sid_state*
+super_serve_sid_state_get_test_editor_nc(int contest_id)
+{
+  struct sid_state *p;
+
+  for (p = sid_state_first; p; p = p->next)
+    if (p->te_state && p->te_state->contest_id == contest_id)
       return p;
   return 0;
 }
@@ -1927,7 +1975,7 @@ cmd_main_page(struct client_state *p, int len,
     return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
   }
 
-  sstate = sid_state_get(p->cookie, p->user_id, p->login, p->name);
+  sstate = sid_state_get(p->cookie, p->ip, p->user_id, p->login, p->name);
 
   // extra incoming packet checks
   switch (pkt->b.id) {
@@ -2346,7 +2394,7 @@ cmd_create_contest(struct client_state *p, int len,
 
   // FIXME: check permissions
 
-  sstate = sid_state_get(p->cookie, p->user_id, p->login, p->name);
+  sstate = sid_state_get(p->cookie, p->ip, p->user_id, p->login, p->name);
   if (!(f = open_memstream(&html_ptr, &html_len))) {
     err("%d: open_memstream failed", p->id);
     return send_reply(p, -SSERV_ERR_SYSTEM_ERROR);
@@ -2477,7 +2525,7 @@ cmd_simple_top_command(struct client_state *p, int len,
   if ((r = get_peer_local_user(p)) < 0) {
     return send_reply(p, r);
   }
-  sstate = sid_state_get(p->cookie, p->user_id, p->login, p->name);
+  sstate = sid_state_get(p->cookie, p->ip, p->user_id, p->login, p->name);
 
   switch (pkt->b.id) {
   case SSERV_CMD_SHOW_HIDDEN:
@@ -2600,6 +2648,8 @@ cmd_simple_top_command(struct client_state *p, int len,
   case SSERV_CMD_CNTS_CLEAR_DEFAULT_LOCALE:
   case SSERV_CMD_CNTS_CLEAR_DEADLINE:
   case SSERV_CMD_CNTS_CLEAR_SCHED_TIME:
+  case SSERV_CMD_CNTS_CLEAR_OPEN_TIME:
+  case SSERV_CMD_CNTS_CLEAR_CLOSE_TIME:
   case SSERV_CMD_CNTS_CLEAR_USERS_HEADER:
   case SSERV_CMD_CNTS_CLEAR_USERS_FOOTER:
   case SSERV_CMD_CNTS_CLEAR_REGISTER_HEADER:
@@ -2644,6 +2694,8 @@ cmd_simple_top_command(struct client_state *p, int len,
   case SSERV_CMD_CNTS_CLEAR_PROBLEMS_URL:
   case SSERV_CMD_CNTS_CLEAR_LOGO_URL:
   case SSERV_CMD_CNTS_CLEAR_CSS_URL:
+  case SSERV_CMD_CNTS_CLEAR_REGISTER_SUBJECT:
+  case SSERV_CMD_CNTS_CLEAR_REGISTER_SUBJECT_EN:
   case SSERV_CMD_CNTS_CLEAR_ROOT_DIR:
   case SSERV_CMD_CNTS_CLEAR_CONF_DIR:
   case SSERV_CMD_CNTS_CLEAR_DIR_MODE:
@@ -2706,7 +2758,7 @@ cmd_set_value(struct client_state *p, int len,
   if ((r = get_peer_local_user(p)) < 0) {
     return send_reply(p, r);
   }
-  sstate = sid_state_get(p->cookie, p->user_id, p->login, p->name);
+  sstate = sid_state_get(p->cookie, p->ip, p->user_id, p->login, p->name);
 
   switch (pkt->b.id) {
   case SSERV_CMD_CNTS_CHANGE_NAME:
@@ -2736,6 +2788,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_CNTS_CHANGE_MEMBER_DELETE:
   case SSERV_CMD_CNTS_CHANGE_DEADLINE:
   case SSERV_CMD_CNTS_CHANGE_SCHED_TIME:
+  case SSERV_CMD_CNTS_CHANGE_OPEN_TIME:
+  case SSERV_CMD_CNTS_CHANGE_CLOSE_TIME:
   case SSERV_CMD_CNTS_CHANGE_USERS_HEADER:
   case SSERV_CMD_CNTS_CHANGE_USERS_FOOTER:
   case SSERV_CMD_CNTS_CHANGE_REGISTER_HEADER:
@@ -2780,6 +2834,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_CNTS_CHANGE_PROBLEMS_URL:
   case SSERV_CMD_CNTS_CHANGE_LOGO_URL:
   case SSERV_CMD_CNTS_CHANGE_CSS_URL:
+  case SSERV_CMD_CNTS_CHANGE_REGISTER_SUBJECT:
+  case SSERV_CMD_CNTS_CHANGE_REGISTER_SUBJECT_EN:
   case SSERV_CMD_CNTS_CHANGE_ROOT_DIR:
   case SSERV_CMD_CNTS_CHANGE_CONF_DIR:
   case SSERV_CMD_CNTS_CHANGE_DIR_MODE:
@@ -2890,6 +2946,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS:
   case SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT:
   case SSERV_CMD_PROB_CHANGE_USE_AC_NOT_OK:
+  case SSERV_CMD_PROB_CHANGE_IGNORE_PREV_AC:
   case SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_REP_VIEW:
   case SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_CE_VIEW:
   case SSERV_CMD_PROB_CHANGE_TEAM_SHOW_JUDGE_REPORT:
@@ -2922,6 +2979,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_DISABLE_CTRL_CHARS:
   case SSERV_CMD_PROB_CHANGE_VALUER_SETS_MARKED:
   case SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED:
+  case SSERV_CMD_PROB_CHANGE_DISABLE_STDERR:
   case SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM:
   case SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE:
   case SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN:
@@ -2957,6 +3015,14 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_INFO_SFX:
   case SSERV_CMD_PROB_CHANGE_INFO_PAT:
   case SSERV_CMD_PROB_CLEAR_INFO_PAT:
+  case SSERV_CMD_PROB_CHANGE_TGZ_SFX:
+  case SSERV_CMD_PROB_CLEAR_TGZ_SFX:
+  case SSERV_CMD_PROB_CHANGE_TGZ_PAT:
+  case SSERV_CMD_PROB_CLEAR_TGZ_PAT:
+  case SSERV_CMD_PROB_CHANGE_TGZDIR_SFX:
+  case SSERV_CMD_PROB_CLEAR_TGZDIR_SFX:
+  case SSERV_CMD_PROB_CHANGE_TGZDIR_PAT:
+  case SSERV_CMD_PROB_CLEAR_TGZDIR_PAT:
   case SSERV_CMD_PROB_CHANGE_STANDARD_CHECKER:
   case SSERV_CMD_PROB_CHANGE_SCORE_BONUS:
   case SSERV_CMD_PROB_CLEAR_SCORE_BONUS:
@@ -2964,6 +3030,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_OPEN_TESTS:    
   case SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS:
   case SSERV_CMD_PROB_CLEAR_FINAL_OPEN_TESTS:    
+  case SSERV_CMD_PROB_CHANGE_LANG_COMPILER_ENV:
+  case SSERV_CMD_PROB_CLEAR_LANG_COMPILER_ENV:
   case SSERV_CMD_PROB_CHANGE_CHECK_CMD:
   case SSERV_CMD_PROB_CLEAR_CHECK_CMD:
   case SSERV_CMD_PROB_CHANGE_CHECKER_ENV:
@@ -2984,6 +3052,10 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_CMD:
   case SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV:
   case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV:
+  case SSERV_CMD_PROB_CHANGE_SOLUTION_SRC:
+  case SSERV_CMD_PROB_CLEAR_SOLUTION_SRC:
+  case SSERV_CMD_PROB_CHANGE_SOLUTION_CMD:
+  case SSERV_CMD_PROB_CLEAR_SOLUTION_CMD:
   case SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ:
   case SSERV_CMD_PROB_CLEAR_LANG_TIME_ADJ:
   case SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ_MILLIS:
@@ -3015,6 +3087,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_SOURCE_HEADER:
   case SSERV_CMD_PROB_CHANGE_SOURCE_FOOTER:
   case SSERV_CMD_PROB_CLEAR_SOURCE_FOOTER:
+  case SSERV_CMD_PROB_CHANGE_NORMALIZATION:
+  case SSERV_CMD_PROB_CLEAR_NORMALIZATION:
     r = super_html_prob_param(sstate, pkt->b.id, pkt->param1, param2_ptr,
                               pkt->param3, pkt->param4);
     break;
@@ -3048,6 +3122,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS:
   case SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE:
   case SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT:
+  case SSERV_CMD_GLOB_CHANGE_IGNORE_BOM:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH:
   case SSERV_CMD_GLOB_CHANGE_ALWAYS_SHOW_PROBLEMS:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS:
@@ -3334,6 +3409,9 @@ cmd_control_server(struct client_state *p, int len,
 }
 
 static void
+cmd_http_request_continuation(struct super_http_request_info *phr);
+
+static void
 cmd_http_request(
         struct client_state *p,
         int pkt_size,
@@ -3345,7 +3423,7 @@ cmd_http_request(
     MAX_PARAM_SIZE = 128 * 1024 * 1024,
   };
 
-  struct super_http_request_info hr;
+  struct super_http_request_info *phr = NULL;
   char *out_t = 0;
   size_t out_z = 0;
   int i, r;
@@ -3358,14 +3436,13 @@ cmd_http_request(
   unsigned long bptr;
   const ej_size_t *arg_sizes, *env_sizes, *param_name_sizes, *param_sizes;
   struct client_state *q;
-
-  memset(&hr, 0, sizeof(hr));
+  unsigned char *out_ptr;
+  int ri_size = sizeof (*phr);
 
   // FIXME: check for passed fd
 
   if (pkt_size < sizeof(*pkt))
     return error_bad_packet_length(p, pkt_size, sizeof(*pkt));
-  //pkt = (const struct super_prot_http_request *) pkt_gen;
 
   if (pkt->arg_num < 0 || pkt->arg_num > MAX_PARAM_NUM) {
     err("%d: too many arguments: %d", p->id, pkt->arg_num);
@@ -3387,12 +3464,38 @@ cmd_http_request(
   if (pkt_size < in_size)
     return error_bad_packet_length(p, pkt_size, in_size);
 
-  XALLOCAZ(args, pkt->arg_num);
-  XALLOCAZ(envs, pkt->env_num);
-  XALLOCAZ(param_names, pkt->param_num);
-  XALLOCAZ(params, pkt->param_num);
-  XALLOCAZ(my_param_sizes, pkt->param_num);
+  ri_size = pkt_bin_align(ri_size);
+  ri_size += sizeof(args[0]) * pkt->arg_num;
+  ri_size = pkt_bin_align(ri_size);
+  ri_size += sizeof(envs[0]) * pkt->env_num;
+  ri_size = pkt_bin_align(ri_size);
+  ri_size += sizeof(param_names[0]) * pkt->param_num;
+  ri_size = pkt_bin_align(ri_size);
+  ri_size += sizeof(params[0]) * pkt->param_num;
+  ri_size = pkt_bin_align(ri_size);
+  ri_size += sizeof(my_param_sizes[0]) * pkt->param_num;
+  ri_size = pkt_bin_align(ri_size);
 
+  phr = xmalloc(ri_size);
+  memset(phr, 0, ri_size);
+  out_ptr = phr->data;
+  pkt_bin_align_addr(out_ptr, phr->data);
+  args = (typeof(args)) out_ptr;
+  out_ptr += sizeof(args[0]) * pkt->arg_num;
+  pkt_bin_align_addr(out_ptr, phr->data);
+  envs = (typeof(envs)) out_ptr;
+  out_ptr += sizeof(envs[0]) * pkt->env_num;
+  pkt_bin_align_addr(out_ptr, phr->data);
+  param_names = (typeof(param_names)) out_ptr;
+  out_ptr += sizeof(param_names[0]) * pkt->param_num;
+  pkt_bin_align_addr(out_ptr, phr->data);
+  params = (typeof(params)) out_ptr;
+  out_ptr += sizeof(params[0]) * pkt->param_num;
+  pkt_bin_align_addr(out_ptr, phr->data);
+  my_param_sizes = (typeof(my_param_sizes)) out_ptr;
+  out_ptr += sizeof(my_param_sizes[0]) * pkt->param_num;
+  pkt_bin_align_addr(out_ptr, phr->data);
+  
   bptr = (unsigned long) pkt;
   bptr += sizeof(*pkt);
   arg_sizes = (const ej_size_t *) bptr;
@@ -3407,6 +3510,7 @@ cmd_http_request(
   for (i = 0; i < pkt->arg_num; i++) {
     if (arg_sizes[i] > MAX_PARAM_SIZE) {
       err("%d: argument %d is too long: %d", p->id, i, arg_sizes[i]);
+      xfree(phr);
       return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
     }
     in_size += arg_sizes[i] + 1;
@@ -3414,6 +3518,7 @@ cmd_http_request(
   for (i = 0; i < pkt->env_num; i++) {
     if (env_sizes[i] > MAX_PARAM_SIZE) {
       err("%d: env var %d is too long: %d", p->id, i, env_sizes[i]);
+      xfree(phr);
       return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
     }
     in_size += env_sizes[i] + 1;
@@ -3421,23 +3526,28 @@ cmd_http_request(
   for (i = 0; i < pkt->param_num; i++) {
     if (param_name_sizes[i] > MAX_PARAM_SIZE) {
       err("%d: param name %d is too long: %d", p->id, i, param_name_sizes[i]);
+      xfree(phr);
       return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
     }
     if (param_sizes[i] > MAX_PARAM_SIZE) {
       err("%d: param %d is too long: %d", p->id, i, param_sizes[i]);
+      xfree(phr);
       return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
     }
     in_size += param_name_sizes[i] + 1;
     in_size += param_sizes[i] + 1;
   }
-  if (pkt_size != in_size)
+  if (pkt_size != in_size) {
+    xfree(phr);
     return error_bad_packet_length(p, pkt_size, in_size);
+  }
 
   for (i = 0; i < pkt->arg_num; i++) {
     args[i] = (const unsigned char*) bptr;
     bptr += arg_sizes[i] + 1;
     if (strlen(args[i]) != arg_sizes[i]) {
       err("%d: arg %d length mismatch", p->id, i);
+      xfree(phr);
       return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
     }
   }
@@ -3446,6 +3556,7 @@ cmd_http_request(
     bptr += env_sizes[i] + 1;
     if (strlen(envs[i]) != env_sizes[i]) {
       err("%d: env var %d length mismatch", p->id, i);
+      xfree(phr);
       return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
     }
   }
@@ -3454,6 +3565,7 @@ cmd_http_request(
     bptr += param_name_sizes[i] + 1;
     if (strlen(param_names[i]) != param_name_sizes[i]) {
       err("%d: param name %d length mismatch", p->id, i);
+      xfree(phr);
       return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
     }
     params[i] = (const unsigned char *) bptr;
@@ -3463,44 +3575,68 @@ cmd_http_request(
 
   if ((r = get_peer_local_user(p)) < 0) {
     send_reply(p, r);
+    xfree(phr);
     return;
   }
 
   if (p->client_fds[0] < 0 || p->client_fds[1] < 0) {
     err("cmd_main_page: two file descriptors expected");
+    xfree(phr);
     return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
   }
 
-  hr.arg_num = pkt->arg_num;
-  hr.args = args;
-  hr.env_num = pkt->env_num;
-  hr.envs = envs;
-  hr.param_num = pkt->param_num;
-  hr.param_names = param_names;
-  hr.param_sizes = my_param_sizes;
-  hr.params = params;
+  phr->arg_num = pkt->arg_num;
+  phr->args = args;
+  phr->env_num = pkt->env_num;
+  phr->envs = envs;
+  phr->param_num = pkt->param_num;
+  phr->param_names = param_names;
+  phr->param_sizes = my_param_sizes;
+  phr->params = params;
 
-  hr.user_id = p->user_id;
-  hr.priv_level = p->priv_level;
-  hr.login = p->login;
-  hr.name = p->name;
-  hr.html_login = p->html_login;
-  hr.html_name = p->html_name;
-  hr.ip = p->ip;
-  hr.ssl_flag = p->ssl;
-  hr.system_login = userlist_login;
-  hr.userlist_clnt = userlist_clnt;
+  phr->user_id = p->user_id;
+  phr->priv_level = p->priv_level;
+  phr->login = p->login;
+  phr->name = p->name;
+  phr->html_login = p->html_login;
+  phr->html_name = p->html_name;
+  phr->ip = p->ip;
+  phr->ssl_flag = p->ssl;
+  phr->system_login = userlist_login;
+  phr->userlist_clnt = userlist_clnt;
 
-  hr.ss = sid_state_get(p->cookie, p->user_id, p->login, p->name);
-  hr.config = config;
+  phr->ss = sid_state_get(p->cookie, p->ip, p->user_id, p->login, p->name);
+  phr->config = config;
 
-  super_html_http_request(&out_t, &out_z, &hr);
+  super_html_http_request(&out_t, &out_z, phr);
+  if (phr->suspend_reply > 0) {
+    p->state = STATE_SUSPENDED;
+    phr->suspend_context = p;
+    phr->continuation = cmd_http_request_continuation;
+    return;
+  }
 
   q = client_state_new_autoclose(p, out_t, out_z);
   info("cmd_http_request: %zu", out_z);
   send_reply(p, SSERV_RPL_OK);
+  xfree(phr);
 
   //cleanup:
+}
+
+static void
+cmd_http_request_continuation(struct super_http_request_info *phr)
+{
+  struct client_state *p = (typeof(p)) phr->suspend_context;
+  info("continuation: %d, %d, %d\n", p->fd, p->client_fds[0], p->client_fds[1]);
+  close_memstream(phr->out_f); phr->out_f = 0;
+  close_memstream(phr->log_f); phr->log_f = 0;
+  client_state_new_autoclose(p, phr->out_t, phr->out_z);
+  info("cmd_http_request_continuation: %zu", phr->out_z);
+  xfree(phr->log_t); phr->log_t = NULL; phr->log_z = 0;
+  phr->out_t = NULL; phr->out_z = 0;
+  send_reply(p, SSERV_RPL_OK);
+  xfree(phr);
 }
 
 struct packet_handler
@@ -3598,6 +3734,9 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CLEAR_USER_CONTEST] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_DEFAULT_LOCALE] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_DEADLINE] = { cmd_simple_top_command },
+  [SSERV_CMD_CNTS_CLEAR_SCHED_TIME] = { cmd_simple_top_command },
+  [SSERV_CMD_CNTS_CLEAR_OPEN_TIME] = { cmd_simple_top_command },
+  [SSERV_CMD_CNTS_CLEAR_CLOSE_TIME] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_USERS_HEADER] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_USERS_FOOTER] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_REGISTER_HEADER] = { cmd_simple_top_command },
@@ -3642,6 +3781,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CLEAR_PROBLEMS_URL] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_LOGO_URL] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_CSS_URL] = { cmd_simple_top_command },
+  [SSERV_CMD_CNTS_CLEAR_REGISTER_SUBJECT] = { cmd_simple_top_command },
+  [SSERV_CMD_CNTS_CLEAR_REGISTER_SUBJECT_EN] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_ROOT_DIR] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_CONF_DIR] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_DIR_MODE] = { cmd_simple_top_command },
@@ -3675,6 +3816,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CHANGE_MEMBER_DELETE] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_DEADLINE] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_SCHED_TIME] = { cmd_set_value },
+  [SSERV_CMD_CNTS_CHANGE_OPEN_TIME] = { cmd_set_value },
+  [SSERV_CMD_CNTS_CHANGE_CLOSE_TIME] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_USERS_HEADER] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_USERS_FOOTER] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_REGISTER_HEADER] = { cmd_set_value },
@@ -3719,6 +3862,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CHANGE_PROBLEMS_URL] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_LOGO_URL] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_CSS_URL] = { cmd_set_value },
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_SUBJECT] = { cmd_set_value },
+  [SSERV_CMD_CNTS_CHANGE_REGISTER_SUBJECT_EN] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_ROOT_DIR] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_CONF_DIR] = { cmd_set_value },
   [SSERV_CMD_CNTS_CHANGE_DIR_MODE] = { cmd_set_value },
@@ -3853,6 +3998,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_USE_AC_NOT_OK] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_IGNORE_PREV_AC] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_REP_VIEW] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_CE_VIEW] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEAM_SHOW_JUDGE_REPORT] = { cmd_set_value },
@@ -3885,6 +4031,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DISABLE_CTRL_CHARS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_VALUER_SETS_MARKED] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_DISABLE_STDERR] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN] = { cmd_set_value },
@@ -3920,6 +4067,14 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_INFO_SFX] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_INFO_PAT] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_INFO_PAT] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_TGZ_SFX] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_TGZ_SFX] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_TGZ_PAT] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_TGZ_PAT] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_TGZDIR_SFX] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_TGZDIR_SFX] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_TGZDIR_PAT] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_TGZDIR_PAT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_STANDARD_CHECKER] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SCORE_BONUS] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_SCORE_BONUS] = { cmd_set_value },
@@ -3927,6 +4082,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_OPEN_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_FINAL_OPEN_TESTS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_LANG_COMPILER_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_LANG_COMPILER_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_CHECK_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_CHECK_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_CHECKER_ENV] = { cmd_set_value },
@@ -3947,6 +4104,10 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_TEST_CHECKER_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_SOLUTION_SRC] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_SOLUTION_SRC] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_SOLUTION_CMD] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_SOLUTION_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_LANG_TIME_ADJ] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ_MILLIS] = { cmd_set_value },
@@ -3982,6 +4143,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_SOURCE_HEADER] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SOURCE_FOOTER] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_SOURCE_FOOTER] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_NORMALIZATION] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_NORMALIZATION] = { cmd_set_value },
 
   [SSERV_CMD_GLOB_CHANGE_DURATION] = { cmd_set_value },
   [SSERV_CMD_GLOB_UNLIMITED_DURATION] = { cmd_set_value },
@@ -4007,6 +4170,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_IGNORE_BOM] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_LANGUAGE] = { cmd_set_value },
@@ -4254,6 +4418,8 @@ handle_control_command(struct client_state *p)
 
   (*packet_handlers[pkt->id].func)(p, p->read_len, pkt);
 
+  if (p->state == STATE_SUSPENDED) return;
+
   if (p->state == STATE_READ_READY) p->state = STATE_READ_LEN;
   if (p->read_buf) xfree(p->read_buf);
   p->read_buf = 0;
@@ -4448,6 +4614,8 @@ do_loop(void)
     while (1) {
       current_time = time(0);
 
+      background_process_cleanup(&background_processes);
+
       if (sid_state_last_check_time < current_time + SID_STATE_CHECK_INTERVAL) {
         sid_state_cleanup();
         sid_state_last_check_time = current_time;
@@ -4504,6 +4672,9 @@ do_loop(void)
         }
       }
 
+      fd_max = background_process_set_fds(&background_processes, fd_max, &rset, &wset);
+
+restart_select_dirty_hack:
       errno = 0;
       n = 0;
       if (!sigchld_flag && !hup_flag && !term_flag && !dnotify_flag) {
@@ -4529,6 +4700,27 @@ do_loop(void)
         errno = errcode;
         // end of race condition prone code
 #endif
+      }
+
+      if (n < 0 && errno == EBADF) {
+        // try to identify the guilty file descriptors
+        for (int gfd = 0; gfd <= fd_max; ++gfd) {
+          err("select() failed because of invalid file descriptors");
+          if (FD_ISSET(gfd, &rset)) {
+            if (fcntl(gfd, F_GETFD) < 0) {
+              err("fd %d is invalid (read)", gfd);
+              FD_CLR(gfd, &rset);
+              FD_CLR(gfd, &wset);
+            }
+          }
+          if (FD_ISSET(gfd, &wset)) {
+            if (fcntl(gfd, F_GETFD) < 0) {
+              err("fd %d is invalid (write)", gfd);
+              FD_CLR(gfd, &wset);
+            }
+          }
+        }
+        goto restart_select_dirty_hack;
       }
 
       if (n < 0 && errno != EINTR) {
@@ -4766,6 +4958,10 @@ do_loop(void)
             write_to_control_connection(cur_clnt);
         }
       }
+
+      background_process_readwrite(&background_processes, &rset, &wset);
+      background_process_check_finished(&background_processes);
+      background_process_call_continuations(&background_processes);
 
       // scan for ready contests
       for (i = 0; i < extra_a; i++) {

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: contest_tmpl.c 6349 2011-05-24 05:20:31Z cher $ */
+/* $Id: contest_tmpl.c 6576 2011-12-19 17:53:40Z cher $ */
 
 /* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -270,6 +270,8 @@ contest_tmpl_clone(struct sid_state *sstate,
   subst_param(&cnts->standings_url, 6, substs_from, substs_to);
   subst_param(&cnts->logo_url, 6, substs_from, substs_to);
   subst_param(&cnts->css_url, 6, substs_from, substs_to);
+  subst_param(&cnts->register_subject, 6, substs_from, substs_to);
+  subst_param(&cnts->register_subject_en, 6, substs_from, substs_to);
 
   for (cap = cnts->capabilities.first; cap; cap = (typeof(cap)) cap->b.right)
     if (!strcmp(cap->login, login))

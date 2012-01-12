@@ -1,5 +1,5 @@
-#! /bin/sh
-# $Id: ejudge-upgrade-web.in 6270 2011-04-27 05:04:59Z cher $
+#! /bin/bash
+# $Id: ejudge-upgrade-web.in 6417 2011-09-07 05:21:04Z cher $
 # Copyright (c) 2008-2011 Alexander Chernov <cher@ejudge.ru>
 
 # This script upgrades the web installation of the ejudge system
@@ -24,7 +24,7 @@ site="http://www.ejudge.ru/download"
 
 write_help() {
     echo "ejudge-upgrade-web: ejudge web upgrade utility"
-    echo "Copyright (c) 2008 Alexander Chernov <cher@ejudge.ru>"
+    echo "Copyright (c) 2008-2011 Alexander Chernov <cher@ejudge.ru>"
     echo "usage: ejudge-upgrade-web [HTDOCROOT] [CGIBINDIR] [DOJOPATH/SAVEDIR]"
     exit 0
 }

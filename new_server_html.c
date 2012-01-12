@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 6381 2011-06-25 18:52:12Z cher $ */
+/* $Id: new_server_html.c 6597 2011-12-24 18:39:30Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -182,8 +182,8 @@ ns_get_contest_extra(int contest_id)
   return p;
 }
 
-static struct contest_extra *
-try_contest_extra(int contest_id)
+struct contest_extra *
+ns_try_contest_extra(int contest_id)
 {
   struct contest_extra *p;
   size_t i, j, k;
@@ -231,14 +231,14 @@ ns_client_destroy_callback(struct client_state *p)
 
   if (p->contest_id <= 0) return;
   if (contests_get(p->contest_id, &cnts) < 0) return;
-  if (!(extra = try_contest_extra(p->contest_id))) return;
+  if (!(extra = ns_try_contest_extra(p->contest_id))) return;
   if (!(cs = extra->serve_state)) return;
   if (!cs->pending_xml_import || cs->client_id < 0) return;
   if (cs->saved_testing_suspended != cs->testing_suspended) {
     cs->testing_suspended = cs->saved_testing_suspended;
     serve_update_status_file(cs, 1);
     if (!cs->testing_suspended)
-      serve_judge_suspended(cnts, cs, 0, 0, 0);
+      serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0);
   }
   xfree(cs->pending_xml_import); cs->pending_xml_import = 0;
   cs->client_id = -1;
@@ -259,10 +259,10 @@ do_unload_contest(int idx)
   contests_get(contest_id, &cnts);
 
   if (extra->serve_state) {
-    serve_check_stat_generation(extra->serve_state, cnts, 1, utf8_mode);
+    serve_check_stat_generation(ejudge_config, extra->serve_state, cnts, 1, utf8_mode);
     serve_update_status_file(extra->serve_state, 1);
     team_extra_flush(extra->serve_state->team_extra_state);
-    extra->serve_state = serve_state_destroy(extra->serve_state, cnts, ul_conn);
+    extra->serve_state = serve_state_destroy(ejudge_config, extra->serve_state, cnts, ul_conn);
   }
 
   xfree(extra->contest_arm);
@@ -363,7 +363,7 @@ handle_pending_xml_import(const struct contest_desc *cnts, serve_state_t cs)
       cs->testing_suspended = cs->saved_testing_suspended;
       serve_update_status_file(cs, 1);
       if (!cs->testing_suspended)
-        serve_judge_suspended(cnts, cs, 0, 0, 0);
+        serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0);
     }
     xfree(cs->pending_xml_import); cs->pending_xml_import = 0;
     cs->client_id = -1; cs->destroy_callback = 0;
@@ -386,7 +386,7 @@ handle_pending_xml_import(const struct contest_desc *cnts, serve_state_t cs)
     cs->testing_suspended = cs->saved_testing_suspended;
     serve_update_status_file(cs, 1);
     if (!cs->testing_suspended)
-      serve_judge_suspended(cnts, cs, 0, 0, 0);
+      serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0);
   }
   xfree(cs->pending_xml_import); cs->pending_xml_import = 0;
   cs->client_id = -1; cs->destroy_callback = 0;
@@ -422,7 +422,7 @@ ns_loop_callback(struct server_framework_state *state)
       if ((r = scan_dir(cs->compile_dirs[i].status_dir,
                         packetname, sizeof(packetname))) <= 0)
         continue;
-      serve_read_compile_packet(cs, cnts,
+      serve_read_compile_packet(ejudge_config, cs, cnts,
                                 cs->compile_dirs[i].status_dir,
                                 cs->compile_dirs[i].report_dir,
                                 packetname);
@@ -433,7 +433,7 @@ ns_loop_callback(struct server_framework_state *state)
       if ((r = scan_dir(cs->run_dirs[i].status_dir,
                         packetname, sizeof(packetname))) <= 0)
         continue;
-      serve_read_run_packet(cs, cnts,
+      serve_read_run_packet(ejudge_config, cs, cnts,
                             cs->run_dirs[i].status_dir,
                             cs->run_dirs[i].report_dir,
                             cs->run_dirs[i].full_report_dir,
@@ -644,7 +644,7 @@ ul_conn_callback(struct server_framework_state *state,
       close_ul_connection(state);
       break;
     } else {
-      e = try_contest_extra(contest_id);
+      e = ns_try_contest_extra(contest_id);
       if (!e) {
         err("userlist-server notification: %d - no such contest", contest_id);
         break;
@@ -664,7 +664,7 @@ ul_notification_callback(void *user_data, int contest_id)
 {
   struct contest_extra *e;
 
-  e = try_contest_extra(contest_id);
+  e = ns_try_contest_extra(contest_id);
   if (!e) {
     err("userlist-server notification: %d - no such contest", contest_id);
   } else {
@@ -1044,7 +1044,7 @@ ns_check_contest_events(serve_state_t cs, const struct contest_desc *cnts)
     }
   }
 
-  if (cs->event_first) serve_handle_events(cnts, cs);
+  if (cs->event_first) serve_handle_events(ejudge_config, cnts, cs);
 }
 
 static void
@@ -2033,7 +2033,7 @@ do_schedule(FILE *log_f,
     return;
   }
 
-  if (xml_parse_date(0, 0, 0, s, &sloc) < 0 || sloc < 0) {
+  if (xml_parse_date(NULL, 0, 0, 0, s, &sloc) < 0 || sloc < 0) {
     ns_error(log_f, NEW_SRV_ERR_INV_TIME_SPEC);
     return;
   }
@@ -2114,7 +2114,7 @@ do_change_finish_time(
     return;
   }
   if (!is_empty_string(s)) {
-    if (xml_parse_date(0, 0, 0, s, &ft) < 0 || ft < 0) {
+    if (xml_parse_date(NULL, 0, 0, 0, s, &ft) < 0 || ft < 0) {
       ns_error(log_f, NEW_SRV_ERR_INV_TIME_SPEC);
       return;
     }
@@ -2511,6 +2511,30 @@ priv_reset_filter(FILE *fout,
 }
 
 static int
+serve_err_to_new_srv_err_map[] =
+{
+  [SERVE_ERR_GENERIC] = NEW_SRV_ERR_UNKNOWN_ERROR,
+  [SERVE_ERR_SRC_HEADER] = NEW_SRV_ERR_PROB_CONFIG,
+  [SERVE_ERR_SRC_FOOTER] = NEW_SRV_ERR_PROB_CONFIG,
+  [SERVE_ERR_COMPILE_PACKET_WRITE] = NEW_SRV_ERR_DISK_WRITE_ERROR,
+  [SERVE_ERR_SOURCE_READ] = NEW_SRV_ERR_DISK_READ_ERROR,
+  [SERVE_ERR_SOURCE_WRITE] = NEW_SRV_ERR_DISK_WRITE_ERROR,
+  [SERVE_ERR_DB] = NEW_SRV_ERR_DATABASE_FAILED,
+};
+
+static int
+serve_err_to_new_srv_err(int serve_err)
+{
+  if (!serve_err) return 0;
+  if (serve_err < 0) serve_err = -serve_err;
+  if (serve_err >= sizeof(serve_err_to_new_srv_err_map) / sizeof(serve_err_to_new_srv_err_map[0]))
+    return NEW_SRV_ERR_UNKNOWN_ERROR;
+  serve_err = serve_err_to_new_srv_err_map[serve_err];
+  if (!serve_err) serve_err = NEW_SRV_ERR_UNKNOWN_ERROR;
+  return serve_err;
+}
+
+static int
 priv_submit_run(FILE *fout,
                 FILE *log_f,
                 struct http_request_info *phr,
@@ -2522,7 +2546,7 @@ priv_submit_run(FILE *fout,
   const struct section_problem_data *prob = 0;
   const struct section_language_data *lang = 0;
   const unsigned char *s;
-  int prob_id = 0, variant = 0, lang_id = 0, n, max_ans, ans, i, mime_type = 0;
+  int prob_id = 0, variant = 0, lang_id = 0, n, max_ans, ans, i, mime_type = 0, r;
   const unsigned char *errmsg = 0;
   const unsigned char *run_text;
   size_t run_size, ans_size;
@@ -2763,6 +2787,14 @@ priv_submit_run(FILE *fout,
     goto invalid_param;
   }
 
+  // ignore BOM
+  if (global->ignore_bom > 0 && !prob->binary && (!lang || !lang->binary)) {
+    if (run_text && run_size >= 3 && run_text[0] == 0xef
+        && run_text[1] == 0xbb && run_text[2] == 0xbf) {
+      run_text += 3; run_size -= 3;
+    }
+  }
+
   /* check for disabled languages */
   if (lang_id > 0) {
     if (lang->disabled) {
@@ -2897,19 +2929,23 @@ priv_submit_run(FILE *fout,
                       run_id);
     } else {
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_compile_request(cs, run_text, run_size, global->contest_id, 
-                              run_id, phr->user_id, 0 /* lang_id */,
-                              0 /* locale_id */, 1 /* output_only*/,
-                              mime_type_get_suffix(mime_type),
-                              NULL /* compiler_env */,
-                              1 /* style_check_only */,
-                              prob->style_checker_cmd,
-                              prob->style_checker_env,
-                              0 /* accepting_mode */,
-                              0 /* priority_adjustment */,
-                              0 /* notify flag */,
-                              prob, NULL /* lang */,
-                              0 /* no_db_flag */);
+        r = serve_compile_request(cs, run_text, run_size, global->contest_id, 
+                                  run_id, phr->user_id, 0 /* lang_id */,
+                                  0 /* locale_id */, 1 /* output_only*/,
+                                  mime_type_get_suffix(mime_type),
+                                  NULL /* compiler_env */,
+                                  1 /* style_check_only */,
+                                  prob->style_checker_cmd,
+                                  prob->style_checker_env,
+                                  0 /* accepting_mode */,
+                                  0 /* priority_adjustment */,
+                                  0 /* notify flag */,
+                                  prob, NULL /* lang */,
+                                  0 /* no_db_flag */);
+        if (r < 0) {
+          ns_error(log_f, serve_err_to_new_srv_err(r));
+          goto cleanup;
+        }
       } else {
         if (serve_run_request(cs, log_f, run_text, run_size,
                               global->contest_id, run_id,
@@ -2938,19 +2974,23 @@ priv_submit_run(FILE *fout,
     } else {
       /* FIXME: check for XML problem */
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_compile_request(cs, run_text, run_size, global->contest_id,
-                              run_id, phr->user_id, 0 /* lang_id */,
-                              0 /* locale_id */, 1 /* output_only*/,
-                              mime_type_get_suffix(mime_type),
-                              NULL /* compiler_env */,
-                              1 /* style_check_only */,
-                              prob->style_checker_cmd,
-                              prob->style_checker_env,
-                              0 /* accepting_mode */,
-                              0 /* priority_adjustment */,
-                              0 /* notify flag */,
-                              prob, NULL /* lang */,
-                              0 /* no_db_flag */);
+        r = serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                  run_id, phr->user_id, 0 /* lang_id */,
+                                  0 /* locale_id */, 1 /* output_only*/,
+                                  mime_type_get_suffix(mime_type),
+                                  NULL /* compiler_env */,
+                                  1 /* style_check_only */,
+                                  prob->style_checker_cmd,
+                                  prob->style_checker_env,
+                                  0 /* accepting_mode */,
+                                  0 /* priority_adjustment */,
+                                  0 /* notify flag */,
+                                  prob, NULL /* lang */,
+                                  0 /* no_db_flag */);
+        if (r < 0) {
+          ns_error(log_f, serve_err_to_new_srv_err(r));
+          goto cleanup;
+        }
       } else {      
         if (serve_run_request(cs, log_f, run_text, run_size,
                               global->contest_id, run_id,
@@ -3140,7 +3180,7 @@ priv_submit_clar(
     if (cnts->default_locale_num > 0) {
       l10n_setlocale(cnts->default_locale_num);
     }
-    serve_send_email_to_user(cnts, cs, user_id, nsubj, msg_t);
+    serve_send_email_to_user(ejudge_config, cnts, cs, user_id, nsubj, msg_t);
     xfree(msg_t); msg_t = 0; msg_z = 0;
   }
 
@@ -3232,7 +3272,7 @@ priv_set_run_style_error_status(
   if (run_change_status_4(cs->runlog_state, run_id, RUN_STYLE_ERR) < 0)
     goto invalid_param;
   if (global->notify_status_change > 0 && !re.is_hidden) {
-    serve_notify_user_run_status_change(cnts, cs, re.user_id,
+    serve_notify_user_run_status_change(ejudge_config, cnts, cs, re.user_id,
                                         run_id, RUN_STYLE_ERR);
   }
 
@@ -3365,7 +3405,7 @@ priv_submit_run_comment(
     if (cnts->default_locale_num > 0) {
       l10n_setlocale(cnts->default_locale_num);
     }
-    serve_send_email_to_user(cnts, cs, re.user_id, nsubj, msg_t);
+    serve_send_email_to_user(ejudge_config, cnts, cs, re.user_id, nsubj, msg_t);
     xfree(msg_t); msg_t = 0; msg_z = 0;
   }
 
@@ -3533,7 +3573,7 @@ priv_clar_reply(
     if (cnts->default_locale_num > 0) {
       l10n_setlocale(cnts->default_locale_num);
     }
-    serve_send_email_to_user(cnts, cs, from_id, nsubj, msg_t);
+    serve_send_email_to_user(ejudge_config, cnts, cs, from_id, nsubj, msg_t);
     xfree(msg_t); msg_t = 0; msg_z = 0;
   }
 
@@ -3880,7 +3920,7 @@ priv_change_status(
     goto cleanup;
   }
   if (status == RUN_REJUDGE || status == RUN_FULL_REJUDGE) {
-    serve_rejudge_run(cnts, cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+    serve_rejudge_run(ejudge_config, cnts, cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
                       (status == RUN_FULL_REJUDGE), 0);
     goto cleanup;
   }
@@ -3913,7 +3953,7 @@ priv_change_status(
 
   if (cs->global->notify_status_change > 0) {
     if (!re.is_hidden)
-      serve_notify_user_run_status_change(cnts, cs, re.user_id, run_id,
+      serve_notify_user_run_status_change(ejudge_config, cnts, cs, re.user_id, run_id,
                                           status);
   }
 
@@ -3984,7 +4024,7 @@ priv_simple_change_status(
 
   if (cs->global->notify_status_change > 0) {
     if (!re.is_hidden)
-      serve_notify_user_run_status_change(cnts, cs, re.user_id, run_id,
+      serve_notify_user_run_status_change(ejudge_config, cnts, cs, re.user_id, run_id,
                                           status);
   }
 
@@ -4148,7 +4188,7 @@ priv_rejudge_displayed(FILE *fout,
     prio_adj = 10;
   }
 
-  serve_rejudge_by_mask(cnts, cs, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_rejudge_by_mask(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag,
                         mask_size, mask, force_full, prio_adj);
 
  cleanup:
@@ -4184,7 +4224,7 @@ priv_rejudge_problem(FILE *fout,
     goto cleanup;
   }
 
-  serve_rejudge_problem(cnts,cs,phr->user_id, phr->ip, phr->ssl_flag, prob_id);
+  serve_rejudge_problem(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, prob_id);
 
  cleanup:
   return 0;
@@ -4210,10 +4250,10 @@ priv_rejudge_all(FILE *fout,
 
   switch (phr->action) {
   case NEW_SRV_ACTION_REJUDGE_SUSPENDED_2:
-    serve_judge_suspended(cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
+    serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
     break;
   case NEW_SRV_ACTION_REJUDGE_ALL_2:
-    serve_rejudge_all(cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
+    serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
     break;
   default:
     abort();
@@ -5477,11 +5517,12 @@ priv_view_source(FILE *fout,
 }
 
 static int
-priv_download_source(FILE *fout,
-                     FILE *log_f,
-                     struct http_request_info *phr,
-                     const struct contest_desc *cnts,
-                     struct contest_extra *extra)
+priv_download_source(
+        FILE *fout,
+        FILE *log_f,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
 {
   serve_state_t cs = extra->serve_state;
   const struct section_global_data *global = cs->global;
@@ -5494,6 +5535,8 @@ priv_download_source(FILE *fout,
   char *run_text = 0;
   size_t run_size = 0;
   int retval = 0;
+  const unsigned char *src_sfx = "";
+  const unsigned char *content_type = "text/plain";
 
   if (parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0) goto failure;
   if (ns_cgi_param(phr, "no_disp", &s) > 0
@@ -5518,29 +5561,57 @@ priv_download_source(FILE *fout,
     FAIL(NEW_SRV_ERR_DISK_READ_ERROR);
 
   if (prob->type > 0) {
-    fprintf(fout, "Content-type: %s\n", mime_type_get_type(re.mime_type));
-    if (!no_disp) {
-      fprintf(fout, "Content-Disposition: attachment; filename=\"%06d%s\"\n",
-              run_id, mime_type_get_suffix(re.mime_type));
-    }
-    putc_unlocked('\n', fout);
+    content_type = mime_type_get_type(re.mime_type);
+    src_sfx = mime_type_get_suffix(re.mime_type);
   } else {
     if(re.lang_id <= 0 || re.lang_id > cs->max_lang ||
        !(lang = cs->langs[re.lang_id]))
       FAIL(NEW_SRV_ERR_INV_LANG_ID);
+    src_sfx = lang->src_sfx;
+    if (!src_sfx) src_sfx = "";
 
-    if (lang->content_type) {
-      fprintf(fout, "Content-type: %s\n", lang->content_type);
+    if (lang->content_type && lang->content_type[0]) {
+      content_type = lang->content_type;
     } else if (lang->binary) {
-      fprintf(fout, "Content-type: application/octet-stream\n\n");
+      if (re.mime_type <= 0 && !strcmp(src_sfx, ".tar")) {
+        int mime_type = mime_type_guess(global->diff_work_dir, 
+                                        run_text, run_size);
+        switch (mime_type) {
+        case MIME_TYPE_APPL_GZIP: // application/x-gzip
+          src_sfx = ".tar.gz";
+          break;
+        case MIME_TYPE_APPL_TAR:  // application/x-tar
+          src_sfx = ".tar";
+          break;
+        case MIME_TYPE_APPL_ZIP:  // application/zip
+          src_sfx = ".zip";
+          break;
+        case MIME_TYPE_APPL_BZIP2: // application/x-bzip2
+          src_sfx = ".tar.bz2";
+          break;
+        case MIME_TYPE_APPL_7ZIP:  // application/x-7zip
+          src_sfx = ".tar.7z";
+          break;
+        default:
+          mime_type = MIME_TYPE_BINARY;
+          break;
+        }
+        content_type = mime_type_get_type(mime_type);
+      } else {
+        content_type = "application/octet-stream";
+      }
     } else {
-      fprintf(fout, "Content-type: text/plain\n");
-    }
-    if (!no_disp) {
-      fprintf(fout, "Content-Disposition: attachment; filename=\"%06d%s\"\n\n",
-              run_id, lang->src_sfx);
+      content_type = "text/plain";
     }
   }
+
+  fprintf(fout, "Content-type: %s\n", content_type);
+  if (!no_disp) {
+    fprintf(fout, "Content-Disposition: attachment; filename=\"%06d%s\"\n",
+            run_id, src_sfx);
+  }
+  putc_unlocked('\n', fout);
+
   fwrite(run_text, 1, run_size, fout);
 
  cleanup:
@@ -6088,23 +6159,23 @@ priv_upsolving_configuration_1(
   html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
   fprintf(fout, "<table>");
   fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "freeze_standings",
+          html_checkbox(bb, sizeof(bb), "freeze_standings", NULL,
                         freeze_standings?1:0),
           _("Freeze contest standings"));
   fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "view_source",
+          html_checkbox(bb, sizeof(bb), "view_source", NULL,
                         view_source?1:0),
           _("Allow viewing source code"));
   fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "view_protocol",
+          html_checkbox(bb, sizeof(bb), "view_protocol", NULL,
                         view_protocol?1:0),
           _("Allow viewing run report"));
   fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "full_protocol",
+          html_checkbox(bb, sizeof(bb), "full_protocol", NULL,
                         full_proto?1:0),
           _("Allow viewing full protocol"));
   fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "disable_clars",
+          html_checkbox(bb, sizeof(bb), "disable_clars", NULL,
                         disable_clars?1:0),
           _("Disable clarifications"));
   fprintf(fout, "</table>\n");
@@ -6997,6 +7068,8 @@ unpriv_print_status(
   unsigned char duration_buf[128];
   unsigned char bb[1024];
   time_t tmpt;
+  int enable_virtual_start = 0;
+  const unsigned char *cl = " class=\"b0\"";
 
   if (!cnts->exam_mode) {
     fprintf(fout, "<%s>%s</%s>\n",
@@ -7072,21 +7145,21 @@ unpriv_print_status(
       }
     }
 
-    fprintf(fout, "<table class=\"b0\">");
-    fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-            _("Server time"), ctime(&cs->current_time));
+    fprintf(fout, "<table%s>", cl);
+    fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+            cl, _("Server time"), cl, xml_unparse_date(cs->current_time));
     if (start_time > 0) {
       if (cnts->exam_mode) {
         s = _("Exam start time");
       } else {
         s = _("Contest start time");
       }
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              s, ctime(&start_time));
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, s, cl, xml_unparse_date(start_time));
     }
     if (!global->is_virtual && start_time <= 0 && sched_time > 0) {
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              _("Planned start time"), ctime(&sched_time));
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Planned start time"), cl, xml_unparse_date(sched_time));
     }
     if (stop_time <= 0 && (duration > 0 || finish_time <= 0)) {
       if (duration > 0) {
@@ -7094,41 +7167,49 @@ unpriv_print_status(
       } else {
         snprintf(duration_buf, sizeof(duration_buf), "%s", _("Unlimited"));
       }
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              _("Duration"), duration_buf);
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Duration"), cl, duration_buf);
     }
     if (start_time > 0 && stop_time <= 0 && duration > 0) {
       tmpt = start_time + duration;
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              _("Scheduled end time"), ctime(&tmpt));
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Scheduled end time"), cl, xml_unparse_date(tmpt));
     } else if (start_time > 0 && stop_time <= 0 && duration <= 0
                && finish_time > 0) {
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              _("Scheduled end time"), ctime(&finish_time));
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Scheduled end time"), cl, xml_unparse_date(finish_time));
     } else if (stop_time) {
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              _("End time"), ctime(&stop_time));
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("End time"), cl, xml_unparse_date(stop_time));
     }
 
     if (start_time > 0 && stop_time <= 0 && fog_start_time > 0) {
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              _("Standings freeze time"), ctime(&fog_start_time));
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Standings freeze time"), cl, xml_unparse_date(fog_start_time));
     } else if (stop_time > 0 && duration > 0 && global->board_fog_time > 0
                && global->board_unfog_time > 0 && !cs->standings_updated
                && cs->current_time < stop_time + global->board_unfog_time) {
       tmpt = stop_time + global->board_unfog_time;
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              _("Standings unfreeze time"), ctime(&tmpt));
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Standings unfreeze time"), cl, xml_unparse_date(tmpt));
     }
 
     if (start_time > 0 && stop_time <= 0 && duration > 0) {
       duration_str(0, cs->current_time, start_time, duration_buf, 0);
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              _("Elapsed time"), duration_buf);
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Elapsed time"), cl, duration_buf);
       duration_str(0, start_time + duration - cs->current_time, 0,
                    duration_buf, 0);
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n",
-              _("Remaining time"), duration_buf);
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Remaining time"), cl, duration_buf);
+    }
+    if (start_time <= 0 && global->is_virtual > 0 && cnts->open_time > 0 && cs->current_time < cnts->open_time) {
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Virtual contest open time"), cl, xml_unparse_date(cnts->open_time));
+    }
+    if (start_time <= 0 && global->is_virtual > 0 && cnts->close_time > 0) {
+      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
+              cl, _("Virtual contest close time"), cl, xml_unparse_date(cnts->close_time));
     }
     fprintf(fout, "</table>\n");
   }
@@ -7152,7 +7233,15 @@ unpriv_print_status(
   }
 
   if (!cnts->exam_mode && global->is_virtual && start_time <= 0) {
-    if (global->disable_virtual_start <= 0) {
+    enable_virtual_start = 1;
+    if (global->disable_virtual_start > 0) {
+      enable_virtual_start = 0;
+    } else if (cnts->open_time > 0 && cs->current_time < cnts->open_time) {
+      enable_virtual_start = 0;
+    } else if (cnts->close_time > 0 && cs->current_time >= cnts->close_time) {
+      enable_virtual_start = 0;
+    }
+    if (enable_virtual_start) {
       html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
       if (cnts->exam_mode) {
         fprintf(fout, "<p>%s</p></form>",
@@ -7961,6 +8050,15 @@ priv_main_page(FILE *fout,
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
             "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
             phr->name_arm, phr->contest_id, extra->contest_arm, _("Main page"));
+
+  fprintf(fout,
+          "<script language=\"javascript\">\n"
+          "var self_url='%s';\n"
+          "var SID='%016llx';\n"
+          "</script>\n",
+          phr->self_url,
+          phr->session_id);
+
   fprintf(fout, "<ul>\n");
   fprintf(fout, "<li>%s%s</a></li>\n",
           ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_USERS, 0),
@@ -8606,6 +8704,15 @@ priv_main_page(FILE *fout,
   html_armor_free(&ab);
 }
 
+static void
+priv_reload_server_2(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
+{
+}
+
 typedef void (*action_handler_t)(FILE *fout,
                                  struct http_request_info *phr,
                                  const struct contest_desc *cnts,
@@ -8803,6 +8910,7 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT] = priv_generic_operation,
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE] = priv_generic_operation,
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY] = priv_generic_operation,
+  [NEW_SRV_ACTION_RELOAD_SERVER_2] = priv_reload_server_2,
 };
 
 static void
@@ -9789,7 +9897,7 @@ unpriv_submit_run(FILE *fout,
   char *log_txt = 0;
   size_t log_len = 0;
   FILE *log_f = 0;
-  int prob_id, n, lang_id = 0, i, ans, max_ans, j;
+  int prob_id, n, lang_id = 0, i, ans, max_ans, j, r;
   const unsigned char *s, *run_text = 0, *text_form_text = 0;
   size_t run_size = 0, ans_size, text_form_size = 0;
   unsigned char *ans_buf, *ans_map, *ans_tmp;
@@ -10010,6 +10118,14 @@ unpriv_submit_run(FILE *fout,
 
   case PROB_TYPE_CUSTOM:
     break;
+  }
+
+  // ignore BOM
+  if (global->ignore_bom > 0 && !prob->binary && (!lang || !lang->binary)) {
+    if (run_text && run_size >= 3 && run_text[0] == 0xef
+        && run_text[1] == 0xbb && run_text[2] == 0xbf) {
+      run_text += 3; run_size -= 3;
+    }
   }
 
   if (global->is_virtual) {
@@ -10246,19 +10362,23 @@ unpriv_submit_run(FILE *fout,
                       run_id);
     } else {
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_compile_request(cs, run_text, run_size, global->contest_id,
-                              run_id, phr->user_id, 0 /* lang_id */,
-                              0 /* locale_id */, 1 /* output_only*/,
-                              mime_type_get_suffix(mime_type),
-                              NULL /* compiler_env */,
-                              1 /* style_check_only */,
-                              prob->style_checker_cmd,
-                              prob->style_checker_env,
-                              0 /* accepting_mode */,
-                              0 /* priority_adjustment */,
-                              0 /* notify flag */,
-                              prob, NULL /* lang */,
-                              0 /* no_db_flag */);
+        r = serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                  run_id, phr->user_id, 0 /* lang_id */,
+                                  0 /* locale_id */, 1 /* output_only*/,
+                                  mime_type_get_suffix(mime_type),
+                                  NULL /* compiler_env */,
+                                  1 /* style_check_only */,
+                                  prob->style_checker_cmd,
+                                  prob->style_checker_env,
+                                  0 /* accepting_mode */,
+                                  0 /* priority_adjustment */,
+                                  0 /* notify flag */,
+                                  prob, NULL /* lang */,
+                                  0 /* no_db_flag */);
+        if (r < 0) {
+          ns_error(log_f, serve_err_to_new_srv_err(r));
+          goto done;
+        }
       } else {
         if (serve_run_request(cs, log_f, run_text, run_size,
                               global->contest_id, run_id,
@@ -10298,7 +10418,7 @@ unpriv_submit_run(FILE *fout,
       }
       if (px && px->ans_num > 0) {
         run_get_entry(cs->runlog_state, run_id, &re);
-        serve_judge_built_in_problem(cs, cnts, run_id, 1 /* judge_id */,
+        serve_judge_built_in_problem(ejudge_config, cs, cnts, run_id, 1 /* judge_id */,
                                      variant, cs->accepting_mode, &re,
                                      prob, px, phr->user_id, phr->ip,
                                      phr->ssl_flag);
@@ -10306,19 +10426,23 @@ unpriv_submit_run(FILE *fout,
       }
 
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_compile_request(cs, run_text, run_size, global->contest_id,
-                              run_id, phr->user_id, 0 /* lang_id */,
-                              0 /* locale_id */, 1 /* output_only*/,
-                              mime_type_get_suffix(mime_type),
-                              NULL /* compiler_env */,
-                              1 /* style_check_only */,
-                              prob->style_checker_cmd,
-                              prob->style_checker_env,
-                              0 /* accepting_mode */,
-                              0 /* priority_adjustment */,
-                              0 /* notify flag */,
-                              prob, NULL /* lang */,
-                              0 /* no_db_flag */);
+        r = serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                  run_id, phr->user_id, 0 /* lang_id */,
+                                  0 /* locale_id */, 1 /* output_only*/,
+                                  mime_type_get_suffix(mime_type),
+                                  NULL /* compiler_env */,
+                                  1 /* style_check_only */,
+                                  prob->style_checker_cmd,
+                                  prob->style_checker_env,
+                                  0 /* accepting_mode */,
+                                  0 /* priority_adjustment */,
+                                  0 /* notify flag */,
+                                  prob, NULL /* lang */,
+                                  0 /* no_db_flag */);
+        if (r < 0) {
+          ns_error(log_f, serve_err_to_new_srv_err(r));
+          goto done;
+        }
       } else {
         if (serve_run_request(cs, log_f, run_text, run_size,
                               global->contest_id, run_id,
@@ -10499,7 +10623,7 @@ unpriv_submit_clar(FILE *fout,
     goto done;
   }
 
-  serve_send_clar_notify_email(cs, cnts, phr->user_id, phr->name, subj3, text2);
+  serve_send_clar_notify_email(ejudge_config, cs, cnts, phr->user_id, phr->name, subj3, text2);
 
  done:;
   close_memstream(log_f); log_f = 0;
@@ -10640,7 +10764,7 @@ unpriv_submit_appeal(FILE *fout,
     goto done;
   }
 
-  serve_send_clar_notify_email(cs, cnts, phr->user_id, phr->name, subj3, text2);
+  serve_send_clar_notify_email(ejudge_config, cs, cnts, phr->user_id, phr->name, subj3, text2);
 
  done:;
   close_memstream(log_f); log_f = 0;
@@ -10721,6 +10845,14 @@ unpriv_command(FILE *fout,
   switch (phr->action) {
   case NEW_SRV_ACTION_VIRTUAL_START:
     if (global->disable_virtual_start) {
+      ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
+      goto done;
+    }
+    if (cnts->open_time > 0 && cs->current_time < cnts->open_time) {
+      ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
+      goto done;
+    }
+    if (cnts->close_time > 0 && cs->current_time >= cnts->close_time) {
       ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
       goto done;
     }
@@ -14310,6 +14442,7 @@ static const unsigned char * const symbolic_action_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT] = "ADMIN_CHANGE_ONLINE_VIEW_REPORT",
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE] = "ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE",
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY] = "ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY",
+  [NEW_SRV_ACTION_RELOAD_SERVER_2] = "RELOAD_SERVER_2",
 };
 
 void
@@ -14349,7 +14482,7 @@ ns_handle_http_request(struct server_framework_state *state,
   if (!(remote_addr = ns_getenv(phr, "REMOTE_ADDR")))
     return ns_html_err_inv_param(fout, phr, 0, "REMOTE_ADDR does not exist");
   if (!strcmp(remote_addr, "::1")) remote_addr = "127.0.0.1";
-  if (xml_parse_ip(0, 0, 0, remote_addr, &phr->ip) < 0)
+  if (xml_parse_ip(NULL, 0, 0, 0, remote_addr, &phr->ip) < 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse REMOTE_ADDR");
 
   // parse the contest_id

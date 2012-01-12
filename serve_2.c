@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_2.c 6393 2011-07-04 20:54:33Z cher $ */
+/* $Id: serve_2.c 6586 2011-12-21 12:20:43Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -41,6 +41,7 @@
 #include "compat.h"
 #include "varsubst.h"
 #include "mime_type.h"
+#include "ejudge_cfg.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -611,12 +612,13 @@ serve_create_symlinks(serve_state_t state)
 }
 
 const unsigned char *
-serve_get_email_sender(const struct contest_desc *cnts)
+serve_get_email_sender(const struct ejudge_cfg *config, const struct contest_desc *cnts)
 {
   int sysuid;
   struct passwd *ppwd;
 
   if (cnts && cnts->register_email) return cnts->register_email;
+  if (config && config->register_email) return config->register_email;
   sysuid = getuid();
   ppwd = getpwuid(sysuid);
   return ppwd->pw_name;
@@ -624,6 +626,7 @@ serve_get_email_sender(const struct contest_desc *cnts)
 
 static void
 generate_statistics_email(
+        const struct ejudge_cfg *config,
         serve_state_t state,
         const struct contest_desc *cnts,
         time_t from_time,
@@ -670,7 +673,7 @@ generate_statistics_email(
           etxt);
   close_memstream(fout); fout = 0;
 
-  originator = serve_get_email_sender(cnts);
+  originator = serve_get_email_sender(config, cnts);
   mail_args[0] = "mail";
   mail_args[1] = "";
   mail_args[2] = esubj;
@@ -685,6 +688,7 @@ generate_statistics_email(
 
 void
 serve_check_stat_generation(
+        const struct ejudge_cfg *config,
         serve_state_t state,
         const struct contest_desc *cnts,
         int force_flag,
@@ -754,7 +758,7 @@ serve_check_stat_generation(
       state->stat_report_time = 0;
       return;
     }
-    generate_statistics_email(state, cnts, thisday, nextday, utf8_mode);
+    generate_statistics_email(config, state, cnts, thisday, nextday, utf8_mode);
     thisday = nextday;
   }
 
@@ -935,6 +939,26 @@ serve_packet_name(int run_id, int prio, unsigned char buf[])
   b32_number(num, buf);
 }
 
+static char **
+filter_lang_environ(const unsigned char *lang_short_name, char **environ)
+{
+  int count = 0, i, llen, j = 0;
+  char **env = NULL;
+  llen = strlen(lang_short_name);
+  for (i = 0; environ[i]; ++i) {
+    if (strlen(environ[i]) > llen && !strncmp(lang_short_name, environ[i], llen) && environ[i][llen] == '=') {
+      ++count;
+    }
+  }
+  XCALLOC(env, count + 1);
+  for (i = 0; environ[i]; ++i) {
+    if (strlen(environ[i]) > llen && !strncmp(lang_short_name, environ[i], llen) && environ[i][llen] == '=') {
+      env[j++] = xstrdup(environ[i] + llen + 1);
+    }
+  }
+  return env;
+}
+
 int
 serve_compile_request(
         serve_state_t state,
@@ -973,8 +997,11 @@ serve_compile_request(
   size_t src_out_size = 0;
   int prio = 0;
   char **sc_env_mem = 0;
+  char **comp_env_mem = NULL;
+  char **comp_env_mem_2 = NULL;
   const unsigned char *compile_src_dir = 0;
   const unsigned char *compile_queue_dir = 0;
+  int errcode = -SERVE_ERR_GENERIC;
 
   if (prob->source_header[0]) {
     sformat_message(tmp_path, sizeof(tmp_path), 0, prob->source_header,
@@ -989,8 +1016,10 @@ serve_compile_request(
                global->statement_dir, tmp_path);
     }
     if (generic_read_file(&src_header_text, 0, &src_header_size, 0, 0,
-                          tmp_path_2, "") < 0)
+                          tmp_path_2, "") < 0) {
+      errcode = -SERVE_ERR_SRC_HEADER;
       goto failed;
+    }
   }
   if (prob->source_footer[0]) {
     sformat_message(tmp_path, sizeof(tmp_path), 0, prob->source_footer,
@@ -1005,8 +1034,10 @@ serve_compile_request(
                global->statement_dir, tmp_path);
     }
     if (generic_read_file(&src_footer_text, 0, &src_footer_size, 0, 0,
-                          tmp_path_2, "") < 0)
+                          tmp_path_2, "") < 0) {
+      errcode = -SERVE_ERR_SRC_FOOTER;
       goto failed;
+    }
   }
 
   if (accepting_mode == -1) accepting_mode = state->accepting_mode;
@@ -1032,6 +1063,17 @@ serve_compile_request(
                global->checker_dir, tmp_path);
       style_checker_cmd = tmp_path_2;
     }
+  }
+
+  if (prob && prob->lang_compiler_env && lang) {
+    comp_env_mem_2 = filter_lang_environ(lang->short_name, prob->lang_compiler_env);
+  }
+
+  if (compiler_env && compiler_env[0] && comp_env_mem_2 && comp_env_mem_2[0]) {
+    comp_env_mem = sarray_merge_pp(compiler_env, comp_env_mem_2);
+    compiler_env = comp_env_mem;
+  } else if (comp_env_mem_2 && comp_env_mem_2[0]) {
+    compiler_env = comp_env_mem_2;
   }
 
   if (style_checker_env && style_checker_env[0] && lang
@@ -1089,6 +1131,7 @@ serve_compile_request(
 
   if (compile_request_packet_write(&cp, &pkt_len, &pkt_buf) < 0) {
     // FIXME: need reasonable recovery?
+    errcode = -SERVE_ERR_COMPILE_PACKET_WRITE;
     goto failed;
   }
 
@@ -1116,10 +1159,15 @@ serve_compile_request(
     if (len < 0) {
       arch_flags = archive_make_read_path(state, run_arch, sizeof(run_arch),
                                           global->run_archive_dir, run_id,0,0);
-      if (arch_flags < 0) goto failed;
-      if (generic_read_file(&src_text, 0, &src_size, arch_flags, 0,
-                            run_arch, "") < 0)
+      if (arch_flags < 0) {
+        errcode = -SERVE_ERR_SOURCE_READ;
         goto failed;
+      }
+      if (generic_read_file(&src_text, 0, &src_size, arch_flags, 0,
+                            run_arch, "") < 0) {
+        errcode = -SERVE_ERR_SOURCE_READ;
+        goto failed;
+      }
       str = src_text;
       len = src_size;
     }
@@ -1133,35 +1181,48 @@ serve_compile_request(
       memcpy(src_out_text + src_header_size + len, src_footer_text,
              src_footer_size);
     if (generic_write_file(src_out_text, src_out_size, 0,
-                           compile_src_dir, pkt_name, sfx) < 0)
+                           compile_src_dir, pkt_name, sfx) < 0) {
+      errcode = -SERVE_ERR_SOURCE_WRITE;
       goto failed;
+    }
   } else if (len < 0) {
     // copy from archive
     arch_flags = archive_make_read_path(state, run_arch, sizeof(run_arch),
                                         global->run_archive_dir, run_id, 0,0);
-    if (arch_flags < 0) goto failed;
-    if (generic_copy_file(arch_flags, 0, run_arch, "",
-                          0, compile_src_dir, pkt_name, sfx) < 0)
+    if (arch_flags < 0) {
+      errcode = -SERVE_ERR_SOURCE_READ;
       goto failed;
+    }
+    if (generic_copy_file(arch_flags, 0, run_arch, "",
+                          0, compile_src_dir, pkt_name, sfx) < 0) {
+      errcode = -SERVE_ERR_SOURCE_WRITE;
+      goto failed;
+    }
   } else {
     // write from memory
     if (generic_write_file(str, len, 0,
-                           compile_src_dir, pkt_name, sfx) < 0)
+                           compile_src_dir, pkt_name, sfx) < 0) {
+      errcode = -SERVE_ERR_SOURCE_WRITE;
       goto failed;
+    }
   }
 
   if (generic_write_file(pkt_buf, pkt_len, SAFE,
                          compile_queue_dir, pkt_name, "") < 0) {
+    errcode = -SERVE_ERR_COMPILE_PACKET_WRITE;
     goto failed;
   }
 
   if (!no_db_flag) {
     if (run_change_status(state->runlog_state, run_id, RUN_COMPILING, 0, -1,
                           cp.judge_id) < 0) {
+      errcode = -SERVE_ERR_DB;
       goto failed;
     }
   }
 
+  sarray_free(comp_env_mem_2);
+  sarray_free(comp_env_mem);
   sarray_free(sc_env_mem);
   xfree(pkt_buf);
   xfree(src_header_text);
@@ -1171,13 +1232,15 @@ serve_compile_request(
   return 0;
 
  failed:
+  sarray_free(comp_env_mem_2);
+  sarray_free(comp_env_mem);
   sarray_free(sc_env_mem);
   xfree(pkt_buf);
   xfree(src_header_text);
   xfree(src_footer_text);
   xfree(src_text);
   xfree(src_out_text);
-  return -1;
+  return errcode;
 }
 
 int
@@ -1342,6 +1405,8 @@ serve_run_request(
   run_pkt->secure_run = state->global->secure_run;
   run_pkt->notify_flag = notify_flag;
   run_pkt->advanced_layout = state->global->advanced_layout;
+  run_pkt->disable_stderr = prob->disable_stderr;
+  if (run_pkt->disable_stderr < 0) run_pkt->disable_stderr = 0;
   run_pkt->mime_type = mime_type;
   if (run_pkt->secure_run && prob->disable_security) run_pkt->secure_run = 0;
   if (run_pkt->secure_run && lang && lang->disable_security) run_pkt->secure_run = 0;
@@ -1460,11 +1525,14 @@ serve_run_request(
 }
 
 void
-serve_send_clar_notify_email(serve_state_t state,
-                             const struct contest_desc *cnts,
-                             int user_id, const unsigned char *user_name,
-                             const unsigned char *subject,
-                             const unsigned char *text)
+serve_send_clar_notify_email(
+        const struct ejudge_cfg *config,
+        serve_state_t state,
+        const struct contest_desc *cnts,
+        int user_id,
+        const unsigned char *user_name,
+        const unsigned char *subject,
+        const unsigned char *text)
 {
   unsigned char esubj[1024];
   FILE *fmsg = 0;
@@ -1476,7 +1544,7 @@ serve_send_clar_notify_email(serve_state_t state,
   if (!state || !cnts || !cnts->clar_notify_email) return;
 
   snprintf(esubj, sizeof(esubj), "New clar request in contest %d", cnts->id);
-  originator = serve_get_email_sender(cnts);
+  originator = serve_get_email_sender(config, cnts);
   fmsg = open_memstream(&ftxt, &flen);
   fprintf(fmsg, "Hello,\n\nNew clarification request is received\n"
           "Contest: %d (%s)\n"
@@ -1499,7 +1567,10 @@ serve_send_clar_notify_email(serve_state_t state,
 }
 
 void
-serve_send_check_failed_email(const struct contest_desc *cnts, int run_id)
+serve_send_check_failed_email(
+        const struct ejudge_cfg *config,
+        const struct contest_desc *cnts,
+        int run_id)
 {
   unsigned char esubj[1024];
   const unsigned char *originator = 0;
@@ -1511,7 +1582,7 @@ serve_send_check_failed_email(const struct contest_desc *cnts, int run_id)
   if (!cnts->cf_notify_email) return;
 
   snprintf(esubj, sizeof(esubj), "Check failed in contest %d", cnts->id);
-  originator = serve_get_email_sender(cnts);
+  originator = serve_get_email_sender(config, cnts);
 
   fmsg = open_memstream(&ftxt, &flen);
   fprintf(fmsg, "Hello,\n\nRun evaluation got \"Check failed\"!\n"
@@ -1534,6 +1605,7 @@ serve_send_check_failed_email(const struct contest_desc *cnts, int run_id)
 
 void
 serve_send_email_to_user(
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         const serve_state_t cs,
         int user_id,
@@ -1545,9 +1617,9 @@ serve_send_email_to_user(
   const unsigned char *mail_args[7];
 
   if (!(u = teamdb_get_userlist(cs->teamdb_state, user_id))) return;
-  if (!u->email || !strchr(u->email, '@')) return;
+  if (!is_valid_email_address(u->email)) return;
 
-  originator = serve_get_email_sender(cnts);
+  originator = serve_get_email_sender(config, cnts);
 
   mail_args[0] = "mail";
   mail_args[1] = "";
@@ -1561,6 +1633,7 @@ serve_send_email_to_user(
 
 void
 serve_notify_user_run_status_change(
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         const serve_state_t cs,
         int user_id,
@@ -1594,12 +1667,13 @@ serve_notify_user_run_status_change(
   if (cnts->default_locale_num > 0) {
     l10n_setlocale(cnts->default_locale_num);
   }
-  serve_send_email_to_user(cnts, cs, user_id, nsubj, msg_t);
+  serve_send_email_to_user(config, cnts, cs, user_id, nsubj, msg_t);
   xfree(msg_t); msg_t = 0; msg_z = 0;
 }
 
 int
 serve_read_compile_packet(
+        const struct ejudge_cfg *config,
         serve_state_t state,
         const struct contest_desc *cnts,
         const unsigned char *compile_status_dir,
@@ -1696,7 +1770,7 @@ serve_read_compile_packet(
                compile_report_dir, pname, rep_flags, rep_path);
       goto report_check_failed;
     }
-    serve_send_check_failed_email(cnts, comp_pkt->run_id);
+    serve_send_check_failed_email(config, cnts, comp_pkt->run_id);
     goto success;
   }
 
@@ -1722,7 +1796,7 @@ serve_read_compile_packet(
     serve_update_standings_file(state, cnts, 0);
     if (global->notify_status_change > 0 && !re.is_hidden
         && comp_extra->notify_flag) {
-      serve_notify_user_run_status_change(cnts, state, re.user_id,
+      serve_notify_user_run_status_change(config, cnts, state, re.user_id,
                                           comp_pkt->run_id, comp_pkt->status);
     }
     goto success;
@@ -1756,7 +1830,7 @@ serve_read_compile_packet(
       goto non_fatal_error;
     if (global->notify_status_change > 0 && !re.is_hidden
         && comp_extra->notify_flag) {
-      serve_notify_user_run_status_change(cnts, state, re.user_id,
+      serve_notify_user_run_status_change(config, cnts, state, re.user_id,
                                           comp_pkt->run_id, RUN_ACCEPTED);
     }
     goto success;
@@ -1821,7 +1895,7 @@ serve_read_compile_packet(
 
  report_check_failed:
   xfree(run_text); run_text = 0; run_size = 0;
-  serve_send_check_failed_email(cnts, comp_pkt->run_id);
+  serve_send_check_failed_email(config, cnts, comp_pkt->run_id);
 
   /* this is error recover, so if error happens again, we cannot do anything */
   if (run_change_status_4(state->runlog_state, comp_pkt->run_id,
@@ -1953,16 +2027,18 @@ dur_to_str(unsigned char *buf, size_t size, int sec1, int usec1,
 }
 
 int
-serve_read_run_packet(serve_state_t state,
-                      const struct contest_desc *cnts,
-                      const unsigned char *run_status_dir,
-                      const unsigned char *run_report_dir,
-                      const unsigned char *run_full_archive_dir,
-                      const unsigned char *pname)
+serve_read_run_packet(
+        const struct ejudge_cfg *config,
+        serve_state_t state,
+        const struct contest_desc *cnts,
+        const unsigned char *run_status_dir,
+        const unsigned char *run_report_dir,
+        const unsigned char *run_full_archive_dir,
+        const unsigned char *pname)
 {
   path_t rep_path, full_path;
-  int r, rep_flags, rep_size, full_flags;
-  struct run_entry re;
+  int r, rep_flags, rep_size, full_flags, i;
+  struct run_entry re, pe;
   char *reply_buf = 0;          /* need char* for generic_read_file */
   size_t reply_buf_size = 0;
   struct run_reply_packet *reply_pkt = 0;
@@ -1971,6 +2047,7 @@ serve_read_run_packet(serve_state_t state,
   FILE *f = 0;
   int ts8, ts8_us;
   unsigned char time_buf[64];
+  int ignore_prev_ac = 0;
 
   get_current_time(&ts8, &ts8_us);
   if ((r = generic_read_file(&reply_buf, 0, &reply_buf_size, SAFE | REMOVE,
@@ -2043,9 +2120,10 @@ serve_read_run_packet(serve_state_t state,
       && state->probs[re.prob_id] && state->probs[re.prob_id]->use_ac_not_ok
       && reply_pkt->status == RUN_OK) {
     reply_pkt->status = RUN_ACCEPTED;
+    if (state->probs[re.prob_id]->ignore_prev_ac > 0) ignore_prev_ac = 1;
   }
   if (reply_pkt->status == RUN_CHECK_FAILED)
-    serve_send_check_failed_email(cnts, reply_pkt->run_id);
+    serve_send_check_failed_email(config, cnts, reply_pkt->run_id);
   if (reply_pkt->marked_flag < 0) reply_pkt->marked_flag = 0;
   if (reply_pkt->status == RUN_CHECK_FAILED) {
     if (run_change_status_4(state->runlog_state, reply_pkt->run_id,
@@ -2072,7 +2150,7 @@ serve_read_run_packet(serve_state_t state,
   serve_update_standings_file(state, cnts, 0);
   if (state->global->notify_status_change > 0 && !re.is_hidden
       && reply_pkt->notify_flag) {
-    serve_notify_user_run_status_change(cnts, state, re.user_id,
+    serve_notify_user_run_status_change(config, cnts, state, re.user_id,
                                         reply_pkt->run_id, reply_pkt->status);
   }
   rep_size = generic_file_size(run_report_dir, pname, "");
@@ -2144,6 +2222,16 @@ serve_read_run_packet(serve_state_t state,
   close_memstream(f); f = 0;
   serve_audit_log(state, reply_pkt->run_id, 0, 0, 0, "%s", audit_text);
   xfree(audit_text); audit_text = 0;
+
+  if (ignore_prev_ac) {
+    for (i = reply_pkt->run_id - 1; i >= 0; --i) {
+      if (run_get_entry(state->runlog_state, i, &pe) < 0) continue;
+      if (pe.status == RUN_ACCEPTED && pe.prob_id == re.prob_id && pe.user_id == re.user_id) {
+        run_change_status_3(state->runlog_state, i, RUN_IGNORED, -1, 0, 0, 0, 0, 0, 0, 0);
+      }
+    }
+  }
+
   run_reply_packet_free(reply_pkt);
 
   return 1;
@@ -2174,6 +2262,7 @@ unparse_scoring_system(unsigned char *buf, size_t size, int val)
 
 void
 serve_judge_built_in_problem(
+        const struct ejudge_cfg *config,
         serve_state_t state,
         const struct contest_desc *cnts,
         int run_id,
@@ -2322,7 +2411,7 @@ serve_judge_built_in_problem(
                   "Run-id: %d\n", run_id);
 
   if (status == RUN_CHECK_FAILED)
-    serve_send_check_failed_email(cnts, run_id);
+    serve_send_check_failed_email(config, cnts, run_id);
 
   /* FIXME: handle database update error */
   run_change_status_3(state->runlog_state, run_id, glob_status, failed_test,
@@ -2349,6 +2438,7 @@ serve_judge_built_in_problem(
 
 void
 serve_rejudge_run(
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         serve_state_t state,
         int run_id,
@@ -2360,7 +2450,7 @@ serve_rejudge_run(
 {
   const struct section_global_data *global = state->global;
   struct run_entry re;
-  int accepting_mode = -1, arch_flags = 0;
+  int accepting_mode = -1, arch_flags = 0, r;
   path_t run_arch_path;
   char *run_text = 0;
   size_t run_size = 0;
@@ -2399,26 +2489,30 @@ serve_rejudge_run(
     }
 
     if (prob->type == PROB_TYPE_SELECT_ONE && px && px->ans_num > 0) {
-      serve_judge_built_in_problem(state, cnts, run_id, 1 /* judge_id*/,
+      serve_judge_built_in_problem(config, state, cnts, run_id, 1 /* judge_id*/,
                                    variant, accepting_mode, &re, prob,
                                    px, user_id, ip, ssl_flag);
       return;
     }
 
     if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-      serve_compile_request(state, 0 /* str*/, -1 /* len*/, global->contest_id,
-                            run_id, re.user_id, 0 /* lang_id */,
-                            0 /* locale_id */, 1 /* output_only*/,
-                            mime_type_get_suffix(re.mime_type),
-                            NULL /* compiler_env */,
-                            1 /* style_check_only */,
-                            prob->style_checker_cmd,
-                            prob->style_checker_env,
-                            0 /* accepting_mode */,
-                            0 /* priority_adjustment */,
-                            1 /* notify flag */,
-                            prob, NULL /* lang */,
-                            0 /* no_db_flag */);
+      r = serve_compile_request(state, 0 /* str*/, -1 /* len*/, global->contest_id,
+                                run_id, re.user_id, 0 /* lang_id */,
+                                0 /* locale_id */, 1 /* output_only*/,
+                                mime_type_get_suffix(re.mime_type),
+                                NULL /* compiler_env */,
+                                1 /* style_check_only */,
+                                prob->style_checker_cmd,
+                                prob->style_checker_env,
+                                0 /* accepting_mode */,
+                                0 /* priority_adjustment */,
+                                1 /* notify flag */,
+                                prob, NULL /* lang */,
+                                0 /* no_db_flag */);
+      if (r < 0) {
+        err("rejudge_run: serve_compile_request failed: %s", serve_err_str(r));
+        return;
+      }
       serve_audit_log(state, run_id, user_id, ip, ssl_flag,
                       "Command: Rejudge\n");
       return;
@@ -2453,14 +2547,18 @@ serve_rejudge_run(
     accepting_mode = 0;
   }
 
-  serve_compile_request(state, 0, -1, global->contest_id, run_id, re.user_id,
-                        lang->compile_id, re.locale_id,
-                        (prob->type > 0),
-                        lang->src_sfx,
-                        lang->compiler_env,
-                        0, prob->style_checker_cmd,
-                        prob->style_checker_env,
-                        accepting_mode, priority_adjustment, 1, prob, lang, 0);
+  r = serve_compile_request(state, 0, -1, global->contest_id, run_id, re.user_id,
+                            lang->compile_id, re.locale_id,
+                            (prob->type > 0),
+                            lang->src_sfx,
+                            lang->compiler_env,
+                            0, prob->style_checker_cmd,
+                            prob->style_checker_env,
+                            accepting_mode, priority_adjustment, 1, prob, lang, 0);
+  if (r < 0) {
+    err("rejudge_run: serve_compile_request failed: %s", serve_err_str(r));
+    return;
+  }
 
   serve_audit_log(state, run_id, user_id, ip, ssl_flag, "Command: Rejudge\n");
 }
@@ -2624,6 +2722,7 @@ is_generally_rejudgable(const serve_state_t state,
  */
 void
 serve_rejudge_by_mask(
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         serve_state_t state,
         int user_id,
@@ -2686,7 +2785,7 @@ serve_rejudge_by_mask(
     if (run_get_entry(state->runlog_state, r, &re) >= 0
         && is_generally_rejudgable(state, &re, INT_MAX)
         && (mask[r / BITS_PER_LONG] & (1L << (r % BITS_PER_LONG)))) {
-      serve_rejudge_run(cnts, state, r, user_id, ip, ssl_flag,
+      serve_rejudge_run(config, cnts, state, r, user_id, ip, ssl_flag,
                         force_flag, priority_adjustment);
     }
   }
@@ -2694,6 +2793,7 @@ serve_rejudge_by_mask(
 
 void
 serve_rejudge_problem(
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         serve_state_t state,
         int user_id,
@@ -2730,7 +2830,7 @@ serve_rejudge_problem(
       if (re.prob_id != prob_id) continue;
       if (flag[re.user_id]) continue;
       flag[re.user_id] = 1;
-      serve_rejudge_run(cnts, state, r, user_id, ip, ssl_flag, 0, 0);
+      serve_rejudge_run(config, cnts, state, r, user_id, ip, ssl_flag, 0, 0);
     }
     return;
   }
@@ -2740,13 +2840,14 @@ serve_rejudge_problem(
         && is_generally_rejudgable(state, &re, INT_MAX)
         && re.status != RUN_IGNORED && re.status != RUN_DISQUALIFIED
         && re.prob_id == prob_id) {
-      serve_rejudge_run(cnts, state, r, user_id, ip, ssl_flag, 0, 0);
+      serve_rejudge_run(config, cnts, state, r, user_id, ip, ssl_flag, 0, 0);
     }
   }
 }
 
 void
 serve_judge_suspended(
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         serve_state_t state,
         int user_id,
@@ -2766,13 +2867,14 @@ serve_judge_suspended(
     if (run_get_entry(state->runlog_state, r, &re) >= 0
         && is_generally_rejudgable(state, &re, INT_MAX)
         && re.status == RUN_PENDING) {
-      serve_rejudge_run(cnts, state, r, user_id, ip, ssl_flag, 0, 0);
+      serve_rejudge_run(config, cnts, state, r, user_id, ip, ssl_flag, 0, 0);
     }
   }
 }
 
 void
 serve_rejudge_all(
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         serve_state_t state,
         int user_id,
@@ -2808,7 +2910,7 @@ serve_rejudge_all(
       idx = re.user_id * total_probs + re.prob_id;
       if (flag[idx]) continue;
       flag[idx] = 1;
-      serve_rejudge_run(cnts, state, r, user_id, ip, ssl_flag, 0, 0);
+      serve_rejudge_run(config, cnts, state, r, user_id, ip, ssl_flag, 0, 0);
     }
     return;
   }
@@ -2817,7 +2919,7 @@ serve_rejudge_all(
     if (run_get_entry(state->runlog_state, r, &re) >= 0
         && is_generally_rejudgable(state, &re, INT_MAX)
         && re.status != RUN_IGNORED && re.status != RUN_DISQUALIFIED) {
-      serve_rejudge_run(cnts, state, r, user_id, ip, ssl_flag, 0, 0);
+      serve_rejudge_run(config, cnts, state, r, user_id, ip, ssl_flag, 0, 0);
     }
   }
 }
@@ -3103,6 +3205,7 @@ handle_virtual_stop_event(
 
 static void
 handle_judge_olympiad_event(
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         serve_state_t cs,
         struct serve_event_queue *p)
@@ -3125,7 +3228,7 @@ handle_judge_olympiad_event(
     goto done;
   // already judged somehow
   if (rs.judge_id > 0) goto done;
-  serve_judge_virtual_olympiad(cnts, cs, p->user_id, re.run_id);
+  serve_judge_virtual_olympiad(config, cnts, cs, p->user_id, re.run_id);
   if (p->handler) (*p->handler)(cnts, cs, p);
 
  done:
@@ -3134,7 +3237,10 @@ handle_judge_olympiad_event(
 }
 
 void
-serve_handle_events(const struct contest_desc *cnts, serve_state_t cs)
+serve_handle_events(
+        const struct ejudge_cfg *config,
+        const struct contest_desc *cnts,
+        serve_state_t cs)
 {
   struct serve_event_queue *p, *q;
 
@@ -3148,7 +3254,7 @@ serve_handle_events(const struct contest_desc *cnts, serve_state_t cs)
       handle_virtual_stop_event(cnts, cs, p);
       break;
     case SERVE_EVENT_JUDGE_OLYMPIAD:
-      handle_judge_olympiad_event(cnts, cs, p);
+      handle_judge_olympiad_event(config, cnts, cs, p);
       break;
     default:
       abort();
@@ -3158,6 +3264,7 @@ serve_handle_events(const struct contest_desc *cnts, serve_state_t cs)
 
 void
 serve_judge_virtual_olympiad(
+        const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         serve_state_t cs,
         int user_id,
@@ -3204,7 +3311,7 @@ serve_judge_virtual_olympiad(
 
   for (i = 1; i <= cs->max_prob; i++) {
     if (latest_runs[i] >= 0)
-      serve_rejudge_run(cnts, cs, latest_runs[i], user_id, 0, 0, 1, 10);
+      serve_rejudge_run(config, cnts, cs, latest_runs[i], user_id, 0, 0, 1, 10);
   }
   run_set_judge_id(cs->runlog_state, vstart_id, 1);
 }
@@ -3703,6 +3810,31 @@ serve_is_problem_deadlined_2(
 
   return serve_is_problem_deadlined(state, user_id, user_login, prob,
                                     p_deadline);
+}
+
+static const unsigned char * const
+serve_err_str_map[] =
+{
+  [SERVE_ERR_GENERIC] = "unidentified error",
+  [SERVE_ERR_SRC_HEADER] = "failed to read source header file",
+  [SERVE_ERR_SRC_FOOTER] = "failed to read source footer file",
+  [SERVE_ERR_COMPILE_PACKET_WRITE] = "failed to write compile packet",
+  [SERVE_ERR_SOURCE_READ] = "failed to read source file",
+  [SERVE_ERR_SOURCE_WRITE] = "failed to write source file",
+  [SERVE_ERR_DB] = "database error",
+};
+
+const unsigned char *
+serve_err_str(int serve_err)
+{
+  const unsigned char *str = NULL;
+  if (!serve_err) return "no error!";
+  if (serve_err < 0) serve_err = -serve_err;
+  if (serve_err >= sizeof(serve_err_str_map) / sizeof(serve_err_str_map[0]))
+    return "unknown error!";
+  str = serve_err_str_map[serve_err];
+  if (!str) str = "unknown error!";
+  return str;
 }
 
 /*
