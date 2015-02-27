@@ -2,7 +2,7 @@ Index: ejudge-debian/ej-super-run.c
 ===================================================================
 --- ejudge-debian.orig/ej-super-run.c
 +++ ejudge-debian/ej-super-run.c
-@@ -844,7 +844,12 @@ main(int argc, char *argv[])
+@@ -913,7 +913,12 @@ main(int argc, char *argv[])
    }
    snprintf(super_run_path, sizeof(super_run_path), "%s/%s", contests_home_dir, SUPER_RUN_DIRECTORY);
    snprintf(super_run_conf_path, sizeof(super_run_conf_path), "%s/conf/super-run.cfg", super_run_path);
@@ -14,45 +14,45 @@ Index: ejudge-debian/ej-super-run.c
 +      snprintf(super_run_log_path, sizeof(super_run_log_path), "%s", ejudge_config->super_run_log);
 +  }
  
-   if (os_IsFile(super_run_path) < 0) {
-     create_configs(super_run_path, super_run_conf_path);
+   remove_if_upgrade_needed(super_run_conf_path);
+ 
 Index: ejudge-debian/ejudge_cfg.c
 ===================================================================
 --- ejudge-debian.orig/ejudge_cfg.c
 +++ ejudge-debian/ejudge_cfg.c
-@@ -93,6 +93,7 @@ enum
+@@ -95,6 +95,7 @@ enum
      TG_NEW_SERVER_LOG,
      TG_DEFAULT_CLARDB_PLUGIN,
      TG_DEFAULT_RUNDB_PLUGIN,
 +    TG_SUPER_RUN_LOG,
      TG_HOSTS_OPTIONS,
+     TG_CAPS_FILE,
  
-     TG__BARRIER,
-@@ -172,6 +173,7 @@ static char const * const elem_map[] =
+@@ -175,6 +176,7 @@ static char const * const elem_map[] =
    "new_server_log",
    "default_clardb_plugin",
    "default_rundb_plugin",
 +  "super_run_log",
    "hosts_options",
+   "caps_file",
    0,
-   "_default",
-@@ -446,6 +448,7 @@ static const size_t cfg_final_offsets[TG
+@@ -529,6 +531,7 @@ static const size_t cfg_final_offsets[TG
    [TG_NEW_SERVER_LOG] = CONFIG_OFFSET(new_server_log),
    [TG_DEFAULT_CLARDB_PLUGIN] = CONFIG_OFFSET(default_clardb_plugin),
    [TG_DEFAULT_RUNDB_PLUGIN] = CONFIG_OFFSET(default_rundb_plugin),
 +  [TG_SUPER_RUN_LOG] = CONFIG_OFFSET(super_run_log),
+   [TG_CAPS_FILE] = CONFIG_OFFSET(caps_file),
  };
  
- struct ejudge_cfg *
 Index: ejudge-debian/ejudge_cfg.h
 ===================================================================
 --- ejudge-debian.orig/ejudge_cfg.h
 +++ ejudge-debian/ejudge_cfg.h
-@@ -90,6 +90,7 @@ struct ejudge_cfg
+@@ -102,6 +102,7 @@ struct ejudge_cfg
    unsigned char *new_server_log;
    unsigned char *default_clardb_plugin;
    unsigned char *default_rundb_plugin;
 +  unsigned char * super_run_log;
+   unsigned char *caps_file;
    struct xml_tree *user_map;
    struct xml_tree *compile_servers;
- 
