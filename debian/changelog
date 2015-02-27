@@ -1,3 +1,11 @@
+ejudge (2.3.22-2) unstable; urgency=medium
+
+  * [f13c77a] added super_run_dir to default config
+  * [76a1fbf] updated source version and removed garbage from debian/source
+  * [f13c77a] added super_run_dir to default config
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Sat, 28 Feb 2015 00:14:12 +0300
+
 ejudge (2.3.22-1) unstable; urgency=medium
 
   * [f004f79] New upstream version 2.3.22
