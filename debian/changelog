@@ -1,6 +1,4 @@
-ejudge (2.3.21-2~1.gbpad63b3) UNRELEASED; urgency=medium
-
-  ** SNAPSHOT build @ad63b3fc6bf12a1301a5921d47dc4758ff968d6d **
+ejudge (2.3.21-1) unstable; urgency=medium
 
   * Imported Upstream version 2.3.21
   * [b97f1d9] Imported Upstream version 2.3.21
@@ -8,8 +6,10 @@ ejudge (2.3.21-2~1.gbpad63b3) UNRELEASED; urgency=medium
   * [59e7cf7] added quilt to gitignore
   * [c270d84] Sorted configure options in rule. No functional changes.
   * [ad63b3f] fixed super-server.c compile error
+  * [eee5034] bumped changelog and source options
+  * [c95e1e3] allowed super-run server log customization in config
 
- -- Yaroslav Leonov <alximik43@gmail.com>  Fri, 27 Feb 2015 22:12:13 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Fri, 27 Feb 2015 23:24:03 +0300
 
 ejudge (2.3.20-1) unstable; urgency=low
 
