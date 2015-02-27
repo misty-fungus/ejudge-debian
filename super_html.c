@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html.c 6725 2012-04-04 11:23:15Z cher $ */
+/* $Id: super_html.c 6761 2012-04-23 14:50:56Z cher $ */
 
 /* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -366,6 +366,8 @@ super_html_main_page(FILE *f,
   fprintf(f, "<table border=\"0\"><tr><td>%sProblem editor</a></td></tr></table>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_BROWSE_PROBLEM_PACKAGES));
 
   fprintf(f, "<table border=\"0\"><tr><td>%sUser editor</a></td></tr></table>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_USER_BROWSE_PAGE));
+  fprintf(f, "<table border=\"0\"><tr><td>%sSystem user mapping</a></td></tr></table>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_USER_MAP_MAIN_PAGE));
+  fprintf(f, "<table border=\"0\"><tr><td>%sGlobal user capabilities</a></td></tr></table>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_CAPS_MAIN_PAGE));
   fprintf(f, "<table border=\"0\"><tr><td>%sGroup editor</a></td></tr></table>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_GROUP_BROWSE_PAGE));
 
   fprintf(f, "<table border=\"0\"><tr><td>%sCreate new contest</a></td>", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d", SSERV_CMD_CREATE_CONTEST));
@@ -573,7 +575,13 @@ super_html_main_page(FILE *f,
       fprintf(f, "<td>&nbsp;</td>\n");
     }
 
-    fprintf(f, "<td>%sEdit users</a></td>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d&contest_id=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_USER_BROWSE_PAGE, contest_id));
+    if (priv_level >= PRIV_LEVEL_JUDGE
+        && opcaps_check(caps, OPCAP_LIST_USERS) >= 0
+        && contests_check_serve_control_ip_2(cnts, ip_address, ssl)) {
+      fprintf(f, "<td>%sEdit users</a></td>\n", html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args, "action=%d&op=%d&contest_id=%d", SSERV_CMD_HTTP_REQUEST, SSERV_OP_USER_BROWSE_PAGE, contest_id));
+    } else {
+      fprintf(f, "<td>&nbsp;</td>\n");
+    }
 
     if (priv_level >= PRIV_LEVEL_ADMIN
         && opcaps_check(caps, OPCAP_CONTROL_CONTEST) >= 0

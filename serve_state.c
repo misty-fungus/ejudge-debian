@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_state.c 6725 2012-04-04 11:23:15Z cher $ */
+/* $Id: serve_state.c 6808 2012-05-05 20:01:31Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -843,7 +843,7 @@ serve_state_load_contest(
   serve_load_status_file(state);
   serve_set_upsolving_mode(state);
   serve_build_compile_dirs(state);
-  serve_build_run_dirs(state);
+  serve_build_run_dirs(state, contest_id);
 
   XCALLOC(state->prob_extras, state->max_prob + 1);
   for (i = 1; i <= state->max_prob; i++) {

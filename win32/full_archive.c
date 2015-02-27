@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: full_archive.c 6159 2011-03-27 06:59:55Z cher $ */
+/* $Id: full_archive.c 6790 2012-05-03 05:11:23Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -217,17 +217,15 @@ full_archive_open_read(const unsigned char *path)
 int
 full_archive_find_file(full_archive_t af,
                        const unsigned char *name,
-                       long *p_size,
                        long *p_raw_size,
                        unsigned int *p_flags,
-                       const unsigned char **p_data)
+                       unsigned char **p_data)
 {
         SWERR(("not implemented"));
 }
 
-/**
+/*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

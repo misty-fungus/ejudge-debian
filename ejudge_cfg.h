@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ejudge_cfg.h 6677 2012-03-27 07:41:09Z cher $ */
+/* $Id: ejudge_cfg.h 6764 2012-04-24 13:32:53Z cher $ */
 
 #ifndef __EJUDGE_CFG_H__
 #define __EJUDGE_CFG_H__ 1
@@ -22,6 +22,7 @@
 #include "opcaps.h"
 
 #include <stdio.h>
+#include <time.h>
 
 struct ejudge_plugin
 {
@@ -42,6 +43,17 @@ struct ejudge_cfg_user_map
   int system_uid;
   unsigned char *system_user_str;
   unsigned char *local_user_str;
+};
+
+struct ejudge_cfg;
+struct ejudge_cfg_caps_file
+{
+  unsigned char *base_path;
+  unsigned char *path;
+  int error_flag;
+  struct ejudge_cfg *root;
+  time_t last_caps_file_check;
+  time_t last_caps_file_mtime;
 };
 
 struct ejudge_cfg
@@ -90,17 +102,23 @@ struct ejudge_cfg
   unsigned char *new_server_log;
   unsigned char *default_clardb_plugin;
   unsigned char *default_rundb_plugin;
+  unsigned char *caps_file;
   struct xml_tree *user_map;
   struct xml_tree *compile_servers;
 
   opcaplist_t capabilities;
+  struct xml_tree *caps_node;
 
   struct xml_tree *plugin_list;
   struct xml_tree *hosts_options;
+
+  struct ejudge_cfg_caps_file *caps_file_info;
+  unsigned char *ejudge_xml_path;
 };
 
 struct ejudge_cfg *ejudge_cfg_parse(char const *);
 struct ejudge_cfg *ejudge_cfg_free(struct ejudge_cfg *);
+struct xml_tree   *ejudge_cfg_free_subtree(struct xml_tree *p);
 void ejudge_cfg_unparse(struct ejudge_cfg *, FILE *);
 void ejudge_cfg_unparse_plugins(struct ejudge_cfg *cfg, FILE *f);
 const struct xml_parse_spec *ejudge_cfg_get_spec(void);
@@ -122,5 +140,41 @@ ejudge_cfg_get_host_option_int(
         const unsigned char *option_name,
         int default_value,
         int error_value);
+
+void
+ejudge_cfg_refresh_caps_file(const struct ejudge_cfg *cfg, int force_flag);
+struct ejudge_cfg_caps_file *
+ejudge_cfg_create_caps_file(const unsigned char *base_path);
+struct ejudge_cfg_caps_file *
+ejudge_cfg_free_caps_file(struct ejudge_cfg_caps_file *info);
+
+int
+ejudge_cfg_opcaps_find(
+        const struct ejudge_cfg *cfg,
+        const unsigned char *login_str, 
+        opcap_t *p_caps);
+const unsigned char *
+ejudge_cfg_user_map_find(
+        const struct ejudge_cfg *cfg,
+        const unsigned char *system_user_str);
+const unsigned char *
+ejudge_cfg_user_map_find_uid(
+        const struct ejudge_cfg *cfg,
+        int system_user_id);
+const unsigned char *
+ejudge_cfg_user_map_find_simple(
+        const struct ejudge_cfg *cfg,
+        const unsigned char *system_user_str);
+
+void
+ejudge_cfg_user_map_add(
+        struct ejudge_cfg *cfg,
+        const unsigned char *unix_login,
+        const unsigned char *ejudge_login);
+void
+ejudge_cfg_caps_add(
+        struct ejudge_cfg *cfg,
+        const unsigned char *login,
+        opcap_t caps);
 
 #endif /* __EJUDGE_CFG_H__ */

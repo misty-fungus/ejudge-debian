@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: common_mysql.c 6492 2011-10-21 06:19:11Z cher $ */
+/* $Id: common_mysql.c 6799 2012-05-05 06:37:22Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -784,7 +784,11 @@ parse_spec_func(
       break;
     case 'i':
       p_ip = XPDEREF(ej_ip_t, data, specs[i].offset);
-      if (xml_parse_ip(NULL, 0, 0, 0, row[i], p_ip) < 0) goto invalid_format;
+      if (!row[i]) {
+        xml_parse_ip(NULL, 0, 0, 0, "127.0.0.127", p_ip);
+      } else if (xml_parse_ip(NULL, 0, 0, 0, row[i], p_ip) < 0) {
+        xml_parse_ip(NULL, 0, 0, 0, "127.0.0.127", p_ip);
+      }
       break;
 
     default:

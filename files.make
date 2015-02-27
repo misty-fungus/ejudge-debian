@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files.make 6685 2012-03-28 04:30:35Z cher $
+# $Id: files.make 6732 2012-04-10 14:09:27Z cher $
 
 # Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -188,6 +188,7 @@ COMMON_CFILES=\
  prepare_serve.c\
  printing.c\
  problem_common.c\
+ problem_config.c\
  problem_xml.c\
  problem_xml_2.c\
  protocol.c\
@@ -535,6 +536,7 @@ HFILES=\
  prepare_serve.h\
  printing.h\
  problem_common.h\
+ problem_config.h\
  problem_xml.h\
  protocol.h\
  random.h\

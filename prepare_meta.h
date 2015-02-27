@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/03/29 17:04:36
+// Generated 2012/05/05 21:19:14
 
 #ifndef __PREPARE_META_H__
 #define __PREPARE_META_H__
@@ -97,6 +97,7 @@ enum
   CNTSGLOB_contest_stop_cmd,
   CNTSGLOB_description_file,
   CNTSGLOB_contest_plugin_file,
+  CNTSGLOB_super_run_dir,
   CNTSGLOB_test_pat,
   CNTSGLOB_corr_pat,
   CNTSGLOB_info_pat,
@@ -417,11 +418,13 @@ enum
   CNTSPROB_interactor_env,
   CNTSPROB_style_checker_env,
   CNTSPROB_test_checker_env,
+  CNTSPROB_init_env,
   CNTSPROB_check_cmd,
   CNTSPROB_valuer_cmd,
   CNTSPROB_interactor_cmd,
   CNTSPROB_style_checker_cmd,
   CNTSPROB_test_checker_cmd,
+  CNTSPROB_init_cmd,
   CNTSPROB_solution_src,
   CNTSPROB_solution_cmd,
   CNTSPROB_lang_time_adj,

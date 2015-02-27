@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 6725 2012-04-04 11:23:15Z cher $ */
+/* $Id: super_html_4.c 6829 2012-05-18 07:15:49Z cher $ */
 
 /* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -515,7 +515,8 @@ refresh_page(
              phr->session_id, buf);
   }
 
-  fprintf(out_f, "Content-Type: text/html; charset=%s\nCache-Control: no-cache\nPragma: no-cache\nLocation: %s\n\n", EJUDGE_CHARSET, url);
+  //fprintf(out_f, "Content-Type: text/html; charset=%s\nCache-Control: no-cache\nPragma: no-cache\nLocation: %s\n\n", EJUDGE_CHARSET, url);
+  fprintf(out_f, "Location: %s\n\n", url);
 }
 
 typedef int (*handler_func_t)(FILE *log_f, FILE *out_f, struct super_http_request_info *phr);
@@ -1397,6 +1398,8 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_style_checker_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Style checker environment", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_test_checker_cmd, 's', 1, 1, 1, 1, 0, "Test checker", 0, "SidState.prob_show_adv"  },
   { NS_PROBLEM, CNTSPROB_test_checker_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Test checker environment", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_init_cmd, 's', 1, 1, 1, 1, 0, "Init-style interactor", 0, "SidState.prob_show_adv"  },
+  { NS_PROBLEM, CNTSPROB_init_env, 'X', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Init-style interactor environment", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_solution_src, 's', 1, 1, 1, 1, 0, "Solution source", 0, "SidState.prob_show_adv"  },
   { NS_PROBLEM, CNTSPROB_solution_cmd, 's', 1, 1, 1, 1, 0, "Solution command", 0, "SidState.prob_show_adv"  },
   { NS_PROBLEM, CNTSPROB_score_view, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Special view for score", 0, "SidState.prob_show_adv" },
@@ -4564,7 +4567,7 @@ cmd_op_create_new_contest_page(
 
   if (phr->priv_level != PRIV_LEVEL_ADMIN)
     FAIL(S_ERR_PERM_DENIED);
-  if (opcaps_find(&phr->config->capabilities, phr->login, &phr->caps) < 0)
+  if (ejudge_cfg_opcaps_find(phr->config, phr->login, &phr->caps) < 0)
     FAIL(S_ERR_PERM_DENIED);
   if (opcaps_check(phr->caps, OPCAP_EDIT_CONTEST) < 0)
     FAIL(S_ERR_PERM_DENIED);
@@ -4586,7 +4589,7 @@ cmd_op_create_new_contest_page(
 
   fprintf(out_f, "<table border=\"0\">");
   fprintf(out_f, "<tr><td>Contest number:</td><td>%s</td></tr>\n",
-          html_input_text(buf, sizeof(buf), "contest_id", 20, "%d", recomm_id));
+          html_input_text(buf, sizeof(buf), "contest_id", 20, 0, "%d", recomm_id));
   fprintf(out_f, "<tr><td>Contest template:</td><td>");
   fprintf(out_f, "<select name=\"templ_id\">"
           "<option value=\"0\">From scratch</option>");
@@ -4625,7 +4628,7 @@ cmd_op_create_new_contest(
     FAIL(S_ERR_CONTEST_EDITED);
   if (phr->priv_level != PRIV_LEVEL_ADMIN)
     FAIL(S_ERR_PERM_DENIED);
-  if (opcaps_find(&phr->config->capabilities, phr->login, &phr->caps) < 0)
+  if (ejudge_cfg_opcaps_find(phr->config, phr->login, &phr->caps) < 0)
     FAIL(S_ERR_PERM_DENIED);
   if (opcaps_check(phr->caps, OPCAP_EDIT_CONTEST) < 0)
     FAIL(S_ERR_PERM_DENIED);
@@ -6050,6 +6053,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_interactor_env] = 0,
   [CNTSPROB_style_checker_env] = 0,
   [CNTSPROB_test_checker_env] = 0,
+  [CNTSPROB_init_env] = 0,
   [CNTSPROB_lang_time_adj] = 0,
   [CNTSPROB_lang_time_adj_millis] = 0,
   [CNTSPROB_check_cmd] = 0,
@@ -6057,6 +6061,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_interactor_cmd] = 0,
   [CNTSPROB_style_checker_cmd] = 0,
   [CNTSPROB_test_checker_cmd] = 0,
+  [CNTSPROB_init_cmd] = 0,
   [CNTSPROB_solution_src] = 0,
   [CNTSPROB_solution_cmd] = 0,
   [CNTSPROB_test_pat] = 1,
@@ -6321,6 +6326,7 @@ const unsigned char prob_editable_details[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_interactor_env] = 1,
   [CNTSPROB_style_checker_env] = 1,
   [CNTSPROB_test_checker_env] = 1,
+  [CNTSPROB_init_env] = 1,
   [CNTSPROB_score_view] = 1,
   [CNTSPROB_lang_time_adj] = 1,
   [CNTSPROB_lang_time_adj_millis] = 1,
@@ -6474,6 +6480,7 @@ cmd_op_edit_serve_prob_field_detail(
   case CNTSPROB_interactor_env:
   case CNTSPROB_style_checker_env:
   case CNTSPROB_test_checker_env:
+  case CNTSPROB_init_env:
   case CNTSPROB_score_view:
   case CNTSPROB_lang_time_adj:
   case CNTSPROB_lang_time_adj_millis:

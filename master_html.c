@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: master_html.c 6725 2012-04-04 11:23:15Z cher $ */
+/* $Id: master_html.c 6833 2012-05-20 07:32:40Z cher $ */
 
 /* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -148,14 +148,21 @@ static const int acm_status_list[] =
 };
 
 void
-write_change_status_dialog(const serve_state_t state,
-                           FILE *f, unsigned char const *var_name,
-                           int disable_rejudge_flag,
-                           const unsigned char *td_class)
+write_change_status_dialog(
+        const serve_state_t state,
+        FILE *f,
+        unsigned char const *var_name,
+        int disable_rejudge_flag,
+        const unsigned char *td_class,
+        int cur_value,
+        int is_disabled)
 {
   const int * cur_status_list = 0;
   int i;
   unsigned char cl[128] = { 0 };
+  const unsigned char *dis = "";
+
+  if (is_disabled) dis = " disabled=\"disabled\"";
 
   if (!var_name) var_name = "status";
   if (td_class && *td_class) {
@@ -180,11 +187,13 @@ write_change_status_dialog(const serve_state_t state,
     else cur_status_list = acm_status_list;
   }
 
-  fprintf(f, "<td%s><select name=\"%s\"><option value=\"\"></option>",
-          cl, var_name);
+  fprintf(f, "<td%s><select name=\"%s\"%s><option value=\"\"></option>",
+          cl, var_name, dis);
   for (i = 0; cur_status_list[i] != -1; i++) {
-    fprintf(f, "<option value=\"%d\">%s</option>",
-            cur_status_list[i], change_status_strings[cur_status_list[i]]);
+    const unsigned char *s = "";
+    if (cur_value == cur_status_list[i]) s = " selected=\"selected\"";
+    fprintf(f, "<option value=\"%d\"%s>%s</option>",
+            cur_status_list[i], s, change_status_strings[cur_status_list[i]]);
   }
   fprintf(f, "</select></td>\n");
 }
@@ -298,11 +307,11 @@ write_xml_tests_report(
 
   fprintf(f, "<table%s>\n", cl1);
   fprintf(f, "<tr>");
-  fprintf(f, "<td%s>&nbsp;</td>", cl1);
-  fprintf(f, "<td%s>&nbsp;</td>", cl1);
-  fprintf(f, "<td%s>&nbsp;</td>", cl1);
+  fprintf(f, "<th%s width=\"30px\">NN</td>", cl1);
+  fprintf(f, "<th%s width=\"120px\">Prog. name</td>", cl1);
+  fprintf(f, "<th%s width=\"50px\" align=\"center\">Goodness</td>", cl1);
   for (j = 0; j < r->tt_column_count; ++j) {
-    fprintf(f, "<td%s>%d</td>", cl1, j + 1);
+    fprintf(f, "<th%s width=\"40px\" align=\"center\">%d</td>", cl1, j + 1);
   }
   fprintf(f, "</tr>\n");
   for (i = 0; i < r->tt_row_count; ++i) {
@@ -323,22 +332,26 @@ write_xml_tests_report(
         bgcolor = BGCOLOR_FAIL;
       }
     }
-    fail_str = "pass";
-    if (trr->must_fail) fail_str = "fail";
+    fail_str = "PASS";
+    font_color = " color=\"green\"";
+    if (trr->must_fail) {
+      fail_str = "FAIL";
+      font_color = " color=\"red\"";
+    }
     fprintf(f, "<td%s%s>%d</td>", cl1, bgcolor, i + 1);
     fprintf(f, "<td%s%s><tt>%s</tt></td>", cl1, bgcolor, ARMOR(trr->name));
-    fprintf(f, "<td%s%s>%s</td>", cl1, bgcolor, fail_str);
+    fprintf(f, "<td%s%s align=\"center\"><font%s><b>%s</b></font></td>", cl1, bgcolor, font_color, fail_str);
     for (j = 0; j < r->tt_column_count; ++j) {
       trc = r->tt_cells[i][j];
       if (trc->status == RUN_CHECK_FAILED) {
-        bgcolor = BGCOLOR_CHECK_FAILED;
+        font_color = "";
       } else if (trc->status == RUN_OK) {
-        bgcolor = BGCOLOR_PASS;
+        font_color = " color=\"green\"";
       } else {
-        bgcolor = BGCOLOR_FAIL;
+        font_color = " color=\"red\"";
       }
       run_status_to_str_short(buf, sizeof(buf), trc->status);
-      fprintf(f, "<td%s%s><tt>%s</tt></td>", cl1, bgcolor, buf);
+      fprintf(f, "<td%s%s align=\"center\"><tt><font%s>%s</font></tt></td>", cl1, bgcolor, font_color, buf);
     }
     fprintf(f, "</tr>\n");
   }
@@ -428,6 +441,11 @@ write_xml_testing_report(
     }
   }
 
+  if (r->errors && r->errors[0]) {
+    fprintf(f, "<font color=\"red\"><b><u>%s</u></b><br/><pre>%s</pre></font>\n",
+            "Errors", ARMOR(r->errors));
+  }
+
   if (r->valuer_comment || r->valuer_judge_comment || r->valuer_errors) {
     fprintf(f, "<h3>%s</h3>\n", _("Valuer information"));
     if (r->valuer_comment) {
@@ -480,12 +498,12 @@ write_xml_testing_report(
   }
 
   if (r->host && !user_mode) {
-    fprintf(f, "<big>Tested on host: %s</big>\n", r->host);
+    fprintf(f, "<big>Tested on host: %s</big><br/><br/>\n", r->host);
   }
 
   if (r->comment) {
     s = html_armor_string_dup(r->comment);
-    fprintf(f, "<big>Note: %s.<br><br></big>\n", s);
+    fprintf(f, "<big>Note: %s.<br><br></big><br/><br/>\n", s);
     xfree(s);
   }
 

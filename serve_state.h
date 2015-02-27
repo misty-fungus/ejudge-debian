@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 6674 2012-03-24 14:53:50Z cher $ */
+/* $Id: serve_state.h 6837 2012-05-20 17:25:24Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
@@ -71,6 +71,8 @@ struct user_filter_info
   struct filter_tree *prev_tree;
   struct filter_tree_mem *tree_mem;
   unsigned char *error_msgs;
+
+  int run_fields;
 
   /* standings filter */
   unsigned char *stand_user_expr;
@@ -336,6 +338,7 @@ void serve_update_internal_xml_log(serve_state_t state,
                                    const struct contest_desc *cnts);
 int  serve_update_status_file(serve_state_t state, int force_flag);
 void serve_load_status_file(serve_state_t state);
+void serve_remove_status_file(serve_state_t state);
 
 int serve_check_user_quota(serve_state_t, int user_id, size_t size);
 int serve_check_clar_quota(serve_state_t, int user_id, size_t size);
@@ -346,7 +349,7 @@ int serve_get_cnts_caps(serve_state_t state, const struct contest_desc *,
                         int user_id, opcap_t *out_caps);
 
 void serve_build_compile_dirs(serve_state_t state);
-void serve_build_run_dirs(serve_state_t state);
+void serve_build_run_dirs(serve_state_t state, int contest_id);
 
 int serve_create_symlinks(serve_state_t state);
 
@@ -382,9 +385,19 @@ user_filter_info_allocate(serve_state_t state, int user_id,
 
 void serve_move_files_to_insert_run(serve_state_t state, int run_id);
 
-void serve_audit_log(serve_state_t, int, int,
-                     ej_ip_t, int, const char *, ...)
-  __attribute__((format(printf, 6, 7)));
+void
+serve_audit_log(
+        serve_state_t state,
+        int run_id,
+        int user_id,
+        ej_ip_t ip,
+        int ssl_flag,
+        const unsigned char *command,
+        const unsigned char *status,
+        int run_status,
+        const char *format,
+        ...)
+  __attribute__((format(printf, 9, 10)));
 
 void serve_packet_name(int run_id, int prio, unsigned char buf[]);
 
@@ -663,5 +676,13 @@ serve_is_problem_deadlined_2(
         time_t *p_deadline);
 
 const unsigned char *serve_err_str(int serve_err);
+
+void
+serve_report_check_failed(
+        const struct ejudge_cfg *config,
+        const struct contest_desc *cnts,
+        serve_state_t state,
+        int run_id,
+        const unsigned char *error_text);
 
 #endif /* __SERVE_STATE_H__ */

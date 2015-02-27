@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: opcaps_2.c 5538 2008-12-31 10:40:16Z cher $ */
+/* $Id: opcaps_2.c 6762 2012-04-23 14:53:45Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -36,7 +36,10 @@ opcaps_unparse(int left_margin, int max_width, opcap_t cap)
   const unsigned char *perm_set = 0;
 
   // check, that capability set is a subset of predefined sets
-  if ((cap & OPCAP_MASTER_PERMS) == OPCAP_MASTER_PERMS) {
+  if (cap == (1ULL << OPCAP_LAST) - 1) {
+    perm_set = "FULL_SET";
+    cap &= ~((1ULL << OPCAP_LAST) - 1);
+  } else if ((cap & OPCAP_MASTER_PERMS) == OPCAP_MASTER_PERMS) {
     perm_set = "MASTER_SET";
     cap &= ~OPCAP_MASTER_PERMS;
   } else if ((cap & OPCAP_JUDGE_PERMS) == OPCAP_JUDGE_PERMS) {

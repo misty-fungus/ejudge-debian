@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 6725 2012-04-04 11:23:15Z cher $ */
+/* $Id: super-serve.c 6789 2012-05-03 05:04:27Z cher $ */
 
 /* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1485,7 +1485,7 @@ cmd_main_page(struct client_state *p, int len,
   // check permissions: MASTER_PAGE
   switch (pkt->b.id) {
   case SSERV_CMD_MAIN_PAGE:
-    if (opcaps_find(&config->capabilities, p->login, &caps) < 0) {
+    if (ejudge_cfg_opcaps_find(config, p->login, &caps) < 0) {
       err("%d: user %d has no privileges", p->id, p->user_id);
       return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
     }
@@ -1513,7 +1513,7 @@ cmd_main_page(struct client_state *p, int len,
       err("%d: inappropriate privilege level", p->id);
       return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
     }
-    if (opcaps_find(&config->capabilities, p->login, &caps) < 0) {
+    if (ejudge_cfg_opcaps_find(config, p->login, &caps) < 0) {
       err("%d: user %d has no privileges", p->id, p->user_id);
       return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
     }
@@ -2502,6 +2502,10 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_CMD:
   case SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV:
   case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV:
+  case SSERV_CMD_PROB_CHANGE_INIT_CMD:
+  case SSERV_CMD_PROB_CLEAR_INIT_CMD:
+  case SSERV_CMD_PROB_CHANGE_INIT_ENV:
+  case SSERV_CMD_PROB_CLEAR_INIT_ENV:
   case SSERV_CMD_PROB_CHANGE_SOLUTION_SRC:
   case SSERV_CMD_PROB_CLEAR_SOLUTION_SRC:
   case SSERV_CMD_PROB_CHANGE_SOLUTION_CMD:
@@ -2795,8 +2799,6 @@ static int
 check_restart_permissions(struct client_state *p)
 {
   struct passwd *sysp = 0;
-  struct xml_tree *um = 0;
-  struct ejudge_cfg_user_map *m = 0;
   opcap_t caps = 0;
 
   if (!p->peer_uid) return 1;   /* root is allowed */
@@ -2805,14 +2807,10 @@ check_restart_permissions(struct client_state *p)
     err("no user %d in system tables", p->peer_uid);
     return -1;
   }
-  if (!config->user_map) return 0;
-  for (um = config->user_map->first_down; um; um = um->right) {
-    m = (struct ejudge_cfg_user_map*) um;
-    if (!strcmp(m->system_user_str, sysp->pw_name)) break;
-  }
-  if (!um) return 0;
+  const unsigned char *ejudge_login = ejudge_cfg_user_map_find(config, sysp->pw_name);
+  if (!ejudge_login) return 0;
 
-  if (opcaps_find(&config->capabilities, m->local_user_str, &caps) < 0)
+  if (ejudge_cfg_opcaps_find(config, ejudge_login, &caps) < 0)
     return 0;
   if (opcaps_check(caps, OPCAP_RESTART) < 0) return 0;
   return 1;
@@ -3550,6 +3548,10 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_TEST_CHECKER_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_INIT_CMD] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_INIT_CMD] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_INIT_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_INIT_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SOLUTION_SRC] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_SOLUTION_SRC] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SOLUTION_CMD] = { cmd_set_value },
@@ -4449,6 +4451,7 @@ do_loop(void)
     //hup_flag = 0;
   }
 
+  pfds = pollfds_free(pfds);
   return 0;
 }
 

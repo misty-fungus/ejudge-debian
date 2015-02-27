@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.h 6659 2012-03-19 18:18:15Z cher $ */
+/* $Id: reuse_exec.h 6749 2012-04-17 07:29:52Z cher $ */
 
 #ifndef __REUSE_EXEC_H__
 #define __REUSE_EXEC_H__
@@ -97,6 +97,7 @@ int      task_EnableSecureExec(tpTask);
 int      task_EnableAllSignals(tpTask);
 int      task_EnableSecurityViolationError(tpTask);
 int      task_EnableProcessGroup(tpTask);
+int      task_IgnoreSIGPIPE(tpTask);
 
 int      task_PrintArgs(tpTask);
 void     task_fPrintArgs(tpTask, FILE *);

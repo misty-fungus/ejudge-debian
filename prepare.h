@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 6694 2012-03-29 13:04:33Z cher $ */
+/* $Id: prepare.h 6803 2012-05-05 17:19:12Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -49,6 +49,7 @@ enum
   MEMLIMIT_TYPE_DEFAULT = 0,
   MEMLIMIT_TYPE_DOS,
   MEMLIMIT_TYPE_JAVA,
+  MEMLIMIT_TYPE_MONO,
 
   MEMLIMIT_TYPE_LAST,
 };
@@ -61,6 +62,7 @@ enum
   SEXEC_TYPE_DLL,
   SEXEC_TYPE_JAVA,
   SEXEC_TYPE_DLL32,
+  SEXEC_TYPE_MONO,
 
   SEXEC_TYPE_LAST,
 };
@@ -112,7 +114,7 @@ struct user_adjustment_info
 };
 struct user_adjustment_map;
 
-/* sizeof(struct section_global_data) == 350096 */
+/* sizeof(struct section_global_data) == 350100 */
 struct section_global_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -307,6 +309,9 @@ struct section_global_data
   path_t description_file;
   /** path to the contest plugin */
   path_t contest_plugin_file;
+
+  /** directory for non-default super-run directory */
+  unsigned char *super_run_dir;
 
   /** printf pattern for the files with tests */
   unsigned char test_pat[32];
@@ -721,7 +726,7 @@ struct section_global_data
   +unsigned char *solution_cmd;
  */
 
-/* sizeof(struct section_problem_data) == 65336 */
+/* sizeof(struct section_problem_data) == 65344 */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -976,6 +981,8 @@ struct section_problem_data
   ejenvlist_t style_checker_env;
   /** environment variables for the test checker */
   ejenvlist_t test_checker_env;
+  /** environment variables for the init-style interactor */
+  ejenvlist_t init_env;
   /** checker program */
   path_t check_cmd;
   /** valuer program */
@@ -986,6 +993,8 @@ struct section_problem_data
   path_t style_checker_cmd;
   /** test checker program */
   unsigned char *test_checker_cmd;
+  /** start/stop init-style interactor */
+  unsigned char *init_cmd;
   /** solution source file */
   unsigned char *solution_src;
   /** solution command */
@@ -1128,7 +1137,7 @@ struct section_language_data
   int disabled_by_config META_ATTRIB((meta_private));
 };
 
-/* sizeof(struct section_tester_data) == 54324 */
+/* sizeof(struct section_tester_data) == 50204 */
 struct section_tester_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
