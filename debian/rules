@@ -22,19 +22,19 @@ override_dh_auto_configure:
 	--libexecdir=/usr/lib \
 	--disable-maintainer-mode \
 	--disable-dependency-tracking \
-	--enable-ejudge-xml=/etc/ejudge/ejudge.xml \
-	--enable-ajax \
-	--enable-charset="UTF-8" \
 	--disable-rpath  \
-	--enable-lang-config-dir=/var/lib/ejudge/compile/conf/lang.d \
-	--enable-contests-home-dir=/srv/ejudge  \
-	--enable-contests-dir=/srv/ejudge/contests \
+	--enable-charset="UTF-8" \
 	--enable-socket-path=/var/run/ejudge/userlist-socket \
 	--enable-super-serve-socket=/var/run/ejudge/super-serve-socket \
 	--enable-new-server-socket=/var/run/ejudge/new-server-socket \
-	--enable-cgi-conf-dir=/usr/lib/ejudge/cgi-data \
 	--enable-cgi-bin-dir=/usr/lib/ejudge/cgi-bin \
+	--enable-cgi-conf-dir=/usr/lib/ejudge/cgi-data \
+	--enable-ejudge-xml=/etc/ejudge/ejudge.xml \
+	--enable-contests-dir=/srv/ejudge/contests \
+	--enable-contests-home-dir=/srv/ejudge  \
 	--enable-local-dir=/var/spool/ejudge \
+	--enable-ajax \
+	--enable-lang-config-dir=/var/lib/ejudge/compile/conf/lang.d \
 	--with-mysql=/usr/lib/mysql/lib
 
 # note: dont change /var/... to \$${localstatedir}. configure will write it to config.h as is
