@@ -1,3 +1,11 @@
+ejudge (2.3.22-1~1.gbp24a4b4) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @24a4b4d218c6cbb47f689c41849fdc885cd717e5 **
+
+  * [f004f79] New upstream version 2.3.22
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Fri, 27 Feb 2015 23:36:04 +0300
+
 ejudge (2.3.21-1) unstable; urgency=medium
 
   * Imported Upstream version 2.3.21
