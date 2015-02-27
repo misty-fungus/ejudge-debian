@@ -21,3 +21,6 @@
 *.exe
 *.out
 *.app
+
+# Quilt patches
+.pc
