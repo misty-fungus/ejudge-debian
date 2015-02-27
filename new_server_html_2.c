@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 6725 2012-04-04 11:23:15Z cher $ */
+/* $Id: new_server_html_2.c 6843 2012-05-22 08:45:32Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -119,7 +119,6 @@ ns_write_priv_all_runs(
   int fe_html_len;
   unsigned char first_run_str[32] = { 0 }, last_run_str[32] = { 0 };
   unsigned char hbuf[128];
-  unsigned char *prob_str;
   const unsigned char *imported_str;
   const unsigned char *examinable_str;
   const unsigned char *marked_str;
@@ -136,8 +135,17 @@ ns_write_priv_all_runs(
   unsigned char cl[128];
   int prob_type = 0;
   int enable_js_status_menu = 0;
+  int run_fields;
 
   if (!u) u = user_filter_info_allocate(cs, phr->user_id, phr->session_id);
+
+  run_fields = u->run_fields;
+  if (run_fields <= 0) {
+    run_fields = team_extra_get_run_fields(cs->team_extra_state, phr->user_id);
+  }
+  if (run_fields <= 0) {
+    run_fields = RUN_VIEW_DEFAULT;
+  }
 
   // FIXME: check permissions
   enable_js_status_menu = 1;
@@ -326,15 +334,18 @@ ns_write_priv_all_runs(
   if (!u->error_msgs) {
     switch (global->score_system) {
     case SCORE_ACM:
-      str1 = _("Failed test");
+      //str1 = _("Failed test");
+      str1 = "Failed";
       break;
     case SCORE_KIROV:
     case SCORE_OLYMPIAD:
-      str1 = _("Tests passed");
+      //str1 = _("Tests passed");
+      str1 = "Tests";
       str2 = _("Score");
       break;
     case SCORE_MOSCOW:
-      str1 = _("Failed test");
+      //str1 = _("Failed test");
+      str1 = "Failed";
       str2 = _("Score");
       break;
     default:
@@ -344,16 +355,78 @@ ns_write_priv_all_runs(
     // FIXME: class should be a parameter
     snprintf(cl, sizeof(cl), " class=\"b1\"");
 
-    fprintf(f, "<table%s><tr><th%s>%s</th><th%s>%s</th>"
-            "<th%s>%s</th><th%s>%s</th>"
-            "<th%s>%s</th><th%s>%s</th>"
-            "<th%s>%s</th><th%s>%s</th>"
-            "<th%s>%s</th><th%s>%s</th>", 
-            cl, cl, _("Run ID"), cl, _("Time"), cl, _("Size"), cl, _("IP"),
-            cl, _("Team ID"), cl, _("Team name"), cl, _("Problem"),
-            cl, _("Language"), cl, _("Result"), cl, str1);
-    if (str2) {
+    fprintf(f, "<table%s><tr>", cl);
+    if (run_fields & (1 << RUN_VIEW_RUN_ID)) {
+      fprintf(f, "<th%s>%s</th>", cl, _("Run ID"));
+    }
+    if (run_fields & (1 << RUN_VIEW_TIME)) {
+      fprintf(f, "<th%s>%s</th>", cl, _("Time"));
+    }
+    if (run_fields & (1 << RUN_VIEW_ABS_TIME)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Abs. Time");
+    }
+    if (run_fields & (1 << RUN_VIEW_REL_TIME)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Rel. Time");
+    }
+    if (run_fields & (1 << RUN_VIEW_NSEC)) {
+      fprintf(f, "<th%s>%s</th>", cl, "ns");
+    }
+    if (run_fields & (1 << RUN_VIEW_SIZE)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Size");
+    }
+    if (run_fields & (1 << RUN_VIEW_MIME_TYPE)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Mime type");
+    }
+    if (run_fields & (1 << RUN_VIEW_IP)) {
+      fprintf(f, "<th%s>%s</th>", cl, "IP");
+    }
+    if (run_fields & (1 << RUN_VIEW_SHA1)) {
+      fprintf(f, "<th%s>%s</th>", cl, "SHA1");
+    }
+    if (run_fields & (1 << RUN_VIEW_USER_ID)) {
+      fprintf(f, "<th%s>%s</th>", cl, "User ID");
+    }
+    if (run_fields & (1 << RUN_VIEW_USER_LOGIN)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Login");
+    }
+    if (run_fields & (1 << RUN_VIEW_USER_NAME)) {
+      fprintf(f, "<th%s>%s</th>", cl, "User name");
+    }
+    if (run_fields & (1 << RUN_VIEW_PROB_ID)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Prob ID");
+    }
+    if (run_fields & (1 << RUN_VIEW_PROB_NAME)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Problem");
+    }
+    if (run_fields & (1 << RUN_VIEW_VARIANT)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Variant");
+    }
+    if (run_fields & (1 << RUN_VIEW_LANG_ID)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Lang ID");
+    }
+    if (run_fields & (1 << RUN_VIEW_LANG_NAME)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Language");
+    }
+    if (run_fields & (1 << RUN_VIEW_STATUS)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Result");
+    }
+    if (run_fields & (1 << RUN_VIEW_TEST)) {
+      fprintf(f, "<th%s>%s</th>", cl, str1);
+    }
+    if (str2 && (run_fields & (1 << RUN_VIEW_SCORE))) {
       fprintf(f, "<th%s>%s</th>", cl, str2);
+    }
+    if (run_fields & (1 << RUN_VIEW_SCORE_ADJ)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Score Adj.");
+    }
+    if (run_fields & (1 << RUN_VIEW_SAVED_STATUS)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Saved status");
+    }
+    if (run_fields & (1 << RUN_VIEW_SAVED_TEST)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Saved test");
+    }
+    if (run_fields & (1 << RUN_VIEW_SAVED_SCORE)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Saved score");
     }
     /*
     if (phr->role == USER_ROLE_ADMIN) {
@@ -361,8 +434,14 @@ ns_write_priv_all_runs(
       fprintf(f, "<th%s>%s</th>", cl, _("Change result"));
     }
     */
-    fprintf(f, "<th%s>%s</th><th%s>%s</th></tr>\n",
-            cl, _("View source"), cl, _("View report"));
+
+    /*
+      fprintf(f, "<td%s><a href=\"javascript:ej_stat(%d)\">%s</a><div class=\"ej_dd\" id=\"ej_dd_%d\"></div></td>", cl, pe->run_id, status_str, pe->run_id);
+
+     */
+
+    fprintf(f, "<th%s>%s</th><th%s>%s&nbsp;<a href=\"javascript:ej_field_popup(%d)\">&gt;&gt;</a><div class=\"ej_dd\" id=\"ej_field_popup\"></div></th></tr>\n",
+            cl, "Source", cl, "Report", run_fields);
     if (phr->role == USER_ROLE_ADMIN) {
       //snprintf(endrow, sizeof(endrow), "</tr></form>\n");
       snprintf(endrow, sizeof(endrow), "</tr>\n");
@@ -377,6 +456,18 @@ ns_write_priv_all_runs(
 
       displayed_mask[rid / BITS_PER_LONG] |= (1L << (rid % BITS_PER_LONG));
 
+      const struct section_problem_data *prob = NULL;
+      if (pe->prob_id > 0 && pe->prob_id <= cs->max_prob) {
+        prob = cs->probs[pe->prob_id];
+      }
+      prob_type = 0;
+      if (prob) prob_type = prob->type;
+
+      const struct section_language_data *lang = NULL;
+      if (pe->lang_id > 0 && pe->lang_id <= cs->max_lang) {
+        lang = cs->langs[pe->lang_id];
+      }
+
       /*
       if (phr->role == USER_ROLE_ADMIN) {
         html_start_form(f, 1, phr->self_url, phr->hidden_vars);
@@ -387,19 +478,76 @@ ns_write_priv_all_runs(
 
       if (pe->status == RUN_EMPTY) {
         run_status_str(pe->status, statstr, sizeof(statstr), 0, 0);
-        fprintf(f, "<td%s>%d</td>", cl, rid);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s><b>%s</b></td>", cl, statstr);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        if (global->score_system == SCORE_KIROV
-            || global->score_system == SCORE_OLYMPIAD
-            || global->score_system == SCORE_MOSCOW) {
+        if (run_fields & (1 << RUN_VIEW_RUN_ID)) {
+          fprintf(f, "<td%s>%d</td>", cl, rid);
+        }
+        if (run_fields & (1 << RUN_VIEW_TIME)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_ABS_TIME)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_REL_TIME)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_NSEC)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SIZE)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_MIME_TYPE)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_IP)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SHA1)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_USER_ID)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_USER_LOGIN)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_USER_NAME)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_PROB_ID)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_PROB_NAME)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_VARIANT)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_LANG_ID)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_LANG_NAME)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_STATUS)) {
+          fprintf(f, "<td%s><b>%s</b></td>", cl, statstr);
+        }
+        if (run_fields & (1 << RUN_VIEW_TEST)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (str2 && (run_fields & (1 << RUN_VIEW_SCORE))) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SCORE_ADJ)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SAVED_STATUS)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SAVED_TEST)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SAVED_SCORE)) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
         fprintf(f, "<td%s>&nbsp;</td>", cl);
@@ -422,32 +570,88 @@ ns_write_priv_all_runs(
         duration_str(1, run_time, env.rhead.start_time, durstr, 0);
         run_status_str(pe->status, statstr, sizeof(statstr), 0, 0);
 
-        fprintf(f, "<td%s>%d%s</td>", cl, rid, examinable_str);
-        fprintf(f, "<td%s>%s</td>", cl, durstr);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s>%s</td>", cl, xml_unparse_ip(pe->a.ip));
-        fprintf(f, "<td%s>%d</td>", cl, pe->user_id);
-        /*
-        fprintf(f, "<td%s>%s</td>", cl, teamdb_get_name_2(cs->teamdb_state,
-                                                          pe->user_id));
-        */
-        fprintf(f, "<td%s><a href=\"%s\">%s</a></td>", cl,
-                ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_USER_INFO,
-                       "user_id=%d", pe->user_id),
-                ARMOR(teamdb_get_name_2(cs->teamdb_state, pe->user_id)));
-
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        fprintf(f, "<td%s><b>%s</b></td>", cl, statstr);
-        fprintf(f, "<td%s>&nbsp;</td>", cl);
-        if (global->score_system == SCORE_KIROV
-            || global->score_system == SCORE_OLYMPIAD
-            || global->score_system == SCORE_MOSCOW) {
+        if (run_fields & (1 << RUN_VIEW_RUN_ID)) {
+          fprintf(f, "<td%s>%d%s</td>", cl, rid, examinable_str);
+        }
+        if (run_fields & (1 << RUN_VIEW_TIME)) {
+          fprintf(f, "<td%s>%s</td>", cl, durstr);
+        }
+        if (run_fields & (1 << RUN_VIEW_ABS_TIME)) {
+          fprintf(f, "<td%s>%s</td>", cl, durstr);
+        }
+        if (run_fields & (1 << RUN_VIEW_REL_TIME)) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
+        if (run_fields & (1 << RUN_VIEW_NSEC)) {
+          fprintf(f, "<td%s>%d</td>", cl, (int) pe->nsec);
+        }
+        if (run_fields & (1 << RUN_VIEW_SIZE)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_MIME_TYPE)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_IP)) {
+          fprintf(f, "<td%s>%s</td>", cl, xml_unparse_ip(pe->a.ip));
+        }
+        if (run_fields & (1 << RUN_VIEW_SHA1)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_USER_ID)) {
+          fprintf(f, "<td%s>%d</td>", cl, pe->user_id);
+        }
+        if (run_fields & (1 << RUN_VIEW_USER_LOGIN)) {
+          fprintf(f, "<td%s>%s</td>", cl, teamdb_get_login(cs->teamdb_state, pe->user_id));
+        }
+        if (run_fields & (1 << RUN_VIEW_USER_NAME)) {
+          fprintf(f, "<td%s><a href=\"%s\">%s</a></td>", cl,
+                  ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_USER_INFO,
+                         "user_id=%d", pe->user_id),
+                  ARMOR(teamdb_get_name_2(cs->teamdb_state, pe->user_id)));
+        }
+        if (run_fields & (1 << RUN_VIEW_PROB_ID)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_PROB_NAME)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_VARIANT)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_LANG_ID)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_LANG_NAME)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_STATUS)) {
+          fprintf(f, "<td%s><b>%s</b></td>", cl, statstr);
+        }
+        if (run_fields & (1 << RUN_VIEW_TEST)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (str2 && (run_fields & (1 << RUN_VIEW_SCORE))) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SCORE_ADJ)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SAVED_STATUS)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SAVED_TEST)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_SAVED_SCORE)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+
         fprintf(f, "<td%s>&nbsp;</td>", cl);
         if (phr->role == USER_ROLE_ADMIN) {
-          fprintf(f, "<td%s>%s</td>", cl, BUTTON(NEW_SRV_ACTION_CLEAR_RUN));
+          fprintf(f, "<td%s>", cl);
+          html_start_form(f, 1, phr->self_url, phr->hidden_vars);
+          fprintf(f, "%s", BUTTON(NEW_SRV_ACTION_CLEAR_RUN));
+          fprintf(f, "</form></td>");
         } else {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
@@ -507,54 +711,131 @@ ns_write_priv_all_runs(
       duration_str(global->show_astr_time, run_time, start_time,
                    durstr, 0);
 
+      if (run_fields & (1 << RUN_VIEW_RUN_ID)) {
+        fprintf(f, "<td%s>%d%s%s%s%s</td>", cl, rid, imported_str, examinable_str,
+                marked_str, saved_str);
+      }
+      if (run_fields & (1 << RUN_VIEW_TIME)) {
+        fprintf(f, "<td%s>%s</td>", cl, durstr);
+      }
+      if (run_fields & (1 << RUN_VIEW_ABS_TIME)) {
+        if (global->show_astr_time <= 0) {
+          duration_str(1, run_time, start_time, durstr, 0);
+        }
+        fprintf(f, "<td%s>%s</td>", cl, durstr);
+      }
+      if (run_fields & (1 << RUN_VIEW_REL_TIME)) {
+        if (global->show_astr_time > 0) {
+          duration_str(0, run_time, start_time, durstr, 0);
+        }
+        fprintf(f, "<td%s>%s</td>", cl, durstr);
+      }
+      if (run_fields & (1 << RUN_VIEW_NSEC)) {
+        fprintf(f, "<td%s>%d</td>", cl, (int) pe->nsec);
+      }
+      if (run_fields & (1 << RUN_VIEW_SIZE)) {
+        fprintf(f, "<td%s>%u</td>", cl, pe->size);
+      }
+      if (run_fields & (1 << RUN_VIEW_MIME_TYPE)) {
+        if (pe->lang_id <= 0) {
+          fprintf(f, "<td%s>%s</td>", cl, mime_type_get_type(pe->mime_type));
+        } else {
+          fprintf(f, "<td%s>%s</td>", cl, "&nbsp;");
+        }
+      }
+      if (run_fields & (1 << RUN_VIEW_IP)) {
+        fprintf(f, "<td%s>%s</td>", cl, xml_unparse_ip(pe->a.ip));
+      }
+      if (run_fields & (1 << RUN_VIEW_SHA1)) {
+        fprintf(f, "<td%s>%s</td>", cl, unparse_sha1(pe->sha1));
+      }
+      if (run_fields & (1 << RUN_VIEW_USER_ID)) {
+        fprintf(f, "<td%s>%d</td>", cl, pe->user_id);
+      }
+      if (run_fields & (1 << RUN_VIEW_USER_LOGIN)) {
+        fprintf(f, "<td%s>%s</td>", cl,
+                ARMOR(teamdb_get_login(cs->teamdb_state, pe->user_id)));
+      }
+      if (run_fields & (1 << RUN_VIEW_USER_NAME)) {
+        fprintf(f, "<td%s>%s</td>", cl,
+                ARMOR(teamdb_get_name_2(cs->teamdb_state, pe->user_id)));
+      }
+      if (run_fields & (1 << RUN_VIEW_PROB_ID)) {
+        fprintf(f, "<td%s>%d</td>", cl, pe->prob_id);
+      }
+      if (run_fields & (1 << RUN_VIEW_PROB_NAME)) {
+        if (prob) {
+          if (prob->variant_num > 0) {
+            int variant = pe->variant;
+            if (!variant) variant = find_variant(cs, pe->user_id, pe->prob_id, 0);
+            if (variant > 0) {
+              fprintf(f, "<td%s>%s-%d</td>", cl, prob->short_name, variant);
+            } else {
+              fprintf(f, "<td%s>%s-?</td>", cl, prob->short_name);
+            }
+          } else {
+            fprintf(f, "<td%s>%s</td>", cl, prob->short_name);
+          }
+        } else {
+          fprintf(f, "<td%s>??? - %d</td>", cl, pe->prob_id);
+        }
+      }
+      if (run_fields & (1 << RUN_VIEW_VARIANT)) {
+        if (prob && prob->variant_num > 0) {
+          fprintf(f, "<td%s>%d</td>", cl, pe->variant);
+        } else {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+      }
+      if (run_fields & (1 << RUN_VIEW_LANG_ID)) {
+        fprintf(f, "<td%s>%d</td>", cl, pe->lang_id);
+      }
+      if (run_fields & (1 << RUN_VIEW_LANG_NAME)) {
+        if (!pe->lang_id) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        } else if (lang) {
+          fprintf(f, "<td%s>%s</td>", cl, lang->short_name);
+        } else {
+          fprintf(f, "<td%s>??? - %d</td>", cl, pe->lang_id);
+        }
+      }
+
+      run_status_str(pe->status, statstr, sizeof(statstr), prob_type, 0);
+      write_html_run_status(cs, f, start_time, pe, 0, 1, attempts, disq_attempts,
+                            prev_successes, "b1", 0,
+                            enable_js_status_menu, run_fields);
+
+      if (run_fields & (1 << RUN_VIEW_SCORE_ADJ)) {
+        fprintf(f, "<td%s>%d</td>", cl, pe->score_adj);
+      }
+      if (run_fields & (1 << RUN_VIEW_SAVED_STATUS)) {
+        if (pe->is_saved > 0) {
+          run_status_str(pe->saved_status, statstr, sizeof(statstr), prob_type, 0);
+          fprintf(f, "<td%s>%s</td>", cl, statstr);
+        } else {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+      }
+      if (run_fields & (1 << RUN_VIEW_SAVED_TEST)) {
+        if (pe->is_saved > 0) {
+          fprintf(f, "<td%s>%d</td>", cl, pe->saved_test);
+        } else {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+      }
+      if (run_fields & (1 << RUN_VIEW_SAVED_SCORE)) {
+        if (pe->is_saved > 0) {
+          fprintf(f, "<td%s>%d</td>", cl, pe->saved_score);
+        } else {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+      }
+
       /*
       if (phr->role == USER_ROLE_ADMIN) {
         html_start_form(f, 1, phr->self_url, phr->hidden_vars);
       }
       */
-      fprintf(f, "<td%s>%d%s%s%s%s</td>", cl, rid, imported_str, examinable_str,
-              marked_str, saved_str);
-      fprintf(f, "<td%s>%s</td>", cl, durstr);
-      fprintf(f, "<td%s>%u</td>", cl, pe->size);
-      fprintf(f, "<td%s>%s</td>", cl, xml_unparse_ip(pe->a.ip));
-      fprintf(f, "<td%s>%d</td>", cl, pe->user_id);
-      fprintf(f, "<td%s>%s</td>", cl,
-              ARMOR(teamdb_get_name_2(cs->teamdb_state, pe->user_id)));
-      prob_type = 0;
-      if (pe->prob_id > 0 && pe->prob_id <= cs->max_prob
-          && cs->probs[pe->prob_id]) {
-        struct section_problem_data *cur_prob = cs->probs[pe->prob_id];
-        int variant = 0;
-        prob_type = cur_prob->type;
-        if (cur_prob->variant_num > 0) {
-          variant = pe->variant;
-          if (!variant) variant = find_variant(cs, pe->user_id, pe->prob_id, 0);
-          prob_str = alloca(strlen(cur_prob->short_name) + 10);
-          if (variant > 0) {
-            sprintf(prob_str, "%s-%d", cur_prob->short_name, variant);
-          } else {
-            sprintf(prob_str, "%s-?", cur_prob->short_name);
-          }
-        } else {
-          prob_str = cur_prob->short_name;
-        }
-      } else {
-        prob_str = alloca(32);
-        sprintf(prob_str, "??? - %d", pe->prob_id);
-      }
-      fprintf(f, "<td%s>%s</td>", cl, prob_str);
-      if (pe->lang_id > 0 && pe->lang_id <= cs->max_lang
-          && cs->langs[pe->lang_id]) {
-        fprintf(f, "<td%s>%s</td>", cl, cs->langs[pe->lang_id]->short_name);
-      } else if (!pe->lang_id) {
-        fprintf(f, "<td%s>N/A</td>", cl);
-      } else {
-        fprintf(f, "<td%s>??? - %d</td>", cl, pe->lang_id);
-      }
-      run_status_str(pe->status, statstr, sizeof(statstr), prob_type, 0);
-      write_html_run_status(cs, f, start_time, pe, 0, 1, attempts, disq_attempts,
-                            prev_successes, "b1", 0,
-                            enable_js_status_menu);
       /*
       if (phr->role == USER_ROLE_ADMIN) {
         write_change_status_dialog(cs, f, "status", pe->is_imported, "b1");
@@ -1056,7 +1337,6 @@ ns_write_priv_source(const serve_state_t state,
                      struct contest_extra *extra,
                      int run_id)
 {
-  int i;
   path_t src_path;
   struct run_entry info;
   char *src_text = 0; //, *html_text;
@@ -1064,13 +1344,12 @@ ns_write_priv_source(const serve_state_t state,
   size_t src_len; //, html_len, numb_len;
   time_t start_time;
   int variant, src_flags;
-  unsigned char const *nbsp = "<td>&nbsp;</td><td>&nbsp;</td>";
   unsigned char filtbuf1[128];
   unsigned char filtbuf2[256];
   unsigned char filtbuf3[512];
   unsigned char *ps1, *ps2;
   time_t run_time;
-  int editable, run_id2;
+  int run_id2;
   unsigned char bt[1024];
   unsigned char bb[1024];
   const struct section_problem_data *prob = 0;
@@ -1126,17 +1405,22 @@ ns_write_priv_source(const serve_state_t state,
 
   ns_write_run_view_menu(f, phr, cnts, extra, run_id);
 
-  fprintf(f, "<h2>%s %d</h2>\n",
+  fprintf(f, "<h2>%s %d",
           _("Information about run"), run_id);
+  if (phr->role == USER_ROLE_ADMIN && opcaps_check(phr->caps, OPCAP_EDIT_RUN) >= 0) {
+    fprintf(f, " [<a href=\"%s\">%s</a>]",
+            ns_url(bb, sizeof(bb), phr, NEW_SRV_ACTION_PRIV_EDIT_RUN_PAGE,
+                   "run_id=%d", run_id),
+            "Edit");
+  }
+  fprintf(f, "</h2>\n");
+
   fprintf(f, "<table>\n");
-  fprintf(f, "<tr><td>%s:</td><td>%d</td>%s</tr>\n",
-          _("Run ID"), info.run_id, nbsp);
-  fprintf(f, "<tr><td>%s:</td><td>%s:%d</td>%s</tr>\n",
-          _("Submission time"),
-          duration_str(1, info.time, 0, 0, 0), info.nsec, nbsp);
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>%s</tr>\n",
-          _("Contest time"),
-          duration_str(0, run_time, start_time, 0, 0), nbsp);
+  fprintf(f, "<tr><td style=\"width: 10em;\">%s:</td><td>%d</td></tr>\n", _("Run ID"), info.run_id);
+  fprintf(f, "<tr><td>%s:</td><td>%s:%d</td></tr>\n",
+          _("Submission time"), duration_str(1, info.time, 0, 0, 0), info.nsec);
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
+          _("Contest time"), duration_str_2(filtbuf1, sizeof(filtbuf1), run_time - start_time, info.nsec));
 
   // IP-address
   fprintf(f, "<tr><td>%s:</td>", _("Originator IP"));
@@ -1146,111 +1430,42 @@ ns_write_priv_source(const serve_state_t state,
           ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
                   "filter_expr=%s", filtbuf2),
           xml_unparse_ip(info.a.ip));
-  fprintf(f, "%s</tr>\n", nbsp);
-
-  // size
-  snprintf(filtbuf1, sizeof(filtbuf1), "size == size(%d)", run_id);
-  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-  fprintf(f, "<tr><td>%s:</td><td>%s%u</a></td>%s</tr>\n",
-          _("Size"),
-          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
-                  "filter_expr=%s", filtbuf2),
-          info.size, nbsp);
-
-  // hash code
-  snprintf(filtbuf1, sizeof(filtbuf1), "hash == hash(%d)", run_id);
-  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-  fprintf(f, "<tr><td>%s:</td><td>%s%s</a></td>%s</tr>\n",
-          _("Hash value"),
-          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
-                  "filter_expr=%s", filtbuf2),
-          unparse_sha1(info.sha1), nbsp);
-
-  // this is common flag for many editing forms below
-  editable = 0;
-  if (phr->role == USER_ROLE_ADMIN
-      && opcaps_check(phr->caps, OPCAP_EDIT_RUN) >= 0
-      && !info.is_readonly)
-    editable = 1;
+  fprintf(f, "</tr>\n");
 
   // user_id
   snprintf(filtbuf1, sizeof(filtbuf1), "uid == %d", info.user_id);
   url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s%d</a></td>",
+  fprintf(f, "<tr><td>%s:</td><td>%s%d</a></td></tr>",
           _("User ID"),
           ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
                   "filter_expr=%s", filtbuf2),
           info.user_id);
-  if (editable) {
-    fprintf(f, "<td>%s</td><td>%s</td></tr></form>",
-            html_input_text(bt, sizeof(bt), "param", 10,
-                            "%d", info.user_id),
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_USER_ID));
-  } else {
-    fprintf(f, "%s</tr>", nbsp);
-  }
 
   // user login
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
-          _("User login"),
-          teamdb_get_login(state->teamdb_state, info.user_id));
-  if (editable) {
-    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-            html_input_text(bt, sizeof(bt), "param", 10,
-                            "%s",
-                            teamdb_get_login(state->teamdb_state,
-                                             info.user_id)),
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_USER_LOGIN));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
+          _("User login"), teamdb_get_login(state->teamdb_state, info.user_id));
 
   // user name
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>%s</tr>\n",
-          _("User name"),
-          ARMOR(teamdb_get_name(state->teamdb_state, info.user_id)),
-          nbsp);
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
+          _("User name"), ARMOR(teamdb_get_name(state->teamdb_state, info.user_id)));
 
   // problem
   if (prob) {
     snprintf(filtbuf1, sizeof(filtbuf1), "prob == \"%s\"",  prob->short_name);
     url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-    ps1 = ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
-                  "filter_expr=%s", filtbuf2);
-    ps2 = "</a>";
-    ss = prob->short_name;
-  } else {
-    ps1 = ""; ps2 = "";
-    snprintf(bb, sizeof(bb), "??? - %d", info.prob_id);
-    ss = bb;
-  }
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s%s%s</td>", _("Problem"), ps1, ss, ps2);
-  if (editable) {
-    fprintf(f, "<td><select name=\"param\">\n");
-    for (i = 1; i <= state->max_prob; i++) {
-      if (!state->probs[i]) continue;
-      ss = "";
-      if (i == info.prob_id) ss = " selected=\"yes\"";
-      fprintf(f, "<option value=\"%d\"%s>%s - %s\n",
-              i, ss, state->probs[i]->short_name,
-              ARMOR(state->probs[i]->long_name));
+    fprintf(f, "<tr><td>%s:</td><td>%s%s - %s</a>",
+            "Problem", ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0, "filter_expr=%s", filtbuf2),
+            prob->short_name, ARMOR(prob->long_name));
+    if (prob->xml_file && prob->xml_file[0]) {
+      fprintf(f, " %s[%s]</a>",
+              ns_aref(filtbuf3, sizeof(filtbuf3), phr,
+                      NEW_SRV_ACTION_PRIV_SUBMIT_PAGE,
+                      "problem=%d", prob->id),
+              "Statement");
     }
-    fprintf(f, "</select></td><td>%s</td></tr></form>\n",
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_PROB_ID));
+    fprintf(f, "</td></tr>\n");
   } else {
-    fprintf(f, "%s</tr>\n", nbsp);
+    fprintf(f, "<tr><td>%s:</td><td>#%d</td></tr>\n", "Problem", info.prob_id);
   }
 
   // variant
@@ -1273,175 +1488,30 @@ ns_write_priv_source(const serve_state_t state,
       ps1 = ""; ps2 = "";
       snprintf(bb, sizeof(bb), "<i>unassigned</i>");
     }
-    if (editable) {
-      html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-      html_hidden(f, "run_id", "%d", run_id);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s%s%s</td>", _("Variant"), ps1, bb, ps2);
-    if (editable) {
-      fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-              html_input_text(bt, sizeof(bt), "param", 10, "%d", info.variant),
-              BUTTON(NEW_SRV_ACTION_CHANGE_RUN_VARIANT));
-    } else {
-      fprintf(f, "%s</tr>\n", nbsp);
-    }
+    fprintf(f, "<tr><td>%s:</td><td>%s%s%s</td></tr>\n", _("Variant"), ps1, bb, ps2);
   }
 
   // lang_id
   if (lang) {
     snprintf(filtbuf1, sizeof(filtbuf1), "lang == \"%s\"", lang->short_name);
     url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-    ps1 = ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
-                  "filter_expr=%s", filtbuf2);
-    ps2 = "</a>";
-    ss = lang->short_name;
+    fprintf(f, "<tr><td>%s:</td><td>%s%s - %s</a></td></tr>\n", _("Language"),
+            ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0, "filter_expr=%s", filtbuf2),
+            lang->short_name, ARMOR(lang->long_name));
   } else if (!info.lang_id) {
-    ps1 = ps2 = "";
-    ss = "N/A";
+    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Language"), "N/A");
   } else {
-    snprintf(bb, sizeof(bb), "??? - %d", info.lang_id);
-    ps1 = ps2 = "";
-    ss = bb;
+    fprintf(f, "<tr><td>%s:</td><td>#%d</td></tr>\n", _("Language"), info.lang_id);
   }
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s%s%s</td>", _("Language"), ps1, ss, ps2);
-  if (editable) {
-    fprintf(f, "<td><select name=\"param\">\n");
-    for (i = 1; i <= state->max_lang; i++) {
-      if (!state->langs[i]) continue;
-      ss = "";
-      if (i == info.lang_id) ss = " selected=\"yes\"";
-      fprintf(f, "<option value=\"%d\"%s>%s - %s</option>\n",
-              i, ss, state->langs[i]->short_name,
-              ARMOR(state->langs[i]->long_name));
-    }
-    fprintf(f, "</select></td><td>%s</td></tr></form>\n",
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_LANG_ID));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
-
-  // mime_type
-  if (!info.lang_id) {
-    fprintf(f, "<tr><td>%s</td><td>%s</td>%s</tr>\n",
-            _("Content type"), mime_type_get_type(info.mime_type), nbsp);
-  }
-
-  // is_imported
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
-          _("Imported?"), html_unparse_bool(bb, sizeof(bb), info.is_imported));
-  if (editable) {
-    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-            html_select_yesno(bt, sizeof(bt), "param", info.is_imported),
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_IS_IMPORTED));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
-
-  // is_hidden
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
-          _("Hidden?"), html_unparse_bool(bb, sizeof(bb), info.is_hidden));
-  if (editable) {
-    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-            html_select_yesno(bt, sizeof(bt), "param", info.is_hidden),
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_IS_HIDDEN));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
-
-  // is_examinable
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
-          _("Examinable?"),
-          html_unparse_bool(bb, sizeof(bb), info.is_examinable));
-  if (editable) {
-    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-            html_select_yesno(bt, sizeof(bt), "param", info.is_examinable),
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_IS_EXAMINABLE));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
-
-  // is_marked
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
-          _("Marked?"),
-          html_unparse_bool(bb, sizeof(bb), info.is_marked));
-  if (editable) {
-    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-            html_select_yesno(bt, sizeof(bt), "param", info.is_marked),
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_IS_MARKED));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
-
-  // is_saved
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
-          _("Saved?"),
-          html_unparse_bool(bb, sizeof(bb), info.is_saved));
-  if (editable) {
-    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-            html_select_yesno(bt, sizeof(bt), "param", info.is_saved),
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_IS_SAVED));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
-
-  // is_readonly
-  // special editable rules!
-  if (phr->role==USER_ROLE_ADMIN && opcaps_check(phr->caps,OPCAP_EDIT_RUN)>=0){
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
-          _("Read-only?"), html_unparse_bool(bb, sizeof(bb), info.is_readonly));
-  if (phr->role==USER_ROLE_ADMIN && opcaps_check(phr->caps,OPCAP_EDIT_RUN)>=0){
-    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-            html_select_yesno(bt, sizeof(bt), "param", info.is_readonly),
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_IS_READONLY));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
-
-  // locale_id
-  fprintf(f, "<tr><td>%s:</td><td>%d</td>%s</tr>\n",
-          _("Locale ID"), info.locale_id, nbsp);
 
   // status
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s</td>",
-          _("Status"), run_status_str(info.status, 0, 0, 0, 0));
-  if (editable) {
-    write_change_status_dialog(state, f, 0, info.is_imported, 0);
-    fprintf(f, "<td>%s</td></tr></form>\n",
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_STATUS));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
+  run_status_to_str_short(bb, sizeof(bb), info.status);
+  snprintf(filtbuf1, sizeof(filtbuf1), "status == %s", bb);
+  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
+  fprintf(f, "<tr><td>%s:</td><td>%s%s</a></td></tr>\n",
+          _("Status"),
+          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0, "filter_expr=%s", filtbuf2),
+          run_status_str(info.status, 0, 0, 0, 0));
 
   if (global->score_system == SCORE_KIROV
       || global->score_system == SCORE_OLYMPIAD) {
@@ -1451,18 +1521,7 @@ ns_write_priv_source(const serve_state_t state,
     } else {
       snprintf(bb, sizeof(bb), "%d", info.test - 1);
     }
-    if (editable) {
-      html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-      html_hidden(f, "run_id", "%d", run_id);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td>", _("Tests passed"), bb);
-    if (editable) {
-      fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-              html_input_text(bt, sizeof(bt), "param", 10, "%d", info.test - 1),
-              BUTTON(NEW_SRV_ACTION_CHANGE_RUN_TEST));
-    } else {
-      fprintf(f, "%s</tr>\n", nbsp);
-    }
+    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Tests passed"), bb);
 
     // score
     if (info.score < 0) {
@@ -1470,34 +1529,7 @@ ns_write_priv_source(const serve_state_t state,
     } else {
       snprintf(bb, sizeof(bb), "%d", info.score);
     }
-    if (editable) {
-      html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-      html_hidden(f, "run_id", "%d", run_id);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td>", _("Score gained"), bb);
-    if (editable) {
-      fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-              html_input_text(bt, sizeof(bt), "param", 10, "%d", info.score),
-              BUTTON(NEW_SRV_ACTION_CHANGE_RUN_SCORE));
-    } else {
-      fprintf(f, "%s</tr>\n", nbsp);
-    }
-
-    // score_adj
-    if (editable) {
-      html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-      html_hidden(f, "run_id", "%d", run_id);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%d</td>", _("Score adjustment"),
-            info.score_adj);
-    if (editable) {
-      fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-              html_input_text(bt, sizeof(bt), "param", 10, "%d",
-                              info.score_adj),
-              BUTTON(NEW_SRV_ACTION_CHANGE_RUN_SCORE_ADJ));
-    } else {
-      fprintf(f, "%s</tr>\n", nbsp);
-    }
+    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"), bb);
   } else if (global->score_system == SCORE_MOSCOW) {
     // the first failed test
     if (info.test <= 0) {
@@ -1505,19 +1537,7 @@ ns_write_priv_source(const serve_state_t state,
     } else {
       snprintf(bb, sizeof(bb), "%d", info.test);
     }
-    if (editable) {
-      html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-      html_hidden(f, "run_id", "%d", run_id);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td>", _("Failed test"), bb);
-    if (editable) {
-      fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-              html_input_text(bt, sizeof(bt), "param", 10, "%d",
-                              info.score_adj),
-              BUTTON(NEW_SRV_ACTION_CHANGE_RUN_TEST));
-    } else {
-      fprintf(f, "%s</tr>\n", nbsp);
-    }
+    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Failed test"), bb);
 
     // score
     if (info.score < 0) {
@@ -1525,35 +1545,7 @@ ns_write_priv_source(const serve_state_t state,
     } else {
       snprintf(bb, sizeof(bb), "%d", info.score);
     }
-    if (editable) {
-      html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-      html_hidden(f, "run_id", "%d", run_id);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td>", _("Score gained"), bb);
-    if (editable) {
-      fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-              html_input_text(bt, sizeof(bt), "param", 10, "%d",
-                              info.score_adj),
-              BUTTON(NEW_SRV_ACTION_CHANGE_RUN_SCORE));
-    } else {
-      fprintf(f, "%s</tr>\n", nbsp);
-    }
-
-    // score_adj
-    if (editable) {
-      html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-      html_hidden(f, "run_id", "%d", run_id);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%d</td>", _("Score adjustment"),
-            info.score_adj);
-    if (editable) {
-      fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-              html_input_text(bt, sizeof(bt), "param", 10, "%d",
-                              info.score_adj),
-              BUTTON(NEW_SRV_ACTION_CHANGE_RUN_SCORE_ADJ));
-    } else {
-      fprintf(f, "%s</tr>\n", nbsp);
-    }
+    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"), bb);
   } else {
     // ACM scoring system
     // first failed test
@@ -1562,42 +1554,110 @@ ns_write_priv_source(const serve_state_t state,
     } else {
       snprintf(bb, sizeof(bb), "%d", info.test);
     }
-    if (editable) {
-      html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-      html_hidden(f, "run_id", "%d", run_id);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td>", _("Failed test"), bb);
-    if (editable) {
-      fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-              html_input_text(bt, sizeof(bt), "param", 10, "%d",
-                              info.score_adj),
-              BUTTON(NEW_SRV_ACTION_CHANGE_RUN_TEST));
-    } else {
-      fprintf(f, "%s</tr>\n", nbsp);
-    }
+    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Failed test"), bb);
   }
 
-  if (editable) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%d</td>", _("Pages printed"), info.pages);
-  if (editable) {
-    fprintf(f, "<td>%s</td><td>%s</td></tr></form>\n",
-            html_input_text(bt, sizeof(bt), "param", 10, "%d",
-                            info.score_adj),
-            BUTTON(NEW_SRV_ACTION_CHANGE_RUN_PAGES));
-  } else {
-    fprintf(f, "%s</tr>\n", nbsp);
-  }
+  // is_marked
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
+          _("Marked?"),
+          html_unparse_bool(bb, sizeof(bb), info.is_marked));
   fprintf(f, "</table>\n");
+
+  /// additional info
+  fprintf(f, "<script language=\"javascript\">\n");
+  fprintf(f,
+          "function setDivVisibility(oper, value)\n"
+          "{\n"
+          "  obj1 = document.getElementById(\"Show\" + oper + \"Div\");\n"
+          "  obj2 = document.getElementById(\"Hide\" + oper + \"Div\");\n"
+          "  if (value) {\n"
+          "    obj1.style.display = \"none\";\n"
+          "    obj2.style.display = \"\";\n"
+          "  } else {\n"
+          "    obj1.style.display = \"\";\n"
+          "    obj2.style.display = \"none\";\n"
+          "  }\n"
+          "}\n"
+          "");
+  fprintf(f, "</script>\n");
+
+  fprintf(f, "<div id=\"ShowExtraDiv\">");
+  fprintf(f, "<a onclick=\"setDivVisibility('Extra', true)\">[%s]</a>\n", "More info");
+  fprintf(f, "</div>");
+  fprintf(f, "<div style=\"display: none;\" id=\"HideExtraDiv\">");
+  fprintf(f, "<a onclick=\"setDivVisibility('Extra', false)\">[%s]</a><br/>\n", "Hide extended info");
+
+  fprintf(f, "<table>\n");
+
+  // mime_type
+  if (!info.lang_id) {
+    fprintf(f, "<tr><td>%s</td><td>%s</td></tr>\n",
+            _("Content type"), mime_type_get_type(info.mime_type));
+  }
+
+  // is_imported
+  fprintf(f, "<tr><td style=\"width: 10em;\">%s:</td><td>%s</td></tr>\n",
+          _("Imported?"), html_unparse_bool(bb, sizeof(bb), info.is_imported));
+
+  // is_hidden
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
+          _("Hidden?"), html_unparse_bool(bb, sizeof(bb), info.is_hidden));
+
+  // is_examinable
+  /*
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
+          _("Examinable?"),
+          html_unparse_bool(bb, sizeof(bb), info.is_examinable));
+  */
+
+  // is_saved
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
+          _("Saved?"),
+          html_unparse_bool(bb, sizeof(bb), info.is_saved));
+
+  // is_readonly
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
+          _("Read-only?"), html_unparse_bool(bb, sizeof(bb), info.is_readonly));
+
+  // locale_id
+  fprintf(f, "<tr><td>%s:</td><td>%d</td></tr>\n", _("Locale ID"), info.locale_id);
+
+  // score_adj
+  if (global->score_system != SCORE_ACM) {
+    fprintf(f, "<tr><td>%s:</td><td>%d</td></tr>\n", _("Score adjustment"),
+            info.score_adj);
+  }
+
+  // size
+  snprintf(filtbuf1, sizeof(filtbuf1), "size == size(%d)", run_id);
+  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
+  fprintf(f, "<tr><td>%s:</td><td>%s%u</a></td></tr>\n",
+          _("Size"),
+          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
+                  "filter_expr=%s", filtbuf2),
+          info.size);
+
+  // hash code
+  snprintf(filtbuf1, sizeof(filtbuf1), "hash == hash(%d)", run_id);
+  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
+  fprintf(f, "<tr><td>%s:</td><td>%s%s</a></td></tr>\n",
+          _("Hash value"),
+          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
+                  "filter_expr=%s", filtbuf2),
+          unparse_sha1(info.sha1));
+
+  fprintf(f, "<tr><td>%s:</td><td>%d</td></tr>\n", _("Pages printed"), info.pages);
+  fprintf(f, "</table>\n");
+
+  fprintf(f, "</div>\n");
 
   fprintf(f, "<p>%s%s</a></p>\n",
           ns_aref(filtbuf3, sizeof(filtbuf3), phr,
                   NEW_SRV_ACTION_PRIV_DOWNLOAD_RUN, "run_id=%d", run_id),
           _("Download run"));
 
-  if (editable) {
+  if (phr->role == USER_ROLE_ADMIN && opcaps_check(phr->caps, OPCAP_EDIT_RUN) >= 0
+      && info.is_readonly <= 0) {
     html_start_form(f, 1, phr->self_url, phr->hidden_vars);
     html_hidden(f, "run_id", "%d", run_id);
     fprintf(f, "<p>%s</p>", BUTTON(NEW_SRV_ACTION_CLEAR_RUN));
@@ -1623,7 +1683,7 @@ ns_write_priv_source(const serve_state_t state,
   html_hidden(f, "run_id", "%d", run_id);
   fprintf(f, "<p>%s: %s %s</p></form>\n",
           _("Compare this run with run"),
-          html_input_text(bt, sizeof(bt), "run_id2", 10, "%s", filtbuf1),
+          html_input_text(bt, sizeof(bt), "run_id2", 10, 0, "%s", filtbuf1),
           BUTTON(NEW_SRV_ACTION_COMPARE_RUNS));
 
   html_start_form(f, 0, phr->self_url, phr->hidden_vars);
@@ -1972,6 +2032,7 @@ ns_write_priv_clar(const serve_state_t cs,
   unsigned char bb[1024];
   unsigned char b1[1024], b2[1024];
   const unsigned char *clar_subj = 0;
+  unsigned char hbuf[1024];
 
   if (clar_id < 0 || clar_id >= clar_get_total(cs->clarlog_state)
       || clar_get_record(cs->clarlog_state, clar_id, &clar) < 0
@@ -1982,7 +2043,14 @@ ns_write_priv_clar(const serve_state_t cs,
   start_time = run_get_start_time(cs->runlog_state);
   clar_subj = clar_get_subject(cs->clarlog_state, clar_id);
 
-  fprintf(f, "<h2>%s %d</h2>\n", _("Message"), clar_id);
+  fprintf(f, "<h2>%s %d", _("Message"), clar_id);
+  if (phr->role == USER_ROLE_ADMIN && opcaps_check(phr->caps, OPCAP_EDIT_RUN) >= 0) {
+    fprintf(f, " [<a href=\"%s\">%s</a>]",
+            ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_PRIV_EDIT_CLAR_PAGE,
+                   "clar_id=%d", clar_id),
+            "Edit");
+  }
+  fprintf(f, "</h2>\n");
   fprintf(f, "<table border=\"0\">\n");
   fprintf(f, "<tr><td>%s:</td><td>%d</td></tr>\n", _("Clar ID"), clar_id);
   if (clar.hide_flag)
@@ -2076,6 +2144,1222 @@ ns_write_priv_clar(const serve_state_t cs,
   xfree(msg_txt);
 }
 
+void
+ns_priv_edit_clar_page(
+        const serve_state_t cs,
+        FILE *f,
+        FILE *log_f,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra,
+        int clar_id)
+{
+  unsigned char hbuf[1024];
+  struct clar_entry_v1 clar;
+  //const unsigned char *clar_subj = 0;
+  //time_t start_time;
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  const unsigned char *from_str = NULL, *to_str = NULL;
+  unsigned char from_buf[128], to_buf[128];
+  const unsigned char *s;
+  unsigned char *msg_txt = NULL;
+  size_t msg_len = 0;
+
+  if (clar_id < 0 || clar_id >= clar_get_total(cs->clarlog_state)
+      || clar_get_record(cs->clarlog_state, clar_id, &clar) < 0
+      || clar.id < 0) {
+    ns_error(log_f, NEW_SRV_ERR_INV_CLAR_ID);
+    goto done;
+  }
+  //start_time = run_get_start_time(cs->runlog_state);
+  //clar_subj = clar_get_subject(cs->clarlog_state, clar_id);
+
+  fprintf(f, "<h2>%s %d", _("Message"), clar_id);
+  if (opcaps_check(phr->caps, OPCAP_VIEW_CLAR) >= 0) {
+    fprintf(f, " [<a href=\"%s\">%s</a>]",
+            ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_CLAR,
+                   "clar_id=%d", clar_id),
+            "View");
+  }
+  fprintf(f, "</h2>\n");
+
+  html_start_form(f, 2, phr->self_url, phr->hidden_vars);
+  fprintf(f, "<input type=\"hidden\" name=\"action\" value=\"%d\" />\n", NEW_SRV_ACTION_PRIV_EDIT_CLAR_ACTION);
+  fprintf(f, "<input type=\"hidden\" name=\"clar_id\" value=\"%d\" />\n", clar_id);
+  unsigned char *cl = " class=\"b0\"";
+  fprintf(f, "<table%s>\n", cl);
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%d</td></tr>\n", cl, "Clar ID", cl, clar_id);
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s.%06d</td></tr>\n", cl, "Time", cl, xml_unparse_date(clar.time),
+          clar.nsec / 1000);
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%d</td></tr>\n", cl, "Size", cl, clar.size);
+
+  if (clar.from <= 0 && clar.to <= 0) {
+    from_str = "judges";
+    to_str = "all";
+  } else if (clar.from <= 0) {
+    from_str = "judges";
+  } else if (clar.to <= 0) {
+    to_str = "judges";
+  }
+  if (clar.from > 0) {
+    if (!(from_str = teamdb_get_login(cs->teamdb_state, clar.from))) {
+      snprintf(from_buf, sizeof(from_buf), "#%d", clar.from);
+      from_str = from_buf;
+    }
+  }
+  if (clar.to > 0) {
+    if (!(to_str = teamdb_get_login(cs->teamdb_state, clar.to))) {
+      snprintf(to_buf, sizeof(to_buf), "#%d", clar.to);
+      to_str = to_buf;
+    }
+  }
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"from\" size=\"40\" value=\"%s\" /></td></tr>\n",
+          cl, "From (Login or #Id)", cl, ARMOR(from_str));
+  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"to\" size=\"40\" value=\"%s\" /></td></tr>\n",
+          cl, "To (Login or #Id)", cl, ARMOR(to_str));
+  from_buf[0] = 0; from_str = from_buf;
+  if (clar.j_from > 0) {
+    if (!(from_str = teamdb_get_login(cs->teamdb_state, clar.j_from))) {
+      snprintf(from_buf, sizeof(from_buf), "#%d", clar.j_from);
+      from_str = from_buf;
+    }
+  }
+  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"j_from\" size=\"40\" value=\"%s\" /></td></tr>\n",
+          cl, "Judge from (Login or #Id)", cl, ARMOR(from_str));
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s><select name=\"flags\" value=\"%d\">", cl, "Flags", cl, clar.flags);
+  static const unsigned char * const clar_flags[] = { "New", "Viewed", "Answered", NULL };
+  for (int i = 0; clar_flags[i]; ++i) {
+    if (i == clar.flags) s = " selected=\"selected\"";
+    fprintf(f, "<option value=\"%d\"%s>%s</option>", i, s, ARMOR(clar_flags[i]));
+  }
+  fprintf(f, "</td></tr>\n");
+
+  s = "";
+  if (clar.hide_flag) s = " checked=\"checked\"";
+  fprintf(f, "<tr><td%s>%s?</td><td%s><input type=\"checkbox\" name=\"hide_flag\"%s /></td></tr>\n",
+          cl, "Hidden", cl, s);
+  s = "";
+  if (clar.appeal_flag) s = " checked=\"checked\"";
+  fprintf(f, "<tr><td%s>%s?</td><td%s><input type=\"checkbox\" name=\"appeal_flag\"%s /></td></tr>\n",
+          cl, "Apellation", cl, s);
+  
+  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"ip\" size=\"40\" value=\"%s\" /></td></tr>\n",
+          cl, "IP", cl, xml_unparse_ip(clar.a.ip));
+  s = "";
+  if (clar.ssl_flag) s = " checked=\"checked\"";
+  fprintf(f, "<tr><td%s>%s?</td><td%s><input type=\"checkbox\" name=\"ssl_flag\"%s /></td></tr>\n",
+          cl, "SSL", cl, s);
+
+  from_buf[0] = 0;
+  if (clar.locale_id >= 0) snprintf(from_buf, sizeof(from_buf), "%d", clar.locale_id);
+  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"locale_id\" size=\"40\" value=\"%s\" /></td></tr>\n",
+          cl, "Locale", cl, from_buf);
+
+  from_buf[0] = 0;
+  if (clar.in_reply_to > 0) snprintf(from_buf, sizeof(from_buf), "%d", clar.in_reply_to - 1);
+  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"in_reply_to\" size=\"40\" value=\"%s\" /></td></tr>\n",
+          cl, "In reply to", cl, from_buf);
+
+  from_buf[0] = 0;
+  if (clar.run_id > 0) snprintf(from_buf, sizeof(from_buf), "%d", clar.run_id - 1);
+  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"run_id\" size=\"40\" value=\"%s\" /></td></tr>\n",
+          cl, "Run ID", cl, from_buf);
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"charset\" size=\"40\" value=\"%s\" /></td></tr>\n",
+          cl, "Charset", cl, clar.charset);
+  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"subject\" size=\"80\" value=\"%s\" /></td></tr>\n",
+          cl, "Subject", cl, clar.subj);
+  fprintf(f, "</table>\n");
+
+  clar_get_text(cs->clarlog_state, clar_id, &msg_txt, &msg_len);
+  fprintf(f, "<p><textarea name=\"text\" rows=\"20\" cols=\"60\">%s</textarea></p>\n", ARMOR(msg_txt));
+
+  fprintf(f, "<table%s><tr>\n", cl);
+  fprintf(f, "<td%s><input type=\"submit\" name=\"save\" value=\"Save\" /></td>", cl);
+  fprintf(f, "<td%s><input type=\"submit\" name=\"cancel\" value=\"Cancel\" /></td>", cl);
+  fprintf(f, "</tr></table>\n");  
+  fprintf(f, "</form>\n");
+
+done:;
+  xfree(msg_txt);
+  html_armor_free(&ab);
+}
+
+
+// 0 - undefined or empty, -1 - invalid, 1 - ok
+static int
+parse_user_field(
+        const serve_state_t cs,
+        struct http_request_info *phr,
+        const unsigned char *name,
+        int all_enabled,
+        int judges_enabled,
+        int *p_user_id)
+{
+  const unsigned char *s = NULL;
+  unsigned char *str = NULL;
+  int r = ns_cgi_param(phr, name, &s);
+  char *eptr = NULL;
+  int user_id = 0;
+
+  if (r <= 0) return r;
+  if (is_empty_string(s)) return 0;
+  str = text_input_process_string(s, 0, 0);
+  if (!str || !*str) {
+    xfree(str);
+    return 0;
+  }
+  if (str[0] == '#') {
+    if (!str[1]) goto fail;
+    str[0] = ' ';
+    errno = 0;
+    user_id = strtol(str, &eptr, 10);
+    if (errno || *eptr) goto fail;
+    if (!teamdb_lookup(cs->teamdb_state, user_id)) goto fail;
+    goto done;
+  }
+  if (!strcasecmp(str, "all")) {
+    if (!all_enabled) goto fail;
+    user_id = 0;
+    goto done;
+  }
+  if (!strcasecmp(str, "judges")) {
+    if (!judges_enabled) goto fail;
+    user_id = 0;
+    goto done;
+  }
+  if ((user_id = teamdb_lookup_login(cs->teamdb_state, str)) > 0) goto done;
+  errno = 0;
+  user_id = strtol(str, &eptr, 10);
+  if (errno || *eptr) goto fail;
+  if (!teamdb_lookup(cs->teamdb_state, user_id)) goto fail;
+
+done:
+  *p_user_id = user_id;
+  xfree(str);
+  return 1;
+
+fail:
+  xfree(str);
+  return -1;
+}
+
+#define FAIL(c) do { retval = -(c); goto cleanup; } while (0)
+
+int
+ns_priv_edit_clar_action(
+        FILE *out_f,
+        FILE *log_f,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
+{
+  serve_state_t cs = extra->serve_state;
+  int retval = 0, r;
+  int clar_id = -1;
+  struct clar_entry_v1 clar, new_clar;
+  const unsigned char *s = NULL;
+  int new_from = 0, new_to = 0, new_j_from = 0, new_flags = 0;
+  int new_hide_flag = 0, new_appeal_flag = 0, new_ssl_flag = 0;
+  int new_locale_id = 0, new_in_reply_to = -1, new_run_id = -1;
+  int new_size = 0;
+  ej_ip_t new_ip = 0;
+  unsigned char *new_charset = NULL;
+  unsigned char *new_subject = NULL;
+  unsigned char *new_text = NULL;
+  unsigned char *old_text = NULL;
+  size_t old_size = 0;
+  int mask = 0;
+
+  if (opcaps_check(phr->caps, OPCAP_EDIT_RUN) < 0) {
+    FAIL(NEW_SRV_ERR_INV_CLAR_ID);
+  }
+
+  if (ns_cgi_param_int(phr, "clar_id", &clar_id) < 0
+      || clar_id < 0 || clar_id >= clar_get_total(cs->clarlog_state)
+      || clar_get_record(cs->clarlog_state, clar_id, &clar) < 0
+      || clar.id < 0) {
+    FAIL(NEW_SRV_ERR_INV_CLAR_ID);
+  }
+
+  if (ns_cgi_param(phr, "cancel", &s) > 0 && *s) goto cleanup;
+  s = NULL;
+  if (ns_cgi_param(phr, "save", &s) <= 0 || !*s) goto cleanup;
+
+  if (parse_user_field(cs, phr, "from", 0, 1, &new_from) <= 0) {
+    fprintf(log_f, "invalid 'from' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (parse_user_field(cs, phr, "to", (new_from == 0), (new_from > 0), &new_to) <= 0) {
+    fprintf(log_f, "invalid 'to' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (!new_from) {
+    r = parse_user_field(cs, phr, "j_from", 0, 0, &new_j_from);
+    if (r < 0) {
+      fprintf(log_f, "invalid 'j_from' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);
+    }
+    if (!r || new_j_from <= 0) new_j_from = 0;
+  }
+  if (ns_cgi_param_int(phr, "flags", &new_flags) < 0 || new_flags < 0 || new_flags > 2) {
+    fprintf(log_f, "invalid 'flags' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (ns_cgi_param(phr, "hide_flag", &s) > 0) new_hide_flag = 1;
+  if (ns_cgi_param(phr, "appeal_flag", &s) > 0) new_appeal_flag = 1;
+  if (ns_cgi_param(phr, "ssl_flag", &s) > 0) new_ssl_flag = 1;
+  if ((r = ns_cgi_param(phr, "ip", &s)) < 0) {
+    fprintf(log_f, "invalid 'ip' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (!r || !s || !*s) s = "127.0.0.1";
+  if (xml_parse_ip(NULL, 0, 0, 0, s, &new_ip) < 0) {
+    fprintf(log_f, "invalid 'ip' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (ns_cgi_param_int_opt(phr, "locale_id", &new_locale_id, 0) < 0) {
+    fprintf(log_f, "invalid 'locale_id' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  // FIXME: check for valid locales better
+  if (new_locale_id != 0 && new_locale_id != 1) {
+    fprintf(log_f, "invalid 'locale_id' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (ns_cgi_param_int_opt(phr, "in_reply_to", &new_in_reply_to, -1) < 0) {
+    fprintf(log_f, "invalid 'in_reply_to' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (new_in_reply_to < -1 || new_in_reply_to >= clar_get_total(cs->clarlog_state)) {
+    fprintf(log_f, "invalid 'in_reply_to' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  ++new_in_reply_to;
+  if (ns_cgi_param_int_opt(phr, "run_id", &new_run_id, -1) < 0) {
+    fprintf(log_f, "invalid 'run_id' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (new_run_id < -1 || new_run_id >= run_get_total(cs->runlog_state)) {
+    fprintf(log_f, "invalid 'run_id' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  ++new_run_id;
+
+  s = NULL;
+  if ((r = ns_cgi_param(phr, "charset", &s)) < 0) {
+    fprintf(log_f, "invalid 'charset' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (!r || !s) s = "";
+  new_charset = text_input_process_string(s, 0, 0);
+  // FIXME: validate charset
+  xfree(new_charset);
+  new_charset = xstrdup(EJUDGE_CHARSET);
+
+  s = NULL;
+  if ((r = ns_cgi_param(phr, "subject", &s)) < 0) {
+    fprintf(log_f, "invalid 'subject' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (!r || !s) s = "";
+  new_subject = text_input_process_string(s, 0, 0);
+
+  s = NULL;
+  if ((r = ns_cgi_param(phr, "text", &s)) < 0) {
+    fprintf(log_f, "invalid 'text' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (!r || !s) s = "";
+  new_text = text_area_process_string(s, 0, 0);
+  new_size = strlen(new_text);
+
+  if (clar_get_text(cs->clarlog_state, clar_id, &old_text, &old_size) < 0
+      || new_size != old_size || strcmp(new_text, old_text) != 0) {
+    if (clar_modify_text(cs->clarlog_state, clar_id, new_text, new_size) < 0) {
+      FAIL(NEW_SRV_ERR_DATABASE_FAILED);
+    }
+  }
+
+  // **from, **to, **j_from, **flags, **hide_flag, **appeal_flag, **ip, **ssl_flag
+  // **locale_id, **in_reply_to, **run_id, **charset, **subject, *text
+
+  memset(&new_clar, 0, sizeof(new_clar));
+  if (clar.from != new_from) {
+    new_clar.from = new_from;
+    mask |= 1 << CLAR_FIELD_FROM;
+  }
+  if (clar.to != new_to) {
+    new_clar.to = new_to;
+    mask |= 1 << CLAR_FIELD_TO;
+  }
+  if (clar.j_from != new_j_from) {
+    new_clar.j_from = new_j_from;
+    mask |= 1 << CLAR_FIELD_J_FROM;
+  }
+  if (clar.flags != new_flags) {
+    new_clar.flags = new_flags;
+    mask |= 1 << CLAR_FIELD_FLAGS;
+  }
+  if (clar.hide_flag != new_hide_flag) {
+    new_clar.hide_flag = new_hide_flag;
+    mask |= 1 << CLAR_FIELD_HIDE_FLAG;
+  }
+  if (clar.appeal_flag != new_appeal_flag) {
+    new_clar.appeal_flag = new_appeal_flag;
+    mask |= 1 << CLAR_FIELD_APPEAL_FLAG;
+  }
+  // FIXME: do better
+  if (clar.a.ip != new_ip) {
+    new_clar.a.ip = new_ip;
+    new_clar.ip6_flag = 0;
+    mask |= 1 << CLAR_FIELD_IP;
+  }
+  if (clar.ssl_flag != new_ssl_flag) {
+    new_clar.ssl_flag = new_ssl_flag;
+    mask |= 1 << CLAR_FIELD_SSL_FLAG;
+  }
+  if (clar.locale_id != new_locale_id) {
+    new_clar.locale_id = new_locale_id;
+    mask |= 1 << CLAR_FIELD_LOCALE_ID;
+  }
+  if (clar.in_reply_to != new_in_reply_to) {
+    new_clar.in_reply_to = new_in_reply_to;
+    mask |= 1 << CLAR_FIELD_IN_REPLY_TO;
+  }
+  if (clar.run_id != new_run_id) {
+    new_clar.run_id = new_run_id;
+    mask |= 1 << CLAR_FIELD_RUN_ID;
+  }
+  if (clar.size != new_size) {
+    new_clar.size = new_size;
+    mask |= 1 << CLAR_FIELD_SIZE;
+  }
+  if (strcmp(clar.charset, new_charset) != 0) {
+    snprintf(new_clar.charset, sizeof(new_clar.charset), "%s", new_charset);
+    mask |= 1 << CLAR_FIELD_CHARSET;
+  }
+  if (strcmp(clar.subj, new_subject) != 0) {
+    snprintf(new_clar.subj, sizeof(new_clar.subj), "%s", new_subject);
+    mask |= 1 << CLAR_FIELD_SUBJECT;
+  }
+  if (mask <= 0) goto cleanup;
+
+  if (clar_modify_record(cs->clarlog_state, clar_id, mask, &new_clar) < 0) {
+    FAIL(NEW_SRV_ERR_DATABASE_FAILED);
+  }
+
+cleanup:
+  xfree(old_text);
+  xfree(new_charset);
+  xfree(new_subject);
+  xfree(new_text);
+  return retval;
+}
+
+void
+ns_priv_edit_run_page(
+        const serve_state_t cs,
+        FILE *f,
+        FILE *log_f,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra,
+        int run_id)
+{
+  const struct section_global_data *global = cs->global;
+  const struct section_problem_data *prob = NULL;
+  const struct section_language_data *lang = NULL;
+  time_t start_time = 0, run_time = 0;
+  struct run_entry info;
+  unsigned char hbuf[1024], buf[1024];
+  const unsigned char *str = NULL;
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  const unsigned char *s;
+  const unsigned char *dis = "";
+
+  if (run_id < 0 || run_id >= run_get_total(cs->runlog_state)) {
+    ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
+    goto done;
+  }
+  if (run_get_entry(cs->runlog_state, run_id, &info) < 0) {
+    ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
+    goto done;
+  }
+  if (info.status < 0 || info.status >= RUN_MAX_STATUS) {
+    ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
+    goto done;
+  }
+
+  ns_write_run_view_menu(f, phr, cnts, extra, run_id);
+
+  if (global->is_virtual) {
+    start_time = run_get_virtual_start_time(cs->runlog_state, info.user_id);
+  } else {
+    start_time = run_get_start_time(cs->runlog_state);
+  }
+  if (start_time < 0) start_time = 0;
+  run_time = info.time;
+  if (run_time < 0) run_time = 0;
+  if (run_time < start_time) run_time = start_time;
+
+  if (info.is_readonly > 0) dis = " disabled=\"disabled\"";
+
+  fprintf(f, "<h2>%s %d", "Run", run_id);
+  fprintf(f, " [<a href=\"%s\">%s</a>]",
+          ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_SOURCE,
+                 "run_id=%d", run_id),
+            "Source");
+  fprintf(f, "</h2>\n");
+
+  html_start_form(f, 2, phr->self_url, phr->hidden_vars);
+  fprintf(f, "<input type=\"hidden\" name=\"action\" value=\"%d\" />\n", NEW_SRV_ACTION_PRIV_EDIT_RUN_ACTION);
+  fprintf(f, "<input type=\"hidden\" name=\"run_id\" value=\"%d\" />\n", run_id);
+  unsigned char *cl = " class=\"b0\"";
+  fprintf(f, "<table%s>\n", cl);
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%d</td></tr>\n", cl, "Run ID", cl, run_id);
+  if (run_time != info.time) {
+    if (info.time <= 0) {
+      fprintf(f, "<tr><td%s>%s:</td><td%s>%ld.%06d</td></tr>\n", cl, "DB timestamp",
+              cl, (long) info.time, info.nsec / 1000);
+    } else {
+      fprintf(f, "<tr><td%s>%s:</td><td%s>%s.%06d</td></tr>\n", cl, "DB time",
+              cl, xml_unparse_date(info.time), info.nsec / 1000);
+    }
+  }
+  if (run_time <= 0) {
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%ld.%06d</td></tr>\n", cl, "Timestamp",
+            cl, (long) run_time, info.nsec / 1000);
+  } else {
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%s.%06d</td></tr>\n", cl, "Time",
+            cl, xml_unparse_date(run_time), info.nsec / 1000);
+  }
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Contest time",
+          cl, duration_str_2(hbuf, sizeof(hbuf), run_time - start_time, info.nsec));
+  if (info.user_id <= 0 || !(str = teamdb_get_login(cs->teamdb_state, info.user_id))) {
+    snprintf(buf, sizeof(buf), "#%d", info.user_id);
+    str = buf;
+  }
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "User login/ID",
+          cl, html_input_text(hbuf, sizeof(hbuf), "user", 20, info.is_readonly, "%s", ARMOR(str)));
+  if ((str = teamdb_get_name(cs->teamdb_state, info.user_id))) {
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "User name",
+            cl, ARMOR(str));
+  }
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s><select name=\"prob\"%s>", cl, "Prob name/ID", cl, dis);
+  if (info.prob_id <= 0 || info.prob_id > cs->max_prob || !(prob = cs->probs[info.prob_id])) {
+    fprintf(f, "<option value=\"%d\" selected=\"selected\">#%d</option>",
+            info.prob_id, info.prob_id);
+  }
+  for (int prob_id = 1; prob_id <= cs->max_prob; ++prob_id) {
+    if (cs->probs[prob_id]) {
+      s = "";
+      if (info.prob_id == prob_id) s = " selected=\"selected\"";
+      fprintf(f, "<option value=\"%d\"%s>%s - %s</option>",
+              prob_id, s, cs->probs[prob_id]->short_name,
+              ARMOR(cs->probs[prob_id]->long_name));
+    }
+  }
+  fprintf(f, "</select></td></tr>\n");
+
+  if (prob && prob->variant_num > 0) {
+    str = "";
+    if (info.variant > 0) {
+      snprintf(buf, sizeof(buf), "%d", info.variant);
+      str = buf;
+    }
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Variant",
+            cl, html_input_text(hbuf, sizeof(hbuf), "variant", 20, info.is_readonly, "%s", str));
+  }
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s><select name=\"lang\"%s>", cl, "Lang name/ID", cl, dis);
+  if (info.lang_id == 0) {
+    fprintf(f, "<option value=\"0\" selected=\"selected\"></option>");
+    str = "";
+  } else if (info.lang_id < 0 || info.lang_id > cs->max_lang || !(lang = cs->langs[info.lang_id])) {
+    fprintf(f, "<option value=\"%d\" selected=\"selected\">#%d</option>", info.lang_id, info.lang_id);
+  }
+  for (int lang_id = 1; lang_id <= cs->max_lang; ++lang_id) {
+    if (cs->langs[lang_id]) {
+      s = "";
+      if (info.lang_id == lang_id) s = " selected=\"selected\"";
+      fprintf(f, "<option value=\"%d\"%s>%s - %s</option>",
+              lang_id, s, cs->langs[lang_id]->short_name,
+              ARMOR(cs->langs[lang_id]->long_name));
+    }
+  }
+  fprintf(f, "</select></td></tr>\n");
+
+  fprintf(f, "<tr><td%s>%s:</td>", cl, "Status");
+  write_change_status_dialog(cs, f, NULL, info.is_imported, "b0", info.status, info.is_readonly);
+  fprintf(f, "</tr>\n");
+
+  buf[0] = 0;
+  if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
+    if (info.test > 0) {
+      snprintf(buf, sizeof(buf), "%d", info.test - 1);
+    }
+    s = "Tests passed";
+  } else if (global->score_system == SCORE_MOSCOW || global->score_system == SCORE_ACM) {
+    if (info.test > 0) {
+      snprintf(buf, sizeof(buf), "%d", info.test);
+    }
+    s = "Failed test";
+  } else {
+    abort();
+  }
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, s,
+          cl, html_input_text(hbuf, sizeof(hbuf), "test", 20, info.is_readonly, "%s", buf));
+
+  if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD
+      || global->score_system == SCORE_MOSCOW) {
+    buf[0] = 0;
+    if (info.score >= 0) {
+      snprintf(buf, sizeof(buf), "%d", info.score);
+    }
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Score",
+            cl, html_input_text(hbuf, sizeof(hbuf), "score", 20, info.is_readonly, "%s", buf));
+
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Score adjustment",
+            cl, html_input_text(hbuf, sizeof(hbuf), "score_adj", 20, info.is_readonly, "%d", info.score_adj));
+  }
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Marked",
+          cl, html_checkbox(hbuf, sizeof(hbuf), "is_marked", "1", info.is_marked, info.is_readonly));
+
+  if (global->separate_user_score > 0) {
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Has saved score",
+            cl, html_checkbox(hbuf, sizeof(hbuf), "is_saved", "1", info.is_saved, info.is_readonly));
+    fprintf(f, "<tr><td%s>%s:</td>", cl, "Saved status");
+    write_change_status_dialog(cs, f, "saved_status", info.is_imported, "b0", info.saved_status,
+                               info.is_readonly);
+    fprintf(f, "</tr>\n");
+    buf[0] = 0;
+    if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
+      if (info.saved_test > 0) {
+        snprintf(buf, sizeof(buf), "%d", info.saved_test - 1);
+      }
+      s = "Saved tests passed";
+    } else if (global->score_system == SCORE_MOSCOW || global->score_system == SCORE_ACM) {
+      if (info.saved_test > 0) {
+        snprintf(buf, sizeof(buf), "%d", info.saved_test);
+      }
+      s = "Saved failed test";
+    } else {
+      abort();
+    }
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, s,
+            cl, html_input_text(hbuf, sizeof(hbuf), "saved_test", 20, info.is_readonly, "%s", buf));
+    if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD
+        || global->score_system == SCORE_MOSCOW) {
+      buf[0] = 0;
+      if (info.saved_score >= 0) {
+        snprintf(buf, sizeof(buf), "%d", info.saved_score);
+      }
+      fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Saved score",
+              cl, html_input_text(hbuf, sizeof(hbuf), "saved_score", 20, info.is_readonly, "%s", buf));
+    }
+  }
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "IP",
+          cl, html_input_text(hbuf, sizeof(hbuf), "ip", 20, info.is_readonly,
+                              "%s", xml_unparse_ip(info.a.ip)));
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "SSL",
+          cl, html_checkbox(hbuf, sizeof(hbuf), "ssl_flag", "1", info.ssl_flag, info.is_readonly));
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Size",
+          cl, html_input_text(hbuf, sizeof(hbuf), "size", 20, info.is_readonly,
+                              "%d", (int) info.size));
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "SHA1",
+          cl, html_input_text(hbuf, sizeof(hbuf), "sha1", 60, info.is_readonly,
+                              "%s", unparse_sha1(info.sha1)));
+
+  if (!info.lang_id) {
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Content type",
+            cl, html_input_text(hbuf, sizeof(hbuf), "mime_type", 60, info.is_readonly,
+                                "%s", ARMOR(mime_type_get_type(info.mime_type))));
+  }
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Hidden",
+          cl, html_checkbox(hbuf, sizeof(hbuf), "is_hidden", "1", info.is_hidden, info.is_readonly));
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Imported",
+          cl, html_checkbox(hbuf, sizeof(hbuf), "is_imported", "1", info.is_imported, info.is_readonly));
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Read-only",
+          cl, html_checkbox(hbuf, sizeof(hbuf), "is_readonly", "1", info.is_readonly, 0));
+
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Locale ID",
+          cl, html_input_text(hbuf, sizeof(hbuf), "locale_id", 20, info.is_readonly,
+                              "%d", info.locale_id));
+  if (global->enable_printing > 0) {
+    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Pages printed",
+            cl, html_input_text(hbuf, sizeof(hbuf), "pages", 20, info.is_readonly,
+                                "%d", info.pages));
+  }
+  fprintf(f, "</table>\n");
+
+  fprintf(f, "<table%s><tr>\n", cl);
+  fprintf(f, "<td%s><input type=\"submit\" name=\"save\" value=\"Save\" /></td>", cl);
+  fprintf(f, "<td%s><input type=\"submit\" name=\"cancel\" value=\"Cancel\" /></td>", cl);
+  fprintf(f, "</tr></table>\n");  
+  fprintf(f, "</form>\n");
+done:;
+  html_armor_free(&ab);
+}
+
+int
+ns_priv_edit_run_action(
+        FILE *out_f,
+        FILE *log_f,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
+{
+  serve_state_t cs = extra->serve_state;
+  const struct section_global_data *global = cs->global;
+  int retval = 0, r;
+  int run_id = -1;
+  struct run_entry info, new_info;
+  const unsigned char *s = NULL;
+  int mask = 0;
+  int new_is_readonly = 0, value = 0;
+  ej_ip_t new_ip = 0;
+  ruint32_t new_sha1[5];
+  time_t start_time = 0;
+  int need_rejudge = 0;
+
+  memset(&new_info, 0, sizeof(new_info));
+
+  if (opcaps_check(phr->caps, OPCAP_EDIT_RUN) < 0) {
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  }
+
+  if (ns_cgi_param_int(phr, "run_id", &run_id) < 0
+      || run_id < 0 || run_id >= run_get_total(cs->runlog_state)) {
+    FAIL(NEW_SRV_ERR_INV_RUN_ID);
+  }
+  if (run_get_entry(cs->runlog_state, run_id, &info) < 0) {
+    FAIL(NEW_SRV_ERR_INV_RUN_ID);
+  }
+  if (info.status < 0 || info.status >= RUN_MAX_STATUS) {
+    FAIL(NEW_SRV_ERR_INV_RUN_ID);
+  }
+
+  if (ns_cgi_param(phr, "cancel", &s) > 0 && *s) goto cleanup;
+  s = NULL;
+  if (ns_cgi_param(phr, "save", &s) <= 0 || !*s) goto cleanup;
+  s = NULL;
+
+  if (global->is_virtual) {
+    start_time = run_get_virtual_start_time(cs->runlog_state, info.user_id);
+  } else {
+    start_time = run_get_start_time(cs->runlog_state);
+  }
+  if (start_time < 0) start_time = 0;
+
+  // FIXME: handle special "recheck file attributes" option
+
+  if (ns_cgi_param(phr, "is_readonly", &s) > 0) new_is_readonly = 1;
+  if (info.is_readonly > 0 && new_is_readonly) goto cleanup;
+  if (info.is_readonly > 0 && !new_is_readonly) {
+    new_info.is_readonly = 0;
+    mask |= RE_IS_READONLY;
+    if (run_set_entry(cs->runlog_state, run_id, mask, &new_info) < 0)
+      FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
+    goto cleanup;
+  }
+  if (info.is_readonly != new_is_readonly) {
+    new_info.is_readonly = new_is_readonly;
+    mask |= RE_IS_READONLY;
+  }
+
+  if (parse_user_field(cs, phr, "user", 0, 0, &value) <= 0) {
+    fprintf(log_f, "invalid 'user' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (info.user_id != value) {
+    new_info.user_id = value;
+    mask |= RE_USER_ID;
+  }
+
+  value = -1;
+  if (ns_cgi_param_int(phr, "prob", &value) < 0 || value <= 0) {
+    fprintf(log_f, "invalid 'prob' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (info.prob_id != value) {
+    if (value > cs->max_prob || !cs->probs[value]) {
+      fprintf(log_f, "invalid 'prob' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);    
+    }
+    new_info.prob_id = value;
+    mask |= RE_PROB_ID;
+  } else {
+    new_info.prob_id = info.prob_id;
+  }
+
+  const struct section_problem_data *prob = NULL;
+  if (new_info.prob_id > 0 && new_info.prob_id <= cs->max_prob) {
+    prob = cs->probs[new_info.prob_id];
+  }
+  if (prob && prob->variant_num > 0) {
+    if (ns_cgi_param_int(phr, "variant", &value) < 0 || value < 0) {
+      fprintf(log_f, "invalid 'variant' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);
+    }
+    if (info.variant != value) {
+      if (value > prob->variant_num) {
+        fprintf(log_f, "invalid 'variant' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);
+      }
+      new_info.variant = value;
+      mask |= RE_VARIANT;
+    }
+  }
+
+  value = -1;
+  if (ns_cgi_param_int(phr, "lang", &value) < 0 || value < 0) {
+    fprintf(log_f, "invalid 'lang' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (info.lang_id != value) {
+    if (prob && prob->type == PROB_TYPE_STANDARD) {
+      if (value <= 0 || value > cs->max_lang || !cs->langs[value]) {
+        fprintf(log_f, "invalid 'lang' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);    
+      }
+    } else if (prob) {
+      if (value != 0) {
+        fprintf(log_f, "invalid 'lang' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);    
+      }
+    }
+    new_info.lang_id = value;
+    mask |= RE_LANG_ID;
+  } else {
+    new_info.lang_id = info.lang_id;
+  }
+
+  const struct section_language_data *lang = NULL;
+  if (new_info.lang_id > 0 && new_info.lang_id <= cs->max_lang) {
+    lang = cs->langs[new_info.lang_id];
+  }
+  (void) lang;
+
+  value = -1;
+  if (ns_cgi_param_int(phr, "status", &value) < 0 || value < 0) {
+    fprintf(log_f, "invalid 'status' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (value == RUN_REJUDGE || value == RUN_FULL_REJUDGE) {
+    need_rejudge = value;
+    value = info.status;
+  }
+  if (info.status != value) {
+    // FIXME: handle rejudge request
+    if (value >= RUN_MAX_STATUS) {
+      fprintf(log_f, "invalid 'status' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);    
+    }
+    new_info.status = value;
+    mask |= RE_STATUS;
+  } else {
+    new_info.status = info.status;
+  }
+
+  value = -1;
+  if (ns_cgi_param_int_opt(phr, "test", &value, -1) < -1) {
+    fprintf(log_f, "invalid 'test' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
+    ++value;
+  }
+  if (info.test != value) {
+    if (value < 0 || value > 100000) {
+      fprintf(log_f, "invalid 'test' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);
+    }
+    switch (new_info.status) {
+    case RUN_OK:
+      if (global->score_system == SCORE_ACM || global->score_system == SCORE_MOSCOW) {
+        value = 0;
+      }
+      break;
+
+    case RUN_COMPILE_ERR:
+    case RUN_CHECK_FAILED:
+    case RUN_ACCEPTED:
+    case RUN_IGNORED:
+    case RUN_DISQUALIFIED:
+    case RUN_PENDING:
+    case RUN_STYLE_ERR:
+      value = 0;
+      break;
+
+    case RUN_RUN_TIME_ERR:
+    case RUN_TIME_LIMIT_ERR:
+    case RUN_PRESENTATION_ERR:
+    case RUN_WRONG_ANSWER_ERR:
+    case RUN_PARTIAL:
+    case RUN_MEM_LIMIT_ERR:
+    case RUN_SECURITY_ERR:
+      if (!value) {
+        fprintf(log_f, "invalid 'test' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);
+      }
+      break;
+    }
+    new_info.test = value;
+    mask |= RE_TEST;
+  }
+
+  if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD
+      || global->score_system == SCORE_MOSCOW) {
+    value = -1;
+    if (ns_cgi_param_int_opt(phr, "score", &value, -1) < -1) {
+      fprintf(log_f, "invalid 'score' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);
+    }
+    if (info.score != value) {
+      if (!prob) {
+        fprintf(log_f, "invalid 'prob' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);
+      }
+      if (value < 0 || value > 100000) {
+        fprintf(log_f, "invalid 'score' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);
+      }
+      switch (new_info.status) {
+      case RUN_OK:
+        if (prob->variable_full_score > 0) {
+          if (value < 0 || value > prob->full_score) {
+            fprintf(log_f, "invalid 'score' field value\n");
+            FAIL(NEW_SRV_ERR_INV_PARAM);
+          }
+        } else {
+          value = prob->full_score;
+        }
+        break;
+
+      case RUN_COMPILE_ERR:
+      case RUN_CHECK_FAILED:
+      case RUN_ACCEPTED:
+      case RUN_IGNORED:
+      case RUN_DISQUALIFIED:
+      case RUN_PENDING:
+      case RUN_STYLE_ERR:
+        value = 0;
+        break;
+
+      case RUN_RUN_TIME_ERR:
+      case RUN_TIME_LIMIT_ERR:
+      case RUN_PRESENTATION_ERR:
+      case RUN_WRONG_ANSWER_ERR:
+      case RUN_PARTIAL:
+      case RUN_MEM_LIMIT_ERR:
+      case RUN_SECURITY_ERR:
+        if (value < 0 || value > prob->full_score) {
+          fprintf(log_f, "invalid 'score' field value\n");
+          FAIL(NEW_SRV_ERR_INV_PARAM);
+        }
+        break;
+      }
+      new_info.score = value;
+      mask |= RE_SCORE;
+    }
+
+    value = -100000;
+    if (ns_cgi_param_int_opt(phr, "score_adj", &value, -100000) < -1) {
+      fprintf(log_f, "invalid 'score_adj' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);
+    }
+    if (value > -100000 && info.score_adj != value) {
+      if (value <= -100000 || value >= 100000) {
+        fprintf(log_f, "invalid 'score_adj' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);
+      }
+      new_info.score_adj = value;
+      mask |= RE_SCORE_ADJ;
+    }
+  }
+
+  value = 0;
+  if (ns_cgi_param(phr, "is_marked", &s) > 0) value = 1;
+  if (info.is_marked != value) {
+    new_info.is_marked = value;
+    mask |= RE_IS_MARKED;
+  }
+
+  if (global->separate_user_score > 0) {
+    value = 0;
+    if (ns_cgi_param(phr, "is_saved", &s) > 0) value = 1;
+    if (info.is_saved != value) {
+      new_info.is_saved = value;
+      mask |= RE_IS_SAVED;
+      if (!value) {
+        new_info.saved_status = 0;
+        new_info.saved_test = 0;
+        new_info.saved_score = 0;
+        mask |= RE_SAVED_STATUS | RE_SAVED_TEST | RE_SAVED_SCORE;
+      }
+    } else {
+      new_info.is_saved = info.is_saved;
+    }
+    if (new_info.is_saved) {
+      value = -1;
+      if (ns_cgi_param_int(phr, "saved_status", &value) < 0 || value < 0) {
+        fprintf(log_f, "invalid 'saved_status' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);    
+      }
+      if (info.saved_status != value || !info.is_saved) {
+        if (value >= RUN_MAX_STATUS) {
+          fprintf(log_f, "invalid 'saved_status' field value\n");
+          FAIL(NEW_SRV_ERR_INV_PARAM);
+        }
+        new_info.saved_status = value;
+        mask |= RE_SAVED_STATUS;
+      } else {
+        new_info.saved_status = info.saved_status;
+      }
+
+      value = -1;
+      if (ns_cgi_param_int_opt(phr, "saved_test", &value, -1) < -1) {
+        fprintf(log_f, "invalid 'saved_test' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);
+      }
+      if (info.saved_test != value || !info.is_saved) {
+        if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
+          ++value;
+        }
+        if (value < 0 || value > 100000) {
+          fprintf(log_f, "invalid 'saved_test' field value\n");
+          FAIL(NEW_SRV_ERR_INV_PARAM);
+        }
+        switch (new_info.saved_status) {
+        case RUN_OK:
+        case RUN_COMPILE_ERR:
+        case RUN_CHECK_FAILED:
+        case RUN_ACCEPTED:
+        case RUN_IGNORED:
+        case RUN_DISQUALIFIED:
+        case RUN_PENDING:
+        case RUN_STYLE_ERR:
+          value = 0;
+          break;
+
+        case RUN_RUN_TIME_ERR:
+        case RUN_TIME_LIMIT_ERR:
+        case RUN_PRESENTATION_ERR:
+        case RUN_WRONG_ANSWER_ERR:
+        case RUN_PARTIAL:
+        case RUN_MEM_LIMIT_ERR:
+        case RUN_SECURITY_ERR:
+          if (!value) {
+            fprintf(log_f, "invalid 'saved_test' field value\n");
+            FAIL(NEW_SRV_ERR_INV_PARAM);
+          }
+          break;
+        }
+        new_info.saved_test = value;
+        mask |= RE_SAVED_TEST;
+      }
+
+      if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD
+          || global->score_system == SCORE_MOSCOW) {
+        value = -1;
+        if (ns_cgi_param_int_opt(phr, "saved_score", &value, -1) < -1) {
+          fprintf(log_f, "invalid 'saved_score' field value\n");
+          FAIL(NEW_SRV_ERR_INV_PARAM);
+        }
+        if (info.saved_score != value || !info.is_saved) {
+          if (!prob) {
+            fprintf(log_f, "invalid 'prob' field value\n");
+            FAIL(NEW_SRV_ERR_INV_PARAM);
+          }
+          if (value < 0 || value > 100000) {
+            fprintf(log_f, "invalid 'saved_score' field value\n");
+            FAIL(NEW_SRV_ERR_INV_PARAM);
+          }
+          switch (new_info.saved_status) {
+          case RUN_OK:
+            if (prob->variable_full_score > 0) {
+              if (value < 0 || value > prob->full_user_score) {
+                fprintf(log_f, "invalid 'saved_score' field value\n");
+                FAIL(NEW_SRV_ERR_INV_PARAM);
+              }
+            } else {
+              value = prob->full_user_score;
+            }
+            break;
+
+          case RUN_COMPILE_ERR:
+          case RUN_CHECK_FAILED:
+          case RUN_ACCEPTED:
+          case RUN_IGNORED:
+          case RUN_DISQUALIFIED:
+          case RUN_PENDING:
+          case RUN_STYLE_ERR:
+            value = 0;
+            break;
+
+          case RUN_RUN_TIME_ERR:
+          case RUN_TIME_LIMIT_ERR:
+          case RUN_PRESENTATION_ERR:
+          case RUN_WRONG_ANSWER_ERR:
+          case RUN_PARTIAL:
+          case RUN_MEM_LIMIT_ERR:
+          case RUN_SECURITY_ERR:
+            if (value < 0 || value > prob->full_user_score) {
+              fprintf(log_f, "invalid 'saved_score' field value\n");
+              FAIL(NEW_SRV_ERR_INV_PARAM);
+            }
+            break;
+          }
+          new_info.saved_score = value;
+          mask |= RE_SAVED_SCORE;
+        }
+      }
+    }
+  }
+
+  s = NULL;
+  if ((r = ns_cgi_param(phr, "ip", &s)) < 0) {
+    fprintf(log_f, "invalid 'ip' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (!r || !s || !*s) s = "127.0.0.1";
+  if (xml_parse_ip(NULL, 0, 0, 0, s, &new_ip) < 0) {
+    fprintf(log_f, "invalid 'ip' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (new_ip != info.a.ip) {
+    new_info.a.ip = new_ip;
+    new_info.ipv6_flag = 0;
+    mask |= RE_IP;
+  }
+  value = 0;
+  if (ns_cgi_param(phr, "ssl_flag", &s) > 0) value = 1;
+  if (info.ssl_flag != value) {
+    new_info.ssl_flag = value;
+    mask |= RE_SSL_FLAG;
+  }
+
+  value = -1;
+  if (ns_cgi_param_int(phr, "size", &value) < 0 || value < 0) {
+    fprintf(log_f, "invalid 'size' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (info.size != value) {
+    if (value >= (1 * 1024 * 1024 * 1024)) {
+      fprintf(log_f, "invalid 'size' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);    
+    }
+    new_info.size = value;
+    mask |= RE_SIZE;
+  }
+
+  s = NULL;
+  if ((r = ns_cgi_param(phr, "sha1", &s)) < 0) {
+    fprintf(log_f, "invalid 'sha1' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (r > 0 && s && *s) {
+    memset(new_sha1, 0, sizeof(new_sha1));
+    if ((r = parse_sha1(new_sha1, s)) < 0) {
+      fprintf(log_f, "invalid 'sha1' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);    
+    }
+    if (r > 0 && memcmp(info.sha1, new_sha1, sizeof(info.sha1)) != 0) {
+      memcpy(new_info.sha1, new_sha1, sizeof(new_info.sha1));
+      mask |= RE_SHA1;
+    }
+  }
+
+  if (new_info.lang_id == 0) {
+    s = NULL;
+    if ((r = ns_cgi_param(phr, "mime_type", &s)) < 0) {
+      fprintf(log_f, "invalid 'mime_type' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);    
+    }
+    if (r > 0 && s && *s) {
+      if ((value = mime_type_parse(s)) < 0) {
+        fprintf(log_f, "invalid 'mime_type' field value\n");
+        FAIL(NEW_SRV_ERR_INV_PARAM);    
+      }
+      if (info.mime_type != value) {
+        new_info.mime_type = value;
+        mask |= RE_MIME_TYPE;
+      }
+    }
+  }
+
+  value = 0;
+  if (ns_cgi_param(phr, "is_hidden", &s) > 0) value = 1;
+  if (info.is_hidden != value) {
+    if (!value && info.time < start_time) {
+      fprintf(log_f, "is_hidden flag cannot be cleared because time < start_time");
+      FAIL(NEW_SRV_ERR_INV_PARAM);    
+    }
+    new_info.is_hidden = value;
+    mask |= RE_IS_HIDDEN;
+  }
+
+  value = 0;
+  if (ns_cgi_param(phr, "is_imported", &s) > 0) value = 1;
+  if (info.is_imported != value) {
+    // check availability of operation
+    new_info.is_imported = value;
+    mask |= RE_IS_IMPORTED;
+  }
+
+  value = -1;
+  if (ns_cgi_param_int_opt(phr, "locale_id", &value, -1) < 0) {
+    fprintf(log_f, "invalid 'locale_id' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (value >= 0 && info.locale_id != value) {
+    if (value != 0 && value != 1) {
+      fprintf(log_f, "invalid 'locale_id' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);
+    }
+    new_info.locale_id = value;
+    mask |= RE_LOCALE_ID;
+  }
+
+  value = -1;
+  if (ns_cgi_param_int_opt(phr, "pages", &value, -1) < 0) {
+    fprintf(log_f, "invalid 'pages' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (value >= 0 && info.pages != value) {
+    if (value > 100000) {
+      fprintf(log_f, "invalid 'pages' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);
+    }
+    new_info.pages = value;
+    mask |= RE_PAGES;
+  }
+
+  if (!mask) goto cleanup;
+  if (run_set_entry(cs->runlog_state, run_id, mask, &new_info) < 0)
+    FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
+
+  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+                  "edit-run", "ok", -1,
+                  "  mask: 0x%08x", mask);
+
+  if (need_rejudge > 0) {
+    serve_rejudge_run(ejudge_config, cnts, cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+                      (need_rejudge == RUN_FULL_REJUDGE), 0);
+  }
+
+cleanup:;
+  return retval;
+}
 
 static void
 write_from_contest_dir(
@@ -2167,8 +3451,7 @@ write_from_archive(const serve_state_t cs,
   unsigned char fnbuf[64];
   int rep_flag = 0, arch_flags = 0;
   path_t arch_path;
-  long arch_size = 0, arch_raw_size = 0;
-  const unsigned char *arch_data = 0;
+  long arch_raw_size = 0;
   unsigned char *text = 0;
 
   if (!flag) {
@@ -2179,25 +3462,17 @@ write_from_archive(const serve_state_t cs,
   snprintf(fnbuf, sizeof(fnbuf), "%06d%s", test_num, suffix);
 
   rep_flag = archive_make_read_path(cs, arch_path, sizeof(arch_path),
-                                    dir, run_id, 0, 0);
+                                    dir, run_id, 0, ZIP);
   if (rep_flag < 0 || !(far = full_archive_open_read(arch_path))) {
     ns_error(log_f, NEW_SRV_ERR_TEST_NONEXISTANT);
     goto done;
   }
 
-  rep_flag = full_archive_find_file(far, fnbuf, &arch_size, &arch_raw_size,
-                                    &arch_flags, &arch_data);
+  rep_flag = full_archive_find_file(far, fnbuf, &arch_raw_size,
+                                    &arch_flags, &text);
   if (rep_flag <= 0) {
     ns_error(log_f, NEW_SRV_ERR_TEST_NONEXISTANT);
     goto done;
-  }
-
-  if (arch_raw_size > 0) {
-    text = (unsigned char*) xmalloc(arch_raw_size);
-    if (uncompress(text, &arch_raw_size, arch_data, arch_size) != Z_OK) {
-      ns_error(log_f, NEW_SRV_ERR_DISK_READ_ERROR);
-      goto done;
-    }
   }
 
   fprintf(fout, "Content-type: text/plain\n\n");
@@ -2272,7 +3547,13 @@ ns_write_tests(const serve_state_t cs, FILE *fout, FILE *log_f,
     goto done;
   }
 
+  /*
   if (prb->type > 0) {
+    ns_error(log_f, NEW_SRV_ERR_TEST_UNAVAILABLE);
+    goto done;
+  }
+  */
+  if (prb->type != PROB_TYPE_STANDARD && prb->type != PROB_TYPE_OUTPUT_ONLY) {
     ns_error(log_f, NEW_SRV_ERR_TEST_UNAVAILABLE);
     goto done;
   }
@@ -3160,7 +4441,7 @@ ns_write_judging_priorities(
     fprintf(fout, "<td%s>%d</td><td%s>%d</td><td%s>%d</td>",
             cl, glob_prio, cl, prob_prio, cl, static_prio);
     snprintf(varname, sizeof(varname), "prio_%d", prob_id);
-    html_input_text(bb, sizeof(bb), varname, 4, "%d", local_prio);
+    html_input_text(bb, sizeof(bb), varname, 4, 0, "%d", local_prio);
     fprintf(fout, "<td%s>%s</td>", cl, bb);
     fprintf(fout, "<td%s>%d</td>", cl, total_prio);
     fprintf(fout, "</tr>\n");
@@ -3206,11 +4487,11 @@ ns_new_run_form(
   fprintf(fout, "<table>\n");
 
   fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("User ID"), html_input_text(bb, sizeof(bb), "run_user_id", 10, 0));
+          _("User ID"), html_input_text(bb, sizeof(bb), "run_user_id", 10, 0, NULL));
 
   fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
           _("User login"),
-          html_input_text(bb, sizeof(bb), "run_user_login", 10, 0));
+          html_input_text(bb, sizeof(bb), "run_user_login", 10, 0, NULL));
 
   fprintf(fout, "<tr><td>%s:</td>", _("Problem"));
   fprintf(fout, "<td><select name=\"prob_id\"><option value=\"\"></option>\n");
@@ -3222,7 +4503,7 @@ ns_new_run_form(
   fprintf(fout, "</select></td></tr>\n");
 
   fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Variant"),
-          html_input_text(bb, sizeof(bb), "variant", 10, 0));
+          html_input_text(bb, sizeof(bb), "variant", 10, 0, NULL));
 
   fprintf(fout, "<tr><td>%s:</td>", _("Language"));
   fprintf(fout,"<td><select name=\"language\"><option value=\"\"></option>\n");
@@ -3241,23 +4522,23 @@ ns_new_run_form(
           html_select_yesno(bb, sizeof(bb), "is_readonly", 0));
 
   fprintf(fout, "<tr><td>%s:</td>", _("Status"));
-  write_change_status_dialog(cs, fout, 0, 0, 0);
+  write_change_status_dialog(cs, fout, 0, 0, 0, -1, 0);
   fprintf(fout, "</tr>\n");
 
   if (global->score_system == SCORE_KIROV
       || global->score_system == SCORE_OLYMPIAD) {
     fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Tests passed"),
-            html_input_text(bb, sizeof(bb), "tests", 10, 0));
+            html_input_text(bb, sizeof(bb), "tests", 10, 0, NULL));
     fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"),
-            html_input_text(bb, sizeof(bb), "score", 10, 0));
+            html_input_text(bb, sizeof(bb), "score", 10, 0, NULL));
   } else if (global->score_system == SCORE_MOSCOW) {
     fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Failed test"),
-            html_input_text(bb, sizeof(bb), "tests", 10, 0));
+            html_input_text(bb, sizeof(bb), "tests", 10, 0, NULL));
     fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"),
-            html_input_text(bb, sizeof(bb), "score", 10, 0));
+            html_input_text(bb, sizeof(bb), "score", 10, 0, NULL));
   } else {
     fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Failed test"),
-            html_input_text(bb, sizeof(bb), "tests", 10, 0));
+            html_input_text(bb, sizeof(bb), "tests", 10, 0, NULL));
   }
 
   fprintf(fout, "<tr><td>%s:</td>"
@@ -3332,6 +4613,8 @@ ns_set_stand_filter(
     // nothing to do
     return;
   }
+
+  xfree(u->stand_error_msgs); u->stand_error_msgs = NULL;
 
   if (!IS_EQUAL(stand_user_expr)) {
     if (!*stand_user_expr) {
@@ -3454,13 +4737,13 @@ ns_write_priv_standings(
   html_start_form(f, 1, phr->self_url, phr->hidden_vars);
   fprintf(f, "<table border=\"0\">");
   fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("User filter expression"),
-          html_input_text(bb, sizeof(bb), "stand_user_expr", 64,
+          html_input_text(bb, sizeof(bb), "stand_user_expr", 64, 0,
                           "%s", ARMOR(stand_user_expr)));
   fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("Problem filter expression"),
-          html_input_text(bb, sizeof(bb), "stand_prob_expr", 64,
+          html_input_text(bb, sizeof(bb), "stand_prob_expr", 64, 0,
                           "%s", ARMOR(stand_prob_expr)));
   fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("Run filter expression"),
-          html_input_text(bb, sizeof(bb), "stand_run_expr", 64,
+          html_input_text(bb, sizeof(bb), "stand_run_expr", 64, 0,
                           "%s", ARMOR(stand_run_expr)));
   fprintf(f, "<tr><td>&nbsp;</td><td>");
   fprintf(f, "%s", BUTTON(NEW_SRV_ACTION_SET_STAND_FILTER));
@@ -3820,7 +5103,7 @@ do_add_row(
   serve_move_files_to_insert_run(cs, run_id);
   arch_flags = archive_make_write_path(cs, run_path, sizeof(run_path),
                                        cs->global->run_archive_dir, run_id,
-                                       run_size, 0);
+                                       run_size, 0, 0);
   if (arch_flags < 0) {
     run_undo_add_record(cs->runlog_state, run_id);
     fprintf(log_f, _("Cannot allocate space to store run row %d\n"), row);
@@ -3839,11 +5122,7 @@ do_add_row(
   run_set_entry(cs->runlog_state, run_id, RE_STATUS | RE_TEST | RE_SCORE, re);
 
   serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                  "Command: new_run\n"
-                  "Status: %s\n"
-                  "Run-id: %d\n",
-                  run_status_str(re->status, 0, 0, 0, 0),
-                  run_id);
+                  "priv-new-run", "ok", re->status, NULL);
   return run_id;
 }
 
@@ -4508,7 +5787,7 @@ ns_write_user_run_status(
   run_get_entry(cs->runlog_state, run_id, &re);
 
   if (cs->global->is_virtual) {
-    start_time = run_get_virtual_start_time(cs->runlog_state, run_id);
+    start_time = run_get_virtual_start_time(cs->runlog_state, re.user_id);
   } else {
     start_time = run_get_start_time(cs->runlog_state);
   }
@@ -6221,10 +7500,12 @@ scan_run_queue(
       continue;
     }
 
+    /*
     if (srp->global->contest_id != contest_id) {
       srp = super_run_in_packet_free(srp);
       continue;
     }
+    */
 
     priority = 0;
     if (dd->d_name[0] >= '0' && dd->d_name[0] <= '9') {
@@ -6277,9 +7558,21 @@ ns_write_testing_queue(
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   unsigned char hbuf[1024];
   const unsigned char *arch;
+  unsigned char run_queue_dir[PATH_MAX];
+  const unsigned char *queue_dir = NULL;
 
   memset(&vec, 0, sizeof(vec));
-  scan_run_queue(global->run_queue_dir, cnts->id, &vec);
+  if(cnts && cnts->run_managed) {
+    if (global->super_run_dir && global->super_run_dir[0]) {
+      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/var/queue", global->super_run_dir);
+    } else {
+      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/super-run/var/queue", EJUDGE_CONTESTS_HOME_DIR);
+    }
+    queue_dir = run_queue_dir;
+  } else {
+    queue_dir = global->run_queue_dir;
+  }
+  scan_run_queue(queue_dir, cnts->id, &vec);
 
   snprintf(cl, sizeof(cl), " class=\"%s\"", "b0");
   fprintf(fout, "<table%s><tr>", cl);
@@ -6309,8 +7602,10 @@ ns_write_testing_queue(
           "<th%s>%s</th>"
           "<th%s>%s</th>"
           "<th%s>%s</th>"
+          "<th%s>%s</th>"
           "</tr>\n",
           cl, "NN",
+          cl, "ContestId",
           cl, _("Packet name"),
           cl, _("Priority"),
           cl, "RunId",
@@ -6321,25 +7616,45 @@ ns_write_testing_queue(
           cl, _("Create time"),
           cl, _("Actions"));
   for (i = 0; i < vec.u; ++i) {
-    arch = vec.v[i].packet->global->arch;
+    const struct super_run_in_global_packet *srgp = vec.v[i].packet->global;
+    const struct super_run_in_problem_packet *srpp = vec.v[i].packet->problem;
+
+    arch = srgp->arch;
     if (!arch) arch = "";
 
     fprintf(fout, "<tr>");
     fprintf(fout, "<td%s>%d</td>", cl, i + 1);
+    fprintf(fout, "<td%s>%d</td>", cl, srgp->contest_id);
     fprintf(fout, "<td%s>%s</td>", cl, vec.v[i].entry_name);
     fprintf(fout, "<td%s>%d</td>", cl, vec.v[i].priority);
-    fprintf(fout, "<td%s>%d</td>", cl, vec.v[i].packet->global->run_id);
-    prob_id = vec.v[i].packet->problem->id;
-    if (prob_id > 0 && prob_id <= cs->max_prob && cs->probs[prob_id]) {
-      fprintf(fout, "<td%s>%s</td>", cl, cs->probs[prob_id]->short_name);
+    fprintf(fout, "<td%s>%d</td>", cl, srgp->run_id);
+    if (srgp->contest_id == cnts->id) {
+      prob_id = srpp->id;
+      if (prob_id > 0 && prob_id <= cs->max_prob && cs->probs[prob_id]) {
+        fprintf(fout, "<td%s>%s</td>", cl, cs->probs[prob_id]->short_name);
+      } else {
+        fprintf(fout, "<td%s>Problem %d</td>", cl, prob_id);
+      }
+      user_id = srgp->user_id;
+      fprintf(fout, "<td%s>%s</td>", cl,
+              ARMOR(teamdb_get_name_2(cs->teamdb_state, user_id)));
     } else {
-      fprintf(fout, "<td%s>Problem %d</td>", cl, prob_id);
+      // use packet-provided info
+      if (srpp->short_name && srpp->short_name[0]) {
+        fprintf(fout, "<td%s>%s</td>", cl, srpp->short_name);
+      } else {
+        fprintf(fout, "<td%s>Problem %d</td>", cl, srpp->id);
+      }
+      if (srgp->user_name && srgp->user_name[0]) {
+        fprintf(fout, "<td%s>%s</td>", cl, srgp->user_name);
+      } else if (srgp->user_login && srgp->user_login[0]) {
+        fprintf(fout, "<td%s>%s</td>", cl, srgp->user_login);
+      } else {
+        fprintf(fout, "<td%s>User %d</td>", cl, srgp->user_id);
+      }
     }
-    user_id = vec.v[i].packet->global->user_id;
-    fprintf(fout, "<td%s>%s</td>", cl,
-            ARMOR(teamdb_get_name_2(cs->teamdb_state, user_id)));
     fprintf(fout, "<td%s>%s</td>", cl, arch);
-    fprintf(fout, "<td%s>%d</td>", cl, vec.v[i].packet->global->judge_id);
+    fprintf(fout, "<td%s>%d</td>", cl, srgp->judge_id);
     fprintf(fout, "<td%s>%s</td>", cl, xml_unparse_date(vec.v[i].mtime));
     fprintf(fout, "<td%s>", cl);
     fprintf(fout, "&nbsp;&nbsp;<a href=\"%s\">X</a>",

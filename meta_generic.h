@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: meta_generic.h 6612 2012-01-09 20:52:48Z cher $ */
+/* $Id: meta_generic.h 6732 2012-04-10 14:09:27Z cher $ */
 
 #ifndef __META_GENERIC_H__
 #define __META_GENERIC_H__
@@ -79,6 +79,7 @@ void
 meta_unparse_cfg(
         FILE *out_f,
         const struct meta_methods *mth,
-        const void *ptr);
+        const void *ptr,
+        const void *default_ptr);
 
 #endif /* __META_GENERIC_H__ */

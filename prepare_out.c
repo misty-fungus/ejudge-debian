@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 6584 2011-12-21 08:39:11Z cher $ */
+/* $Id: prepare_out.c 6812 2012-05-08 09:27:29Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -600,6 +600,9 @@ void
 prepare_unparse_unhandled_global(FILE *f, const struct section_global_data *global)
 {
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+
+  //GLOBAL_PARAM(super_run_dir, "S"),
+  do_str(f, &ab, "super_run_dir", global->super_run_dir);
 
   //GLOBAL_PARAM(tests_to_accept, "d"),
   if (global->tests_to_accept >= 0
@@ -1245,6 +1248,9 @@ prepare_unparse_prob(
   if (prob->test_checker_cmd && prob->test_checker_cmd[0]) {
     fprintf(f,"test_checker_cmd = \"%s\"\n", CARMOR(prob->test_checker_cmd));
   }
+  if (prob->init_cmd && prob->init_cmd[0]) {
+    fprintf(f,"init_cmd = \"%s\"\n", CARMOR(prob->init_cmd));
+  }
   if (prob->solution_src && prob->solution_src[0]) {
     fprintf(f,"solution_src = \"%s\"\n", CARMOR(prob->solution_src));
   }
@@ -1252,6 +1258,7 @@ prepare_unparse_prob(
     fprintf(f,"solution_cmd = \"%s\"\n", CARMOR(prob->solution_cmd));
   }
   do_xstr(f, &ab, "test_checker_env", prob->test_checker_env);
+  do_xstr(f, &ab, "init_env", prob->init_env);
   do_xstr(f, &ab, "lang_time_adj", prob->lang_time_adj);
   do_xstr(f, &ab, "lang_time_adj_millis", prob->lang_time_adj_millis);
   do_xstr(f, &ab, "test_sets", prob->test_sets);
@@ -1553,6 +1560,9 @@ prepare_unparse_actual_prob(
   if ((show_paths || (global && global->advanced_layout > 0)) && prob->test_checker_cmd && prob->test_checker_cmd[0]) {
     fprintf(f,"test_checker_cmd = \"%s\"\n", CARMOR(prob->test_checker_cmd));
   }
+  if ((show_paths || (global && global->advanced_layout > 0)) && prob->init_cmd && prob->init_cmd[0]) {
+    fprintf(f,"init_cmd = \"%s\"\n", CARMOR(prob->init_cmd));
+  }
   if ((show_paths || (global && global->advanced_layout > 0)) && prob->solution_src && prob->solution_src[0]) {
     fprintf(f,"solution_src = \"%s\"\n", CARMOR(prob->solution_src));
   }
@@ -1560,6 +1570,7 @@ prepare_unparse_actual_prob(
     fprintf(f,"solution_cmd = \"%s\"\n", CARMOR(prob->solution_cmd));
   }
   do_xstr(f, &ab, "test_checker_env", prob->test_checker_env);
+  do_xstr(f, &ab, "init_env", prob->init_env);
   do_xstr(f, &ab, "lang_time_adj", prob->lang_time_adj);
   do_xstr(f, &ab, "lang_time_adj_millis", prob->lang_time_adj_millis);
   do_xstr(f, &ab, "test_sets", prob->test_sets);
@@ -2566,6 +2577,12 @@ prob_instr(
   if (tmp_prob->test_checker_cmd && tmp_prob->test_checker_cmd[0]) {
     fprintf(f, "<p><b>Tests checker:</b></p>\n");
     handle_file(f, global, tmp_prob, tmp_prob->test_checker_cmd, 1);
+  }
+
+  prepare_set_prob_value(CNTSPROB_init_cmd, tmp_prob, abstr, global);
+  if (tmp_prob->init_cmd && tmp_prob->init_cmd[0]) {
+    fprintf(f, "<p><b>Init-style interactor:</b></p>\n");
+    handle_file(f, global, tmp_prob, tmp_prob->init_cmd, 1);
   }
 
   prepare_set_prob_value(CNTSPROB_solution_src, tmp_prob, abstr, global);

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve.c 6631 2012-01-23 06:03:40Z cher $ */
+/* $Id: serve.c 6808 2012-05-05 20:01:31Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -189,7 +189,7 @@ main(int argc, char *argv[])
     return 1;
   serve_load_status_file(&serve_state);
   serve_build_compile_dirs(&serve_state);
-  serve_build_run_dirs(&serve_state);
+  serve_build_run_dirs(&serve_state, global->contest_id);
   if (serve_create_symlinks(&serve_state) < 0) return 1;
   serve_state.current_time = time(0);
   serve_update_status_file(&serve_state, 1);

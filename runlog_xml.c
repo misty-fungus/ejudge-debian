@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: runlog_xml.c 6634 2012-02-07 14:54:16Z cher $ */
+/* $Id: runlog_xml.c 6815 2012-05-09 12:48:36Z cher $ */
 
 /* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -203,29 +203,6 @@ static struct xml_parse_spec runlog_parse_spec =
 };
 
 static int
-parse_sha1(const unsigned char *str, ruint32_t *psha1)
-{
-  const unsigned char *s = str;
-  unsigned char buf[3];
-  int i, v;
-  unsigned char *eptr;
-  unsigned char *optr = (unsigned char*) psha1;
-  char *tmpeptr = 0;
-
-  if (!str || strlen(str) != 40) return -1;
-  for (i = 0; i < 20; i++) {
-    buf[0] = *s++;
-    buf[1] = *s++;
-    buf[2] = 0;
-    v = strtol(buf, &tmpeptr, 16);
-    eptr = tmpeptr;
-    if (v < 0 || v > 255 || *eptr) return -1;
-    *optr++ = v;
-  }
-  return 0;
-}
-
-static int
 parse_status(const unsigned char *str)
 {
   int n, x;
@@ -378,7 +355,7 @@ process_run_elements(struct xml_tree *xt, struct run_xml_helpers *helper)
         break;
       case RUNLOG_A_SHA1:
         if (!xa->text) goto empty_attr_value;
-        if (parse_sha1(xa->text, xr->r.sha1) < 0) goto invalid_attr_value;
+        if (parse_sha1(xr->r.sha1, xa->text) < 0) goto invalid_attr_value;
         break;
       case RUNLOG_A_USER_ID:
         if (!xa->text) goto empty_attr_value;
@@ -762,12 +739,18 @@ unparse_runlog_xml(
             xml_unparse_date(phead->finish_time));
   }
   if (global->board_fog_time > 0) {
+    fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_FOG_TIME], global->board_fog_time);
+    if (global->board_unfog_time > 0) {
+      fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_UNFOG_TIME], global->board_unfog_time);
+    }
+    /*
     fprintf(f, " %s=\"%s\"", attr_map[RUNLOG_A_FOG_TIME],
             xml_unparse_date(global->board_fog_time));
     if (global->board_unfog_time > 0) {
       fprintf(f, " %s=\"%s\"", attr_map[RUNLOG_A_UNFOG_TIME],
               xml_unparse_date(global->board_unfog_time));
     }
+    */
   }
   fprintf(f, ">\n");
   if (external_mode) {
@@ -927,9 +910,15 @@ unparse_runlog_xml(
     if (!external_mode && pp->locale_id >= 0) {
       fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_LOCALE_ID], pp->locale_id);
     }
-    fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_SCORE], pp->score);
-    fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_SCORE_ADJ], pp->score_adj);
-    fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_TEST], pp->test);
+    if (pp->score >= 0) {
+      fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_SCORE], pp->score);
+    }
+    if (pp->score_adj > 0) {
+      fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_SCORE_ADJ], pp->score_adj);
+    }
+    if (pp->test > 0) {
+      fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_TEST], pp->test);
+    }
     if (!external_mode) {
       fprintf(f, " %s=\"%s\"", attr_map[RUNLOG_A_AUTHORITATIVE],
               (!pp->is_imported)?"yes":"no");

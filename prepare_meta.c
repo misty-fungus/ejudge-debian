@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/03/29 17:04:36
+// Generated 2012/05/05 21:19:14
 
 #include "prepare_meta.h"
 #include "prepare.h"
@@ -102,6 +102,7 @@ static struct meta_info_item meta_info_section_global_data_data[] =
   [CNTSGLOB_contest_stop_cmd] = { CNTSGLOB_contest_stop_cmd, 's', XSIZE(struct section_global_data, contest_stop_cmd), "contest_stop_cmd", XOFFSET(struct section_global_data, contest_stop_cmd) },
   [CNTSGLOB_description_file] = { CNTSGLOB_description_file, 'S', XSIZE(struct section_global_data, description_file), "description_file", XOFFSET(struct section_global_data, description_file) },
   [CNTSGLOB_contest_plugin_file] = { CNTSGLOB_contest_plugin_file, 'S', XSIZE(struct section_global_data, contest_plugin_file), "contest_plugin_file", XOFFSET(struct section_global_data, contest_plugin_file) },
+  [CNTSGLOB_super_run_dir] = { CNTSGLOB_super_run_dir, 's', XSIZE(struct section_global_data, super_run_dir), "super_run_dir", XOFFSET(struct section_global_data, super_run_dir) },
   [CNTSGLOB_test_pat] = { CNTSGLOB_test_pat, 'S', XSIZE(struct section_global_data, test_pat), "test_pat", XOFFSET(struct section_global_data, test_pat) },
   [CNTSGLOB_corr_pat] = { CNTSGLOB_corr_pat, 'S', XSIZE(struct section_global_data, corr_pat), "corr_pat", XOFFSET(struct section_global_data, corr_pat) },
   [CNTSGLOB_info_pat] = { CNTSGLOB_info_pat, 'S', XSIZE(struct section_global_data, info_pat), "info_pat", XOFFSET(struct section_global_data, info_pat) },
@@ -457,11 +458,13 @@ static struct meta_info_item meta_info_section_problem_data_data[] =
   [CNTSPROB_interactor_env] = { CNTSPROB_interactor_env, 'X', XSIZE(struct section_problem_data, interactor_env), "interactor_env", XOFFSET(struct section_problem_data, interactor_env) },
   [CNTSPROB_style_checker_env] = { CNTSPROB_style_checker_env, 'X', XSIZE(struct section_problem_data, style_checker_env), "style_checker_env", XOFFSET(struct section_problem_data, style_checker_env) },
   [CNTSPROB_test_checker_env] = { CNTSPROB_test_checker_env, 'X', XSIZE(struct section_problem_data, test_checker_env), "test_checker_env", XOFFSET(struct section_problem_data, test_checker_env) },
+  [CNTSPROB_init_env] = { CNTSPROB_init_env, 'X', XSIZE(struct section_problem_data, init_env), "init_env", XOFFSET(struct section_problem_data, init_env) },
   [CNTSPROB_check_cmd] = { CNTSPROB_check_cmd, 'S', XSIZE(struct section_problem_data, check_cmd), "check_cmd", XOFFSET(struct section_problem_data, check_cmd) },
   [CNTSPROB_valuer_cmd] = { CNTSPROB_valuer_cmd, 'S', XSIZE(struct section_problem_data, valuer_cmd), "valuer_cmd", XOFFSET(struct section_problem_data, valuer_cmd) },
   [CNTSPROB_interactor_cmd] = { CNTSPROB_interactor_cmd, 'S', XSIZE(struct section_problem_data, interactor_cmd), "interactor_cmd", XOFFSET(struct section_problem_data, interactor_cmd) },
   [CNTSPROB_style_checker_cmd] = { CNTSPROB_style_checker_cmd, 'S', XSIZE(struct section_problem_data, style_checker_cmd), "style_checker_cmd", XOFFSET(struct section_problem_data, style_checker_cmd) },
   [CNTSPROB_test_checker_cmd] = { CNTSPROB_test_checker_cmd, 's', XSIZE(struct section_problem_data, test_checker_cmd), "test_checker_cmd", XOFFSET(struct section_problem_data, test_checker_cmd) },
+  [CNTSPROB_init_cmd] = { CNTSPROB_init_cmd, 's', XSIZE(struct section_problem_data, init_cmd), "init_cmd", XOFFSET(struct section_problem_data, init_cmd) },
   [CNTSPROB_solution_src] = { CNTSPROB_solution_src, 's', XSIZE(struct section_problem_data, solution_src), "solution_src", XOFFSET(struct section_problem_data, solution_src) },
   [CNTSPROB_solution_cmd] = { CNTSPROB_solution_cmd, 's', XSIZE(struct section_problem_data, solution_cmd), "solution_cmd", XOFFSET(struct section_problem_data, solution_cmd) },
   [CNTSPROB_lang_time_adj] = { CNTSPROB_lang_time_adj, 'x', XSIZE(struct section_problem_data, lang_time_adj), "lang_time_adj", XOFFSET(struct section_problem_data, lang_time_adj) },

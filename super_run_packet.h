@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.h 6619 2012-01-11 13:48:35Z cher $ */
+/* $Id: super_run_packet.h 6788 2012-05-03 04:27:37Z cher $ */
 #ifndef __SUPER_RUN_PACKET_H__
 #define __SUPER_RUN_PACKET_H__
 
@@ -133,10 +133,12 @@ struct super_run_in_problem_packet
   ejenvlist_t valuer_env;
   ejenvlist_t interactor_env;
   ejenvlist_t test_checker_env;
+  ejenvlist_t init_env;
   unsigned char *check_cmd;
   unsigned char *valuer_cmd;
   unsigned char *interactor_cmd;
   unsigned char *test_checker_cmd;
+  unsigned char *init_cmd;
   unsigned char *solution_cmd;
   size_t max_vm_size;
   size_t max_data_size;

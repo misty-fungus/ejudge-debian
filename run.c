@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run.c 6663 2012-03-21 11:13:23Z cher $ */
+/* $Id: run.c 6752 2012-04-18 12:11:46Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -266,7 +266,8 @@ do_loop(void)
     if (srpp->type_val == PROB_TYPE_TESTS) {
       cr_serialize_lock(&serve_state);
       run_inverse_testing(&serve_state, srp, &reply_pkt,
-                          pkt_name, report_path, sizeof(report_path),
+                          pkt_name, global->run_exe_dir,
+                          report_path, sizeof(report_path),
                           utf8_mode);
       cr_serialize_unlock(&serve_state);
     } else {
@@ -386,11 +387,19 @@ do_loop(void)
     if (generic_copy_file(0, NULL, report_path, "",
                           0, full_report_dir, run_base, "") < 0)
       return -1;
+#if defined CONF_HAS_LIBZIP
+    if (full_report_path[0]
+        && generic_copy_file(0, NULL, full_report_path, "",
+                             0, full_full_dir,
+                             run_base, ".zip") < 0)
+      return -1;
+#else
     if (full_report_path[0]
         && generic_copy_file(0, NULL, full_report_path, "",
                              0, full_full_dir,
                              run_base, "") < 0)
       return -1;
+#endif
 
     //run_reply_packet_dump(&reply_pkt);
 

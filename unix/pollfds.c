@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: pollfds.c 6605 2012-01-01 16:46:49Z cher $ */
+/* $Id: pollfds.c 6760 2012-04-23 14:45:23Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -57,8 +57,8 @@ pollfds_free(pollfds_t *pfd)
   if (pfd) {
     xfree(pfd->fds);
     xfree(pfd->extras);
-    xfree(pfd);
     memset(pfd, 0, sizeof(*pfd));
+    xfree(pfd);
   }
   return NULL;
 }

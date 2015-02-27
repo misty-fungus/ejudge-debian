@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run.h 6670 2012-03-23 14:02:58Z cher $ */
+/* $Id: run.h 6745 2012-04-17 05:11:12Z cher $ */
 #ifndef __RUN_H__
 #define __RUN_H__
 
@@ -56,7 +56,7 @@ struct testinfo
   unsigned char *comment;       /* judge's comment */
   unsigned char *team_comment;  /* team's comment */
   unsigned char *exit_comment;  /* comment on exit status */
-  int            checker_score;
+  //  int            checker_score;
   int            visibility;    /* test visibility */
 };
 
@@ -72,6 +72,7 @@ run_inverse_testing(
         const struct super_run_in_packet *srp,
         struct run_reply_packet *reply_pkt,
         const unsigned char *pkt_name,
+        const unsigned char *run_exe_dir,
         unsigned char *report_path,
         size_t report_path_size,
         int utf8_mode);

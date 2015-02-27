@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-super-run.c 6677 2012-03-27 07:41:09Z cher $ */
+/* $Id: ej-super-run.c 6810 2012-05-06 04:42:47Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -31,6 +31,7 @@
 #include "run.h"
 #include "curtime.h"
 #include "ej_process.h"
+#include "xml_utils.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_osdeps.h"
@@ -42,6 +43,8 @@
 #include <limits.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 struct ignored_problem_info
 {
@@ -229,7 +232,8 @@ handle_packet(
   if (srpp->type_val == PROB_TYPE_TESTS) {
     cr_serialize_lock(state);
     run_inverse_testing(state, srp, &reply_pkt,
-                        pkt_name, report_path, sizeof(report_path),
+                        pkt_name, super_run_exe_path,
+                        report_path, sizeof(report_path),
                         utf8_mode);
     cr_serialize_unlock(state);
   } else {
@@ -284,22 +288,48 @@ handle_packet(
   }
 
   if (srgp->reply_report_dir && srgp->reply_report_dir[0]) {
-    snprintf(full_report_dir, sizeof(full_report_dir), "%s", srgp->reply_report_dir);
+    if (os_IsAbsolutePath(srgp->reply_report_dir)) {
+      snprintf(full_report_dir, sizeof(full_report_dir), "%s", srgp->reply_report_dir);
+    } else {
+      snprintf(full_report_dir, sizeof(full_report_dir), "%s/%s/%s",
+               EJUDGE_CONTESTS_HOME_DIR, SUPER_RUN_DIRECTORY, srgp->reply_report_dir);
+    }
   } else {
     snprintf(full_report_dir, sizeof(full_report_dir), "%s/%06d/var/run/%06d/report",
              contests_home_dir, srgp->contest_id, srgp->contest_id);
   }
   if (srgp->reply_spool_dir && srgp->reply_spool_dir[0]) {
-    snprintf(full_status_dir, sizeof(full_status_dir), "%s", srgp->reply_spool_dir);
+    if (os_IsAbsolutePath(srgp->reply_spool_dir)) {
+      snprintf(full_status_dir, sizeof(full_status_dir), "%s", srgp->reply_spool_dir);
+    } else {
+      snprintf(full_status_dir, sizeof(full_status_dir), "%s/%s/%s",
+               EJUDGE_CONTESTS_HOME_DIR, SUPER_RUN_DIRECTORY, srgp->reply_spool_dir);
+    }
   } else {
     snprintf(full_status_dir, sizeof(full_status_dir), "%s/%06d/var/run/%06d/status",
              contests_home_dir, srgp->contest_id, srgp->contest_id);
   }
   if (srgp->reply_full_archive_dir && srgp->reply_full_archive_dir[0]) {
-    snprintf(full_full_dir, sizeof(full_full_dir), "%s", srgp->reply_full_archive_dir);
+    if (os_IsAbsolutePath(srgp->reply_full_archive_dir)) {
+      snprintf(full_full_dir, sizeof(full_full_dir), "%s", srgp->reply_full_archive_dir);
+    } else {
+      snprintf(full_status_dir, sizeof(full_status_dir), "%s/%s/%s",
+               EJUDGE_CONTESTS_HOME_DIR, SUPER_RUN_DIRECTORY, srgp->reply_full_archive_dir);
+    }
   } else {
     snprintf(full_full_dir, sizeof(full_full_dir), "%s/%06d/var/run/%06d/output",
              contests_home_dir, srgp->contest_id, srgp->contest_id);
+  }
+
+  if (full_report_dir[0]) {
+    os_MakeDirPath(full_report_dir, 0777);
+  }
+  if (full_full_dir[0]) {
+    os_MakeDirPath(full_full_dir, 0777);
+  }
+  if (full_status_dir[0]) {
+    os_MakeDirPath(full_status_dir, 0777);
+    make_all_dir(full_status_dir, 0777);
   }
 
   // copy full report from temporary location
@@ -307,9 +337,15 @@ handle_packet(
     goto cleanup;
   }
 
+#if defined CONF_HAS_LIBZIP
+  if (full_report_path[0] && generic_copy_file(0, NULL, full_report_path, "", 0, full_full_dir, run_base, ".zip") < 0) {
+    goto cleanup;
+  }
+#else
   if (full_report_path[0] && generic_copy_file(0, NULL, full_report_path, "", 0, full_full_dir, run_base, "") < 0) {
     goto cleanup;
   }
+#endif
 
   //run_reply_packet_dump(&reply_pkt);
 
@@ -698,6 +734,8 @@ create_configs(
           "abstract\n"
           "no_core_dump\n"
           "kill_signal = TERM\n"
+          "memory_limit_type = \"mono\"\n"
+          "secure_exec_type = \"mono\"\n"
           "start_cmd = \"runmono\"\n"
           "start_env = \"LANG=C\"\n"
           "start_env = \"EJUDGE_PREFIX_DIR\"\n\n");
@@ -723,6 +761,37 @@ create_configs(
           "nwrun_spool_dir = \"win32_nwrun\"\n\n");
 
   fclose(f); f = NULL;
+}
+
+const unsigned char * const
+upgrade_times[] =
+{
+  "2012/05/01 00:00:00",
+
+  NULL
+};
+
+static void
+remove_if_upgrade_needed(const unsigned char *path)
+{
+  struct stat stb;
+
+  if (!path || !*path) return;
+  if (stat(path, &stb) < 0) return;
+  if (!S_ISREG(stb.st_mode)) return;
+  for (int i = 0; upgrade_times[i]; ++i) {
+    time_t t = 0;
+    if (xml_parse_date(NULL, 0, 0, 0, upgrade_times[i], &t) < 0) continue;
+    if (t <= 0) continue;
+    if (stb.st_mtime < t) {
+      struct tm *tt = localtime(&t);
+      unsigned char bak_path[PATH_MAX];
+      snprintf(bak_path, sizeof(bak_path), "%s.%04d%02d%02d", path,
+               tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
+      rename(path, bak_path);
+      return;
+    }
+  }
 }
 
 int
@@ -846,7 +915,9 @@ main(int argc, char *argv[])
   snprintf(super_run_conf_path, sizeof(super_run_conf_path), "%s/conf/super-run.cfg", super_run_path);
   snprintf(super_run_log_path, sizeof(super_run_log_path), "%s/var/ej-super-run.log", contests_home_dir);
 
-  if (os_IsFile(super_run_path) < 0) {
+  remove_if_upgrade_needed(super_run_conf_path);
+
+  if (os_IsFile(super_run_conf_path) < 0) {
     create_configs(super_run_path, super_run_conf_path);
     if (os_IsFile(super_run_path) != OSPK_DIR) {
       fatal("path '%s' must be a directory", super_run_path);

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve-control.c 6674 2012-03-24 14:53:50Z cher $ */
+/* $Id: serve-control.c 6829 2012-05-18 07:15:49Z cher $ */
 
 /* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -319,6 +319,7 @@ static unsigned int user_id;
 static unsigned char *user_login;
 static unsigned char *user_name;
 static unsigned char *user_password;
+static unsigned char *http_host;
 static unsigned char *self_url;
 static int ssl_flag;
 static int super_serve_fd = -1;
@@ -329,11 +330,11 @@ static unsigned char hidden_vars[1024];
 static void
 make_self_url(void)
 {
-  unsigned char *http_host = getenv("HTTP_HOST");
   unsigned char *script_name = getenv("SCRIPT_NAME");
   unsigned char fullname[1024];
   unsigned char *protocol = "http";
 
+  http_host = getenv("HTTP_HOST");
   if (getenv("SSL_PROTOCOL") || getenv("HTTPS")) {
     ssl_flag = 1;
     protocol = "https";
@@ -500,8 +501,7 @@ static void display_login_page(void) __attribute__((noreturn));
 static void
 display_login_page(void)
 {
-  client_put_header(stdout, 0, 0, config->charset, 1, 0,
-                    "Enter password - serve-control");
+  client_put_header(stdout, 0, 0, config->charset, 1, 0, "serve-control: %s", http_host);
 
   puts(form_header_simple);
   printf("<table>"
@@ -613,7 +613,8 @@ client_put_refresh_header(unsigned char const *coding,
   vfprintf(stdout, format, args);
   fputs("\n</h1>\n", stdout);
   */
-  printf("Content-Type: text/html; charset=%s\nCache-Control: no-cache\nPragma: no-cache\nLocation: %s\n\n", EJUDGE_CHARSET, url);
+  //printf("Content-Type: text/html; charset=%s\nCache-Control: no-cache\nPragma: no-cache\nLocation: %s\n\n", EJUDGE_CHARSET, url);
+  printf("Location: %s\n\n", url);
 }
 
 static int
@@ -790,7 +791,7 @@ action_view_contest(int cmd)
 
   open_super_server();
   client_put_header(stdout, 0, 0, config->charset, 1, 0,
-                    "%s: %s, %d%s", "serve-control", user_name, contest_id,
+                    "%s: %s@%s, %d%s", "serve-control", user_login, http_host, contest_id,
                     extra_str);
   fflush(stdout);
   r = super_clnt_main_page(super_serve_fd, 1, cmd,
@@ -833,7 +834,7 @@ action_create_contest(void)
 
   open_super_server();
   client_put_header(stdout, 0, 0, config->charset, 1, 0,
-                    "%s: %s, creating new contest", "serve-control", user_name);
+                    "%s: %s@%s, creating new contest", "serve-control", user_login, http_host);
   fflush(stdout);
 
   r = super_clnt_main_page(super_serve_fd, 1, SSERV_CMD_CREATE_CONTEST,
@@ -854,7 +855,7 @@ action_edit_current_contest(int cmd)
 
   open_super_server();
   client_put_header(stdout, 0, 0, config->charset, 1, 0,
-                    "%s: %s, editing contest", "serve-control", user_name);
+                    "%s: %s@%s, editing contest", "serve-control", user_login, http_host);
   fflush(stdout);
 
   r = super_clnt_main_page(super_serve_fd, 1, cmd,
@@ -882,8 +883,8 @@ action_edit_permissions(void)
 
   open_super_server();
   client_put_header(stdout, 0, 0, config->charset, 1, 0,
-                    "%s: %s, editing permissions for contest", "serve-control",
-                    user_name);
+                    "%s: %s@%s, editing permissions for contest", "serve-control",
+                    user_login, http_host);
   fflush(stdout);
 
   r = super_clnt_main_page(super_serve_fd, 1, SSERV_CMD_CNTS_EDIT_PERMISSION,
@@ -934,7 +935,7 @@ action_create_contest_2(void)
 
   open_super_server();
   client_put_header(stdout, 0, 0, config->charset, 1, 0,
-                    "%s: %s, editing new contest", "serve-control", user_name);
+                    "%s: %s@%s, editing new contest", "serve-control", user_login, http_host);
   fflush(stdout);
 
   r = super_clnt_create_contest(super_serve_fd, 1, SSERV_CMD_CREATE_CONTEST_2,
@@ -1850,6 +1851,10 @@ static const int next_action_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_TEST_CHECKER_CMD] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV] = SSERV_CMD_EDIT_CURRENT_PROB,
+  [SSERV_CMD_PROB_CHANGE_INIT_CMD] = SSERV_CMD_EDIT_CURRENT_PROB,
+  [SSERV_CMD_PROB_CLEAR_INIT_CMD] = SSERV_CMD_EDIT_CURRENT_PROB,
+  [SSERV_CMD_PROB_CHANGE_INIT_ENV] = SSERV_CMD_EDIT_CURRENT_PROB,
+  [SSERV_CMD_PROB_CLEAR_INIT_ENV] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CHANGE_SOLUTION_SRC] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CLEAR_SOLUTION_SRC] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CHANGE_SOLUTION_CMD] = SSERV_CMD_EDIT_CURRENT_PROB,
@@ -2683,6 +2688,10 @@ main(int argc, char *argv[])
   case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_CMD:
   case SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV:
   case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV:
+  case SSERV_CMD_PROB_CHANGE_INIT_CMD:
+  case SSERV_CMD_PROB_CLEAR_INIT_CMD:
+  case SSERV_CMD_PROB_CHANGE_INIT_ENV:
+  case SSERV_CMD_PROB_CLEAR_INIT_ENV:
   case SSERV_CMD_PROB_CHANGE_SOLUTION_SRC:
   case SSERV_CMD_PROB_CLEAR_SOLUTION_SRC:
   case SSERV_CMD_PROB_CHANGE_SOLUTION_CMD:
@@ -2967,7 +2976,7 @@ main(int argc, char *argv[])
   /* default (main) screen */
   open_super_server();
   client_put_header(stdout, 0, 0, config->charset, 1, 0,
-                    "%s: %s", "serve-control", user_name);
+                    "%s: %s@%s", "serve-control", user_login, http_host);
   fflush(stdout);
   r = super_clnt_main_page(super_serve_fd, 1, SSERV_CMD_MAIN_PAGE, 0,
                            0, 0, self_url, hidden_vars, "");

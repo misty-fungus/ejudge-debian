@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 6634 2012-02-07 14:54:16Z cher $ */
+/* $Id: rldb_plugin_file.c 6825 2012-05-17 17:27:04Z cher $ */
 
 /* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -873,7 +873,7 @@ static struct rldb_plugin_cnts *
 close_func(struct rldb_plugin_cnts *cdata)
 {
   struct rldb_file_cnts *cs = (struct rldb_file_cnts*) cdata;
-  struct runlog_state *rls = cs->rl_state;
+  struct runlog_state *rls = NULL;
 
   if (!cs) return 0;
   rls = cs->rl_state;

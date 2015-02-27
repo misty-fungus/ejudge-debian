@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 6633 2012-02-07 14:44:54Z cher $ */
+/* $Id: rldb_mysql.c 6814 2012-05-09 12:34:01Z cher $ */
 
 /* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -332,29 +332,6 @@ expand_runs(struct runlog_state *rls, int run_id)
 }
 
 static int
-parse_sha1(const unsigned char *str, ruint32_t *psha1)
-{
-  const unsigned char *s = str;
-  unsigned char buf[3];
-  int i, v;
-  unsigned char *eptr;
-  unsigned char *optr = (unsigned char*) psha1;
-  char *tmpeptr = 0;
-
-  if (!str || strlen(str) != 40) return -1;
-  for (i = 0; i < 20; i++) {
-    buf[0] = *s++;
-    buf[1] = *s++;
-    buf[2] = 0;
-    v = strtol(buf, &tmpeptr, 16);
-    eptr = tmpeptr;
-    if (v < 0 || v > 255 || *eptr) return -1;
-    *optr++ = v;
-  }
-  return 0;
-}
-
-static int
 load_runs(struct rldb_mysql_cnts *cs)
 {
   struct rldb_mysql_state *state = cs->plugin_state;
@@ -393,12 +370,21 @@ load_runs(struct rldb_mysql_cnts *cs)
     if (ri.status == RUN_EMPTY) {
       xfree(ri.hash); ri.hash = 0;
       xfree(ri.mime_type); ri.mime_type = 0;
+
+      expand_runs(rls, ri.run_id);
+      re = &rls->runs[ri.run_id];
+      memset(re, 0, sizeof(*re));
+
+      re->run_id = ri.run_id;
+      re->time = ri.create_time;
+      re->nsec = ri.create_nsec;
+      re->status = ri.status;
       continue;
     }
     if (ri.user_id <= 0) db_error_inv_value_fail(md, "user_id");
     if (ri.prob_id < 0) db_error_inv_value_fail(md, "prob_id");
     if (ri.lang_id < 0) db_error_inv_value_fail(md, "lang_id");
-    if (ri.hash && parse_sha1(ri.hash, sha1) < 0)
+    if (ri.hash && parse_sha1(sha1, ri.hash) < 0)
       db_error_inv_value_fail(md, "hash");
     if (ri.ip_version != 4) db_error_inv_value_fail(md, "ip_version");
     if (ri.mime_type && (mime_type = mime_type_parse(ri.mime_type)) < 0)
@@ -645,13 +631,16 @@ find_insert_point(
   if (run_id < 0) return 0;
 
   if (rls->runs[run_id].time < create_time) {
-    run_id++;
+    // preserve RUN_EMPTY runs anyway
+    run_id = rls->run_u;
+    //run_id++;
     expand_runs(rls, run_id);
     return run_id;
   }
   if (rls->runs[run_id].time == create_time
       && rls->runs[run_id].nsec < create_nsec) {
-    run_id++;
+    run_id = rls->run_u;
+    //run_id++;
     expand_runs(rls, run_id);
     return run_id;
   }

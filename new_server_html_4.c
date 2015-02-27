@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 6696 2012-03-29 16:48:54Z cher $ */
+/* $Id: new_server_html_4.c 6837 2012-05-20 17:25:24Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1059,7 +1059,7 @@ cmd_submit_run(
                           
   arch_flags = archive_make_write_path(cs, run_path, sizeof(run_path),
                                        global->run_archive_dir, run_id,
-                                       run_size, 0);
+                                       run_size, 0, 0);
   if (arch_flags < 0) {
     run_undo_add_record(cs->runlog_state, run_id);
     FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
@@ -1077,54 +1077,50 @@ cmd_submit_run(
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)
         || lang->disable_auto_testing || lang->disable_testing) {
+      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+                        "submit", "ok", RUN_PENDING,
+                        "  Testing disabled for this problem or language");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                      "Command: submit\n"
-                      "Status: pending\n"
-                      "Run-id: %d\n"
-                      "  Testing disabled for this problem or language\n",
-                      run_id);
     } else {
-      if (serve_compile_request(cs, run_text, run_size, global->contest_id,
-                                run_id, phr->user_id,
-                                lang->compile_id, phr->locale_id, 0,
-                                lang->src_sfx,
-                                lang->compiler_env,
-                                0, prob->style_checker_cmd,
-                                prob->style_checker_env,
-                                -1, 0, 0, prob, lang, 0) < 0)
-        FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                      "Command: submit\n"
-                      "Status: ok\n"
-                      "Run-id: %d\n", run_id);
+                        "submit", "ok", RUN_COMPILING, NULL);
+      if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                     run_id, phr->user_id,
+                                     lang->compile_id, phr->locale_id, 0,
+                                     lang->src_sfx,
+                                     lang->compiler_env,
+                                     0, prob->style_checker_cmd,
+                                     prob->style_checker_env,
+                                     -1, 0, 0, prob, lang, 0)) < 0) {
+        serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
+      }
     }
   } else if (prob->manual_checking > 0) {
     // manually tested outputs
     if (prob->check_presentation <= 0) {
-      run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                      "Command: submit\n"
-                      "Status: accepted for testing\n"
-                      "Run-id: %d\n"
-                      "  This problem is checked manually.\n",
-                      run_id);
+                        "submit", "ok", RUN_ACCEPTED,
+                        "  This problem is checked manually");
+      run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
     } else {
+      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+                        "submit", "ok", RUN_COMPILING, NULL);
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        if (serve_compile_request(cs, run_text, run_size, global->contest_id,
-                                  run_id, phr->user_id, 0 /* lang_id */,
-                                  0 /* locale_id */, 1 /* output_only*/,
-                                  mime_type_get_suffix(mime_type),
-                                  NULL /* compiler_env */,
-                                  1 /* style_check_only */,
-                                  prob->style_checker_cmd,
-                                  prob->style_checker_env,
-                                  0 /* accepting_mode */,
-                                  0 /* priority_adjustment */,
-                                  0 /* notify flag */,
-                                  prob, NULL /* lang */,
-                                  0 /* no_db_flag */) < 0)
-          FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
+        if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                       run_id, phr->user_id, 0 /* lang_id */,
+                                       0 /* locale_id */, 1 /* output_only*/,
+                                       mime_type_get_suffix(mime_type),
+                                       NULL /* compiler_env */,
+                                       1 /* style_check_only */,
+                                       prob->style_checker_cmd,
+                                       prob->style_checker_env,
+                                       0 /* accepting_mode */,
+                                       0 /* priority_adjustment */,
+                                       0 /* notify flag */,
+                                       prob, NULL /* lang */,
+                                       0 /* no_db_flag */)) < 0) {
+          serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
+        }
       } else {
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
@@ -1132,38 +1128,34 @@ cmd_submit_run(
                               mime_type, 0, 0, 0) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
-
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                      "Command: submit\n"
-                      "Status: ok\n"
-                      "Run-id: %d\n", run_id);
     }
   } else {
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)) {
-      run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
       serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                      "Command: submit\n"
-                      "Status: pending\n"
-                      "Run-id: %d\n"
-                      "  Testing disabled for this problem\n",
-                      run_id);
+                        "submit", "ok", RUN_PENDING,
+                        "  Testing disabled for this problem");
+      run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
     } else {
+      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+                        "submit", "ok", RUN_COMPILING, NULL);
+
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        if (serve_compile_request(cs, run_text, run_size, global->contest_id,
-                                  run_id, phr->user_id, 0 /* lang_id */,
-                                  0 /* locale_id */, 1 /* output_only*/,
-                                  mime_type_get_suffix(mime_type),
-                                  NULL /* compiler_env */,
-                                  1 /* style_check_only */,
-                                  prob->style_checker_cmd,
-                                  prob->style_checker_env,
-                                  0 /* accepting_mode */,
-                                  0 /* priority_adjustment */,
-                                  0 /* notify flag */,
-                                  prob, NULL /* lang */,
-                                  0 /* no_db_flag */) < 0)
-          FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
+        if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
+                                       run_id, phr->user_id, 0 /* lang_id */,
+                                       0 /* locale_id */, 1 /* output_only*/,
+                                       mime_type_get_suffix(mime_type),
+                                       NULL /* compiler_env */,
+                                       1 /* style_check_only */,
+                                       prob->style_checker_cmd,
+                                       prob->style_checker_env,
+                                       0 /* accepting_mode */,
+                                       0 /* priority_adjustment */,
+                                       0 /* notify flag */,
+                                       prob, NULL /* lang */,
+                                       0 /* no_db_flag */)) < 0) {
+          serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
+        }
       } else {
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
@@ -1171,11 +1163,6 @@ cmd_submit_run(
                               mime_type, 0, 0, 0) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
-
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                      "Command: submit\n"
-                      "Status: ok\n"
-                      "Run-id: %d\n", run_id);
     }
   }
   fprintf(fout, "%d\n", run_id);
@@ -1860,17 +1847,7 @@ cmd_reload_server_2(
     if (!pwd || !pwd->pw_name) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
     //fprintf(fout, "system login: %s\n", pwd->pw_name);
     if (!ejudge_config) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-    if (!ejudge_config->user_map) {
-      fprintf(stderr, "ejudge.xml <user_map> is empty or nonexistant\n");
-      FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-    }
-    for (const struct xml_tree *p = ejudge_config->user_map->first_down; p; p = p->right) {
-      const struct ejudge_cfg_user_map *m = (const struct ejudge_cfg_user_map*) p;
-      if (m->system_user_str && !strcmp(pwd->pw_name, m->system_user_str)) {
-        ejudge_login = m->local_user_str;
-        break;
-      }
-    }
+    ejudge_login = ejudge_cfg_user_map_find(ejudge_config, pwd->pw_name);
     if (!ejudge_login) {
       fprintf(stderr, "no system user %s is mapped in <user_map> in ejudge.xml\n", pwd->pw_name);
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
@@ -1905,7 +1882,7 @@ cmd_reload_server_2(
     //fprintf(fout, "user_id: %d\nname: %s\n", phr->user_id, phr->name);
   }
 
-  if (opcaps_find(&ejudge_config->capabilities, ejudge_login, &caps) < 0) {
+  if (ejudge_cfg_opcaps_find(ejudge_config, ejudge_login, &caps) < 0) {
     if (opcaps_find(&cnts->capabilities, ejudge_login, &caps) < 0) {
       fprintf(stderr, "unload_contest_2: %s: ejudge.xml->no caps, contest.xml->no caps\n", ejudge_login);
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);

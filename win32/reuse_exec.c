@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 6661 2012-03-20 06:08:23Z cher $ */
+/* $Id: reuse_exec.c 6748 2012-04-17 07:26:18Z cher $ */
 
 /* Copyright (C) 1999-2012 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 11:05:09 cher> */
@@ -625,6 +625,12 @@ task_SetEntryFunction(tTask *tsk, int (*func)(int, char **))
 
 int
 task_EnableAllSignals(tTask *tsk)
+{
+  return 0;
+}
+
+int
+task_IgnoreSIGPIPE(tTask *tsk)
 {
   return 0;
 }

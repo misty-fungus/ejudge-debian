@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: team_extra.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: team_extra.h 6766 2012-04-26 16:49:24Z cher $ */
 
 #ifndef __TEAM_EXTRA_H__
 #define __TEAM_EXTRA_H__
 
-/* Copyright (C) 2004-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -49,6 +49,9 @@ struct team_extra
 
   // status
   int status;
+
+  // run table fields
+  int run_fields;
 };
 
 struct team_extra_state;
@@ -80,6 +83,10 @@ int team_extra_append_warning(team_extra_state_t state,
 int team_extra_set_status(team_extra_state_t state, int user_id, int status);
 int team_extra_set_disq_comment(team_extra_state_t state, int user_id,
                                 const unsigned char *disq_comment);
+int
+team_extra_get_run_fields(team_extra_state_t state, int user_id);
+int
+team_extra_set_run_fields(team_extra_state_t state, int user_id, int run_fields);
 
 #endif /* __TEAM_EXTRA_H__ */
 
