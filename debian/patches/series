@@ -4,3 +4,4 @@
 04_dont_run_ejudge-setup_on_install
 05_fix_complile_server_dir_in_ejudge-control
 06_fix_import_in_super-server
+07_fix_ej-super-run_logpath
