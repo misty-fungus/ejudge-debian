@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 6597 2011-12-24 18:39:30Z cher $ */
+/* $Id: new_server_html.c 6715 2012-04-03 08:48:43Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -2282,7 +2282,6 @@ priv_contest_operation(FILE *fout,
 
   case NEW_SRV_ACTION_RELOAD_SERVER:
     extra->last_access_time = 0;
-    serve_send_run_quit(cs);
     break;
 
   case NEW_SRV_ACTION_UPDATE_STANDINGS_2:
@@ -2292,7 +2291,6 @@ priv_contest_operation(FILE *fout,
   case NEW_SRV_ACTION_RESET_2:
     serve_reset_contest(cnts, cs);
     extra->last_access_time = 0;
-    serve_send_run_quit(cs);
     break;
 
   case NEW_SRV_ACTION_SQUEEZE_RUNS:
@@ -2947,7 +2945,7 @@ priv_submit_run(FILE *fout,
           goto cleanup;
         }
       } else {
-        if (serve_run_request(cs, log_f, run_text, run_size,
+        if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
                               mime_type, 0, 0, 0) < 0) {
@@ -2992,7 +2990,7 @@ priv_submit_run(FILE *fout,
           goto cleanup;
         }
       } else {      
-        if (serve_run_request(cs, log_f, run_text, run_size,
+        if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
                               mime_type, 0, 0, 0) < 0) {
@@ -8913,6 +8911,33 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_RELOAD_SERVER_2] = priv_reload_server_2,
 };
 
+static unsigned char *
+read_file_range(
+        const unsigned char *path,
+        long long begpos,
+        long long endpos)
+{
+  FILE *f = NULL;
+  unsigned char *str = NULL, *s;
+  int count, c;
+
+  if (begpos < 0 || endpos < 0 || begpos > endpos || (endpos - begpos) > 16777216LL) return NULL;
+  count = endpos - begpos;
+  if (!(f = fopen(path, "rb"))) return NULL;
+  if (fseek(f, begpos, SEEK_SET) < 0) {
+    fclose(f);
+    return NULL;
+  }
+  s = str = xmalloc(count + 1);
+  while ((c = getc(f)) != EOF && count) {
+    *s++ = c;
+    --count;
+  }
+  *s = 0;
+  fclose(f); f = NULL;
+  return str;
+}
+
 static void
 privileged_entry_point(
         FILE *fout,
@@ -8925,6 +8950,9 @@ privileged_entry_point(
   time_t cur_time = time(0);
   unsigned char hid_buf[1024];
   struct teamdb_db_callbacks callbacks;
+  long long log_file_pos_1 = -1LL;
+  long long log_file_pos_2 = -1LL;
+  unsigned char *msg = NULL;
 
   if (phr->action == NEW_SRV_ACTION_COOKIE_LOGIN)
     return privileged_page_cookie_login(fout, phr);
@@ -8992,6 +9020,10 @@ privileged_entry_point(
       return ns_html_err_no_perm(fout, phr, 1, "user %s has no permission to login as role %d for contest %d", phr->login, phr->role, phr->contest_id);
   }
 
+  if (ejudge_config->new_server_log && ejudge_config->new_server_log[0]) {
+    log_file_pos_1 = generic_file_size(NULL, ejudge_config->new_server_log, NULL);
+  }
+
   watched_file_update(&extra->priv_header, cnts->priv_header_file, cur_time);
   watched_file_update(&extra->priv_footer, cnts->priv_footer_file, cur_time);
   extra->header_txt = extra->priv_header.text;
@@ -9037,7 +9069,15 @@ privileged_entry_point(
                                ul_conn,
                                &callbacks,
                                &extra->serve_state, 0, 0) < 0) {
-    return ns_html_err_cnts_unavailable(fout, phr, 0, 0);
+    if (log_file_pos_1 >= 0) {
+      log_file_pos_2 = generic_file_size(NULL, ejudge_config->new_server_log, NULL);
+    }
+    if (log_file_pos_1 >= 0 && log_file_pos_2 >= 0) {
+      msg = read_file_range(ejudge_config->new_server_log, log_file_pos_1, log_file_pos_2);
+    }
+    ns_html_err_cnts_unavailable(fout, phr, 0, msg, 0);
+    xfree(msg);
+    return;
   }
 
   extra->serve_state->current_time = time(0);
@@ -9062,7 +9102,7 @@ unpriv_load_html_style(struct http_request_info *phr,
   struct contest_extra *extra = 0;
   time_t cur_time = 0;
 #if defined CONF_ENABLE_AJAX && CONF_ENABLE_AJAX
-  unsigned char bb[8196];
+  unsigned char bb[8192];
   char *state_json_txt = 0;
   size_t state_json_len = 0;
   FILE *state_json_f = 0;
@@ -10380,7 +10420,7 @@ unpriv_submit_run(FILE *fout,
           goto done;
         }
       } else {
-        if (serve_run_request(cs, log_f, run_text, run_size,
+        if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
                               mime_type, 0, 0, 0) < 0) {
@@ -10444,7 +10484,7 @@ unpriv_submit_run(FILE *fout,
           goto done;
         }
       } else {
-        if (serve_run_request(cs, log_f, run_text, run_size,
+        if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
                               mime_type, 0, 0, 0) < 0) {
@@ -10759,7 +10799,7 @@ unpriv_submit_appeal(FILE *fout,
     goto done;
   }
 
-  if (clar_add_text(cs->clarlog_state, clar_id, text3, text_len) < 0) {
+  if (clar_add_text(cs->clarlog_state, clar_id, text3, text3_len) < 0) {
     ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
     goto done;
   }
@@ -11680,7 +11720,7 @@ html_problem_selection(serve_state_t cs,
 
       // find date penalty
       for (dpi = 0; dpi < prob->dp_total; dpi++)
-        if (cs->current_time < prob->dp_infos[dpi].deadline)
+        if (cs->current_time < prob->dp_infos[dpi].date)
           break;
       if (dpi < prob->dp_total)
         user_penalty = prob->dp_infos[dpi].penalty;
@@ -11742,7 +11782,7 @@ html_problem_selection_2(serve_state_t cs,
 
     // find date penalty
     for (dpi = 0; dpi < prob->dp_total; dpi++)
-      if (cs->current_time < prob->dp_infos[dpi].deadline)
+      if (cs->current_time < prob->dp_infos[dpi].date)
         break;
 
     if (user_deadline > 0 && cs->global->show_deadline)
@@ -12534,7 +12574,6 @@ unpriv_main_page(FILE *fout,
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   unsigned char *last_source = 0;
   unsigned char dbuf[1024];
-  unsigned char wbuf[1024];
   int upper_tab_id = 0, next_prob_id;
   problem_xml_t px;
   unsigned char prev_group_name[256] = { 0 };
@@ -12641,7 +12680,6 @@ unpriv_main_page(FILE *fout,
         } else {
           div_class = "nProbBad";
         }
-        wbuf[0] = 0;
         /*
         if (global->problem_tab_size > 0)
           snprintf(wbuf, sizeof(wbuf), " width=\"%dpx\"",
@@ -13459,7 +13497,6 @@ unpriv_main_page(FILE *fout,
       } else {
         div_class = "nProbBad";
       }
-      wbuf[0] = 0;
       /*
       if (global->problem_tab_size > 0)
         snprintf(wbuf, sizeof(wbuf), " width=\"%dpx\"",
@@ -14091,7 +14128,7 @@ unprivileged_entry_point(
                                ul_conn,
                                &callbacks,
                                &extra->serve_state, 0, 0) < 0) {
-    return ns_html_err_cnts_unavailable(fout, phr, 0, 0);
+    return ns_html_err_cnts_unavailable(fout, phr, 0, NULL, 0);
   }
 
   cs = extra->serve_state;

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: sha.c 6172 2011-03-27 12:40:30Z cher $ */
+/* $Id: sha.c 6702 2012-03-30 07:29:53Z cher $ */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -127,9 +127,12 @@ sha_finish_ctx (struct sha_ctx *ctx, void *resbuf)
   memcpy (&ctx->buffer[bytes], fillbuf, pad);
 
   /* Put the 64-bit file length in *bits* at the end of the buffer.  */
-  *(ruint32_t *) &ctx->buffer[bytes + pad + 4] = NOTSWAP (ctx->total[0] << 3);
-  *(ruint32_t *) &ctx->buffer[bytes + pad] = NOTSWAP ((ctx->total[1] << 3) |
-                                                    (ctx->total[0] >> 29));
+  ruint32_t *p = (ruint32_t *) &ctx->buffer[bytes + pad + 4];
+  *p = NOTSWAP (ctx->total[0] << 3);
+  p = (ruint32_t *) &ctx->buffer[bytes + pad];
+  *p = NOTSWAP ((ctx->total[1] << 3) | (ctx->total[0] >> 29));
+  //*(ruint32_t *) &ctx->buffer[bytes + pad + 4] = NOTSWAP (ctx->total[0] << 3);
+  //*(ruint32_t *) &ctx->buffer[bytes + pad] = NOTSWAP ((ctx->total[1] << 3) | (ctx->total[0] >> 29));
 
   /* Process last bytes.  */
   sha_process_block (ctx->buffer, bytes + pad + 8, ctx);

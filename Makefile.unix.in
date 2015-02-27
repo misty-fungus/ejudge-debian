@@ -1,8 +1,8 @@
 # -*- Makefile -*-
-# $Id: Makefile.unix.in 6328 2011-05-10 04:25:31Z cher $
+# $Id: Makefile.unix.in 6684 2012-03-28 04:29:06Z cher $
 # @configure_input@
 
-# Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -132,8 +132,14 @@ ED_OBJECTS = ${ED_CFILES:.c=.o} libcommon.a libuserlist_clnt.a libplatform.a lib
 SS_CFILES = super-serve.c version.c
 SS_OBJECTS = ${SS_CFILES:.c=.o} libcommon.a libuserlist_clnt.a libplatform.a libcommon.a
 
+SR_CFILES = ej-super-run.c version.c
+SR_OBJECTS = ${SR_CFILES:.c=.o} libcommon.a libplatform.a libcommon.a
+
 SSC_CFILES = super-serve-control.c version.c
 SSC_OBJECTS = ${SSC_CFILES:.c=.o} libcommon.a libsuper_clnt.a libplatform.a libcommon.a
+
+SRC_CFILES = ej-super-run-control.c version.c
+SRC_OBJECTS = ${SRC_CFILES:.c=.o} libcommon.a libsuper_clnt.a libplatform.a libcommon.a
 
 CU_CFILES = convert-clars.c version.c
 CU_OBJECTS = ${CU_CFILES:.c=.o} libcommon.a libuserlist_clnt.a libplatform.a libcommon.a
@@ -174,9 +180,12 @@ NSM_OBJECTS = $(NSM_CFILES:.c=.o) libcommon.a libnew_server_clnt.a libuserlist_c
 NSC_CFILES=new-server-control.c version.c
 NSC_OBJECTS=$(NSC_CFILES:.c=.o) libcommon.a libnew_server_clnt.a libplatform.a libcommon.a
 
+NRM_CFILES=ej-normalize.c version.c
+NRM_OBJECTS=$(NRM_CFILES:.c=.o) libcommon.a libplatform.a libcommon.a
+
 INSTALLSCRIPT = ejudge-install.sh
 BINTARGETS = ejudge-jobs-cmd ejudge-edit-users ejudge-setup ejudge-configure-compilers ejudge-control ejudge-execute ejudge-contests-cmd
-SERVERBINTARGETS = ej-compile ej-compile-control ej-run ej-nwrun ej-ncheck ej-batch ej-serve ej-users ej-users-control ej-jobs ej-jobs-control ej-super-server ej-super-server-control ej-contests ej-contests-control uudecode ej-convert-clars ej-convert-runs ej-fix-db
+SERVERBINTARGETS = ej-compile ej-compile-control ej-run ej-nwrun ej-ncheck ej-batch ej-serve ej-users ej-users-control ej-jobs ej-jobs-control ej-super-server ej-super-server-control ej-contests ej-contests-control uudecode ej-convert-clars ej-convert-runs ej-fix-db ej-super-run ej-super-run-control ej-normalize
 CGITARGETS = users${CGI_PROG_SUFFIX} serve-control${CGI_PROG_SUFFIX} new-client${CGI_PROG_SUFFIX}
 TARGETS = ${SERVERBINTARGETS} ${BINTARGETS} ${CGITARGETS}
 STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/priv.js style/unpriv.js style/filter_expr.html style/sprintf.js
@@ -207,6 +216,8 @@ install_ej_contests: ej-contests
 	install -m 0755 ej-contests "${DESTDIR}${serverbindir}"
 install_ej_super_server: ej-super-server
 	install -m 0755 ej-super-server "${DESTDIR}${serverbindir}"
+install_ej_super_run: ej-super-run
+	install -m 0755 ej-super-run "${DESTDIR}${serverbindir}"
 
 local_install: ${TARGETS} ejudge-config po mo
 	install -d "${DESTDIR}${bindir}"
@@ -289,6 +300,15 @@ ej-super-server: ${SS_OBJECTS}
 
 ej-super-server-control: ${SSC_OBJECTS}
 	${LD} ${LDFLAGS} $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB}
+
+ej-super-run: ${SR_OBJECTS}
+	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl
+
+ej-super-run-control: ${SRC_OBJECTS}
+	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl
+
+ej-normalize: ${NRM_OBJECTS}
+	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl
 
 ej-convert-clars: ${CU_OBJECTS}
 	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl
@@ -444,7 +464,7 @@ endif
 locale/ru_RU.${CHARSET}/LC_MESSAGES/ejudge.mo : ejudge.ru_RU.${CHARSET}.po ru_all
 	${MSGFMT} -o $@ -c $<
 
-libcommon.a : $(COMMON_CFILES:.c=.o) filter_scan.o filter_expr.o contests_meta.o super-serve_meta.o prepare_meta.o super_html_6_meta.o
+libcommon.a : $(COMMON_CFILES:.c=.o) filter_scan.o filter_expr.o contests_meta.o super-serve_meta.o prepare_meta.o super_html_6_meta.o super_run_packet_meta.o
 	ar rcv $@ $^
 
 libplatform.a : $(PLATFORM_CFILES:.c=.o)
@@ -459,7 +479,7 @@ libuserlist_clnt.a: $(USERLIST_CLNT_CFILES:.c=.o)
 libnew_server_clnt.a: $(NEW_SERVER_CLNT_CFILES:.c=.o)
 	ar rcv $@ $^
 
-deps.make: cdeps ${CFILES} ${HFILES} filter_expr.c filter_expr.h filter_scan.c contests_meta.c contests_meta.h super-serve_meta.c super-serve_meta.h prepare_meta.c prepare_meta.h
+deps.make: cdeps ${CFILES} ${HFILES} filter_expr.c filter_expr.h filter_scan.c contests_meta.c contests_meta.h super-serve_meta.c super-serve_meta.h prepare_meta.c prepare_meta.h super_run_packet_meta.h
 	./cdeps ${CFILES} filter_expr.c filter_scan.c > deps.make
 
 tags : ${CFILES} ${HFILES} filter_expr.c filter_expr.h filter_scan.c 

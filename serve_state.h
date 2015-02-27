@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 6580 2011-12-20 09:16:07Z cher $ */
+/* $Id: serve_state.h 6674 2012-03-24 14:53:50Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -314,7 +314,7 @@ struct compile_run_extra
   int notify_flag;
 };
 
-serve_state_t serve_state_init(void);
+serve_state_t serve_state_init(int contest_id);
 serve_state_t serve_state_destroy(
         const struct ejudge_cfg *config,
         serve_state_t state,
@@ -419,6 +419,7 @@ struct compile_reply_packet;
 int
 serve_run_request(
         serve_state_t state,
+        const struct contest_desc *cnts,
         FILE *errf,
         const unsigned char *run_text,
         size_t run_size,
@@ -554,7 +555,6 @@ serve_judge_built_in_problem(
 void serve_invoke_start_script(serve_state_t state);
 void serve_invoke_stop_script(serve_state_t state);
 
-void serve_send_run_quit(const serve_state_t state);
 void serve_reset_contest(const struct contest_desc *, serve_state_t state);
 void serve_squeeze_runs(serve_state_t state);
 int serve_count_transient_runs(serve_state_t state);

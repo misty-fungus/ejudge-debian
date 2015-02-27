@@ -1,4 +1,4 @@
-/* $Id: priv.css 6588 2011-12-23 12:03:49Z cher $ */
+/* $Id: priv.css 6606 2012-01-01 16:51:46Z cher $ */
 
 body 
 {
@@ -418,4 +418,11 @@ div.ej_dd {
         border: 1px solid #aaa;
         background-color: #efefef;
         float: none;
+}
+
+div.ej_stat_menu_item {
+        display: block;
+        border: 1px solid #aaa;
+        font-family: "DejaVu Sans Mono", "Courier New", "Courier", "monospace";
+        width: 180px;
 }

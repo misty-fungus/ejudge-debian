@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 6597 2011-12-24 18:39:30Z cher $ */
+/* $Id: super_html_3.c 6729 2012-04-09 13:57:41Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -200,6 +200,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CHANGE_SEND_PASSWD_EMAIL] = "Contest.xml:send_passwd_email",
   [SSERV_CMD_CNTS_CHANGE_MANAGED] = "Contest.xml:managed",
   [SSERV_CMD_CNTS_CHANGE_RUN_MANAGED] = "Contest.xml:run_managed",
+  [SSERV_CMD_CNTS_CHANGE_OLD_RUN_MANAGED] = "Contest.xml:old_run_managed",
   [SSERV_CMD_CNTS_CHANGE_CLEAN_USERS] = "Contest.xml:clean_users",
   [SSERV_CMD_CNTS_CHANGE_CLOSED] = "Contest.xml:closed",
   [SSERV_CMD_CNTS_CHANGE_INVISIBLE] = "Contest.xml:invisible",
@@ -4486,7 +4487,7 @@ super_html_lang_cmd(struct sid_state *sstate, int cmd,
                     int lang_id, const unsigned char *param2,
                     int param3, int param4)
 {
-  struct section_language_data *pl_old, *pl_new;
+  struct section_language_data *pl_new;
   int val, n;
   int *p_int;
   size_t *p_size, zval;
@@ -4500,7 +4501,6 @@ super_html_lang_cmd(struct sid_state *sstate, int cmd,
     return -SSERV_ERR_INVALID_PARAMETER;
   }
 
-  pl_old = sstate->cs_langs[lang_id];
   pl_new = 0;
   if (sstate->cs_loc_map[lang_id] > 0)
     pl_new = sstate->langs[sstate->cs_loc_map[lang_id]];
@@ -9403,17 +9403,6 @@ super_html_read_serve(FILE *flog,
   }
   */
 
-  // very simple rule for check_cmd extraction:
-  // check_cmd for all abstract checkers must be the same
-  for (i = 0; i < sstate->atester_total; i++) {
-    if (!check_cmd[0])
-      snprintf(check_cmd, sizeof(check_cmd), "%s", sstate->atesters[i]->check_cmd);
-    if (strcmp(check_cmd, sstate->atesters[i]->check_cmd)) {
-      fprintf(flog, "conflicting check_cmd for abstract testers\n");
-      return -1;
-    }
-  }
-
   // assign this check_cmd to all abstract problems without check_cmd
   for (i = 0; i < sstate->aprob_u; i++)
     if (!(aprob = sstate->aprobs[i])->check_cmd[0])
@@ -9666,9 +9655,7 @@ invoke_test_checker(
         const unsigned char *ans_sfx)
 {
   path_t tst_name;
-  path_t ans_name;
   path_t tst_path;
-  path_t ans_path;
   int retval = 0;
   char *args[4];
   unsigned char *out_text = 0;
@@ -9683,22 +9670,13 @@ invoke_test_checker(
   }
   snprintf(tst_path, sizeof(tst_path), "%s/%s", tst_dir, tst_name);
 
-  if (ans_pat && *ans_pat) {
-    snprintf(ans_name, sizeof(ans_name), ans_pat, n);
-  } else {
-    snprintf(ans_name, sizeof(ans_name), "%03d%s", n, ans_sfx);
-  }
-  snprintf(ans_path, sizeof(ans_path), "%s/%s", ans_dir, ans_name);
-
   args[0] = (char*) test_checker_cmd;
-  args[1] = tst_path;
-  args[2] = ans_path;
-  args[3] = NULL;
+  args[1] = NULL;
 
-  retval = ejudge_invoke_process(args, test_checker_env, tst_dir, NULL,
+  retval = ejudge_invoke_process(args, test_checker_env, tst_dir, tst_path, NULL,
                                  1, &out_text, &err_text);
   if ((err_text && *err_text) || (out_text && *out_text) || retval != 0) {
-    fprintf(flog, "%s %s %s\n", test_checker_cmd, tst_path, ans_path);
+    fprintf(flog, "%s %s\n", test_checker_cmd, tst_path);
   }
   if (err_text) {
     fprintf(flog, "%s", err_text);
@@ -9737,7 +9715,7 @@ invoke_compile_process(
   args[2] = (char*) cmd;
   args[3] = 0;
 
-  retval = ejudge_invoke_process(args, NULL, cur_dir, NULL, 1,
+  retval = ejudge_invoke_process(args, NULL, cur_dir, NULL, NULL, 1,
                                  &out_text, &err_text);
   if (err_text) {
     fprintf(flog, "%s", err_text);
@@ -9900,7 +9878,7 @@ recompile_checker(
       fprintf(f, "Error: Free Pascal support is not configured\n");
       return -1;
     }
-    snprintf(cmd, sizeof(cmd), "%s -Fu%s/share/ejudge/testlib/fpc %s",
+    snprintf(cmd, sizeof(cmd), "%s -dEJUDGE -Fu%s/share/ejudge/testlib/fpc %s",
              fpc_path, EJUDGE_PREFIX_DIR, filename2);
     break;
   case CHECKER_LANG_DPR:
@@ -9909,7 +9887,7 @@ recompile_checker(
       fprintf(f, "Error: Delphi (Kylix) support is not configured\n");
       return -1;
     }
-    snprintf(cmd, sizeof(cmd), "%s -U%s/share/ejudge/testlib/delphi %s",
+    snprintf(cmd, sizeof(cmd), "%s -DEJUDGE -U%s/share/ejudge/testlib/delphi %s",
              dcc_path, EJUDGE_PREFIX_DIR, filename2);
     break;
   case CHECKER_LANG_C:
@@ -9918,7 +9896,7 @@ recompile_checker(
       fprintf(f, "Error: GNU C support is not configured\n");
       return -1;
     }
-    snprintf(cmd, sizeof(cmd), "%s -std=gnu99 -O2 -Wall -I%s/include/ejudge -L%s/lib -Wl,--rpath,%s/lib %s -o %s -lchecker -lm", gcc_path, EJUDGE_PREFIX_DIR, EJUDGE_PREFIX_DIR, EJUDGE_PREFIX_DIR, filename2, filename);
+    snprintf(cmd, sizeof(cmd), "%s -DEJUDGE -std=gnu99 -O2 -Wall -I%s/include/ejudge -L%s/lib -Wl,--rpath,%s/lib %s -o %s -lchecker -lm", gcc_path, EJUDGE_PREFIX_DIR, EJUDGE_PREFIX_DIR, EJUDGE_PREFIX_DIR, filename2, filename);
     break;
   case CHECKER_LANG_CPP:
     gpp_path = get_compiler_path(config, "g++", gpp_path);
@@ -9926,7 +9904,7 @@ recompile_checker(
       fprintf(f, "Error: GNU C++ support is not configured\n");
       return -1;
     }
-    snprintf(cmd, sizeof(cmd), "%s -O2 -Wall -I%s/include/ejudge -L%s/lib -Wl,--rpath,%s/lib %s -o %s -lchecker -lm", gpp_path, EJUDGE_PREFIX_DIR, EJUDGE_PREFIX_DIR, EJUDGE_PREFIX_DIR, filename2, filename);
+    snprintf(cmd, sizeof(cmd), "%s -DEJUDGE -O2 -Wall -I%s/include/ejudge -L%s/lib -Wl,--rpath,%s/lib %s -o %s -lchecker -lm", gpp_path, EJUDGE_PREFIX_DIR, EJUDGE_PREFIX_DIR, EJUDGE_PREFIX_DIR, filename2, filename);
     break;
 
   default:
@@ -9966,7 +9944,7 @@ invoke_make(
   path_t problem_dir;
   struct stat stbuf;
   int r;
-  unsigned char cmd[8196];
+  unsigned char cmd[8192];
 
   get_advanced_layout_path(problem_dir, sizeof(problem_dir), global,
                            prob, NULL, variant);
@@ -9981,9 +9959,9 @@ invoke_make(
   }
 
 #if defined EJUDGE_LOCAL_DIR
-  snprintf(cmd, sizeof(cmd), "make EJUDGE_PREFIX_DIR=\"%s\" EJUDGE_CONTESTS_HOME_DIR=\"%s\" EJUDGE_LOCAL_DIR=\"%s\" ejudge_make_problem", EJUDGE_PREFIX_DIR, EJUDGE_CONTESTS_HOME_DIR, EJUDGE_LOCAL_DIR);
+  snprintf(cmd, sizeof(cmd), "make EJUDGE_PREFIX_DIR=\"%s\" EJUDGE_CONTESTS_HOME_DIR=\"%s\" EJUDGE_LOCAL_DIR=\"%s\" check_settings", EJUDGE_PREFIX_DIR, EJUDGE_CONTESTS_HOME_DIR, EJUDGE_LOCAL_DIR);
 #else
-  snprintf(cmd, sizeof(cmd), "make EJUDGE_PREFIX_DIR=\"%s\" EJUDGE_CONTESTS_HOME_DIR=\"%s\" ejudge_make_problem", EJUDGE_PREFIX_DIR, EJUDGE_CONTESTS_HOME_DIR);
+  snprintf(cmd, sizeof(cmd), "make EJUDGE_PREFIX_DIR=\"%s\" EJUDGE_CONTESTS_HOME_DIR=\"%s\" check_settings", EJUDGE_PREFIX_DIR, EJUDGE_CONTESTS_HOME_DIR);
 #endif
   r = invoke_compile_process(flog, problem_dir, cmd);
   if (r < 0) {
@@ -10144,7 +10122,7 @@ super_html_check_tests(FILE *f,
   struct stat stbuf;
   int total_tests = 0, v_total_tests = 0;
   unsigned char hbuf[1024];
-  int file_group, file_mode, dir_group, dir_mode;
+  int file_group, file_mode;
   int already_compiled = 0;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   path_t test_checker_cmd;
@@ -10168,8 +10146,6 @@ super_html_check_tests(FILE *f,
 
   file_group = file_perms_parse_group(cnts->file_group);
   file_mode = file_perms_parse_mode(cnts->file_mode);
-  dir_group = file_perms_parse_group(cnts->dir_group);
-  dir_mode = file_perms_parse_mode(cnts->dir_mode);
 
   mkpath(conf_path, cnts->root_dir, cnts->conf_dir, DFLT_G_CONF_DIR);
   mkpath(g_test_path, conf_path, global->test_dir, DFLT_G_TEST_DIR);
@@ -10212,6 +10188,10 @@ super_html_check_tests(FILE *f,
       continue;
     }
 
+    prepare_set_prob_value(CNTSPROB_use_stdin, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_use_stdout, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_combined_stdin, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_combined_stdout, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_scoring_checker, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_manual_checking, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_examinator_num, tmp_prob, abstr, global);
@@ -10231,6 +10211,10 @@ super_html_check_tests(FILE *f,
     prepare_set_prob_value(CNTSPROB_test_score, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_full_score, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_full_user_score, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_solution_cmd, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_solution_src, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_source_header, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_source_footer, tmp_prob, abstr, global);
     mkpath(test_path, g_test_path, tmp_prob->test_dir, "");
     if (tmp_prob->use_corr) {
       prepare_set_prob_value(CNTSPROB_corr_dir, tmp_prob, abstr, 0);
@@ -10239,6 +10223,7 @@ super_html_check_tests(FILE *f,
       mkpath(corr_path, g_corr_path, tmp_prob->corr_dir, "");
     }
     prepare_set_prob_value(CNTSPROB_use_info, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_use_tgz, tmp_prob, abstr, global);
     if (tmp_prob->use_info) {
       prepare_set_prob_value(CNTSPROB_info_dir, tmp_prob, abstr, 0);
       prepare_set_prob_value(CNTSPROB_info_sfx, tmp_prob, abstr, global);
@@ -10256,19 +10241,21 @@ super_html_check_tests(FILE *f,
       }
     }
 
-    /* check for Makefile and invoke make if necessary */
     if (global->advanced_layout > 0) {
       if (prob->variant_num <= 0) {
+        if (super_serve_generate_makefile(flog, cnts, NULL, sstate, global, tmp_prob, 0) < 0)
+          goto check_failed;
         if ((j = invoke_make(flog, config, global, tmp_prob, -1)) < 0)
           goto check_failed;
-        if (j > 0) already_compiled = 1;
       } else {
         for (variant = 1; variant <= prob->variant_num; ++variant) {
+          if (super_serve_generate_makefile(flog, cnts, NULL, sstate, global, tmp_prob, variant) < 0)
+            goto check_failed;
           if ((j = invoke_make(flog, config, global, tmp_prob, variant)) < 0)
             goto check_failed;
-          if (j > 0) already_compiled = 1;
         }
       }
+      continue;
     }
 
     if (!tmp_prob->standard_checker[0] && !already_compiled) {
@@ -10586,6 +10573,21 @@ check_failed:
   fprintf(f, "<p><pre><font color=\"red\">%s</font></pre></p>\n",
           ARMOR(flog_txt));
   xfree(flog_txt);
+
+  fprintf(f, "<table border=\"0\"><tr>");
+  fprintf(f, "<td>%sTo the top</a></td>",
+          html_hyperref(hbuf, sizeof(hbuf), session_id, self_url,extra_args,0));
+  fprintf(f, "<td>%sBack</a></td>",
+          html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
+                        "contest_id=%d&action=%d", cnts->id,
+                        SSERV_CMD_CONTEST_PAGE));
+  fprintf(f, "<td>");
+  html_start_form(f, 1, self_url, hidden_vars);
+  fprintf(f, "<input type=\"hidden\" name=\"contest_id\" value=\"%d\"/>", cnts->id);
+  html_submit_button(f, SSERV_CMD_CHECK_TESTS, "Check again");
+  fprintf(f, "</form></td>\n");
+  fprintf(f, "</tr></table>\n");
+
   html_armor_free(&ab);
   return 0;
 }

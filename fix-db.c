@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: fix-db.c 6236 2011-04-08 17:44:13Z cher $ */
+/* $Id: fix-db.c 6631 2012-01-23 06:03:40Z cher $ */
 
-/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -552,7 +552,7 @@ process_contest(int contest_id)
     goto failure;
   }
 
-  state = serve_state_init();
+  state = serve_state_init(contest_id);
   state->config_path = xstrdup(config_path);
   state->current_time = time(0);
   state->load_time = state->current_time;

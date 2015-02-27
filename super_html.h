@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: super_html.h 6414 2011-07-22 05:24:19Z cher $ */
+/* $Id: super_html.h 6725 2012-04-04 11:23:15Z cher $ */
 #ifndef __SUPER_HTML_H__
 #define __SUPER_HTML_H__
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -162,6 +162,7 @@ int super_html_create_contest_2(FILE *f,
                                 const unsigned char *ss_login,
                                 ej_cookie_t session_id,
                                 ej_ip_t ip_address,
+                                int ssl_flag,
                                 struct ejudge_cfg *config,
                                 struct sid_state *sstate,
                                 int num_mode,
@@ -318,6 +319,8 @@ struct contest_desc *contest_tmpl_new(int contest_id,
                                       const unsigned char *login,
                                       const unsigned char *self_url,
                                       const unsigned char *ss_login,
+                                      ej_ip_t ip,
+                                      int ssl_flag,
                                       const struct ejudge_cfg *ejudge_config);
 struct contest_desc *contest_tmpl_clone(struct sid_state *sstate,
                                         int contest_id, int orig_id,
@@ -527,5 +530,16 @@ super_html_add_abstract_problem(
 
 const unsigned char *
 super_html_get_standard_checker_description(const unsigned char *standard_checker);
+
+struct serve_state;
+int
+super_serve_generate_makefile(
+        FILE  *log_f,
+        const struct contest_desc *cnts,
+        struct serve_state *cs,
+        struct sid_state *sstate,
+        const struct section_global_data *global,
+        const struct section_problem_data *prob,
+        int variant);
 
 #endif /* __SUPER_HTML_H__ */

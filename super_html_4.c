@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 6597 2011-12-24 18:39:30Z cher $ */
+/* $Id: super_html_4.c 6725 2012-04-04 11:23:15Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1003,6 +1003,7 @@ static const struct cnts_edit_info cnts_edit_info[] =
   { 0, 0, '-', 0, 0, 0, 0, 0, "Contest Management", 0, 0 },
   { NS_CONTEST, CNTS_managed, 'y', 1, 0, 0, 0, 0, "Enable the contest service", "Enable the contest service", 0 },
   { NS_CONTEST, CNTS_run_managed, 'y', 1, 0, 0, 0, 0, "Enable the run service", "Enable the run service", 0 },
+  { NS_CONTEST, CNTS_old_run_managed, 'y', 1, 0, 0, 0, 0, "Run service compatibility mode", "Run server compatibility mode", 0 },
   { NS_CONTEST, CNTS_closed, 'y', 1, 0, 0, 0, 0, "Close the contest for participants", "Close the contest for participants", 0 },
   { NS_CONTEST, CNTS_invisible, 'y', 1, 0, 0, 0, 0, "Hide the contest for administrators", "Hide the contest for administrators", 0 },
 
@@ -2289,7 +2290,6 @@ write_problem_page(
   struct sid_state *ss = phr->ss;
   int show_details = 0;
   int show_adv = 0;
-  int show_undef = 0;
   int item_id, i;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   const struct section_global_data *global = phr->ss->global, *glob = 0;
@@ -2303,7 +2303,6 @@ write_problem_page(
   if (prob->abstract) {
     flags = ss->aprob_flags[ind];
     item_id = -ind - 1;
-    show_undef = 1;
   } else {
     flags = ss->prob_flags[ind];
     item_id = ind;
@@ -2684,7 +2683,7 @@ cmd_clear_contest_xml_field(
   case 'b':
     {
       unsigned char *b_ptr = (unsigned char*) f_ptr;
-      b_ptr = 0;
+      *b_ptr = 0;
     }
     break;
   case 's':
@@ -3092,14 +3091,12 @@ cmd_toggle_contest_xml_vis(
         struct super_http_request_info *phr)
 {
   int retval = 0, f_id;
-  struct contest_desc *ecnts = 0;
   int *p_int;
 
   phr->json_reply = 1;
 
   if (!phr->ss->edited_cnts)
     FAIL(S_ERR_NO_EDITED_CNTS);
-  ecnts = phr->ss->edited_cnts;
   if (ss_cgi_param_int(phr, "field_id", &f_id) < 0
       || f_id <= 0 || f_id >= SSSS_LAST_FIELD
       || !valid_ss_visibilities[f_id])
@@ -4661,7 +4658,7 @@ cmd_op_create_new_contest(
   }
 
   if (!templ_cnts) {
-    phr->ss->edited_cnts = contest_tmpl_new(contest_id, phr->login, phr->self_url, phr->system_login, phr->config);
+    phr->ss->edited_cnts = contest_tmpl_new(contest_id, phr->login, phr->self_url, phr->system_login, phr->ip, phr->ssl_flag, phr->config);
     phr->ss->global = prepare_new_global_section(contest_id, phr->ss->edited_cnts->root_dir, phr->config);
   } else {
     super_html_load_serve_cfg(templ_cnts, phr->config, phr->ss);

@@ -1,9 +1,9 @@
-/* $Id: reuse_exec.h 6207 2011-03-30 19:43:10Z cher $ */
+/* $Id: reuse_exec.h 6659 2012-03-19 18:18:15Z cher $ */
 
 #ifndef __REUSE_EXEC_H__
 #define __REUSE_EXEC_H__
 
-/* Copyright (C) 1998-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 1998-2012 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1998-01-21 14:26:50 cher> */
 
 /*
@@ -80,8 +80,11 @@ int      task_SetWorkingDir(tpTask, char const *);
 int      task_SetMaxTime(tpTask, int);
 int      task_SetMaxTimeMillis(tpTask, int);
 int      task_SetMaxRealTime(tpTask, int);
+int      task_SetMaxRealTimeMillis(tpTask, int);
 
 int      task_PutEnv(tpTask, char const *);
+int      task_SetEnv(tTask *tsk, const char *name, const char *value);
+int      task_FormatEnv(tTask *tsk, const char *name, const char *format, ...);
 int      task_ClearEnv(tpTask);
 
 int      task_SetKillSignal(tpTask, char const *);

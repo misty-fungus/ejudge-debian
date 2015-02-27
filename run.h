@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: run.h 5895 2010-06-18 03:43:38Z cher $ */
+/* $Id: run.h 6670 2012-03-23 14:02:58Z cher $ */
 #ifndef __RUN_H__
 #define __RUN_H__
 
-/* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,16 +24,79 @@ struct run_request_packet;
 struct run_reply_packet;
 struct section_global_data;
 struct section_problem_data;
+struct super_run_in_packet;
+
+struct testinfo
+{
+  int            status;        /* the execution status */
+  int            code;          /* the process exit code */
+  int            termsig;       /* the termination signal */
+  int            score;         /* score gained for this test */
+  int            max_score;     /* maximal score for this test */
+  long           times;         /* execution time */
+  long           real_time;     /* execution real time */
+  int            max_memory_used;
+  char          *input;         /* the input */
+  long           input_size;
+  int            has_input_digest;
+  unsigned char  input_digest[32];
+  char          *output;        /* the output */
+  long           output_size;
+  char          *error;         /* the error */
+  long           error_size;
+  char          *correct;       /* the correct result */
+  long           correct_size;
+  int            has_correct_digest;
+  unsigned char  correct_digest[32];
+  int            has_info_digest;
+  unsigned char  info_digest[32];
+  char          *chk_out;       /* checker's output */
+  long           chk_out_size;
+  unsigned char *args;          /* command-line arguments */
+  unsigned char *comment;       /* judge's comment */
+  unsigned char *team_comment;  /* team's comment */
+  unsigned char *exit_comment;  /* comment on exit status */
+  int            checker_score;
+  int            visibility;    /* test visibility */
+};
+
+struct testinfo_vector
+{
+  int reserved, size;
+  struct testinfo *data;
+};
 
 void
 run_inverse_testing(
         struct serve_state *state,
-        struct run_request_packet *req_pkt,
+        const struct super_run_in_packet *srp,
         struct run_reply_packet *reply_pkt,
-        struct section_problem_data *prob,
         const unsigned char *pkt_name,
         unsigned char *report_path,
         size_t report_path_size,
+        int utf8_mode);
+
+struct full_archive;
+struct serve_state;
+struct section_tester_data;
+struct ejudge_cfg;
+
+void
+run_tests(
+        const struct ejudge_cfg *config,
+        struct serve_state *state,
+        const struct section_tester_data *tst,
+        const struct super_run_in_packet *srp,
+        struct run_reply_packet *reply_pkt,
+        int accept_testing,
+        int accept_partial,
+        int cur_variant,
+        char const *exe_name,
+        char const *new_base,
+        char *report_path,                /* path to the report */
+        char *full_report_path,           /* path to the full output dir */
+        const unsigned char *user_spelling,
+        const unsigned char *problem_spelling,
         int utf8_mode);
 
 #endif /* __RUN_H__ */

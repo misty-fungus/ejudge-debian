@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: testing_report_xml.h 6109 2011-03-05 10:03:35Z cher $ */
+/* $Id: testing_report_xml.h 6667 2012-03-22 10:11:27Z cher $ */
 #ifndef __TESTING_REPORT_XML_H__
 #define __TESTING_REPORT_XML_H__
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -124,6 +124,7 @@ typedef struct testing_report_xml
   unsigned char *valuer_errors;
   unsigned char *host;
   unsigned char *errors;
+  unsigned char *compiler_output;
 
   struct testing_report_test **tests;
 

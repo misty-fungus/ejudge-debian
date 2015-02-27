@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: prepare.c 6584 2011-12-21 08:39:11Z cher $ */
+/* $Id: prepare.c 6725 2012-04-04 11:23:15Z cher $ */
 
-/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -558,12 +558,10 @@ static const struct config_parse_info section_tester_params[] =
   TESTER_PARAM(error_file, "s"),
 
   TESTER_PARAM(prepare_cmd, "s"),
-  TESTER_PARAM(check_cmd, "s"),
   TESTER_PARAM(start_cmd, "s"),
   TESTER_PARAM(nwrun_spool_dir, "s"),
 
   TESTER_PARAM(start_env, "x"),
-  TESTER_PARAM(checker_env, "x"),
 
   { 0, 0, 0, 0 }
 };
@@ -627,6 +625,24 @@ global_parse_score_system(
 
   *(int*) ptr = val;
   return 0;
+}
+
+int
+prepare_parse_score_system(const unsigned char *str)
+{
+  if (!str || !str[0]) {
+    return SCORE_ACM;
+  } else if (!strcasecmp(str, "acm")) {
+    return SCORE_ACM;
+  } else if (!strcasecmp(str, "kirov")) {
+    return SCORE_KIROV;
+  } else if (!strcasecmp(str, "olympiad")) {
+    return SCORE_OLYMPIAD;
+  } else if (!strcasecmp(str, "moscow")) {
+    return SCORE_MOSCOW;
+  } else {
+    return -1;
+  }
 }
 
 static int
@@ -922,7 +938,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->interactor_time_limit = -1;
 }
 
-static void free_testsets(int t, struct testset_info *p);
+void prepare_free_testsets(int t, struct testset_info *p);
 static void free_deadline_penalties(int t, struct penalty_info *p);
 static void free_personal_deadlines(int t, struct pers_dead_info *p);
 void prepare_free_group_dates(struct group_dates *gd);
@@ -960,7 +976,7 @@ prepare_problem_free_func(struct generic_section_config *gp)
   xfree(p->score_bonus_val);
   xfree(p->open_tests_val);
   xfree(p->final_open_tests_val);
-  free_testsets(p->ts_total, p->ts_infos);
+  prepare_free_testsets(p->ts_total, p->ts_infos);
   free_deadline_penalties(p->dp_total, p->dp_infos);
   free_personal_deadlines(p->pd_total, p->pd_infos);
   xfree(p->unhandled_vars);
@@ -1021,9 +1037,17 @@ prepare_tester_free_func(struct generic_section_config *gp)
 
   sarray_free(p->super);
   sarray_free(p->start_env);
-  sarray_free(p->checker_env);
   memset(p, 0xab, sizeof(*p));
   xfree(p);
+}
+
+struct section_tester_data *
+prepare_tester_free(struct section_tester_data *tester)
+{
+  if (tester) {
+    prepare_tester_free_func((struct generic_section_config *) tester);
+  }
+  return NULL;
 }
 
 static char*
@@ -1143,7 +1167,6 @@ static const struct inheritance_info tester_inheritance_info[] =
   TESTER_INH(check_dir, path, path),
   TESTER_INH(errorcode_file, path, path),
   TESTER_INH(error_file, path, path),
-  TESTER_INH(check_cmd, path, path),
   TESTER_INH(start_cmd, path, path),
   TESTER_INH(prepare_cmd, path, path),
   TESTER_INH(memory_limit_type, path2, path),
@@ -1244,8 +1267,8 @@ process_abstract_tester(serve_state_t state, int i)
   return 0;
 }
 
-static void
-free_testsets(int t, struct testset_info *p)
+void
+prepare_free_testsets(int t, struct testset_info *p)
 {
   int i;
 
@@ -1298,8 +1321,8 @@ prepare_parse_score_tests(const unsigned char *str,
   return ps;
 }
 
-static int
-parse_testsets(char **set_in, int *p_total, struct testset_info **p_info)
+int
+prepare_parse_testsets(char **set_in, int *p_total, struct testset_info **p_info)
 {
   int total = 0;
   struct testset_info *info = 0;
@@ -1390,10 +1413,97 @@ free_deadline_penalties(int t, struct penalty_info *p)
 }
 
 static int
+parse_penalty_expression(
+        const unsigned char *expr,
+        struct penalty_info *p)
+{
+  const unsigned char *s = expr;
+  char *eptr = NULL;
+  int m = 0, x;
+  // [+|-]BASE[(+|-)DECAY[/SCALE]]
+  p->penalty = 0;
+  p->scale = 0;
+  p->decay = 0;
+
+  while (isspace(*s)) ++s;
+  if (*s == '+') {
+    ++s;
+  } else if (*s == '-') {
+    m = 1;
+    ++s;
+  }
+  if (*s < '0' || *s > '9') goto fail;
+  errno = 0;
+  x = strtol(s, &eptr, 10);
+  if (errno) goto fail;
+  if (x > 100000) goto fail;
+  s = (const unsigned char*) eptr;
+  if (m) x = -x;
+  p->penalty = x;
+  while (isspace(*s)) ++s;
+  if (!*s) goto done;
+  if (*s == '+') {
+    m = 0;
+    ++s;
+  } else if (*s == '-') {
+    m = 1;
+    ++s;
+  } else goto fail;
+  while (isspace(*s)) ++s;
+  if (*s < '0' || *s > '9') goto fail;
+  errno = 0; eptr = NULL;
+  x = strtol(s, &eptr, 10);
+  if (errno) goto fail;
+  if (x > 100000) goto fail;
+  s = (const unsigned char *) eptr;
+  if (m) x = -x;
+  p->decay = x;
+  p->scale = 1;
+  while (isspace(*s)) ++s;
+  if (!*s) goto done;
+  if (*s != '/') goto fail;
+  ++s;
+  while (isspace(*s)) ++s;
+  if (*s >= '0' && *s <= '9') {
+    errno = 0; eptr = NULL;
+    x = strtol(s, &eptr, 10);
+    if (errno) goto fail;
+    if (x <= 0 || x > 100000) goto fail;
+    s = (const unsigned char *) eptr;
+  } else {
+    x = 1;
+  }
+  if (*s == 's' || *s == 'S') {
+    p->scale = x;
+    ++s;
+  } else if (*s == 'm' || *s == 'M') {
+    p->scale = 60 * x;
+    ++s;
+  } else if (*s == 'h' || *s == 'H') {
+    p->scale = 60*60 * x;
+    ++s;
+  } else if (*s == 'd' || *s == 'D') {
+    p->scale = 60*60*24 * x;
+    ++s;
+  } else if (*s == 'w' || *s == 'W') {
+    p->scale = 60*60*24*7 * x;
+    ++s;
+  } else goto fail;
+  while (isspace(*s)) ++s;
+  if (*s) goto fail;
+
+done:
+  return 0;
+
+fail:
+  return -1;
+}
+
+static int
 parse_deadline_penalties(char **dpstr, int *p_total,
                          struct penalty_info **p_pens)
 {
-  int total = 0, i, n, x;
+  int total = 0, i, n;
   struct penalty_info *v = 0;
   const char *s;
   size_t maxlen = 0, curlen;
@@ -1428,8 +1538,7 @@ parse_deadline_penalties(char **dpstr, int *p_total,
       err("%d: invalid date penalty specification %s", i + 1, s);
       goto failure;
     }
-    n = x = 0;
-    if (sscanf(b2, "%d%n", &x, &n) != 1 || b2[n]) {
+    if (parse_penalty_expression(b2, &v[i]) < 0) {
       err("%d: invalid penalty specification %s", i + 1, b2);
       goto failure;
     }
@@ -1437,8 +1546,7 @@ parse_deadline_penalties(char **dpstr, int *p_total,
       err("%d: invalid date specification %s", i + 1, b1);
       goto failure;
     }
-    v[i].deadline = tt;
-    v[i].penalty = x;
+    v[i].date = tt;
   }
 
   /*
@@ -1501,7 +1609,7 @@ parse_personal_deadlines(char **pdstr, int *p_total,
       strcpy(s2, "2038/01/19");
     }
 
-    if (parse_date(s2, &dinfo[i].deadline) < 0) {
+    if (parse_date(s2, &dinfo[i].p.date) < 0) {
       err("%d: invalid date specification %s", i + 1, s2);
       return -1;
     }
@@ -2261,6 +2369,12 @@ prepare_parse_memory_limit_type(const unsigned char *str)
       return i;
   return -1;
 }
+const unsigned char *
+prepare_unparse_memory_limit_type(int value)
+{
+  if (value < 0 || value >= MEMLIMIT_TYPE_JAVA) value = 0;
+  return memory_limit_type_str[value];
+}
 
 const unsigned char * const secure_exec_type_str[] =
 {
@@ -2268,6 +2382,7 @@ const unsigned char * const secure_exec_type_str[] =
   [SEXEC_TYPE_STATIC] = "static",
   [SEXEC_TYPE_DLL] = "dll",
   [SEXEC_TYPE_JAVA] = "java",
+  [SEXEC_TYPE_DLL32] = "dll32",
 
   [SEXEC_TYPE_LAST] = 0,
 };
@@ -2281,6 +2396,12 @@ prepare_parse_secure_exec_type(const unsigned char *str)
     if (secure_exec_type_str[i] && !strcasecmp(str, secure_exec_type_str[i]))
       return i;
   return -1;
+}
+const unsigned char *
+prepare_unparse_secure_exec_type(int value)
+{
+  if (value < 0 || value >= SEXEC_TYPE_LAST) value = 0;
+  return secure_exec_type_str[value];
 }
 
 static void
@@ -2949,7 +3070,7 @@ set_defaults(
   g->team_download_time *= 60;
 
   /* only run needs these parameters */
-  if (mode == PREPARE_RUN) {
+  if (mode == PREPARE_RUN || mode == PREPARE_SERVE) {
     if (!g->max_file_length) {
       g->max_file_length = DFLT_G_MAX_FILE_LENGTH;
       vinfo("global.max_file_length set to %d", g->max_file_length);
@@ -3603,9 +3724,9 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_checker_real_time_limit, prob, aprob, g);
 
     if (prob->test_sets) {
-      if (parse_testsets(prob->test_sets,
-                         &prob->ts_total,
-                         &prob->ts_infos) < 0)
+      if (prepare_parse_testsets(prob->test_sets,
+                                 &prob->ts_total,
+                                 &prob->ts_infos) < 0)
         return -1;
     }
   }
@@ -3880,7 +4001,7 @@ set_defaults(
               i, sish, tp->errorcode_file);        
       }
 
-      if (atp && atp->start_env) {
+      if (atp && atp->start_env && !tp->any) {
         tp->start_env = sarray_merge_pf(atp->start_env, tp->start_env);
       }
       if (tp->start_env) {
@@ -3893,21 +4014,8 @@ set_defaults(
           if (!tp->start_env[j]) return -1;
         }
       }
-      if (atp && atp->checker_env) {
-        tp->checker_env = sarray_merge_pf(atp->checker_env, tp->checker_env);
-      }
-      if (tp->checker_env) {
-        for (j = 0; tp->checker_env[j]; j++) {
-          tp->checker_env[j] = varsubst_heap(state, tp->checker_env[j], 1,
-                                             section_global_params,
-                                             section_problem_params,
-                                             section_language_params,
-                                             section_tester_params);
-          if (!tp->checker_env[j]) return -1;
-        }
-      }
 
-      if (mode == PREPARE_RUN) {
+      if (mode == PREPARE_RUN || mode == PREPARE_SERVE) {
         if (!tp->error_file[0] && atp && atp->error_file[0]) {
           sformat_message(tp->error_file, PATH_MAX, 0, atp->error_file,
                           g, state->probs[tp->problem], NULL,
@@ -3919,38 +4027,6 @@ set_defaults(
           vinfo("tester.%d.error_file set to %s", i, DFLT_T_ERROR_FILE);
           snprintf(state->testers[i]->error_file, sizeof(state->testers[i]->error_file),
                    "%s", DFLT_T_ERROR_FILE);
-        }
-        if (!tp->check_cmd[0] && state->probs[tp->problem]->standard_checker[0]) {
-          strcpy(tp->check_cmd, state->probs[tp->problem]->standard_checker);
-          pathmake2(tp->check_cmd, g->ejudge_checkers_dir,
-                    "/", tp->check_cmd, NULL);
-          tp->standard_checker_used = 1;
-        }
-        if (!tp->check_cmd[0] && atp && atp->check_cmd[0]) {
-          sformat_message(tp->check_cmd, PATH_MAX, 0, atp->check_cmd,
-                          g, state->probs[tp->problem], NULL,
-                          tp, NULL, 0, 0, 0);
-          vinfo("tester.%d.check_cmd inherited from tester.%s ('%s')",
-                i, sish, tp->check_cmd);        
-        }
-        if (!tp->check_cmd[0] && state->probs[tp->problem]->check_cmd[0]) {
-          strcpy(tp->check_cmd, state->probs[tp->problem]->check_cmd);
-        }
-        if (!state->testers[i]->check_cmd[0]) {
-          err("tester.%d.check_cmd must be set", i);
-          return -1;
-        }
-        if (g->advanced_layout > 0
-            && !os_IsAbsolutePath(state->testers[i]->check_cmd)) {
-          get_advanced_layout_path(fpath, sizeof(fpath), g,
-                                   state->probs[tp->problem],
-                                   state->testers[i]->check_cmd, -1);
-          snprintf(state->testers[i]->check_cmd,
-                   sizeof(state->testers[i]->check_cmd), "%s",
-                   fpath);
-        } else {
-          pathmake2(state->testers[i]->check_cmd, g->checker_dir, "/",
-                    state->testers[i]->check_cmd, NULL);
         }
         if (!tp->start_cmd[0] && atp && atp->start_cmd[0]) {
           sformat_message(tp->start_cmd, PATH_MAX, 0, atp->start_cmd,
@@ -4329,6 +4405,7 @@ create_dirs(serve_state_t state, int mode)
 
   for (i = 1; i <= state->max_tester; i++) {
     if (!state->testers[i]) continue;
+    //if (state->testers[i]->any) continue;
     if (mode == PREPARE_SERVE) {
       if (make_dir(state->testers[i]->run_dir, 0) < 0) return -1;
       if (make_all_dir(state->testers[i]->run_queue_dir, 0777) < 0) return -1;
@@ -4433,6 +4510,7 @@ prepare(
   write_log(0, LOG_INFO, "configuration file parsed ok");
   if (collect_sections(state, mode) < 0) return -1;
 
+  /*
   if (!state->max_lang && mode == PREPARE_COMPILE) {
     err("no languages specified");
     return -1;
@@ -4445,6 +4523,7 @@ prepare(
     err("no testers specified");
     return -1;
   }
+  */
   if (set_defaults(state, mode, subst_src, subst_dst) < 0) return -1;
   return 0;
 }
@@ -4456,7 +4535,6 @@ prepare_tester_refinement(serve_state_t state, struct section_tester_data *out,
   struct section_tester_data *tp, *atp = 0;
   struct section_problem_data *prb;
   int si, j;
-  unsigned char *sish = 0;
   path_t start_path;
 
   ASSERT(out);
@@ -4483,7 +4561,6 @@ prepare_tester_refinement(serve_state_t state, struct section_tester_data *out,
       err("abstract tester '%s' not found", tp->super[0]);
       return -1;
     }
-    sish = atp->name;
   }
 
   memset(out, 0, sizeof(*out));
@@ -4610,6 +4687,9 @@ prepare_tester_refinement(serve_state_t state, struct section_tester_data *out,
     }
     out->memory_limit_type_val = atp->memory_limit_type_val;
   }
+  snprintf(out->memory_limit_type, sizeof(out->memory_limit_type), 
+           "%s", prepare_unparse_memory_limit_type(out->memory_limit_type_val));
+  
   if (tp->secure_exec_type[0] != 1) {
     out->secure_exec_type_val = prepare_parse_secure_exec_type(tp->secure_exec_type);
     if (out->secure_exec_type_val < 0) {
@@ -4627,6 +4707,8 @@ prepare_tester_refinement(serve_state_t state, struct section_tester_data *out,
     }
     out->secure_exec_type_val = atp->secure_exec_type_val;
   }
+  snprintf(out->secure_exec_type, sizeof(out->secure_exec_type),
+           "%s", prepare_unparse_secure_exec_type(out->secure_exec_type_val));
 
   out->skip_testing = tp->skip_testing;
   if (out->skip_testing == -1 && atp)
@@ -4693,6 +4775,7 @@ prepare_tester_refinement(serve_state_t state, struct section_tester_data *out,
   }
 
   /* copy checker_env */
+  /*
   out->checker_env = sarray_merge_pf(tp->checker_env, out->checker_env);
   if (atp && atp->checker_env) {
     out->checker_env = sarray_merge_pf(atp->checker_env, out->checker_env);
@@ -4707,6 +4790,7 @@ prepare_tester_refinement(serve_state_t state, struct section_tester_data *out,
       if (!out->checker_env[j]) return -1;
     }
   }
+  */
 
   /* copy errorcode_file */
   strcpy(out->errorcode_file, tp->errorcode_file);
@@ -4726,37 +4810,6 @@ prepare_tester_refinement(serve_state_t state, struct section_tester_data *out,
   if (!out->error_file[0]) {
     snprintf(out->error_file, sizeof(out->error_file),
              "%s",  DFLT_T_ERROR_FILE);
-  }
-
-  /* copy check_cmd */
-  if (prb->standard_checker[0]) {
-    strcpy(out->check_cmd, prb->standard_checker);
-    pathmake2(out->check_cmd, state->global->ejudge_checkers_dir,
-              "/", out->check_cmd,NULL);
-    out->standard_checker_used = 1;
-  } else {
-    strcpy(out->check_cmd, tp->check_cmd);
-    if (!out->check_cmd[0] && atp && atp->check_cmd[0]) {
-      sformat_message(out->check_cmd, sizeof(out->check_cmd), 0,
-                      atp->check_cmd, state->global, prb, NULL, out,
-                      NULL, 0, 0, 0);
-    }
-    if (!out->check_cmd[0] && prb->check_cmd[0])
-      strcpy(out->check_cmd, prb->check_cmd);
-    if (!out->check_cmd[0]) {
-      err("default tester for architecture '%s': check_cmd must be set",
-          out->arch);
-      return -1;
-    }
-    if (state->global->advanced_layout > 0
-        && !os_IsAbsolutePath(out->check_cmd)) {
-      get_advanced_layout_path(start_path, sizeof(start_path),
-                               state->global, prb, out->check_cmd, -1);
-      snprintf(out->check_cmd, sizeof(out->check_cmd), "%s", start_path);
-    } else {
-      pathmake2(out->check_cmd, state->global->checker_dir, "/",
-                out->check_cmd, NULL);
-    }
   }
 
   /* copy valuer_cmd */
@@ -5177,6 +5230,8 @@ prepare_new_global_section(int contest_id, const unsigned char *root_dir,
 
   snprintf(global->root_dir, sizeof(global->root_dir), "%s", root_dir);
   strcpy(global->conf_dir, DFLT_G_CONF_DIR);
+
+  global->advanced_layout = 1;
 
   strcpy(global->test_dir, "../tests");
   strcpy(global->corr_dir, "../tests");
@@ -7403,6 +7458,114 @@ cntsprob_get_test_visibility(
       || num <= 0 || num >= prob->open_tests_count)
     return TV_NORMAL;
   return prob->open_tests_val[num];
+}
+
+int
+prepare_parse_test_score_list(
+        FILE *log_f,
+        const unsigned char *test_score_list,
+        int **pscores,
+        int *pcount)
+{
+  int *arr = NULL;
+
+  *pscores = NULL;
+  *pcount = 0;
+  if (!test_score_list || !*test_score_list) return 0;
+
+  int cur_index = 0;
+  int max_index = 0;
+  int ind, score, n;
+  const unsigned char *s = test_score_list;
+  while (1) {
+    while (isspace(*s)) ++s;
+    if (!*s) break;
+
+    if (*s == '[') {
+      ind = -1;
+      ++s;
+      if (sscanf(s, "%d%n", &ind, &n) != 1) {
+        goto fail;
+      }
+      if (ind <= 0 || ind >= 100000) {
+        goto fail;
+      }
+      s += n;
+      while (isspace(*s)) ++s;
+      if (*s != ']') {
+        goto fail;
+      }
+      ++s;
+      cur_index = ind - 1;
+    }
+
+    score = -1;
+    if (sscanf(s, "%d%n", &score, &n) != 1) {
+      goto fail;
+    }
+    if (score < 0 || score > 100000) {
+      goto fail;
+    }
+    s += n;
+    ++cur_index;
+    if (cur_index > max_index) max_index = cur_index;
+  }
+
+  if (max_index <= 0) return 0;
+
+  cur_index = 0;
+  s = test_score_list;
+  XCALLOC(arr, max_index + 1);
+  for (n = 0; n <= max_index; ++n) {
+    arr[n] = -1;
+  }
+
+  while (1) {
+    while (isspace(*s)) ++s;
+    if (!*s) break;
+
+    if (*s == '[') {
+      ind = -1;
+      ++s;
+      if (sscanf(s, "%d%n", &ind, &n) != 1) {
+        goto fail;
+      }
+      if (ind <= 0 || ind >= 100000) {
+        goto fail;
+      }
+      s += n;
+      while (isspace(*s)) ++s;
+      if (*s != ']') {
+        goto fail;
+      }
+      ++s;
+      cur_index = ind - 1;
+    }
+
+    score = -1;
+    if (sscanf(s, "%d%n", &score, &n) != 1) {
+      goto fail;
+    }
+    if (score < 0 || score > 100000) {
+      goto fail;
+    }
+    s += n;
+    ++cur_index;
+    arr[cur_index] = score;
+  }
+
+  *pscores = arr;
+  *pcount = max_index + 1;
+  return 0;
+
+fail:
+  if (log_f) {
+    fprintf(log_f, "invalid test_score_list '%s'\n", test_score_list);
+  } else {
+    err("invalid test_score_list '%s'", test_score_list);
+  }
+  xfree(arr);
+  return -1;
 }
 
 /*

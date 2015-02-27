@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: ej_process.h 6566 2011-12-17 20:18:57Z cher $ */
+/* $Id: ej_process.h 6682 2012-03-28 03:56:42Z cher $ */
 
 #ifndef __EJ_PROCESS_H__
 #define __EJ_PROCESS_H__
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -83,6 +83,7 @@ ejudge_invoke_process(
         char **args,
         char **envs,
         const unsigned char *workdir,
+        const unsigned char *stdin_file,
         const unsigned char *stdin_text,
         int merge_out_flag,
         unsigned char **stdout_text,
@@ -127,5 +128,13 @@ background_process_handle_termination(
         const void *vusage);
 void
 background_process_call_continuations(struct background_process_head *list);
+void
+background_process_close_fds(struct background_process_head *list);
+
+void
+background_process_append_pollfd(struct background_process_head *list, void *vp);
+
+unsigned char **
+ejudge_get_host_names(void);
 
 #endif /* __EJ_PROCESS_H__ */

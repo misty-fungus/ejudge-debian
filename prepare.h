@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: prepare.h 6583 2011-12-21 07:49:28Z cher $ */
+/* $Id: prepare.h 6694 2012-03-29 13:04:33Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
-/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -60,6 +60,7 @@ enum
   SEXEC_TYPE_STATIC,
   SEXEC_TYPE_DLL,
   SEXEC_TYPE_JAVA,
+  SEXEC_TYPE_DLL32,
 
   SEXEC_TYPE_LAST,
 };
@@ -75,16 +76,17 @@ struct testset_info
 
 struct penalty_info
 {
-  time_t deadline;
+  time_t date;
   int penalty;
+  int scale; // 1 - secs, 60 - mins, 3600 ...
+  int decay;
 };
 
 struct group_date_info
 {
   unsigned char *group_name;
   int group_ind;
-  time_t date;
-  int penalty;
+  struct penalty_info p;
 };
 
 struct group_dates
@@ -99,8 +101,7 @@ struct pers_dead_info
 {
   unsigned char *login;
   int user_id;
-  time_t deadline;
-  int penalty;
+  struct penalty_info p;
 };
 
 struct user_adjustment_info
@@ -1209,18 +1210,12 @@ struct section_tester_data
   path_t prepare_cmd;
   /** helper to start testing */
   path_t start_cmd;
-  /** checker */
-  path_t check_cmd;
   /** nwrun spool directory */
   path_t nwrun_spool_dir;
 
   /** environment variables for start_cmd */
   ejenvlist_t start_env;
-  /** environment variables for checker */
-  ejenvlist_t checker_env;
 
-  /** internal: the standard checker is used */
-  int standard_checker_used META_ATTRIB((meta_private));
   /** internal: parsed memory_limit_type */
   int memory_limit_type_val META_ATTRIB((meta_private));
   /** internal: parsed secure_exec_type */
@@ -1338,6 +1333,8 @@ const unsigned char *prepare_unparse_problem_type(int val);
 int prepare_parse_memory_limit_type(const unsigned char *str);
 int prepare_parse_secure_exec_type(const unsigned char *str);
 int
+prepare_parse_score_system(const unsigned char *str);
+int
 prepare_insert_variant_num(
         unsigned char *buf,
         size_t size,
@@ -1396,9 +1393,31 @@ get_advanced_layout_path(
         int variant);
 
 int
+prepare_parse_open_tests(
+        FILE *flog,
+        const unsigned char *str,
+        int **p_vals,
+        int *p_count);
+
+int
 cntsprob_get_test_visibility(
         const struct section_problem_data *prob,
         int num,
         int final_mode);
+
+int
+prepare_parse_test_score_list(
+        FILE *log_f,
+        const unsigned char *test_score_list,
+        int **pscores,
+        int *pcount);
+
+int
+prepare_parse_testsets(
+        char **set_in,
+        int *p_total,
+        struct testset_info **p_info);
+void
+prepare_free_testsets(int t, struct testset_info *p);
 
 #endif /* __PREPARE_H__ */

@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_packet_2.c 6585 2011-12-21 08:56:52Z cher $ */
+/* $Id: run_packet_2.c 6668 2012-03-23 07:02:41Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -14,6 +14,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+
+#define INCLUDE_RUN_REQUEST 1
 
 #include "ej_types.h"
 #include "ej_limits.h"
@@ -136,7 +138,7 @@ run_request_packet_write(
   return 0;
 
 failed:
-  err("run_request_packet_write: error %s, %d", "$Revision: 6585 $", errcode);
+  err("run_request_packet_write: error %s, %d", "$Revision: 6668 $", errcode);
   xfree(out_data);
   return -1;
 }

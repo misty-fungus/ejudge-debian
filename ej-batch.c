@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: ej-batch.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: ej-batch.c 6674 2012-03-24 14:53:50Z cher $ */
 
-/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -671,7 +671,7 @@ process_compile_packet(
            global->contest_id);
   run_spool_add_reply_dir(result_queue_dir);
 
-  r = serve_run_request(extra->state, stderr, report_txt, report_len,
+  r = serve_run_request(extra->state, NULL, stderr, report_txt, report_len,
                         global->contest_id,
                         pkt->run_id,
                         1 /* user_id */,
@@ -1046,7 +1046,7 @@ compile_dir_handler(
   struct compile_reply_packet *pkt = 0;
   struct submit_block_info *sb = 0;
   struct compile_spool_out_dirs *sp = 0;
-  int run_index, report_len;
+  int report_len;
   unsigned char *report_txt = 0;
 
   /* find spool_dir in compile_spool */
@@ -1092,7 +1092,6 @@ compile_dir_handler(
         pkt->contest_id, pkt->run_id);
     goto cleanup;
   }
-  run_index = pkt->run_id - sb->first_run_id;
 
   if (sb->compile_result_handler) {
     sb->compile_result_handler(sb->data, sb, pkt, report_txt, report_len);

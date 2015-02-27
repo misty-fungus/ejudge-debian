@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: run_packet.h 6585 2011-12-21 08:56:52Z cher $ */
+/* $Id: run_packet.h 6668 2012-03-23 07:02:41Z cher $ */
 #ifndef __RUN_PACKET_H__
 #define __RUN_PACKET_H__
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,6 +19,9 @@
 
 #include <stdlib.h>
 
+struct run_request_packet;
+
+#if INCLUDE_RUN_REQUEST
 struct run_request_packet
 {
   int judge_id;                 /* unique identifier for each rejudge */
@@ -60,6 +63,20 @@ struct run_request_packet
   unsigned char *prob_spelling; /* spelling of the problem name */
 };
 
+int
+run_request_packet_read(size_t in_size, const void *in_data,
+                        struct run_request_packet **p_out_data);
+
+int
+run_request_packet_write(const struct run_request_packet *in_data,
+                         size_t *p_out_size, void **p_out_data);
+
+struct run_request_packet *
+run_request_packet_free(struct run_request_packet *in_data);
+
+int run_request_packet_quit(size_t *p_out_size, void **p_out_data);
+#endif
+
 struct run_reply_packet
 {
   int judge_id;
@@ -98,19 +115,6 @@ struct run_reply_packet
 };
 
 int
-run_request_packet_read(size_t in_size, const void *in_data,
-                        struct run_request_packet **p_out_data);
-
-int
-run_request_packet_write(const struct run_request_packet *in_data,
-                         size_t *p_out_size, void **p_out_data);
-
-struct run_request_packet *
-run_request_packet_free(struct run_request_packet *in_data);
-
-int run_request_packet_quit(size_t *p_out_size, void **p_out_data);
-
-int
 run_reply_packet_read(size_t in_size, const void *in_data,
                       struct run_reply_packet **p_out_data);
 
@@ -120,5 +124,9 @@ run_reply_packet_write(const struct run_reply_packet *in_data,
 
 struct run_reply_packet *
 run_reply_packet_free(struct run_reply_packet *in_data);
+
+void
+run_reply_packet_dump(
+        const struct run_reply_packet *in_data);
 
 #endif /* __RUN_PACKET_H__ */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: serve_state.c 6571 2011-12-18 05:47:56Z cher $ */
+/* $Id: serve_state.c 6725 2012-04-04 11:23:15Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -54,13 +54,13 @@
 #include "win32_compat.h"
 
 serve_state_t
-serve_state_init(void)
+serve_state_init(int contest_id)
 {
   serve_state_t state;
 
   XCALLOC(state, 1);
   state->clarlog_state = clar_init();
-  state->teamdb_state = teamdb_init();
+  state->teamdb_state = teamdb_init(contest_id);
   state->team_extra_state = team_extra_init();
   state->runlog_state = run_init(state->teamdb_state);
   return state;
@@ -497,7 +497,7 @@ parse_group_dates(
       return -1;
     }
 
-    if (xml_parse_date(NULL, NULL, 0, 0, pcur, &gd->info[i].date) < 0) {
+    if (xml_parse_date(NULL, NULL, 0, 0, pcur, &gd->info[i].p.date) < 0) {
       err("contest %d: problem %s: %s: line %d: invalid date",
           contest_id, prob->short_name, var_name, i + 1);
       return -1;
@@ -664,7 +664,7 @@ serve_state_load_contest_config(
     goto failure;
   }
 
-  state = serve_state_init();
+  state = serve_state_init(contest_id);
   state->config_path = xstrdup(config_path);
   state->current_time = time(0);
   state->load_time = state->current_time;
@@ -740,7 +740,7 @@ serve_state_load_contest(
     goto failure;
   }
 
-  state = serve_state_init();
+  state = serve_state_init(contest_id);
   state->config_path = xstrdup(config_path);
   state->current_time = time(0);
   state->load_time = state->current_time;

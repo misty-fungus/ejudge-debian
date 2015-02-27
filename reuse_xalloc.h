@@ -1,9 +1,9 @@
-/* $Id: reuse_xalloc.h 6123 2011-03-26 06:54:41Z cher $ */
+/* $Id: reuse_xalloc.h 6612 2012-01-09 20:52:48Z cher $ */
 
 #ifndef __REUSE_XALLOC_H__
 #define __REUSE_XALLOC_H__
 
-/* Copyright (C) 1996-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 1996-2012 Alexander Chernov <cher@ejudge.ru> */
 /* Created: Fri Nov  1 18:58:50 1996 by cher (Alexander Chernov) */
 
 /*
@@ -29,6 +29,7 @@ void *xcalloc(size_t nelem, size_t elsize);
 void *xrealloc(void *ptr, size_t newsize);
 void xfree(void *ptr);
 char *xstrdup(char const*);
+char *xstrdup2(const char *str);
 char *xmemdup(char const *, size_t size);
 
 #if defined __GNUC__ || defined __REPC__
