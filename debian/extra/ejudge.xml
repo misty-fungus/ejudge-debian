@@ -15,6 +15,7 @@
   <job_server_log>/var/log/ejudge/ej-jobs.log</job_server_log>
   <compile_log>/var/log/ejudge/ej-compile.log</compile_log>
   <new_server_log>/var/log/ejudge/ej-contests.log</new_server_log>
+  <super_run_log>/var/log/ejudge/ej-super-run.log</super_run_log>
 
   <email_program>/bin/true</email_program>
   <register_url>http://localhost/cgi-bin/register</register_url>
