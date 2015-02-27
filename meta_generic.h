@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: meta_generic.h 6286 2011-04-30 20:34:42Z cher $ */
+/* $Id: meta_generic.h 6612 2012-01-09 20:52:48Z cher $ */
 
 #ifndef __META_GENERIC_H__
 #define __META_GENERIC_H__
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,6 +18,7 @@
  * GNU General Public License for more details.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 
 struct meta_info_item
@@ -62,5 +63,22 @@ struct meta_methods
 
 void
 meta_destroy_fields(const struct meta_methods *mth, void *ptr);
+
+int
+meta_parse_string(
+        FILE *log_f,
+        int lineno,
+        void *obj,
+        int field_id,
+        const struct meta_methods *mm,
+        const unsigned char *name,
+        const unsigned char *value,
+        int charset_id);
+
+void
+meta_unparse_cfg(
+        FILE *out_f,
+        const struct meta_methods *mth,
+        const void *ptr);
 
 #endif /* __META_GENERIC_H__ */

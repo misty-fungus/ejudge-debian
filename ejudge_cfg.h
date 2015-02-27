@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: ejudge_cfg.h 6412 2011-07-17 09:24:58Z cher $ */
+/* $Id: ejudge_cfg.h 6677 2012-03-27 07:41:09Z cher $ */
 
 #ifndef __EJUDGE_CFG_H__
 #define __EJUDGE_CFG_H__ 1
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -65,7 +65,6 @@ struct ejudge_cfg
   unsigned char *server_main_url;
   unsigned char *admin_email;
   unsigned char *l10n_dir;
-  unsigned char *serve_path;
   unsigned char *run_path;
   unsigned char *charset;
   unsigned char *config_dir;
@@ -97,6 +96,7 @@ struct ejudge_cfg
   opcaplist_t capabilities;
 
   struct xml_tree *plugin_list;
+  struct xml_tree *hosts_options;
 };
 
 struct ejudge_cfg *ejudge_cfg_parse(char const *);
@@ -109,5 +109,18 @@ ejudge_cfg_get_plugin_config(
         const struct ejudge_cfg *cfg,
         const unsigned char *type,
         const unsigned char *name);
+
+const unsigned char *
+ejudge_cfg_get_host_option(
+        const struct ejudge_cfg *cfg,
+        unsigned char **host_names,
+        const unsigned char *option_name);
+int
+ejudge_cfg_get_host_option_int(
+        const struct ejudge_cfg *cfg,
+        unsigned char **host_names,
+        const unsigned char *option_name,
+        int default_value,
+        int error_value);
 
 #endif /* __EJUDGE_CFG_H__ */

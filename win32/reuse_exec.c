@@ -1,6 +1,6 @@
-/* $Id: reuse_exec.c 6528 2011-11-25 18:08:26Z cher $ */
+/* $Id: reuse_exec.c 6661 2012-03-20 06:08:23Z cher $ */
 
-/* Copyright (C) 1999-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 1999-2012 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 11:05:09 cher> */
 
 /*
@@ -459,6 +459,55 @@ task_PutEnv(tTask *tsk, char const *var)
   }
   return 0;
 }
+
+int
+task_SetEnv(tTask *tsk, const char *name, const char *value)
+{
+  ASSERT(tsk);
+  ASSERT(name);
+
+  if (!value) {
+    return task_PutEnv(tsk, name);
+  } else {
+    int nlen = strlen(name);
+    int vlen = strlen(value);
+    if (nlen + vlen < 65536) {
+      unsigned char *b = (unsigned char*) alloca((nlen + vlen + 2) * sizeof(*b));
+      memcpy(b, name, nlen);
+      b[nlen] = '=';
+      memcpy(b + nlen + 1, value, vlen);
+      b[nlen + vlen + 1] = 0;
+      return task_PutEnv(tsk, b);
+    } else {
+      unsigned char *b = (unsigned char*) xmalloc((nlen + vlen + 2) * sizeof(*b));
+      memcpy(b, name, nlen);
+      b[nlen] = '=';
+      memcpy(b + nlen + 1, value, vlen);
+      b[nlen + vlen + 1] = 0;
+      int r = task_PutEnv(tsk, b);
+      xfree(b);
+      return r;
+    }
+  }
+}
+
+int
+task_FormatEnv(tTask *tsk, const char *name, const char *format, ...)
+{
+  unsigned char buf[16384];
+  unsigned char buf2[16384];
+  va_list args;
+
+  ASSERT(tsk);
+  ASSERT(name);
+
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  snprintf(buf2, sizeof(buf2), "%s=%s", name, buf);
+  return task_PutEnv(tsk, buf2);
+}
         
 int
 task_ClearEnv(tTask *tsk)
@@ -498,6 +547,17 @@ task_SetMaxRealTime(tTask *tsk, int secs)
   ASSERT(tsk->state == TSK_STOPPED);
 
   tsk->max_real_time = secs;
+  return 0;
+}
+
+int
+task_SetMaxRealTimeMillis(tTask *tsk, int msecs)
+{
+  ASSERT(tsk);
+  ASSERT(msecs >= 0);
+  ASSERT(tsk->state == TSK_STOPPED);
+
+  tsk->max_real_time = (msecs + 999) / 1000;
   return 0;
 }
 

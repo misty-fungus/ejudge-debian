@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_packet_3.c 6172 2011-03-27 12:40:30Z cher $ */
+/* $Id: run_packet_3.c 6725 2012-04-04 11:23:15Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -14,6 +14,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+
+#define INCLUDE_RUN_REQUEST 1
 
 #include "run_packet.h"
 #include "run_packet_priv.h"

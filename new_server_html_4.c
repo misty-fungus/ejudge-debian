@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 6595 2011-12-24 15:02:39Z cher $ */
+/* $Id: new_server_html_4.c 6696 2012-03-29 16:48:54Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -333,7 +333,6 @@ cmd_operation(
     break;
   case NEW_SRV_ACTION_RELOAD_SERVER:
     extra->last_access_time = 0;
-    serve_send_run_quit(cs);
     break;
   case NEW_SRV_ACTION_START_CONTEST:
     run_get_times(cs->runlog_state, &start_time, 0, &duration, &stop_time, 0);
@@ -1127,7 +1126,7 @@ cmd_submit_run(
                                   0 /* no_db_flag */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       } else {
-        if (serve_run_request(cs, stderr, run_text, run_size,
+        if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
                               mime_type, 0, 0, 0) < 0)
@@ -1166,7 +1165,7 @@ cmd_submit_run(
                                   0 /* no_db_flag */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       } else {
-        if (serve_run_request(cs, stderr, run_text, run_size,
+        if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
                               mime_type, 0, 0, 0) < 0)
@@ -1707,7 +1706,7 @@ do_dump_master_runs(
         orig_score = prob->full_score;
       snprintf(base_score_buf, sizeof(base_score_buf), "%d", orig_score);
       csv_rec[F_BASE_SCORE] = base_score_buf;
-      score = calc_kirov_score(0, 0, 0, 0, pe, prob, attempts, disq_attempts,
+      score = calc_kirov_score(0, 0, start_time, 0, 0, pe, prob, attempts, disq_attempts,
                                prev_successes, &date_penalty, 0);
       snprintf(score_buf, sizeof(score_buf), "%d", score);
       csv_rec[F_TOTAL_SCORE] = score_buf;
@@ -1929,9 +1928,6 @@ cmd_reload_server_2(
   info("unload_contest_2: %s: %d: contest unload", ejudge_login, phr->contest_id);
   if (extra) {
     extra->last_access_time = 0;
-    if (extra->serve_state) {
-      serve_send_run_quit(extra->serve_state);
-    }
   }
   retval = 0;
 

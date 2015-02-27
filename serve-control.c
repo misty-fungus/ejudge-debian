@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: serve-control.c 6597 2011-12-24 18:39:30Z cher $ */
+/* $Id: serve-control.c 6674 2012-03-24 14:53:50Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -751,16 +751,11 @@ action_view_contest(int cmd)
 {
   int contest_id, r;
   unsigned char *extra_str = "";
+  unsigned int flags = 0;
 
   if ((contest_id = parse_contest_id()) <= 0) goto invalid_parameter;
 
   switch (cmd) {
-  case SSERV_CMD_VIEW_SERVE_LOG:
-    extra_str = ", serve log";
-    break;
-  case SSERV_CMD_SERVE_MNG_PROBE_RUN:
-    extra_str = ", serve probe run";
-    break;
   case SSERV_CMD_VIEW_RUN_LOG:
     extra_str = ", run log";
     break;
@@ -769,6 +764,9 @@ action_view_contest(int cmd)
     break;
   case SSERV_CMD_EDIT_CONTEST_XML:
     extra_str = ", editing contest.xml";
+    break;
+  case SSERV_CMD_EDIT_SERVE_CFG_PROB:
+    extra_str = ", editing serve.cfg";
     break;
   case SSERV_CMD_VIEW_SERVE_CFG:
     extra_str = ", serve.cfg";
@@ -782,13 +780,21 @@ action_view_contest(int cmd)
     break;
   }
 
+  if (cmd == SSERV_CMD_EDIT_SERVE_CFG_PROB) {
+    const unsigned char *s = cgi_param("prob_id");
+    int prob_id = 0, n = 0;
+    if (s && sscanf(s, "%d%n", &prob_id, &n) == 1 && !s[n] && prob_id > 0 && prob_id <= EJ_MAX_PROB_ID) {
+      flags = prob_id;
+    }
+  }
+
   open_super_server();
   client_put_header(stdout, 0, 0, config->charset, 1, 0,
                     "%s: %s, %d%s", "serve-control", user_name, contest_id,
                     extra_str);
   fflush(stdout);
   r = super_clnt_main_page(super_serve_fd, 1, cmd,
-                           contest_id, 0, 0, self_url, hidden_vars, "");
+                           contest_id, 0, flags, self_url, hidden_vars, "");
   if (r < 0) {
     printf("<h2><font color=\"red\">%s</font></h2>\n",
            super_proto_strerror(-r));
@@ -1420,16 +1426,11 @@ static const int next_action_map[SSERV_CMD_LAST] =
   [SSERV_CMD_CLEAR_MESSAGES] = SSERV_CMD_CONTEST_PAGE,
   [SSERV_CMD_VISIBLE_CONTEST] = SSERV_CMD_CONTEST_PAGE,
   [SSERV_CMD_INVISIBLE_CONTEST] = SSERV_CMD_CONTEST_PAGE,
-  [SSERV_CMD_SERVE_LOG_TRUNC] = SSERV_CMD_CONTEST_PAGE,
-  [SSERV_CMD_SERVE_LOG_DEV_NULL] = SSERV_CMD_CONTEST_PAGE,
-  [SSERV_CMD_SERVE_LOG_FILE] = SSERV_CMD_CONTEST_PAGE,
   [SSERV_CMD_RUN_LOG_TRUNC] = SSERV_CMD_CONTEST_PAGE,
   [SSERV_CMD_RUN_LOG_DEV_NULL] = SSERV_CMD_CONTEST_PAGE,
   [SSERV_CMD_RUN_LOG_FILE] = SSERV_CMD_CONTEST_PAGE,
-  [SSERV_CMD_SERVE_MNG_TERM] = SSERV_CMD_CONTEST_PAGE,
   [SSERV_CMD_RUN_MNG_TERM] = SSERV_CMD_CONTEST_PAGE,
   [SSERV_CMD_CONTEST_RESTART] = SSERV_CMD_CONTEST_PAGE,
-  [SSERV_CMD_SERVE_MNG_RESET_ERROR] = SSERV_CMD_CONTEST_PAGE,
   [SSERV_CMD_RUN_MNG_RESET_ERROR] = SSERV_CMD_CONTEST_PAGE,
 
   [SSERV_CMD_CNTS_BASIC_VIEW] = SSERV_CMD_EDIT_CURRENT_CONTEST,
@@ -1543,6 +1544,7 @@ static const int next_action_map[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_CHANGE_SEND_PASSWD_EMAIL] = SSERV_CMD_EDIT_CURRENT_CONTEST,
   [SSERV_CMD_CNTS_CHANGE_MANAGED] = SSERV_CMD_EDIT_CURRENT_CONTEST,
   [SSERV_CMD_CNTS_CHANGE_RUN_MANAGED] = SSERV_CMD_EDIT_CURRENT_CONTEST,
+  [SSERV_CMD_CNTS_CHANGE_OLD_RUN_MANAGED] = SSERV_CMD_EDIT_CURRENT_CONTEST,
   [SSERV_CMD_CNTS_CHANGE_CLEAN_USERS] = SSERV_CMD_EDIT_CURRENT_CONTEST,
   [SSERV_CMD_CNTS_CHANGE_CLOSED] = SSERV_CMD_EDIT_CURRENT_CONTEST,
   [SSERV_CMD_CNTS_CHANGE_INVISIBLE] = SSERV_CMD_EDIT_CURRENT_CONTEST,
@@ -2150,12 +2152,6 @@ main(int argc, char *argv[])
   case SSERV_CMD_CONTEST_PAGE:
     action_view_contest(SSERV_CMD_CONTEST_PAGE);
     break;
-  case SSERV_CMD_SERVE_MNG_PROBE_RUN:
-    action_view_contest(SSERV_CMD_SERVE_MNG_PROBE_RUN);
-    break;
-  case SSERV_CMD_VIEW_SERVE_LOG:
-    action_view_contest(SSERV_CMD_VIEW_SERVE_LOG);
-    break;
   case SSERV_CMD_VIEW_RUN_LOG:
     action_view_contest(SSERV_CMD_VIEW_RUN_LOG);
     break;
@@ -2171,16 +2167,11 @@ main(int argc, char *argv[])
   case SSERV_CMD_CLEAR_MESSAGES:
   case SSERV_CMD_VISIBLE_CONTEST:
   case SSERV_CMD_INVISIBLE_CONTEST:
-  case SSERV_CMD_SERVE_LOG_TRUNC:
-  case SSERV_CMD_SERVE_LOG_DEV_NULL:
-  case SSERV_CMD_SERVE_LOG_FILE:
   case SSERV_CMD_RUN_LOG_TRUNC:
   case SSERV_CMD_RUN_LOG_DEV_NULL:
   case SSERV_CMD_RUN_LOG_FILE:
-  case SSERV_CMD_SERVE_MNG_TERM:
   case SSERV_CMD_RUN_MNG_TERM:
   case SSERV_CMD_CONTEST_RESTART:
-  case SSERV_CMD_SERVE_MNG_RESET_ERROR:
   case SSERV_CMD_RUN_MNG_RESET_ERROR:
     action_contest_command(client_action, next_action_map[client_action]);
     break;
@@ -2261,6 +2252,7 @@ main(int argc, char *argv[])
     break;
   case SSERV_CMD_CHECK_TESTS:
   case SSERV_CMD_EDIT_CONTEST_XML:
+  case SSERV_CMD_EDIT_SERVE_CFG_PROB:
     action_view_contest(client_action);
     break;
   case SSERV_CMD_CNTS_EDIT_PERMISSION:
@@ -2288,6 +2280,7 @@ main(int argc, char *argv[])
   case SSERV_CMD_CNTS_CHANGE_SEND_PASSWD_EMAIL:
   case SSERV_CMD_CNTS_CHANGE_MANAGED:
   case SSERV_CMD_CNTS_CHANGE_RUN_MANAGED:
+  case SSERV_CMD_CNTS_CHANGE_OLD_RUN_MANAGED:
   case SSERV_CMD_CNTS_CHANGE_CLEAN_USERS:
   case SSERV_CMD_CNTS_CHANGE_CLOSED:
   case SSERV_CMD_CNTS_CHANGE_INVISIBLE:

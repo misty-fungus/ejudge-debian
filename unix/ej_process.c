@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: ej_process.c 6599 2011-12-28 15:49:44Z cher $ */
+/* $Id: ej_process.c 6681 2012-03-28 03:54:17Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,8 +18,10 @@
 #include "ej_process.h"
 #include "compat.h"
 #include "list_ops.h"
+#include "pollfds.h"
 
 #include "reuse_xalloc.h"
+#include "reuse_logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -33,6 +35,8 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <poll.h>
+#include <sys/utsname.h>
 
 static int
 error(const char *format, ...)
@@ -130,6 +134,7 @@ ejudge_invoke_process(
         char **args,
         char **envs,
         const unsigned char *workdir,
+        const unsigned char *stdin_file,
         const unsigned char *stdin_text,
         int merge_out_flag,
         unsigned char **stdout_text,
@@ -138,7 +143,7 @@ ejudge_invoke_process(
   char *err_t = 0, *out_t = 0;
   size_t err_z = 0, out_z = 0;
   FILE *err_f = 0, *out_f = 0;
-  int pid, out_p[2] = {-1, -1}, err_p[2] = {-1, -1}, in_p[2] = {-1, -1};
+  int pid, out_p[2] = {-1, -1}, err_p[2] = {-1, -1}, in_p[2] = {-1, -1}, in_fd = -1;
   int maxfd, n, status, retcode = 0;
   const unsigned char *stdin_ptr;
   size_t stdin_len;
@@ -151,10 +156,18 @@ ejudge_invoke_process(
   stdin_ptr = stdin_text;
   stdin_len = strlen(stdin_text);
 
-  if (pipe(in_p) < 0) {
-    err_f = open_memstream(&err_t, &err_z);
-    fferror(err_f, "pipe failed: %s", strerror(errno));
-    goto fail;
+  if (!stdin_file) {
+    if (pipe(in_p) < 0) {
+      err_f = open_memstream(&err_t, &err_z);
+      fferror(err_f, "pipe failed: %s", strerror(errno));
+      goto fail;
+    }
+  } else {
+    if ((in_fd = open(stdin_file, O_RDONLY, 0)) < 0) {
+      err_f = open_memstream(&err_t, &err_z);
+      fferror(err_f, "cannot open file %s: %s", stdin_file, strerror(errno));
+      goto fail;
+    }
   }
   if (pipe(out_p) < 0) {
     err_f = open_memstream(&err_t, &err_z);
@@ -175,7 +188,11 @@ ejudge_invoke_process(
     goto fail;
   } else if (!pid) {
     fflush(stderr);
-    dup2(in_p[0], 0); close(in_p[0]); close(in_p[1]);
+    if (in_fd >= 0) {
+      dup2(in_fd, 0); close(in_fd);
+    } else {
+      dup2(in_p[0], 0); close(in_p[0]); close(in_p[1]);
+    }
     dup2(out_p[1], 1); close(out_p[0]); close(out_p[1]);
     if (!merge_out_flag) {
       dup2(err_p[1], 2); close(err_p[0]); close(err_p[1]);
@@ -204,7 +221,12 @@ ejudge_invoke_process(
   }
 
   /* parent */
-  close(in_p[0]); in_p[0] = -1;
+  if (in_fd >= 0) {
+    close(in_fd); in_fd = -1;
+  }
+  if (in_p[0] >= 0) {
+    close(in_p[0]); in_p[0] = -1;
+  }
   close(out_p[1]); out_p[1] = -1;
   if (err_p[1] >= 0) {
     close(err_p[1]);
@@ -317,6 +339,7 @@ ejudge_invoke_process(
   return retcode;
 
 fail:
+  if (in_fd >= 0) close(in_fd);
   if (in_p[0] >= 0) close(in_p[0]);
   if (in_p[1] >= 0) close(in_p[1]);
   if (out_p[0] >= 0) close(out_p[0]);
@@ -647,6 +670,189 @@ background_process_set_fds(struct background_process_head *list, int max_fd, voi
   return max_fd;
 }
 
+static void
+handle_stdin(void *context, void *fds, void *user)
+{
+  struct pollfd *pfd = (struct pollfd *) fds;
+  struct background_process *prc = (struct background_process *) user;
+
+  ASSERT(prc);
+  ASSERT(prc->stdin_f == pfd->fd);
+
+  if ((pfd->revents & POLLNVAL)) {
+    fprintf(stderr, "%s: ppoll invalid request fd=%d\n", __FUNCTION__, pfd->fd);
+    goto cleanup;
+  }
+  if ((pfd->revents & POLLHUP)) {
+    fprintf(stderr, "%s: ppoll hangup fd=%d\n", __FUNCTION__, pfd->fd);
+    goto cleanup;
+  }
+  if ((pfd->revents & POLLERR)) {
+    fprintf(stderr, "%s: ppoll error fd=%d\n", __FUNCTION__, pfd->fd);
+    goto cleanup;
+  }
+  if (!(pfd->revents & POLLOUT)) {
+    fprintf(stderr, "%s: ppoll not ready fd=%d\n", __FUNCTION__, pfd->fd);
+    return;
+  }
+
+  if (!prc->stdin_b || prc->stdin_z <= 0 || prc->stdin_u >= prc->stdin_z) {
+    close(prc->stdin_f); prc->stdin_f = -1;
+    return;
+  }
+
+  int wsz = prc->stdin_z - prc->stdin_u;
+  while (1) {
+    int w = write(prc->stdin_f, prc->stdin_b + prc->stdin_u, wsz);
+    if (w < 0) {
+      if (errno != EAGAIN) {
+        fprintf(stderr, "%s: write to pipe fd=%d failed: %s\n", __FUNCTION__,
+                pfd->fd, strerror(errno));
+        close(prc->stdin_f); prc->stdin_f = -1;
+        break;
+      } else if (wsz == 1) {
+        break;
+      } else {
+        wsz /= 2;
+      }
+    } else if (w == 0) {
+      fprintf(stderr, "%s: write to pipe fd=%d returned 0!\n", __FUNCTION__,
+              pfd->fd);
+      close(prc->stdin_f); prc->stdin_f = -1;
+      break;
+    } else {
+      prc->stdin_u += w;
+      wsz = prc->stdin_z - prc->stdin_u;
+      if (w <= 0) {
+        close(prc->stdin_f); prc->stdin_f = -1;
+        break;
+      }
+    }
+  }
+  return;
+
+cleanup:
+  close(prc->stdin_f);
+  prc->stdin_f = -1;
+  xfree(prc->stdin_b); prc->stdin_b = NULL;
+  prc->stdin_z = 0; prc->stdin_u = 0;
+}
+
+static void
+handle_stdout(void *context, void *fds, void *user)
+{
+  struct pollfd *pfd = (struct pollfd *) fds;
+  struct background_process *prc = (struct background_process *) user;
+  unsigned char buf[4096];
+
+  ASSERT(prc);
+  ASSERT(prc->stdout_f == pfd->fd);
+
+  if ((pfd->revents & POLLNVAL)) {
+    fprintf(stderr, "%s: ppoll invalid request fd=%d\n", __FUNCTION__, pfd->fd);
+    close(prc->stdout_f); prc->stdout_f = -1;
+    return;
+  }
+  if ((pfd->revents & POLLHUP)) {
+    fprintf(stderr, "%s: ppoll hangup fd=%d\n", __FUNCTION__, pfd->fd);
+    close(prc->stdout_f); prc->stdout_f = -1;
+    return;
+  }
+  if ((pfd->revents & POLLERR)) {
+    fprintf(stderr, "%s: ppoll error fd=%d\n", __FUNCTION__, pfd->fd);
+    close(prc->stdout_f); prc->stdout_f = -1;
+    return;
+  }
+  if (!(pfd->revents & POLLIN)) {
+    fprintf(stderr, "%s: ppoll not ready fd=%d\n", __FUNCTION__, pfd->fd);
+    return;
+  }
+
+  while (1) {
+    int r = read(prc->stdout_f, buf, sizeof(buf));
+    if (r < 0) {
+      if (errno != EAGAIN) {
+        fprintf(stderr, "%s: read from pipe fd=%d failed: %s\n", __FUNCTION__,
+                pfd->fd, strerror(errno));
+        close(prc->stdout_f); prc->stdout_f = -1;
+      }
+      break;
+    } else if (r == 0) {
+      close(prc->stdout_f); prc->stdout_f = -1;
+      break;
+    } else {
+      buffer_append_mem(&prc->out, buf, r);
+    }
+  }
+}
+
+static void
+handle_stderr(void *context, void *fds, void *user)
+{
+  struct pollfd *pfd = (struct pollfd *) fds;
+  struct background_process *prc = (struct background_process *) user;
+  unsigned char buf[4096];
+
+  ASSERT(prc);
+  ASSERT(prc->stderr_f == pfd->fd);
+
+  if ((pfd->revents & POLLNVAL)) {
+    fprintf(stderr, "%s: ppoll invalid request fd=%d\n", __FUNCTION__, pfd->fd);
+    close(prc->stderr_f); prc->stderr_f = -1;
+    return;
+  }
+  if ((pfd->revents & POLLHUP)) {
+    fprintf(stderr, "%s: ppoll hangup fd=%d\n", __FUNCTION__, pfd->fd);
+    close(prc->stderr_f); prc->stderr_f = -1;
+    return;
+  }
+  if ((pfd->revents & POLLERR)) {
+    fprintf(stderr, "%s: ppoll error fd=%d\n", __FUNCTION__, pfd->fd);
+    close(prc->stderr_f); prc->stderr_f = -1;
+    return;
+  }
+  if (!(pfd->revents & POLLIN)) {
+    fprintf(stderr, "%s: ppoll not ready fd=%d\n", __FUNCTION__, pfd->fd);
+    return;
+  }
+
+  while (1) {
+    int r = read(prc->stderr_f, buf, sizeof(buf));
+    if (r < 0) {
+      if (errno != EAGAIN) {
+        fprintf(stderr, "%s: read from pipe fd=%d failed: %s\n", __FUNCTION__, pfd->fd, strerror(errno));
+        close(prc->stderr_f); prc->stderr_f = -1;
+      }
+      break;
+    } else if (r == 0) {
+      close(prc->stderr_f); prc->stderr_f = -1;
+      break;
+    } else {
+      buffer_append_mem(&prc->err, buf, r);
+    }
+  }
+}
+
+void
+background_process_append_pollfd(struct background_process_head *list, void *vp)
+{
+  pollfds_t *pfd = (pollfds_t*) vp;
+  if (!list) return;
+  struct background_process *prc;
+  for (prc = list->first; prc; prc = prc->next) {
+    if (prc->state != BACKGROUND_PROCESS_RUNNING) continue;
+    if (prc->stdin_f >= 0) {
+      pollfds_add(pfd, prc->stdin_f, POLLOUT, handle_stdin, prc);
+    }
+    if (prc->stdout_f >= 0) {
+      pollfds_add(pfd, prc->stdout_f, POLLIN, handle_stdout, prc);
+    }
+    if (prc->stderr_f >= 0) {
+      pollfds_add(pfd, prc->stdout_f, POLLIN, handle_stderr, prc);
+    }
+  }
+}
+
 void
 background_process_readwrite(struct background_process_head *list, void *vprset, void *vpwset)
 {
@@ -802,6 +1008,82 @@ background_process_call_continuations(struct background_process_head *list)
       prc->continuation(prc);
     }
   }
+}
+
+void
+background_process_close_fds(struct background_process_head *list)
+{
+  if (!list) return;
+  struct background_process *prc;
+  for (prc = list->first; prc; prc = prc->next) {
+    if (prc->stdin_f >= 0) close(prc->stdin_f);
+    if (prc->stdout_f >= 0) close(prc->stdout_f);
+    if (prc->stderr_f >= 0) close(prc->stderr_f);
+  }
+}
+
+unsigned char **
+ejudge_get_host_names(void)
+{
+  int names_z = 4, names_u = 0, len;
+  unsigned char **names = NULL;
+  FILE *f = NULL;
+  unsigned char buf[1024], *s, nbuf[1024];
+  struct utsname uname_buf;
+
+  static const unsigned char pat1[] = "inet addr:";
+  static const unsigned char pat2[] = "inet6 addr:";
+
+  XCALLOC(names, names_z);
+  if (!(f = popen("/sbin/ifconfig", "r"))) goto fail;
+
+  while (fgets(buf, sizeof(buf), f)) {
+    len = strlen(buf);
+    if (len + 10 > sizeof(buf)) {
+      // line is too long in ifconfig
+      goto fail;
+    }
+    while (len > 0 && isspace(buf[len - 1])) --len;
+    buf[len] = 0;
+    nbuf[0] = 0;
+    if ((s = strstr(buf, pat1))) {
+      sscanf(s + sizeof(pat1) - 1, "%s", nbuf);
+    } else if ((s = strstr(buf, pat2))) {
+      sscanf(s + sizeof(pat2) - 1, "%s", nbuf);
+    }
+
+    if (nbuf[0]) {
+      if (names_u + 1 >= names_z) {
+        XREALLOC(names, (names_z *= 2));
+      }
+      names[names_u++] = xstrdup(nbuf);
+      names[names_u] = NULL;
+    }
+  }
+  pclose(f); f = NULL;
+
+  if (uname(&uname_buf) >= 0) {
+    if (names_u + 1 >= names_z) {
+      XREALLOC(names, (names_z *= 2));
+    }
+    names[names_u++] = xstrdup(uname_buf.nodename);
+    names[names_u] = NULL;
+  }
+
+cleanup:
+  if (f) {
+    pclose(f); f = NULL;
+  }
+  return names;
+
+fail:
+  if (names) {
+    for (int i = 0; names[i]; ++i) {
+      xfree(names[i]);
+    }
+    xfree(names); names = NULL;
+  }
+  goto cleanup;
 }
 
 /*

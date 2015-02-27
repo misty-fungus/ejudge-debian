@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_2.c 6597 2011-12-24 18:39:30Z cher $ */
+/* $Id: super_html_2.c 6674 2012-03-24 14:53:50Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -356,6 +356,9 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
     break;
   case SSERV_CMD_CNTS_CHANGE_RUN_MANAGED:
     p_bool = &cnts->run_managed;
+    break;
+  case SSERV_CMD_CNTS_CHANGE_OLD_RUN_MANAGED:
+    p_bool = &cnts->old_run_managed;
     break;
   case SSERV_CMD_CNTS_CHANGE_CLEAN_USERS:
     p_bool = &cnts->clean_users;
@@ -931,6 +934,7 @@ diff_func(const unsigned char *path1, const unsigned char *path2)
   return read_process_output(diff_cmdline, 0, 1, 0);
 }
 
+/*
 int
 super_html_serve_probe_run(FILE *f,
                            int priv_level,
@@ -971,18 +975,6 @@ super_html_serve_probe_run(FILE *f,
     return super_html_report_error(f, session_id, self_url, extra_args,
                                    "Contest is not handled");
   }
-  if (!extra->serve_used) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "Contest is not managed");
-  }
-  if (extra->serve_pid > 0) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "serve is already running");
-  }
-  if (extra->socket_fd < 0) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "no socket is opened");
-  }
 
   errcode = super_serve_start_serve_test_mode(cnts, &serve_buf, extra->socket_fd);
   s = html_armor_string_dup(serve_buf);
@@ -999,6 +991,7 @@ super_html_serve_probe_run(FILE *f,
   fprintf(f, "</tr></table>\n");
   return 0;
 }
+*/
 
 int
 super_html_commit_contest(FILE *f,
@@ -1033,10 +1026,9 @@ super_html_commit_contest(FILE *f,
   int i, j;
 
   path_t conf_path;
-  path_t var_path;
   path_t xml_path;
-  path_t serve_path;
-  path_t serve_path_2 = { 0 };
+  path_t serve_cfg_path;
+  path_t serve_cfg_path_2 = { 0 };
   path_t users_header_path = { 0 };
   path_t users_header_path_2 = { 0 };
   path_t users_footer_path = { 0 };
@@ -1441,17 +1433,16 @@ super_html_commit_contest(FILE *f,
 
   /* Load the previous serve.cfg */
   if (!sstate->serve_parse_errors && sstate->global) {
-    snprintf(serve_path, sizeof(serve_path), "%s/serve.cfg", conf_path);
-    if (make_temp_file(serve_path_2, serve_path) < 0) {
+    snprintf(serve_cfg_path, sizeof(serve_cfg_path), "%s/serve.cfg", conf_path);
+    if (make_temp_file(serve_cfg_path_2, serve_cfg_path) < 0) {
       fprintf(flog, "error: cannot create a temporary serve.cfg `%s'\n"
-              "error: %s\n", serve_path, os_ErrorMsg());
+              "error: %s\n", serve_cfg_path, os_ErrorMsg());
       goto failed;
     }
 
-    errcode = super_html_get_serve_header_and_footer(serve_path, &serve_header, &serve_footer);
+    errcode = super_html_get_serve_header_and_footer(serve_cfg_path, &serve_header, &serve_footer);
     if (errcode == -SSERV_ERR_FILE_NOT_EXIST) {
-      fprintf(flog, "serve configuration file `%s' does not exist\n",
-              serve_path);
+      fprintf(flog, "serve configuration file `%s' does not exist\n", serve_cfg_path);
       serve_header = xstrdup("# $" "Id" "$\n");
       snprintf(serve_audit_rec, sizeof(serve_audit_rec),
                "# audit: created %s %d (%s) %s\n",
@@ -1460,7 +1451,7 @@ super_html_commit_contest(FILE *f,
       serve_vcs_add_flag = 1;
     } else if (errcode < 0) {
       fprintf(flog, "failed to read serve configuration file `%s': %s\n",
-              serve_path, super_proto_strerror(-errcode));
+              serve_cfg_path, super_proto_strerror(-errcode));
       goto failed;
     } else {
       snprintf(serve_audit_rec, sizeof(audit_rec),
@@ -1469,7 +1460,7 @@ super_html_commit_contest(FILE *f,
                xml_unparse_ip(ip_address));
     }
 
-    if ((sf = super_html_serve_unparse_and_save(serve_path, serve_path_2,
+    if ((sf = super_html_serve_unparse_and_save(serve_cfg_path, serve_cfg_path_2,
                                                 sstate, config, NULL,
                                                 serve_header, serve_footer,
                                                 serve_audit_rec)) < 0)
@@ -1480,7 +1471,7 @@ super_html_commit_contest(FILE *f,
     if (sf > 0) {
       // invoke diff on the new and old config files
       snprintf(diff_cmdline, sizeof(diff_cmdline),
-               "/usr/bin/diff -u \"%s\" \"%s\"", serve_path, serve_path_2);
+               "/usr/bin/diff -u \"%s\" \"%s\"", serve_cfg_path, serve_cfg_path_2);
       diff_str = read_process_output(diff_cmdline, 0, 1, 0);
       fprintf(flog, "Changes in serve.cfg:\n%s\n", diff_str);
       xfree(diff_str); diff_str = 0;
@@ -1555,8 +1546,8 @@ super_html_commit_contest(FILE *f,
   rename_files(flog, pff, plog_footer_path, plog_footer_path_2, file_group, file_mode);
   file_perms_get(vmap_path, &old_vmap_group, &old_vmap_mode);
   rename_files(flog, vmf, vmap_path, vmap_path_2, file_group, file_mode);
-  file_perms_get(serve_path, &old_serve_group, &old_serve_mode);
-  rename_files(flog, sf, serve_path, serve_path_2, file_group, file_mode);
+  file_perms_get(serve_cfg_path, &old_serve_group, &old_serve_mode);
+  rename_files(flog, sf, serve_cfg_path, serve_cfg_path_2, file_group, file_mode);
 
   if (vmf > 0) {
     if (vmap_vcs_add_flag && vcs_add(vmap_path, &vcs_str) > 0) {
@@ -1572,15 +1563,15 @@ super_html_commit_contest(FILE *f,
   }
 
   if (sf > 0) {
-    if (serve_vcs_add_flag && vcs_add(serve_path, &vcs_str) > 0) {
+    if (serve_vcs_add_flag && vcs_add(serve_cfg_path, &vcs_str) > 0) {
       fprintf(flog, "Version control:\n%s\n", vcs_str);
       xfree(vcs_str); vcs_str = 0;
     }
-    if (vcs_commit(serve_path, &vcs_str) > 0) {
+    if (vcs_commit(serve_cfg_path, &vcs_str) > 0) {
       fprintf(flog, "Version control:\n%s\n", vcs_str);
     }
     xfree(vcs_str); vcs_str = 0;
-    file_perms_set(flog, serve_path, file_group, file_mode,
+    file_perms_set(flog, serve_cfg_path, file_group, file_mode,
                    old_serve_group, old_serve_mode);
   }
 
@@ -1622,15 +1613,6 @@ super_html_commit_contest(FILE *f,
   */
 
   // start serve and create all the necessary dirs
-  snprintf(var_path, sizeof(var_path), "%s/var", cnts->root_dir);
-  if (stat(var_path, &sb) < 0) {
-    unsigned char *serve_buf = 0;
-    fprintf(flog, "starting `serve' in prepare mode:\n\n");
-    i = super_serve_start_serve_test_mode(cnts, &serve_buf, -1);
-    fprintf(flog, "%s\n", serve_buf);
-    xfree(serve_buf);
-  }
-
   close_memstream(flog); flog = 0;
   xfree(xml_header);
   xfree(xml_footer);
@@ -1695,7 +1677,7 @@ super_html_commit_contest(FILE *f,
   if (stand2_footer_path_2[0]) unlink(stand2_footer_path_2);
   if (plog_header_path_2[0]) unlink(plog_header_path_2);
   if (plog_footer_path_2[0]) unlink(plog_footer_path_2);
-  if (serve_path_2[0]) unlink(serve_path_2);
+  if (serve_cfg_path_2[0]) unlink(serve_cfg_path_2);
 
   fprintf(f, "<h2><font color=\"red\">Contest saving failed</font></h2>\n");
   s = html_armor_string_dup(flog_txt);

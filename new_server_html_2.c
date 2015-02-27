@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 6589 2011-12-23 12:08:00Z cher $ */
+/* $Id: new_server_html_2.c 6725 2012-04-04 11:23:15Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -48,6 +48,7 @@
 #include "compat.h"
 #include "run_packet.h"
 #include "prepare_dflt.h"
+#include "super_run_packet.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -123,7 +124,6 @@ ns_write_priv_all_runs(
   const unsigned char *examinable_str;
   const unsigned char *marked_str;
   const unsigned char *saved_str;
-  const unsigned char *rejudge_dis_str;
   unsigned long *displayed_mask = 0;
   int displayed_size = 0;
   unsigned char bb[1024];
@@ -480,10 +480,8 @@ ns_write_priv_all_runs(
       }
       run_time = pe->time;
       imported_str = "";
-      rejudge_dis_str = "";
       if (pe->is_imported) {
         imported_str = "*";
-        rejudge_dis_str = " disabled=\"1\"";
       }
       if (pe->is_hidden) {
         imported_str = "#";
@@ -554,7 +552,7 @@ ns_write_priv_all_runs(
         fprintf(f, "<td%s>??? - %d</td>", cl, pe->lang_id);
       }
       run_status_str(pe->status, statstr, sizeof(statstr), prob_type, 0);
-      write_html_run_status(cs, f, pe, 0, 1, attempts, disq_attempts,
+      write_html_run_status(cs, f, start_time, pe, 0, 1, attempts, disq_attempts,
                             prev_successes, "b1", 0,
                             enable_js_status_menu);
       /*
@@ -806,6 +804,7 @@ ns_write_all_clars(
   struct user_filter_info *u = 0;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   const unsigned char *clar_subj = 0;
+  const unsigned char *judge_name = NULL;
 
   u = user_filter_info_allocate(cs, phr->user_id, phr->session_id);
 
@@ -935,9 +934,16 @@ ns_write_all_clars(
     if (!clar.from) {
       if (!clar.j_from)
         fprintf(f, "<td%s><b>%s</b></td>", cl, _("judges"));
-      else
-        fprintf(f, "<td%s><b>%s</b> (%s)</td>", cl, _("judges"),
-                ARMOR(teamdb_get_name_2(cs->teamdb_state, clar.j_from)));
+      else {
+        judge_name = teamdb_get_name_2(cs->teamdb_state, clar.j_from);
+        if (!judge_name) {
+          fprintf(f, "<td%s><b>%s</b> (invalid id %d)</td>", cl, _("judges"),
+                  clar.j_from);
+        } else {
+          fprintf(f, "<td%s><b>%s</b> (%s)</td>", cl, _("judges"),
+                  ARMOR(judge_name));
+        }
+      }
     } else {
       fprintf(f, "<td%s>%s</td>", cl,
               ARMOR(teamdb_get_name_2(cs->teamdb_state, clar.from)));
@@ -1761,8 +1767,6 @@ ns_write_priv_report(const serve_state_t cs,
   char *rep_text = 0, *html_text;
   size_t rep_len = 0, html_len;
   int rep_flag, content_type;
-  const unsigned char *t6 = _("Refresh");
-  const unsigned char *t7 = _("View team report");
   const unsigned char *start_ptr = 0;
   struct run_entry re;
   const struct section_global_data *global = cs->global;
@@ -1780,8 +1784,6 @@ ns_write_priv_report(const serve_state_t cs,
   };
 
   if (team_report_flag && global->team_enable_rep_view) {
-    t7 = t6;
-    t6 = _("View report");
     report_dir = global->team_report_archive_dir;
     if (global->team_show_judge_report) {
       report_dir = global->report_archive_dir;
@@ -1806,12 +1808,6 @@ ns_write_priv_report(const serve_state_t cs,
     ns_error(log_f, NEW_SRV_ERR_INV_PROB_ID);
     goto done;
   }
-
-  /*
-  print_nav_buttons(state, f, run_id, sid, self_url, hidden_vars, extra_args,
-                    _("Main page"), 0, 0, 0, _("View source"), t6, t7);
-  fprintf(f, "<hr>\n");
-  */
 
   rep_flag = archive_make_read_path(cs, rep_path, sizeof(rep_path),
                                     global->xml_report_archive_dir,
@@ -3481,6 +3477,16 @@ ns_write_priv_standings(
             ARMOR(u->stand_error_msgs));
   }
 
+  const unsigned char *cl = " class=\"b0\"";
+  fprintf(f, "<table%s><tr>", cl);
+  fprintf(f, "<td%s>%s%s</a></td>",
+          cl, ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
+          _("Main page"));
+  fprintf(f, "<td%s>%s%s</a></td>",
+          cl, ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_STANDINGS, 0),
+          _("Refresh"));
+  fprintf(f, "</tr></table>\n");
+
   if (state->global->score_system == SCORE_KIROV
       || state->global->score_system == SCORE_OLYMPIAD)
     do_write_kirov_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0, 0 /*accepting_mode*/, 1, 0, 0, u, 0 /* user_mode */);
@@ -4563,7 +4569,7 @@ ns_write_user_run_status(
 
   fprintf(fout, "%d;%s;%s;%u;%s;%s;", run_id, run_kind_str, dur_str, re.size,
           prob_str, lang_str);
-  write_text_run_status(cs, fout, &re, 1 /* user_mode */, 0, attempts,
+  write_text_run_status(cs, fout, start_time, &re, 1 /* user_mode */, 0, attempts,
                         disq_attempts, prev_successes);
   fprintf(fout, "\n");
 
@@ -5157,7 +5163,6 @@ ns_get_user_problems_summary(
         int *all_attempts)            /* all attempts count */
 {
   const struct section_global_data *global = cs->global;
-  time_t start_time;
   int total_runs, run_id, cur_score, total_teams;
   struct run_entry re;
   struct section_problem_data *cur_prob = 0;
@@ -5165,15 +5170,21 @@ ns_get_user_problems_summary(
   unsigned char *marked_flag = 0;
   int status, score;
   int separate_user_score = 0;
+  time_t start_time;
 
-  if (global->is_virtual) {
-    start_time = run_get_virtual_start_time(cs->runlog_state, user_id);
-  } else {
-    start_time = run_get_start_time(cs->runlog_state);
-  }
   total_runs = run_get_total(cs->runlog_state);
   total_teams = teamdb_get_max_team_id(cs->teamdb_state) + 1;
   separate_user_score = global->separate_user_score > 0 && cs->online_view_judge_score <= 0;
+
+  if (global->is_virtual) {
+    if (run_get_virtual_start_entry(cs->runlog_state, user_id, &re) < 0) {
+      start_time = run_get_start_time(cs->runlog_state);
+    } else {
+      start_time = re.time;
+    }
+  } else {
+    start_time = run_get_start_time(cs->runlog_state);
+  }
 
   memset(best_run, -1, sizeof(best_run[0]) * (cs->max_prob + 1));
   XCALLOC(user_flag, (cs->max_prob + 1) * total_teams);
@@ -5314,7 +5325,8 @@ ns_get_user_problems_summary(
       case RUN_OK:
         solved_flag[re.prob_id] = 1;
         best_run[re.prob_id] = run_id;
-        cur_score = calc_kirov_score(0, 0, separate_user_score, 1 /* user_mode */, &re, cur_prob, 0, 0, 0, 0, 0);
+        cur_score = calc_kirov_score(0, 0, start_time,
+                                     separate_user_score, 1 /* user_mode */, &re, cur_prob, 0, 0, 0, 0, 0);
         //if (cur_score > best_score[re.prob_id])
         best_score[re.prob_id] = cur_score;
         break;
@@ -5334,7 +5346,7 @@ ns_get_user_problems_summary(
         solved_flag[re.prob_id] = 0;
         best_run[re.prob_id] = run_id;
         attempts[re.prob_id]++;
-        cur_score = calc_kirov_score(0, 0, separate_user_score,
+        cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
                                      1 /* user_mode */,
                                      &re, cur_prob, 0, 0, 0, 0, 0);
         //if (cur_score > best_score[re.prob_id])
@@ -5366,7 +5378,7 @@ ns_get_user_problems_summary(
 
         switch (status) {
         case RUN_OK:
-          cur_score = calc_kirov_score(0, 0, separate_user_score,
+          cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
                                        1 /* user_mode */, &re, cur_prob,
                                        attempts[re.prob_id],
                                        disqualified[re.prob_id],
@@ -5400,7 +5412,7 @@ ns_get_user_problems_summary(
           break;
 
         case RUN_PARTIAL:
-          cur_score = calc_kirov_score(0, 0, separate_user_score,
+          cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
                                        1 /* user_mode */, &re, cur_prob,
                                        attempts[re.prob_id],
                                        disqualified[re.prob_id],
@@ -5439,7 +5451,7 @@ ns_get_user_problems_summary(
         switch (status) {
         case RUN_OK:
           solved_flag[re.prob_id] = 1;
-          cur_score = calc_kirov_score(0, 0, separate_user_score,
+          cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
                                        1 /* user_mode */, &re, cur_prob,
                                        attempts[re.prob_id],
                                        disqualified[re.prob_id],
@@ -5476,7 +5488,7 @@ ns_get_user_problems_summary(
 
         case RUN_PARTIAL:
           solved_flag[re.prob_id] = 0;
-          cur_score = calc_kirov_score(0, 0, separate_user_score,
+          cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
                                        1 /* user_mode */, &re, cur_prob,
                                        attempts[re.prob_id],
                                        disqualified[re.prob_id],
@@ -5632,8 +5644,7 @@ ns_write_user_problems_summary(
         int *prev_successes)          /* the number of prev. successes */
 {
   const struct section_global_data *global = cs->global;
-  time_t start_time;
-  int total_runs, total_teams, prob_id, total_score = 0;
+  int prob_id, total_score = 0;
   struct run_entry re;
   struct section_problem_data *cur_prob = 0;
   unsigned char *s;
@@ -5645,13 +5656,6 @@ ns_write_user_problems_summary(
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   int separate_user_score = 0;
 
-  if (global->is_virtual) {
-    start_time = run_get_virtual_start_time(cs->runlog_state, user_id);
-  } else {
-    start_time = run_get_start_time(cs->runlog_state);
-  }
-  total_runs = run_get_total(cs->runlog_state);
-  total_teams = teamdb_get_max_team_id(cs->teamdb_state) + 1;
   separate_user_score = global->separate_user_score > 0 && cs->online_view_judge_score <= 0;
 
   if (table_class && *table_class) {
@@ -5736,18 +5740,16 @@ ns_write_user_problems_summary(
       continue;
     }
 
-    int status, test, score;
+    int status, test;
     run_get_entry(cs->runlog_state, best_run[prob_id], &re);
     if (separate_user_score > 0 && re.is_saved) {
       status = re.saved_status;
       act_status = re.saved_status;
       test = re.saved_test;
-      score = re.saved_score;
     } else {
       status = re.status;
       act_status = re.status;
       test = re.test;
-      score = re.score;
     }
     if (global->score_system == SCORE_OLYMPIAD && accepting_mode) {
       if (act_status == RUN_OK || act_status == RUN_PARTIAL
@@ -5897,7 +5899,7 @@ ns_examiners_page(
   unsigned char **logins = 0, **names = 0, *roles = 0;
   unsigned char *login = 0, *name = 0;
   unsigned char bb[1024];
-  const unsigned char *s = 0, *s_beg = 0, *s_end = 0;
+  const unsigned char *s_beg = 0, *s_end = 0;
   unsigned char nbuf[1024];
   int exam_role_count = 0, chief_role_count = 0, add_count, ex_num;
   int assignable_runs, assigned_runs;
@@ -6003,8 +6005,6 @@ ns_examiners_page(
     for (i = 1; i <= max_user_id; i++) {
       if (!(roles[i] & (1 << USER_ROLE_CHIEF_EXAMINER)))
         continue;
-      s = "";
-      if (i == user_id) s = " selected=\"selected\"";
       fprintf(fout, "<option value=\"%d\">", i);
       if (!names[i])
         fprintf(fout, "%s", logins[i]);
@@ -6156,7 +6156,7 @@ struct testing_queue_entry
   unsigned char *entry_name;
   int priority;
   time_t mtime;
-  struct run_request_packet *packet;
+  struct super_run_in_packet *packet;
 };
 
 struct testing_queue_vec
@@ -6188,7 +6188,7 @@ scan_run_queue(
   path_t path;
   char *pkt_buf = 0;
   size_t pkt_size = 0;
-  struct run_request_packet *packet = 0;
+  struct super_run_in_packet *srp = NULL;
   int priority = 0;
 
   memset(vec, 0, sizeof(*vec));
@@ -6207,8 +6207,7 @@ scan_run_queue(
     if (generic_read_file(&pkt_buf, 0, &pkt_size, 0, 0, path, 0) < 0)
       continue;
 
-    if (run_request_packet_read(pkt_size, pkt_buf, &packet) < 0 || !packet) {
-      packet = 0;
+    if (!(srp = super_run_in_packet_parse_cfg_str(dd->d_name, pkt_buf, pkt_size))) {
       xfree(pkt_buf); pkt_buf = 0;
       pkt_size = 0;
       continue;
@@ -6217,8 +6216,13 @@ scan_run_queue(
     xfree(pkt_buf); pkt_buf = 0;
     pkt_size = 0;
 
-    if (packet->contest_id != contest_id) {
-      packet = run_request_packet_free(packet);
+    if (!srp->global || !srp->problem) {
+      srp = super_run_in_packet_free(srp);
+      continue;
+    }
+
+    if (srp->global->contest_id != contest_id) {
+      srp = super_run_in_packet_free(srp);
       continue;
     }
 
@@ -6247,7 +6251,7 @@ scan_run_queue(
     vec->v[vec->u].entry_name = xstrdup(dd->d_name);
     vec->v[vec->u].priority = priority;
     vec->v[vec->u].mtime = sb.st_mtime;
-    vec->v[vec->u].packet = packet; packet = 0;
+    vec->v[vec->u].packet = srp; srp = 0;
     vec->u++;
   }
 
@@ -6272,6 +6276,7 @@ ns_write_testing_queue(
   int i, prob_id, user_id;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   unsigned char hbuf[1024];
+  const unsigned char *arch;
 
   memset(&vec, 0, sizeof(vec));
   scan_run_queue(global->run_queue_dir, cnts->id, &vec);
@@ -6316,22 +6321,25 @@ ns_write_testing_queue(
           cl, _("Create time"),
           cl, _("Actions"));
   for (i = 0; i < vec.u; ++i) {
+    arch = vec.v[i].packet->global->arch;
+    if (!arch) arch = "";
+
     fprintf(fout, "<tr>");
     fprintf(fout, "<td%s>%d</td>", cl, i + 1);
     fprintf(fout, "<td%s>%s</td>", cl, vec.v[i].entry_name);
     fprintf(fout, "<td%s>%d</td>", cl, vec.v[i].priority);
-    fprintf(fout, "<td%s>%d</td>", cl, vec.v[i].packet->run_id);
-    prob_id = vec.v[i].packet->problem_id;
+    fprintf(fout, "<td%s>%d</td>", cl, vec.v[i].packet->global->run_id);
+    prob_id = vec.v[i].packet->problem->id;
     if (prob_id > 0 && prob_id <= cs->max_prob && cs->probs[prob_id]) {
       fprintf(fout, "<td%s>%s</td>", cl, cs->probs[prob_id]->short_name);
     } else {
       fprintf(fout, "<td%s>Problem %d</td>", cl, prob_id);
     }
-    user_id = vec.v[i].packet->user_id;
+    user_id = vec.v[i].packet->global->user_id;
     fprintf(fout, "<td%s>%s</td>", cl,
             ARMOR(teamdb_get_name_2(cs->teamdb_state, user_id)));
-    fprintf(fout, "<td%s>%s</td>", cl, vec.v[i].packet->arch);
-    fprintf(fout, "<td%s>%d</td>", cl, vec.v[i].packet->judge_id);
+    fprintf(fout, "<td%s>%s</td>", cl, arch);
+    fprintf(fout, "<td%s>%d</td>", cl, vec.v[i].packet->global->judge_id);
     fprintf(fout, "<td%s>%s</td>", cl, xml_unparse_date(vec.v[i].mtime));
     fprintf(fout, "<td%s>", cl);
     fprintf(fout, "&nbsp;&nbsp;<a href=\"%s\">X</a>",
@@ -6363,7 +6371,7 @@ ns_write_testing_queue(
 
   for (i = 0; i < vec.u; ++i) {
     xfree(vec.v[i].entry_name);
-    run_request_packet_free(vec.v[i].packet);
+    super_run_in_packet_free(vec.v[i].packet);
   }
   xfree(vec.v); vec.v = 0;
   vec.a = vec.u = 0;

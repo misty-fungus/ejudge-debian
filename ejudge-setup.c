@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-setup.c 6419 2011-09-07 05:24:02Z cher $ */
+/* $Id: ejudge-setup.c 6628 2012-01-14 11:17:56Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -110,8 +110,6 @@ static unsigned char config_ejudge_script_dir[PATH_MAX];
 static int config_ejudge_script_dir_modified;
 static unsigned char config_ejudge_lang_config_dir[PATH_MAX];
 static int config_ejudge_lang_config_dir_modified;
-static unsigned char config_ejudge_serve_path[PATH_MAX];
-static int config_ejudge_serve_path_modified;
 static unsigned char config_ejudge_run_path[PATH_MAX];
 static int config_ejudge_run_path_modified;
 
@@ -197,7 +195,6 @@ enum
   PATH_LINE_LOCALE_DIR,
   PATH_LINE_SCRIPT_DIR,
   PATH_LINE_LANG_CONFIG_DIR,
-  PATH_LINE_SERVE_PATH,
   PATH_LINE_RUN_PATH,
 
   PATH_LINE_LAST,
@@ -416,15 +413,6 @@ static const struct path_edit_item path_edit_items[] =
     EJUDGE_LANG_CONFIG_DIR,
 #endif /* EJUDGE_LANG_CONFIG_DIR */
   },
-  [PATH_LINE_SERVE_PATH] =
-  {
-    "Path to `serve'", 1, config_ejudge_serve_path,
-    sizeof(config_ejudge_serve_path),
-    &config_ejudge_serve_path_modified,
-#if defined EJUDGE_SERVE_PATH
-    EJUDGE_SERVE_PATH,
-#endif /* EJUDGE_SERVE_PATH */
-  },
   [PATH_LINE_RUN_PATH] =
   {
     "Path to `run'", 1, config_ejudge_run_path,
@@ -461,7 +449,6 @@ initialize_config_var(int idx)
   case PATH_LINE_LOCALE_DIR:
   case PATH_LINE_SCRIPT_DIR:
   case PATH_LINE_LANG_CONFIG_DIR:
-  case PATH_LINE_SERVE_PATH:
   case PATH_LINE_RUN_PATH:
     path_edit_items[idx].buf[0] = 0;
     return;
@@ -665,7 +652,6 @@ is_valid_path(int idx)
       return 0;
     return 1;
     
-  case PATH_LINE_SERVE_PATH:
   case PATH_LINE_RUN_PATH:
     if (!path_edit_items[idx].buf[0]) return 0;
     if (stat(path_edit_items[idx].buf, &stbuf) < 0 || !S_ISREG(stbuf.st_mode)
@@ -765,7 +751,6 @@ do_paths_menu(int *p_cur_item)
     case PATH_LINE_CONTESTS_DIR:
     case PATH_LINE_SCRIPT_DIR:
     case PATH_LINE_LANG_CONFIG_DIR:
-    case PATH_LINE_SERVE_PATH:
     case PATH_LINE_RUN_PATH:
     case PATH_LINE_CGI_BIN_DIR:
     case PATH_LINE_HTDOCS_DIR:
@@ -960,7 +945,7 @@ do_paths_menu(int *p_cur_item)
       }
 
       if ((i == PATH_LINE_LOCALE_DIR || i == PATH_LINE_SCRIPT_DIR
-           || i == PATH_LINE_SERVE_PATH || i == PATH_LINE_RUN_PATH
+           || i == PATH_LINE_RUN_PATH
            || i == PATH_LINE_CGI_BIN_DIR || i == PATH_LINE_HTDOCS_DIR
            || i == PATH_LINE_EJUDGE_CGI_BIN_DIR)
           && tmp_buf[0] && stat(tmp_buf, &stbuf) < 0) {
@@ -975,7 +960,7 @@ do_paths_menu(int *p_cur_item)
         j = ncurses_yesno(0, "\\begin{center}WARNING!\n\nThis is not a directory! Still set the variable to the new value?\n\\end{center}\n");
         if (j != 1) continue;
       }
-      if ((i == PATH_LINE_SERVE_PATH || i == PATH_LINE_RUN_PATH)
+      if ((i == PATH_LINE_RUN_PATH)
           && tmp_buf[0] && stat(tmp_buf, &stbuf) >= 0
           && (!S_ISREG(stbuf.st_mode) || access(tmp_buf, X_OK) < 0)) {
         j = ncurses_yesno(0, "\\begin{center}WARNING!\n\nThis is not a regular file or it is not executable! Still set the variable to the new value?\n\\end{center}\n");
@@ -1021,8 +1006,7 @@ do_paths_menu(int *p_cur_item)
     }
     if (c == 'b') {
       if (i != PATH_LINE_LOCALE_DIR && i != PATH_LINE_SCRIPT_DIR
-          && i != PATH_LINE_LANG_CONFIG_DIR
-          && i != PATH_LINE_SERVE_PATH && i != PATH_LINE_RUN_PATH
+          && i != PATH_LINE_LANG_CONFIG_DIR && i != PATH_LINE_RUN_PATH
           && i != PATH_LINE_CGI_BIN_DIR && i != PATH_LINE_TESTING_DIR
           && i != PATH_LINE_HTDOCS_DIR && i != PATH_LINE_EJUDGE_CGI_BIN_DIR)
         continue;
@@ -2871,7 +2855,7 @@ generate_contest_xml(FILE *f)
   fprintf(f, "<!-- Generation date: %s -->\n", date_buf);
 
   fprintf(f,
-          "<contest id=\"1\" disable_team_password=\"yes\" new_managed=\"yes\" run_managed=\"yes\">\n"
+          "<contest id=\"1\" disable_team_password=\"yes\" managed=\"yes\" run_managed=\"yes\">\n"
           "  <name>Test contest</name>\n"
           "  <name_en>Test contest</name_en>\n"
           "\n"
@@ -2981,12 +2965,6 @@ generate_ejudge_xml(FILE *f)
   if (cur->default_value && !strcmp(cur->default_value, cur->buf)) {
   } else {
     fprintf(f, "  <script_dir>%s</script_dir>\n", cur->buf);
-  }
-
-  cur = &path_edit_items[PATH_LINE_SERVE_PATH];
-  if (cur->default_value && !strcmp(cur->default_value, cur->buf)) {
-  } else {
-    fprintf(f, "  <serve_path>%s</serve_path>\n", cur->buf);
   }
 
   cur = &path_edit_items[PATH_LINE_RUN_PATH];
@@ -3149,12 +3127,6 @@ generate_ejudge_xml(FILE *f)
   if (cur->default_value && !strcmp(cur->default_value, cur->buf)) {
     fprintf(f, "  <!-- The default value is built-in -->\n");
     fprintf(f, "  <!--<script_dir>%s</script_dir>-->\n", cur->buf);
-  }
-
-  cur = &path_edit_items[PATH_LINE_SERVE_PATH];
-  if (cur->default_value && !strcmp(cur->default_value, cur->buf)) {
-    fprintf(f, "  <!-- The default value is built-in -->\n");
-    fprintf(f, "  <!--<serve_path>%s</serve_path>-->\n", cur->buf);
   }
 
   cur = &path_edit_items[PATH_LINE_RUN_PATH];
@@ -3840,10 +3812,12 @@ generate_install_script(FILE *f)
   gen_cmd_run(f, "%s/ej-compile -u %s -g %s -C \"%s\" -i conf/compile.cfg",
               EJUDGE_SERVER_BIN_PATH, config_system_uid, config_system_gid,
               config_compile_home_dir);
+  /*
   fprintf(f, "# Do probe run of the contest server to create dirs\n");
   gen_cmd_run(f, "%s -u %s -g %s -C \"%s\" -i conf/serve.cfg",
               config_ejudge_serve_path, config_system_uid,
               config_system_gid, config_contest1_home_dir);
+  */
   fprintf(f, "# Create necessary files for `ej-contests'\n");
   gen_cmd_run(f, "%s/ej-contests -u %s -g %s -C \"%s\" --create",
               EJUDGE_SERVER_BIN_PATH, config_system_uid,

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 6409 2011-07-17 09:13:18Z cher $ */
+/* $Id: rldb_mysql.c 6633 2012-02-07 14:44:54Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1065,6 +1065,7 @@ add_entry_func(
   ASSERT(de->run_id == run_id);
   ASSERT(de->status == RUN_EMPTY);
   ASSERT(de->time > 0);
+  (void) de;
 
   return do_update_entry(cs, run_id, re, flags);
 }

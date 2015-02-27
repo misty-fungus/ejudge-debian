@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: contests_2.c 6593 2011-12-23 19:01:05Z cher $ */
+/* $Id: contests_2.c 6674 2012-03-24 14:53:50Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -71,7 +71,7 @@ contests_write_header(FILE *f, const struct contest_desc *cnts)
     CONTEST_A_DISABLE_PASSWORD_CHANGE, CONTEST_A_DISABLE_LOCALE_CHANGE,
     CONTEST_A_PERSONAL, CONTEST_A_ALLOW_REG_DATA_EDIT,
     CONTEST_A_DISABLE_MEMBER_DELETE, CONTEST_A_CLOSED, CONTEST_A_INVISIBLE,
-    CONTEST_A_MANAGED, CONTEST_A_RUN_MANAGED,
+    CONTEST_A_MANAGED, CONTEST_A_RUN_MANAGED, CONTEST_A_OLD_RUN_MANAGED,
     0
   };
   for (i = 0; flist[i]; ++i) {

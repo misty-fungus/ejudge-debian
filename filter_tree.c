@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: filter_tree.c 6493 2011-10-21 06:48:27Z cher $ */
+/* $Id: filter_tree.c 6634 2012-02-07 14:54:16Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1321,9 +1321,9 @@ filter_tree_eval_node(struct filter_tree_mem *mem,
         SWERR(("unhandled node %d", kind));
       }
 
-      len = strlen(val);
+      len = strlen(pval);
       s = (unsigned char*) pgCalloc(mem->pages, 1, len + 1);
-      if (len > 0) memcpy(s, val, len);
+      if (len > 0) memcpy(s, pval, len);
       res->v.s = s;
     }
     break;

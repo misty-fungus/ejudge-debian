@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: startstop.c 6161 2011-03-27 07:01:28Z cher $ */
+/* $Id: startstop.c 6676 2012-03-27 07:35:00Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -23,6 +23,7 @@
 #include "pathutl.h"
 #include "errlog.h"
 
+#include "reuse_xalloc.h"
 #include "reuse_osdeps.h"
 
 #include <stdio.h>
@@ -34,6 +35,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <string.h>
+#include <fcntl.h>
 
 static path_t self_exe;
 static char **self_argv;
@@ -174,6 +176,58 @@ start_find_process(const unsigned char *name, int *p_uid)
 }
 
 int
+start_find_all_processes(const unsigned char *name, int **p_pids)
+{
+  DIR *d = 0;
+  struct dirent *dd;
+  char *eptr;
+  int pid, nlen, mypid, dlen;
+  path_t fpath, xpath, dpath;
+  long llen;
+  int a = 0, u = 0;
+  int *pids = NULL;
+
+  nlen = strlen(name);
+  mypid = getpid();
+
+  snprintf(dpath, sizeof(dpath), "%s (deleted)", name);
+  dlen = strlen(dpath);
+
+  if (!(d = opendir("/proc"))) return -1;
+  while ((dd = readdir(d))) {
+    eptr = 0; errno = 0;
+    pid = strtol(dd->d_name, &eptr, 10);
+    if (errno || *eptr || eptr == dd->d_name || pid <= 0 || pid == mypid)
+      continue;
+    snprintf(fpath, sizeof(fpath), "/proc/%d/exe", pid);
+    xpath[0] = 0;
+    llen = readlink(fpath, xpath, sizeof(xpath));
+    if (llen <= 0 || llen >= sizeof(xpath)) continue;
+    xpath[llen] = 0;
+    if (llen < nlen + 1) continue;
+    if (xpath[llen - nlen - 1] == '/' && !strcmp(xpath + llen - nlen, name)) {
+      if (u >= a) {
+        if (!a) a = 4;
+        XREALLOC(pids, a);
+      }
+      pids[u++] = pid;
+    }
+    if (llen < dlen + 1) continue;
+    if (xpath[llen - dlen - 1] == '/' && !strcmp(xpath + llen - dlen, dpath)) {
+      if (u >= a) {
+        if (!a) a = 4;
+        XREALLOC(pids, a);
+      }
+      pids[u++] = pid;
+    }
+  }
+  closedir(d); d = 0;
+
+  *p_pids = pids;
+  return u;
+}
+
+int
 start_kill(int pid, int op)
 {
   int signum = 0;
@@ -182,6 +236,29 @@ start_kill(int pid, int op)
   case START_STOP: signum = SIGTERM; break;
   }
   return kill(pid, signum);
+}
+
+int
+start_daemon(const unsigned char *log_path)
+{
+  int log_fd = -1;
+  int pid;
+
+  if ((log_fd = open(log_path, O_WRONLY | O_CREAT | O_APPEND, 0600)) < 0) {
+    err("cannot open log file `%s'", log_path);
+    return -1;
+  }
+  close(0);
+  if (open("/dev/null", O_RDONLY) < 0) return -1;
+  close(1);
+  if (open("/dev/null", O_WRONLY) < 0) return -1;
+  close(2); dup(log_fd); close(log_fd);
+
+  if ((pid = fork()) < 0) return -1;
+  if (pid > 0) _exit(0);
+  if (setsid() < 0) return -1;
+
+  return 0;
 }
 
 /*

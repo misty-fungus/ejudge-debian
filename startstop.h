@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: startstop.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: startstop.h 6677 2012-03-27 07:41:09Z cher $ */
 
 #ifndef __STARTSTOP_H__
 #define __STARTSTOP_H__
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -34,7 +34,10 @@ void start_restart(void);
 
 int
 start_find_process(const unsigned char *name, int *p_uid);
+int
+start_find_all_processes(const unsigned char *name, int **p_pids);
 
 int start_kill(int pid, int op);
+int start_daemon(const unsigned char *log_path);
 
 #endif /* __STARTSTOP_H__ */

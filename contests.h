@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: contests.h 6591 2011-12-23 17:50:06Z cher $ */
+/* $Id: contests.h 6674 2012-03-24 14:53:50Z cher $ */
 
 #ifndef __CONTESTS_H__
 #define __CONTESTS_H__
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -162,6 +162,7 @@ enum
     CONTEST_A_SEPARATOR,
     CONTEST_A_OPTIONS,
     CONTEST_A_CHECKBOX,
+    CONTEST_A_OLD_RUN_MANAGED,
 
     CONTEST_LAST_ATTR
   };
@@ -302,6 +303,7 @@ struct contest_desc
   ejbytebool_t personal;
   ejbytebool_t allow_reg_data_edit;
   ejbytebool_t disable_member_delete;
+  ejbytebool_t old_run_managed;
 
   time_t         reg_deadline;
   time_t         sched_time;

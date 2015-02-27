@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new-server-control.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: new-server-control.c 6634 2012-02-07 14:54:16Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -156,6 +156,9 @@ main(int argc, char *argv[])
   } else {
     startup_error("invalid command");
   }
+
+  (void) signame;
+  (void) signum;
 
   if (!(pid = start_find_process("ej-contests", 0))) {
     op_error("ej-contests is not running");

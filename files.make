@@ -1,7 +1,7 @@
 # -*- Makefile -*-
-# $Id: files.make 6498 2011-10-27 05:11:28Z cher $
+# $Id: files.make 6685 2012-03-28 04:30:35Z cher $
 
-# Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -194,6 +194,7 @@ COMMON_CFILES=\
  random.c\
  reports.c\
  rldb_plugin_file.c\
+ run_common.c\
  run_inverse.c\
  runlog.c\
  runlog_import.c\
@@ -221,6 +222,7 @@ COMMON_CFILES=\
  super_html_6.c\
  super_html_7.c\
  super_proto.c\
+ super_run_packet.c\
  sha.c\
  t3m_dir_listener.c\
  t3m_submits.c\
@@ -296,6 +298,7 @@ PLATFORM_CFILES =\
  $(ARCH)/cpu.c\
  $(ARCH)/file_perms.c\
  $(ARCH)/full_archive.c\
+ $(ARCH)/pollfds.c\
  $(ARCH)/startstop.c\
  $(ARCH)/sock_op_enable_creds.c\
  $(ARCH)/sock_op_get_fds.c\
@@ -345,6 +348,8 @@ CFILES=\
  edit-userlist.c\
  ej-ncheck.c\
  ej-batch.c\
+ ej-normalize.c\
+ ej-super-run.c\
  ejudge-configure-compilers.c\
  ejudge-control.c\
  ejudge-setup.c\
@@ -388,6 +393,8 @@ CFILES=\
  win32/fmemopen.c\
  unix/open_memstream.c\
  win32/open_memstream.c\
+ unix/pollfds.c\
+ win32/pollfds.c\
  unix/timestamp.c\
  win32/timestamp.c\
  unix/full_archive.c\
@@ -522,6 +529,7 @@ HFILES=\
  opcaps.h\
  parsecfg.h\
  pathutl.h\
+ pollfds.h\
  prepare.h\
  prepare_dflt.h\
  prepare_serve.h\
@@ -554,6 +562,7 @@ HFILES=\
  super_clnt.h\
  super_html.h\
  super_proto.h\
+ super_run_packet.h\
  super-serve.h\
  sha.h\
  t3m_dir_listener.h\
