@@ -6,6 +6,7 @@
   <userdb_file>/srv/ejudge/user_db/userlist.xml</userdb_file>
   <full_cgi_data_dir>/usr/lib/ejudge/cgi-data</full_cgi_data_dir>
   <compile_home_dir>/var/lib/ejudge/compile</compile_home_dir>
+  <super_run_dir>/var/lib/ejudge/super_run</super_run_dir>
   <testing_work_dir>/var/spool/ejudge/work-disk</testing_work_dir>
   <serialization_key>22723</serialization_key>
   <var_dir>/var/spool/ejudge</var_dir>
