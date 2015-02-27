@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: testing_report_xml.h 6667 2012-03-22 10:11:27Z cher $ */
+/* $Id: testing_report_xml.h 6895 2012-06-18 04:07:06Z cher $ */
 #ifndef __TESTING_REPORT_XML_H__
 #define __TESTING_REPORT_XML_H__
 
@@ -36,8 +36,8 @@ struct testing_report_test
   int has_input_digest;
   int has_correct_digest;
   int has_info_digest;
-  int max_memory_used;
   int visibility;
+  unsigned long max_memory_used;
 
   unsigned char input_digest[32];
   unsigned char correct_digest[32];

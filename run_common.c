@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run_common.c 6846 2012-05-23 04:59:28Z cher $ */
+/* $Id: run_common.c 6896 2012-06-18 04:12:15Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -48,6 +48,7 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -278,7 +279,7 @@ generate_xml_report(
       fprintf(f, " real-time=\"%ld\"", tests[i].real_time);
     }
     if (tests[i].max_memory_used > 0) {
-      fprintf(f, " max-memory-used=\"%d\"", tests[i].max_memory_used);
+      fprintf(f, " max-memory-used=\"%lu\"", tests[i].max_memory_used);
     }
     if (srgp->scoring_system_val == SCORE_OLYMPIAD && srgp->accepting_mode <= 0) {
       fprintf(f, " nominal-score=\"%d\" score=\"%d\"",
@@ -1096,15 +1097,15 @@ invoke_nwrun(
   if (srpp->real_time_limit_ms > 0) {
     fprintf(f, "real_time_limit_millis = %d\n", srpp->real_time_limit_ms);
   }
-  if (srpp->max_stack_size != 0 && srpp->max_stack_size != (size_t) -1L) {
+  if (srpp->max_stack_size != 0) {
     fprintf(f, "max_stack_size = %" EJ_PRINTF_ZSPEC "u\n",
             EJ_PRINTF_ZCAST(srpp->max_stack_size));
   }
-  if (srpp->max_data_size != 0 && srpp->max_data_size != (size_t) -1L) {
+  if (srpp->max_data_size != 0) {
     fprintf(f, "max_data_size = %" EJ_PRINTF_ZSPEC "u\n",
             EJ_PRINTF_ZCAST(srpp->max_data_size));
   }
-  if (srpp->max_vm_size != 0 && srpp->max_vm_size != (size_t) -1L) {
+  if (srpp->max_vm_size != 0) {
     fprintf(f, "max_vm_size = %" EJ_PRINTF_ZSPEC "u\n",
             EJ_PRINTF_ZCAST(srpp->max_vm_size));
   }
@@ -1516,8 +1517,6 @@ make_java_limits(unsigned char *buf, int blen, size_t max_vm_size, size_t max_st
 {
   unsigned char bv[1024], bs[1024];
 
-  if (max_vm_size == (ssize_t) -1L) max_vm_size = 0;
-  if (max_stack_size == (ssize_t) -1L) max_stack_size = 0;
   buf[0] = 0;
   if (max_vm_size && max_stack_size) {
     snprintf(buf, blen, "EJUDGE_JAVA_FLAGS=-Xmx%s -Xss%s",
@@ -1538,7 +1537,6 @@ make_mono_limits(unsigned char *buf, int blen, size_t max_vm_size, size_t max_st
 {
   unsigned char bv[1024];
   // stack limit is not supported
-  if (max_vm_size == (ssize_t) -1L) max_vm_size = 0;
   buf[0] = 0;
   if (max_vm_size) {
     snprintf(buf, blen, "MONO_GC_PARAMS=max-heap-size=%s",
@@ -1720,6 +1718,7 @@ run_one_test(
         const unsigned char *exe_name,
         const unsigned char *report_path,
         const unsigned char *check_cmd,
+        char **start_env,
         int open_tests_count,
         const int *open_tests_val,
         int test_score_count,
@@ -2074,7 +2073,7 @@ run_one_test(
   }
 
   if (tst && tst->clear_env > 0) task_ClearEnv(tsk);
-  setup_environment(tsk, tst->start_env, &tstinfo, 0);
+  setup_environment(tsk, start_env, &tstinfo, 0);
 
   if (time_limit_value_ms > 0) {
     if ((time_limit_value_ms % 1000)) {
@@ -2094,20 +2093,26 @@ run_one_test(
   if (tst && tst->no_core_dump > 0) task_DisableCoreDump(tsk);
 
   if (!tst || tst->memory_limit_type_val < 0) {
-    if (srpp->max_stack_size && srpp->max_stack_size != (ssize_t) -1L)
+    if (srpp->max_stack_size) {
       task_SetStackSize(tsk, srpp->max_stack_size);
-    if (srpp->max_data_size && srpp->max_data_size != (ssize_t) -1L)
+    } else if (srgp->enable_max_stack_size > 0 && srpp->max_vm_size) {
+      task_SetStackSize(tsk, srpp->max_vm_size);
+    }
+    if (srpp->max_data_size)
       task_SetDataSize(tsk, srpp->max_data_size);
-    if (srpp->max_vm_size && srpp->max_vm_size != (ssize_t) -1L)
+    if (srpp->max_vm_size)
       task_SetVMSize(tsk, srpp->max_vm_size);
   } else {
     switch (tst->memory_limit_type_val) {
     case MEMLIMIT_TYPE_DEFAULT:
-      if (srpp->max_stack_size && srpp->max_stack_size != (ssize_t) -1L)
+      if (srpp->max_stack_size) {
         task_SetStackSize(tsk, srpp->max_stack_size);
-      if (srpp->max_data_size && srpp->max_data_size != (ssize_t) -1L)
+      } else if (srgp->enable_max_stack_size > 0 && srpp->max_vm_size) {
+        task_SetStackSize(tsk, srpp->max_vm_size);
+      }
+      if (srpp->max_data_size)
         task_SetDataSize(tsk, srpp->max_data_size);
-      if (srpp->max_vm_size && srpp->max_vm_size != (ssize_t) -1L)
+      if (srpp->max_vm_size)
         task_SetVMSize(tsk, srpp->max_vm_size);
       if (tst->enable_memory_limit_error > 0 && srgp->enable_memory_limit_error > 0 && srgp->secure_run > 0) {
         task_EnableMemoryLimitError(tsk);
@@ -2126,6 +2131,9 @@ run_one_test(
       if (mem_limit_buf[0]) {
         task_PutEnv(tsk, mem_limit_buf);
       }
+      break;
+    case MEMLIMIT_TYPE_VALGRIND:
+      //???
       break;
     default:
       abort();
@@ -2153,6 +2161,9 @@ run_one_test(
       task_PutEnv(tsk, "EJUDGE_JAVA_POLICY=fileio.policy");
       break;
     case SEXEC_TYPE_MONO:
+      // nothing secure
+      break;
+    case SEXEC_TYPE_VALGRIND:
       // nothing secure
       break;
     default:
@@ -2215,10 +2226,11 @@ run_one_test(
   if (pfd2[1] >= 0) close(pfd2[1]);
   pfd1[0] = pfd1[1] = pfd2[0] = pfd2[1] = -1;
 
-  task_Wait(tsk);
+  task_NewWait(tsk);
 
-  info("CPU time = %ld, real time = %ld",
-       (long) task_GetRunningTime(tsk), (long) task_GetRealTime(tsk));
+  info("CPU time = %ld, real time = %ld, used_vm_size = %ld",
+       (long) task_GetRunningTime(tsk), (long) task_GetRealTime(tsk),
+       (long) task_GetMemoryUsed(tsk));
 
   if (error_code[0]) {
     error_code_value = read_error_code(error_code);
@@ -2245,6 +2257,8 @@ run_one_test(
   cur_info->times = task_GetRunningTime(tsk);
   *p_has_real_time = 1;
   cur_info->real_time = task_GetRealTime(tsk);
+  cur_info->max_memory_used = task_GetMemoryUsed(tsk);
+  if (cur_info->max_memory_used > 0) *p_has_max_memory_used = 1;
 
   // input file
   file_size = -1;
@@ -2807,6 +2821,43 @@ check_output_only(
   return status;
 }
 
+static char **
+merge_env(char **env1, char **env2)
+{
+  if ((!env1 || !env1[0]) && (!env2 || !env2[0])) return NULL;
+  if (!env1 || !env1[0]) return sarray_copy(env2);
+  if (!env2 || !env2[0]) return sarray_copy(env1);
+
+  int len1 = sarray_len(env1);
+  int len2 = sarray_len(env2);
+  char **res = NULL;
+  XCALLOC(res, len1 + len2 + 1);
+  int j = 0;
+  for (int i = 0; i < len2; ++i) {
+    res[j++] = xstrdup(env2[i]);
+  }
+  for (int k = 0; k < len1; ++k) {
+    unsigned char env_name[1024];
+    char *s = strchr(env1[k], '=');
+    if (!s) {
+      snprintf(env_name, sizeof(env_name), "%s", env1[k]);
+    } else {
+      snprintf(env_name, sizeof(env_name), "%.*s", (int) (s - env1[k]), env1[k]);
+    }
+    int envlen = strlen(env_name);
+    int i;
+    for (i = 0; i < j; ++i) {
+      if (!strncmp(env_name, res[i], envlen) && (res[i][envlen] == '=' || res[i][envlen] == '\0'))
+        break;
+    }
+    if (i >= j) {
+      res[j++] = xstrdup(env1[k]);
+    }
+  }
+
+  return res;
+}
+
 void
 run_tests(
         const struct ejudge_cfg *config,
@@ -2827,7 +2878,8 @@ run_tests(
 {
   const struct section_global_data *global = state->global;
   const struct super_run_in_global_packet *srgp = srp->global;
-  const struct super_run_in_problem_packet *srpp = srp->problem;
+  /*const*/ struct super_run_in_problem_packet *srpp = srp->problem;
+  const struct super_run_in_tester_packet *srtp = srp->tester;
 
   full_archive_t far = NULL;
 
@@ -2872,10 +2924,26 @@ run_tests(
   long report_time_limit_ms = -1;
   long report_real_time_limit_ms = -1;
 
+  char **merged_start_env = NULL;
+  char **start_env = NULL;
+
   init_testinfo_vector(&tests);
   messages_path[0] = 0;
 
+  if (srpp->max_vm_size == (size_t) -1L) srpp->max_vm_size = 0;
+  if (srpp->max_data_size == (size_t) -1L) srpp->max_data_size = 0;
+  if (srpp->max_stack_size == (size_t) -1L) srpp->max_stack_size = 0;
+
   snprintf(messages_path, sizeof(messages_path), "%s/%s", global->run_work_dir, "messages");
+
+  if (tst && tst->start_env && tst->start_env[0] && srtp && srtp->start_env && srtp->start_env[0]) {
+    merged_start_env = merge_env(tst->start_env, srtp->start_env);
+    start_env = merged_start_env;
+  } else if (tst && tst->start_env && tst->start_env[0]) {
+    start_env = tst->start_env;
+  } else if (srtp && srtp->start_env && srtp->start_env[0]) {
+    start_env = srtp->start_env;
+  }
 
   report_path[0] = 0;
   pathmake(report_path, global->run_work_dir, "/", "report", NULL);
@@ -2900,6 +2968,12 @@ run_tests(
              global->ejudge_checkers_dir, srpp->standard_checker);
   } else {
     snprintf(check_cmd, sizeof(check_cmd), "%s", srpp->check_cmd);
+  }
+
+  if ((!srpp->standard_checker || !srpp->standard_checker[0])
+      && (!srpp->check_cmd || !srpp->check_cmd[0])) {
+    append_msg_to_log(messages_path, "neither 'check_cmd' nor 'standard_checker' is defined");
+    goto check_failed;
   }
 
   if (srpp->type_val) {
@@ -2951,7 +3025,7 @@ run_tests(
         && cur_test > srpp->tests_to_accept) break;
 
     status = run_one_test(config, state, srp, tst, cur_test, &tests,
-                          far, exe_name, report_path, check_cmd,
+                          far, exe_name, report_path, check_cmd, start_env,
                           open_tests_count, open_tests_val,
                           test_score_count, test_score_val,
                           expected_free_space,
@@ -3204,6 +3278,7 @@ done:;
   xfree(valuer_comment);
   xfree(valuer_judge_comment);
   xfree(additional_comment);
+  merged_start_env = sarray_free(merged_start_env);
   return;
 
 check_failed:
@@ -3219,4 +3294,3 @@ check_failed:
   user_run_tests = -1;
   goto done;
 }
-

@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files.make 6732 2012-04-10 14:09:27Z cher $
+# $Id: files.make 6895 2012-06-18 04:07:06Z cher $
 
 # Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -183,6 +183,7 @@ COMMON_CFILES=\
  parsecfg_2.c\
  pathutl.c\
  plugin.c\
+ polygon_packet.c\
  prepare.c\
  prepare_out.c\
  prepare_serve.c\
@@ -253,6 +254,7 @@ COMMON_CFILES=\
  xml_utils/attr_bool_byte.c\
  xml_utils/attr_date.c\
  xml_utils/attr_int.c\
+ xml_utils/attr_ulong.c\
  xml_utils/elem_ip_mask.c\
  xml_utils/empty_text.c\
  xml_utils/err_attrs.c\
@@ -350,6 +352,7 @@ CFILES=\
  ej-ncheck.c\
  ej-batch.c\
  ej-normalize.c\
+ ej-polygon.c\
  ej-super-run.c\
  ejudge-configure-compilers.c\
  ejudge-control.c\
@@ -531,6 +534,7 @@ HFILES=\
  parsecfg.h\
  pathutl.h\
  pollfds.h\
+ polygon_packet.h\
  prepare.h\
  prepare_dflt.h\
  prepare_serve.h\

@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: config.h.in 6187 2011-03-27 15:42:34Z cher $ */
+/* $Id: config.h.in 6865 2012-05-28 16:15:51Z cher $ */
 
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
@@ -126,6 +126,9 @@
 
 /* libzip available */
 #undef CONF_HAS_LIBZIP
+
+/* libcurl available */
+#undef CONF_HAS_LIBCURL
 
 /* DOS path rules */
 #undef CONF_DOS_FILENAMING

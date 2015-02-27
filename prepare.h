@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 6803 2012-05-05 17:19:12Z cher $ */
+/* $Id: prepare.h 6859 2012-05-26 10:12:00Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -50,6 +50,7 @@ enum
   MEMLIMIT_TYPE_DOS,
   MEMLIMIT_TYPE_JAVA,
   MEMLIMIT_TYPE_MONO,
+  MEMLIMIT_TYPE_VALGRIND,
 
   MEMLIMIT_TYPE_LAST,
 };
@@ -63,6 +64,7 @@ enum
   SEXEC_TYPE_JAVA,
   SEXEC_TYPE_DLL32,
   SEXEC_TYPE_MONO,
+  SEXEC_TYPE_VALGRIND,
 
   SEXEC_TYPE_LAST,
 };
@@ -114,7 +116,7 @@ struct user_adjustment_info
 };
 struct user_adjustment_map;
 
-/* sizeof(struct section_global_data) == 350100 */
+/* sizeof(struct section_global_data) == 350108/350264 */
 struct section_global_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -164,6 +166,10 @@ struct section_global_data
   ejintbool_t advanced_layout;
   /** ignore BOM in submitted text files */
   ejintbool_t ignore_bom;
+  /** disable loading of the user database */
+  ejintbool_t disable_user_database;
+  /** enable stack limit equal to memory limit */
+  ejintbool_t enable_max_stack_size;
 
   /** do not show submits after this time in the standings */
   time_t stand_ignore_after;
@@ -726,7 +732,7 @@ struct section_global_data
   +unsigned char *solution_cmd;
  */
 
-/* sizeof(struct section_problem_data) == 65344 */
+/* sizeof(struct section_problem_data) == 65344/65568 */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -1062,7 +1068,7 @@ struct section_problem_data
   } xml META_ATTRIB((meta_hidden));
 };
 
-/* sizeof(struct section_language_data) == 33676 */
+/* sizeof(struct section_language_data) == 33676/33712 */
 struct section_language_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -1137,7 +1143,7 @@ struct section_language_data
   int disabled_by_config META_ATTRIB((meta_private));
 };
 
-/* sizeof(struct section_tester_data) == 50204 */
+/* sizeof(struct section_tester_data) == 50204/50232 */
 struct section_tester_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));

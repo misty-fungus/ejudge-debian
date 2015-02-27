@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 6748 2012-04-17 07:26:18Z cher $ */
+/* $Id: reuse_exec.c 6893 2012-06-18 03:52:49Z cher $ */
 
 /* Copyright (C) 1999-2012 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 11:05:09 cher> */
@@ -1340,6 +1340,12 @@ task_Wait(tTask *tsk)
   }
 
   return tsk;
+}
+
+tTask *
+task_NewWait(tTask *tsk)
+{
+  return task_Wait(tsk);
 }
 
 int

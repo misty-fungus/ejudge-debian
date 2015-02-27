@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html.c 6761 2012-04-23 14:50:56Z cher $ */
+/* $Id: super_html.c 6881 2012-06-06 10:08:30Z cher $ */
 
 /* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1072,6 +1072,14 @@ super_html_contest_page(FILE *f,
   fprintf(f, "</tr>\n");
 
   fprintf(f, "</table>\n");
+
+  fprintf(f, "<p>");
+  fprintf(f, "<td>[%sUpdate problems from Polygon</a>]</td>",
+          html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
+                        "contest_id=%d&action=%d&op=%d",
+                        contest_id, SSERV_CMD_HTTP_REQUEST,
+                        SSERV_OP_UPDATE_FROM_POLYGON_PAGE));
+  fprintf(f, "</p>\n");
 
   if (opcaps_check(caps, OPCAP_CONTROL_CONTEST) >= 0) {
     if (!cnts->run_managed) {

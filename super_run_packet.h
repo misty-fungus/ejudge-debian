@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.h 6788 2012-05-03 04:27:37Z cher $ */
+/* $Id: super_run_packet.h 6850 2012-05-25 07:41:06Z cher $ */
 #ifndef __SUPER_RUN_PACKET_H__
 #define __SUPER_RUN_PACKET_H__
 
@@ -48,6 +48,7 @@ struct super_run_in_global_packet
   ejintbool_t secure_run;
   ejintbool_t detect_violations;
   ejintbool_t enable_memory_limit_error;
+  ejintbool_t enable_max_stack_size;
   int user_id;
   unsigned char *user_login;
   unsigned char *user_name;

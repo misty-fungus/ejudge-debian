@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: teamdb.h 6631 2012-01-23 06:03:40Z cher $ */
+/* $Id: teamdb.h 6853 2012-05-25 08:34:35Z cher $ */
 #ifndef __TEAMDB_H__
 #define __TEAMDB_H__
 
@@ -43,6 +43,8 @@ struct userlist_user;
 
 teamdb_state_t teamdb_init(int contest_id);
 teamdb_state_t teamdb_destroy(teamdb_state_t);
+
+void teamdb_disable(teamdb_state_t state, int disable_flag);
 
 int teamdb_open_client(teamdb_state_t state,
                        unsigned char const *socket_path, int contest_id);

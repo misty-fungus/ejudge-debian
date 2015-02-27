@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-super-run.c 6810 2012-05-06 04:42:47Z cher $ */
+/* $Id: ej-super-run.c 6905 2012-06-21 12:24:37Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -716,6 +716,21 @@ create_configs(
 
   fprintf(f,
           "[tester]\n"
+          "name = Linux-shared-32\n"
+          "arch = \"linux-shared-32\"\n"
+          "abstract\n"
+          "no_core_dump\n"
+          "enable_memory_limit_error\n"
+          "kill_signal = KILL\n"
+          "memory_limit_type = \"default\"\n"
+          "secure_exec_type = \"dll32\"\n"
+          "clear_env\n"
+          "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
+          "start_env = \"LANG=C\"\n"
+          "start_env = \"HOME\"\n\n");
+
+  fprintf(f,
+          "[tester]\n"
           "name = Linux-java\n"
           "arch = \"java\"\n"
           "abstract\n"
@@ -760,6 +775,21 @@ create_configs(
           "abstract\n"
           "nwrun_spool_dir = \"win32_nwrun\"\n\n");
 
+  fprintf(f,
+          "[tester]\n"
+          "name = Valgrind\n"
+          "arch = \"valgrind\"\n"
+          "abstract\n"
+          "no_core_dump\n"
+          "kill_signal = TERM\n"
+          "memory_limit_type = \"valgrind\"\n"
+          "secure_exec_type = \"valgrind\"\n"
+          "clear_env\n"
+          "start_cmd = \"runvg\"\n"
+          "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
+          "start_env = \"LANG=C\"\n"
+          "start_env = \"HOME\"\n\n");
+
   fclose(f); f = NULL;
 }
 
@@ -767,6 +797,8 @@ const unsigned char * const
 upgrade_times[] =
 {
   "2012/05/01 00:00:00",
+  "2012/05/26 00:00:00",
+  "2012/06/21 00:00:00",
 
   NULL
 };

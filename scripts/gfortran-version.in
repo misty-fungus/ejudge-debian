@@ -1,13 +1,13 @@
 #!/bin/sh
-# $Id: gfortran-version.in 5608 2010-01-07 19:51:45Z cher $
-# Copyright (c) 2008-2010 Alexander Chernov <cher@ejudge.ru>
+# $Id: gfortran-version.in 6904 2012-06-21 12:22:32Z cher $
+# Copyright (c) 2008-2012 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"
 
 common_config() {
   echo 'long_name="GNU Fortran"'
   echo 'src_sfx=".for"'
-  echo 'insecure=1'
+#  echo 'insecure=1'
 }
 
 failure() {
