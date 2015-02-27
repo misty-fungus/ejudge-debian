@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.c 6732 2012-04-10 14:09:27Z cher $ */
+/* $Id: super_run_packet.c 6851 2012-05-25 07:49:42Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -34,6 +34,7 @@ super_run_in_global_packet_init(struct generic_section_config *gp)
   p->secure_run = -1;
   p->detect_violations = -1;
   p->enable_memory_limit_error = -1;
+  p->enable_max_stack_size = -1;
   p->user_id = -1;
   p->is_virtual = -1;
   p->max_file_length = -1;
@@ -60,6 +61,7 @@ super_run_in_global_packet_set_default(struct generic_section_config *gp)
   if (p->secure_run < 0) p->secure_run = 0;
   if (p->detect_violations < 0) p->detect_violations = 0;
   if (p->enable_memory_limit_error < 0) p->enable_memory_limit_error = 0;
+  if (p->enable_max_stack_size < 0) p->enable_max_stack_size = 0;
   if (p->user_id < 0) p->user_id = 0;
   if (p->is_virtual < 0) p->is_virtual = 0;
   if (p->max_file_length < 0) p->max_file_length = 0;

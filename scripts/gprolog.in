@@ -1,6 +1,6 @@
 #!/bin/sh
-# $Id: gprolog.in 5550 2009-02-19 18:14:43Z cher $
-# Copyright (c) 2003-2008 Alexander Chernov <cher@ejudge.ru>
+# $Id: gprolog.in 6901 2012-06-19 03:02:56Z cher $
+# Copyright (c) 2003-2012 Alexander Chernov <cher@ejudge.ru>
 
 # using EJUDGE_FLAGS we may pass additional flags
 
@@ -32,4 +32,4 @@ unset LC_ALL
 unset LC_MESSAGES
 unset LANGUAGE
 
-exec "${GPLCRUN}" -L --no-top-level ${EJUDGE_FLAGS} "$1" -o "$2"
+exec "${GPLCRUN}" --min-size --no-top-level ${EJUDGE_FLAGS} "$1" -o "$2"

@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: runlog.h 6412 2011-07-17 09:24:58Z cher $ */
+/* $Id: runlog.h 6855 2012-05-25 10:31:22Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
-/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -364,5 +364,10 @@ run_fix_runlog_time(
         int run_u,
         struct run_entry *runs,
         unsigned char *fix_mask);
+
+int
+run_get_max_user_id(runlog_state_t state);
+int
+run_get_total_users(runlog_state_t state);
 
 #endif /* __RUNLOG_H__ */

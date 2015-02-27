@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 6812 2012-05-08 09:27:29Z cher $ */
+/* $Id: prepare_out.c 6905 2012-06-21 12:24:37Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -490,6 +490,10 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     unparse_bool(f, "ignore_bom", global->ignore_bom);
   if (global->disable_auto_refresh > 0)
     unparse_bool(f, "disable_auto_refresh", global->disable_auto_refresh);
+  if (global->disable_user_database > 0)
+    unparse_bool(f, "disable_user_database", global->disable_user_database);
+  if (global->enable_max_stack_size > 0)
+    unparse_bool(f, "enable_max_stack_size", global->enable_max_stack_size);
 
   //???
   unparse_bool(f, "enable_l10n", global->enable_l10n);
@@ -971,6 +975,9 @@ prepare_unparse_prob(
     fprintf(f, "internal_name = \"%s\"\n", CARMOR(prob->internal_name));
   }
 
+  if (prob->extid && prob->extid[0])
+    fprintf(f, "extid = \"%s\"\n", CARMOR(prob->extid));
+
   if ((prob->abstract && prob->type > 0)
       || (!prob->abstract && prob->type >= 0))
     fprintf(f, "type = \"%s\"\n", problem_unparse_type(prob->type));
@@ -1333,7 +1340,6 @@ prepare_unparse_prob(
   if (!prob->abstract && prob->stand_column[0]) {
     fprintf(f, "stand_column = \"%s\"\n", CARMOR(prob->stand_column));
   }
-
 
   if (!prob->abstract && prob->start_date > 0)
     fprintf(f, "start_date = \"%s\"\n", xml_unparse_date(prob->start_date));
@@ -1752,8 +1758,6 @@ prepare_unparse_unhandled_prob(
   do_str(f, &ab, "statement_file", prob->statement_file);
   //PROBLEM_PARAM(alternative, "x"),
   do_xstr(f, &ab, "alternative", prob->alternative);
-  //PROBLEM_PARAM(extid, "S"),
-  do_str(f, &ab, "extid", prob->extid);
 
   html_armor_free(&ab);
 }
@@ -1777,12 +1781,14 @@ enum
 {
   ARCH_LINUX,
   ARCH_LINUX_SHARED,
+  ARCH_LINUX_SHARED_32,
   ARCH_DOS,
   ARCH_JAVA,
   ARCH_JAVA14,
   ARCH_PERL,
   ARCH_MSIL,
   ARCH_WIN32,
+  ARCH_VALGRIND,
 
   ARCH_LAST,
 };
@@ -1791,24 +1797,30 @@ static const unsigned char * const supported_archs[] =
 {
   "",                           /* default - Linux static */
   "linux-shared",
+  "linux-shared-32",
   "dos",
   "java",
   "java14",
   "perl",
   "msil",
   "win32",
+  "valgrind",
+
   0,
 };
 static const unsigned char * const arch_abstract_names [] =
 {
   "Generic",
   "Linux-shared",
+  "linux-shared-32",
   "DOSTester",
   "Linux-java",
   "Linux-java14",
   "Perl",
   "Linux-msil",
   "Win32",
+  "Valgrind",
+
   0,
 };
 
@@ -1870,11 +1882,13 @@ generate_abstract_tester(
             "enable_memory_limit_error\n"
             "kill_signal = KILL\n"
             "memory_limit_type = \"default\"\n"
-            "secure_exec_type = \"static\"\n"
-            "clear_env\n"
-            "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
-            "start_env = \"HOME\"\n",
+            "secure_exec_type = \"static\"\n",
             arch_abstract_names[arch], supported_archs[arch]);
+    if (!atst) {
+      fprintf(f, "clear_env\n"
+              "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
+              "start_env = \"HOME\"\n");
+    }
     /*
     if (max_vm_size != -1L)
       fprintf(f, "max_vm_size = %s\n",
@@ -1900,10 +1914,7 @@ generate_abstract_tester(
             "enable_memory_limit_error\n"
             "kill_signal = KILL\n"
             "memory_limit_type = \"default\"\n"
-            "secure_exec_type = \"dll\"\n"
-            "clear_env\n"
-            "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
-            "start_env = \"HOME\"\n",
+            "secure_exec_type = \"dll\"\n",
             arch_abstract_names[arch], supported_archs[arch]);
     /*
     if (max_vm_size != -1L)
@@ -1920,6 +1931,29 @@ generate_abstract_tester(
               "start_env = \"LD_PRELOAD=${script_dir}/lang/libdropcaps.so\"\n");
 #endif
     */
+    if (!atst) {
+      fprintf(f, "clear_env\n"
+              "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
+              "start_env = \"HOME\"\n");
+    }
+    break;
+
+  case ARCH_LINUX_SHARED_32:
+    fprintf(f, "[tester]\n"
+            "name = %s\n"
+            "arch = \"%s\"\n"
+            "abstract\n"
+            "no_core_dump\n"
+            "enable_memory_limit_error\n"
+            "kill_signal = KILL\n"
+            "memory_limit_type = \"default\"\n"
+            "secure_exec_type = \"dll32\"\n",
+            arch_abstract_names[arch], supported_archs[arch]);
+    if (!atst) {
+      fprintf(f, "clear_env\n"
+              "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
+              "start_env = \"HOME\"\n");
+    }
     break;
 
   case ARCH_JAVA:
@@ -1932,9 +1966,7 @@ generate_abstract_tester(
             "kill_signal = TERM\n"
             "memory_limit_type = \"java\"\n"
             "secure_exec_type = \"java\"\n"
-            "start_cmd = \"runjava%s\"\n"
-            "start_env = \"LANG=C\"\n"
-            "start_env = \"EJUDGE_PREFIX_DIR\"\n",
+            "start_cmd = \"runjava%s\"\n",
             arch_abstract_names[arch], supported_archs[arch],
             arch == ARCH_JAVA14?"14":"");
     /* FIXME: add special java parameter
@@ -1957,6 +1989,10 @@ generate_abstract_tester(
       fprintf(f, "start_env = \"EJUDGE_JAVA_POLICY=fileio.policy\"\n");
     }
     */
+    if (!atst) {
+      fprintf(f, "start_env = \"LANG=C\"\n"
+              "start_env = \"EJUDGE_PREFIX_DIR\"\n");
+    }
     break;
 
   case ARCH_DOS:
@@ -2004,10 +2040,12 @@ generate_abstract_tester(
             "kill_signal = TERM\n"
             //            "memory_limit_type = \"java\"\n"
             //            "secure_exec_type = \"java\"\n"
-            "start_cmd = \"runmono\"\n"
-            "start_env = \"LANG=C\"\n"
-            "start_env = \"EJUDGE_PREFIX_DIR\"\n",
+            "start_cmd = \"runmono\"\n",
             arch_abstract_names[arch], supported_archs[arch]);
+    if (!atst) {
+      fprintf(f, "start_env = \"LANG=C\"\n"
+              "start_env = \"EJUDGE_PREFIX_DIR\"\n");
+    }
     break;
 
   case ARCH_WIN32:
@@ -2019,8 +2057,34 @@ generate_abstract_tester(
             arch_abstract_names[arch], supported_archs[arch]);
     break;
 
+  case ARCH_VALGRIND:
+    fprintf(f,
+            "[tester]\n"
+            "name = Valgrind\n"
+            "arch = \"valgrind\"\n"
+            "abstract\n"
+            "no_core_dump\n"
+            "kill_signal = TERM\n"
+            "memory_limit_type = \"valgrind\"\n"
+            "secure_exec_type = \"valgrind\"\n"
+            "start_cmd = \"runvg\"\n");
+    if (!atst) {
+      fprintf(f, "clear_env\n"
+              "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
+              "start_env = \"LANG=C\"\n"
+              "start_env = \"HOME\"\n");
+    }
+    break;
+
   default:
     abort();
+  }
+
+  if (atst) {
+    if (atst->clear_env > 0) {
+      unparse_bool(f, "clear_env", atst->clear_env);
+    }
+    do_xstr(f, &ab, "start_env", atst->start_env);
   }
 
   if (atst && atst->check_dir[0]) {
@@ -2061,6 +2125,7 @@ generate_concrete_tester(FILE *f, int arch,
   switch (arch) {
   case ARCH_LINUX:
   case ARCH_LINUX_SHARED:
+  case ARCH_LINUX_SHARED_32:
     /*
     if (max_vm_size != -1L) {
       fprintf(f, "max_vm_size = %s\n",
@@ -2108,6 +2173,9 @@ generate_concrete_tester(FILE *f, int arch,
     break;
 
   case ARCH_WIN32:
+    break;
+
+  case ARCH_VALGRIND:
     break;
 
   default:

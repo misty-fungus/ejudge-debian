@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.h 6749 2012-04-17 07:29:52Z cher $ */
+/* $Id: reuse_exec.h 6895 2012-06-18 04:07:06Z cher $ */
 
 #ifndef __REUSE_EXEC_H__
 #define __REUSE_EXEC_H__
@@ -106,6 +106,7 @@ char*    task_GetErrorMessage(tpTask);
 
 int      task_Start(tpTask);
 tpTask   task_Wait(tpTask);
+tpTask   task_NewWait(tpTask);
 int      task_Kill(tpTask);
 int      task_Status(tpTask);
 int      task_TermSignal(tpTask);

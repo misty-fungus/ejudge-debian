@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: sformat.c 6835 2012-05-20 12:26:45Z cher $ */
+/* $Id: sformat.c 6902 2012-06-20 18:44:43Z cher $ */
 
 /* Copyright (C) 2001-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -266,7 +266,7 @@ sformat_message(
           right_align = 0;
           put_zeros = 0;
           break;
-        case 'L':
+        case 'a':
           locale_dependant = 1;
           break;
         case '0':

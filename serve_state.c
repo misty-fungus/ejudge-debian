@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_state.c 6808 2012-05-05 20:01:31Z cher $ */
+/* $Id: serve_state.c 6853 2012-05-25 08:34:35Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -673,6 +673,10 @@ serve_state_load_contest_config(
     goto failure;
   if (prepare_serve_defaults(state, NULL) < 0) goto failure;
 
+  if (state->global) {
+    teamdb_disable(state->teamdb_state, state->global->disable_user_database);
+  }
+
   *p_state = state;
 
   return 1;
@@ -752,6 +756,7 @@ serve_state_load_contest(
   if (create_dirs(state, PREPARE_SERVE) < 0) goto failure;
 
   global = state->global;
+  teamdb_disable(state->teamdb_state, global->disable_user_database);
 
   /* find olympiad_mode problems in KIROV contests */
   if (global->score_system == SCORE_KIROV) {

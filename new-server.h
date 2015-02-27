@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 6815 2012-05-09 12:48:36Z cher $ */
+/* $Id: new-server.h 6889 2012-06-13 14:12:26Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -974,6 +974,20 @@ ns_write_admin_contest_settings(
         struct http_request_info *phr,
         const struct contest_desc *cnts,
         struct contest_extra *extra);
+
+int
+ns_submit_run(
+        FILE *log_f,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra,
+        const unsigned char *prob_param_name,
+        const unsigned char *lang_param_name,
+        int enable_ans_collect,
+        int admin_mode,
+        int *p_run_id,
+        int *p_mime_type,
+        int *p_next_prob_id);
 
 extern int utf8_mode;
 extern time_t server_start_time;

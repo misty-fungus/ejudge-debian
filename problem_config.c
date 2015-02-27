@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_config.c 6789 2012-05-03 05:04:27Z cher $ */
+/* $Id: problem_config.c 6867 2012-06-01 04:04:25Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -102,11 +102,11 @@ void
 problem_config_section_unparse_cfg(FILE *out_f, const struct problem_config_section *p)
 {
   if (default_values.manual_checking >= 0) {
-    problem_config_section_init((struct generic_section_config *) p);
+    problem_config_section_init((struct generic_section_config *) &default_values);
   }
   if (p) {
     fprintf(out_f, "# -*- coding: utf-8 -*-\n\n");
-    fprintf(out_f, "\n[problem]\n\n");
+    fprintf(out_f, "[problem]\n");
     meta_unparse_cfg(out_f, &meta_problem_config_section_methods, p, &default_values);
   }
 }

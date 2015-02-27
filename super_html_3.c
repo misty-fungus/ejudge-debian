@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 6821 2012-05-15 18:56:37Z cher $ */
+/* $Id: super_html_3.c 6879 2012-06-06 08:39:30Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -293,6 +293,8 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = "Serve.cfg:global:enable_full_archive",
   [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = "Serve.cfg:global:advanced_layout",
   [SSERV_CMD_GLOB_CHANGE_IGNORE_BOM] = "Serve.cfg:global:ignore_bom",
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_DATABASE] = "Serve.cfg:global:disable_user_database",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_MAX_STACK_SIZE] = "Serve.cfg:global:enable_max_stack_size",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH] = "Serve.cfg:global:disable_auto_refresh",
   [SSERV_CMD_GLOB_CHANGE_ALWAYS_SHOW_PROBLEMS] = "Serve.cfg:global:always_show_problems",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS] = "Serve.cfg:global:disable_user_standings",
@@ -1084,6 +1086,13 @@ super_html_edit_global_parameters(FILE *f,
   print_boolean_select_row(f, "Detect security violations:",
                            global->detect_violations,
                            SSERV_CMD_GLOB_CHANGE_DETECT_VIOLATIONS,
+                           session_id, form_row_attrs[row ^= 1],
+                           self_url, extra_args, hidden_vars);
+
+  //GLOBAL_PARAM(enable_max_stack_size, "d"),
+  print_boolean_select_row(f, "Assume max_stack_size == max_vm_size:",
+                           global->enable_max_stack_size,
+                           SSERV_CMD_GLOB_CHANGE_ENABLE_MAX_STACK_SIZE,
                            session_id, form_row_attrs[row ^= 1],
                            self_url, extra_args, hidden_vars);
 
@@ -2607,6 +2616,17 @@ super_html_edit_global_parameters(FILE *f,
     print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_RUNLOG_MERGE);
     fprintf(f, "</tr></form>\n");
 
+    //GLOBAL_PARAM(disable_user_database, "d"),
+    html_start_form(f, 1, self_url, hidden_vars);
+    fprintf(f, "<tr%s><td>Disable user database loading:</td><td>",
+            form_row_attrs[row ^= 1]);
+    html_boolean_select(f, global->disable_user_database, "param", 0, 0);
+    fprintf(f, "</td><td>");
+    html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_USER_DATABASE, "Change");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_USER_DATABASE);
+    fprintf(f, "</tr></form>\n");
+
     //GLOBAL_PARAM(enable_l10n, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
     fprintf(f, "<tr%s><td>Enable message translation:</td><td>",
@@ -2960,6 +2980,14 @@ super_html_global_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_GLOB_CHANGE_IGNORE_BOM:
     p_int = &global->ignore_bom;
+    goto handle_boolean;
+
+  case SSERV_CMD_GLOB_CHANGE_DISABLE_USER_DATABASE:
+    p_int = &global->disable_user_database;
+    goto handle_boolean;
+
+  case SSERV_CMD_GLOB_CHANGE_ENABLE_MAX_STACK_SIZE:
+    p_int = &global->enable_max_stack_size;
     goto handle_boolean;
 
   case SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH:
@@ -7451,7 +7479,15 @@ super_html_edit_problems(FILE *f,
   }
 
   // add new concrete problem
-  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Add new problem</b></td></tr>\n", prob_row_attr);
+  fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Add new problem</b>", prob_row_attr);
+  if (sstate->update_state) {
+    fprintf(f, " [<a href=\"%s?SID=%16llx&amp;action=%d&amp;op=%d\">Download is in progress</a>]",
+          self_url, session_id, SSERV_CMD_HTTP_REQUEST, SSERV_OP_DOWNLOAD_PROGRESS_PAGE);
+  } else {
+    fprintf(f, " [<a href=\"%s?SID=%16llx&amp;action=%d&amp;op=%d\">Import from Polygon</a>]",
+            self_url, session_id, SSERV_CMD_HTTP_REQUEST, SSERV_OP_IMPORT_FROM_POLYGON_PAGE);
+  }
+  fprintf(f, "</td></tr>\n");
   html_start_form(f, 1, self_url, hidden_vars);
   fprintf(f, "<tr%s><td>Id (optional):</td><td>", form_row_attrs[0]);
   html_edit_text_form(f, 0, 0, "prob_id", "");
@@ -7470,24 +7506,33 @@ super_html_edit_problems(FILE *f,
   return 0;
 }
 
-int
-super_html_add_problem(
+void
+problem_id_to_short_name(int num, unsigned char *buf)
+{
+  if (num < 0) num = 0;
+  unsigned char *s = buf;
+  if (!num) {
+    *s++ = 'A';
+    *s = 0;
+  } else {
+    while (num > 0) {
+      *s++ = 'A' + (num % 26);
+      num /= 26;
+    }
+    *s-- = 0;
+    unsigned char *q = buf;
+    while (q < s) {
+      unsigned char t = *q; *q = *s; *s = t;
+      ++q; --s;
+    }
+  }
+}
+
+struct section_problem_data *
+super_html_create_problem(
         struct sid_state *sstate,
         int prob_id)
 {
-  int i, x;
-  struct section_problem_data *prob = 0;
-
-  if (prob_id < 0 || prob_id > EJ_MAX_PROB_ID)
-    return -1;
-
-  if (!prob_id) {
-    for (i = 1; i < sstate->prob_a; i++)
-      if (!sstate->probs[i])
-        break;
-    prob_id = i;
-  }
-
   if (prob_id >= sstate->prob_a) {
     int new_prob_a = sstate->prob_a;
     struct section_problem_data **new_probs;
@@ -7509,24 +7554,39 @@ super_html_add_problem(
   }
  
   if (sstate->probs[prob_id])
-    return -SSERV_ERR_DUPLICATED_PROBLEM;
+    return NULL;
 
-  prob = prepare_alloc_problem();
+  struct section_problem_data *prob = prepare_alloc_problem();
   prepare_problem_init_func(&prob->g);
   sstate->cfg = param_merge(&prob->g, sstate->cfg);
   sstate->probs[prob_id] = prob;
   prob->id = prob_id;
   sstate->prob_flags[prob_id] = 0;
+  return prob;
+}
 
-  if (prob_id == 1) {
-    prob->short_name[0] = 'A';
-    i = 1;
-  } else {
-    for (x = prob_id - 1, i = 0; x; x /= 26, ++i) {
-      prob->short_name[i] = 'A' + x % 26;
-    }
+int
+super_html_add_problem(
+        struct sid_state *sstate,
+        int prob_id)
+{
+  int i;
+  struct section_problem_data *prob = 0;
+
+  if (prob_id < 0 || prob_id > EJ_MAX_PROB_ID)
+    return -1;
+
+  if (!prob_id) {
+    for (i = 1; i < sstate->prob_a; i++)
+      if (!sstate->probs[i])
+        break;
+    prob_id = i;
   }
-  prob->short_name[i] = 0;
+
+  prob = super_html_create_problem(sstate, prob_id);
+  if (!prob) return -SSERV_ERR_DUPLICATED_PROBLEM;
+
+  problem_id_to_short_name(prob_id - 1, prob->short_name);
   if (sstate->aprob_u == 1)
     snprintf(prob->super, sizeof(prob->super), "%s",
              sstate->aprobs[0]->short_name);

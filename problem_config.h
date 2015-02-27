@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 6788 2012-05-03 04:27:37Z cher $ */
+/* $Id: problem_config.h 6875 2012-06-04 04:22:49Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
@@ -31,7 +31,7 @@
 #endif /* __RCC__ */
 #endif /* META_ATTRIB */
 
-/* sizeof(struct problem_config_section) == 544 */
+/* sizeof(struct problem_config_section) == 552 */
 struct problem_config_section
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -82,6 +82,7 @@ struct problem_config_section
   ejintbool_t ignore_unmarked;
   ejintbool_t disable_stderr;
 
+  int id;
   int real_time_limit;
   int time_limit;
   int time_limit_millis;
@@ -110,7 +111,9 @@ struct problem_config_section
   size_t max_file_size;
 
   unsigned char *type;
+  unsigned char *short_name;
   unsigned char *long_name;
+  unsigned char *long_name_en;
   unsigned char *stand_name;
   unsigned char *internal_name;
   unsigned char *test_dir;
@@ -148,6 +151,7 @@ struct problem_config_section
   unsigned char *open_tests;
   unsigned char *final_open_tests;
   unsigned char *extid;
+  unsigned char *revision;
 
   char **test_sets;
   char **date_penalty;

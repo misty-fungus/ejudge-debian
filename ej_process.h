@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_process.h 6682 2012-03-28 03:56:42Z cher $ */
+/* $Id: ej_process.h 6879 2012-06-06 08:39:30Z cher $ */
 
 #ifndef __EJ_PROCESS_H__
 #define __EJ_PROCESS_H__
@@ -136,5 +136,10 @@ background_process_append_pollfd(struct background_process_head *list, void *vp)
 
 unsigned char **
 ejudge_get_host_names(void);
+
+int
+ejudge_start_daemon_process(
+        char **args,
+        const unsigned char *workdir);
 
 #endif /* __EJ_PROCESS_H__ */

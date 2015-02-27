@@ -1,13 +1,13 @@
 #!/bin/sh
-# $Id: dcc-version.in 5550 2009-02-19 18:14:43Z cher $
-# Copyright (c) 2005-2008 Alexander Chernov <cher@ejudge.ru>
+# $Id: dcc-version.in 6904 2012-06-21 12:22:32Z cher $
+# Copyright (c) 2005-2012 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"
 
 common_config() {
   echo 'long_name="Borland Delphi 6 (Kylix)"'
   echo 'src_sfx=".pas"'
-  echo 'arch="linux-shared"'
+  echo 'arch="linux-shared-32"'
 }
 
 failure() {

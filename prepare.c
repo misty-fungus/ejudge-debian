@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.c 6846 2012-05-23 04:59:28Z cher $ */
+/* $Id: prepare.c 6862 2012-05-27 19:12:01Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -116,6 +116,8 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(advanced_layout, "d"),
   GLOBAL_PARAM(ignore_bom, "d"),
   GLOBAL_PARAM(disable_auto_refresh, "d"),
+  GLOBAL_PARAM(disable_user_database, "d"),
+  GLOBAL_PARAM(enable_max_stack_size, "d"),
 
   GLOBAL_PARAM(stand_ignore_after, "t"),
   GLOBAL_PARAM(appeal_deadline, "t"),
@@ -793,6 +795,8 @@ global_init_func(struct generic_section_config *gp)
   p->advanced_layout = -1;
   p->ignore_bom = -1;
   p->disable_auto_refresh = -1;
+  p->disable_user_database = -1;
+  p->enable_max_stack_size = -1;
 
   p->compile_max_vm_size = -1L;
   p->compile_max_stack_size = -1L;
@@ -2362,6 +2366,7 @@ const unsigned char * const memory_limit_type_str[] =
   [MEMLIMIT_TYPE_DOS] = "dos",
   [MEMLIMIT_TYPE_JAVA] = "java",
   [MEMLIMIT_TYPE_MONO] = "mono",
+  [MEMLIMIT_TYPE_VALGRIND] = "valgrind",
 
   [MEMLIMIT_TYPE_LAST] = 0,
 };
@@ -2391,6 +2396,7 @@ const unsigned char * const secure_exec_type_str[] =
   [SEXEC_TYPE_JAVA] = "java",
   [SEXEC_TYPE_DLL32] = "dll32",
   [SEXEC_TYPE_MONO] = "mono",
+  [SEXEC_TYPE_VALGRIND] = "valgrind",
 
   [SEXEC_TYPE_LAST] = 0,
 };

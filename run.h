@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run.h 6745 2012-04-17 05:11:12Z cher $ */
+/* $Id: run.h 6895 2012-06-18 04:07:06Z cher $ */
 #ifndef __RUN_H__
 #define __RUN_H__
 
@@ -35,7 +35,7 @@ struct testinfo
   int            max_score;     /* maximal score for this test */
   long           times;         /* execution time */
   long           real_time;     /* execution real time */
-  int            max_memory_used;
+  unsigned long  max_memory_used;
   char          *input;         /* the input */
   long           input_size;
   int            has_input_digest;

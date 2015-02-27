@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 6789 2012-05-03 05:04:27Z cher $ */
+/* $Id: super-serve.c 6879 2012-06-06 08:39:30Z cher $ */
 
 /* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -307,6 +307,27 @@ get_contest_extra(int num)
     extras[num] = new_contest_extra(num);
   }
   return extras[num];
+}
+
+struct update_state *
+update_state_create(void)
+{
+  struct update_state *us = NULL;
+  XCALLOC(us, 1);
+  return us;
+}
+
+struct update_state *
+update_state_free(struct update_state *us)
+{
+  if (us) {
+    xfree(us->conf_file);
+    xfree(us->log_file);
+    xfree(us->status_file);
+    xfree(us->pid_file);
+    xfree(us);
+  }
+  return NULL;
 }
 
 static volatile int term_flag;
@@ -1116,6 +1137,7 @@ sid_state_clear(struct sid_state *p)
   xfree(p->user_filter);
   bitset_free(&p->marked);
   serve_state_destroy(config, p->te_state, NULL, NULL);
+  update_state_free(p->update_state);
   XMEMZERO(p, 1);
 }
 static struct sid_state*
@@ -2577,6 +2599,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE:
   case SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT:
   case SSERV_CMD_GLOB_CHANGE_IGNORE_BOM:
+  case SSERV_CMD_GLOB_CHANGE_DISABLE_USER_DATABASE:
+  case SSERV_CMD_GLOB_CHANGE_ENABLE_MAX_STACK_SIZE:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH:
   case SSERV_CMD_GLOB_CHANGE_ALWAYS_SHOW_PROBLEMS:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS:
@@ -3619,6 +3643,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_IGNORE_BOM] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_DATABASE] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_MAX_STACK_SIZE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_AUTO_REFRESH] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_STANDINGS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_LANGUAGE] = { cmd_set_value },

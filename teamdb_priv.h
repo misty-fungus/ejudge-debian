@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: teamdb_priv.h 6631 2012-01-23 06:03:40Z cher $ */
+/* $Id: teamdb_priv.h 6853 2012-05-25 08:34:35Z cher $ */
 #ifndef __TEAMDB_PRIV_H__
 #define __TEAMDB_PRIV_H__
 
@@ -54,6 +54,7 @@ struct teamdb_state
 {
   int contest_id;
   int nref;
+  int disabled;
 
   struct teamdb_db_callbacks *callbacks;
   int need_update;

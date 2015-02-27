@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: master_html.c 6833 2012-05-20 07:32:40Z cher $ */
+/* $Id: master_html.c 6895 2012-06-18 04:07:06Z cher $ */
 
 /* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -565,7 +565,7 @@ write_xml_testing_report(
       }
     }
     if (r->max_memory_used_available) {
-      fprintf(f, "<td%s>%d</td>", cl1, t->max_memory_used);
+      fprintf(f, "<td%s>%lu</td>", cl1, t->max_memory_used);
     }
 
     // extra information
@@ -1074,7 +1074,11 @@ generate_daily_statistics(
    * u_ind[0..u_tot-1] - index array:   team_idx -> team_id
    * u_rev[0..u_max-1] - reverse index: team_id -> team_idx
    */
-  u_max = teamdb_get_max_team_id(state->teamdb_state) + 1;
+  if (state->global->disable_user_database > 0) {
+    u_max = run_get_max_user_id(state->runlog_state) + 1;
+  } else {
+    u_max = teamdb_get_max_team_id(state->teamdb_state) + 1;
+  }
   XALLOCAZ(u_ind, u_max);
   XALLOCAZ(u_rev, u_max);
   XALLOCAZ(u_reg, u_max);
@@ -1443,6 +1447,5 @@ generate_daily_statistics(
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */
