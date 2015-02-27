@@ -1,3 +1,11 @@
+ejudge (2.3.23-1~1.gbp7f1497) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @7f1497a7200c46ad7f26bafcf44eac9f2afd75b2 **
+
+  * [1b8a37e] New upstream version 2.3.23
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Sat, 28 Feb 2015 00:24:52 +0300
+
 ejudge (2.3.22-2) unstable; urgency=medium
 
   * [f13c77a] added super_run_dir to default config
