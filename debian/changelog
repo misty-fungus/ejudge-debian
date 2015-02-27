@@ -1,10 +1,11 @@
-ejudge (2.3.22-1~1.gbp24a4b4) UNRELEASED; urgency=medium
-
-  ** SNAPSHOT build @24a4b4d218c6cbb47f689c41849fdc885cd717e5 **
+ejudge (2.3.22-1) unstable; urgency=medium
 
   * [f004f79] New upstream version 2.3.22
+  * [6f26c27] new debian snapshot for 2.3.22 version
+  * [14c4e2a] added super_run_log to ejudge.xml
+  * [cd01e71] refreshed debian/patches/07_fix_ej-super-run_logpath
 
- -- Yaroslav Leonov <alximik43@gmail.com>  Fri, 27 Feb 2015 23:36:04 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Fri, 27 Feb 2015 23:53:24 +0300
 
 ejudge (2.3.21-1) unstable; urgency=medium
 
