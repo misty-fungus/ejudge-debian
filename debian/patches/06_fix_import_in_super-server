@@ -1,0 +1,12 @@
+Index: ejudge-debian/super-serve.c
+===================================================================
+--- ejudge-debian.orig/super-serve.c
++++ ejudge-debian/super-serve.c
+@@ -64,6 +64,7 @@
+ #include <ctype.h>
+ #include <poll.h>
+ #include <sys/inotify.h>
++#include <sys/resource.h>
+ 
+ #define SUSPEND_TIMEOUT    60
+ #define MAX_IN_PACKET_SIZE 134217728 /* 128 mb */
