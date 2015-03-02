@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve-control.c 6851 2012-05-25 07:49:42Z cher $ */
+/* $Id: serve-control.c 6974 2012-08-09 10:45:54Z cher $ */
 
 /* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -41,6 +41,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <errno.h>
 
 /*
 #if CONF_HAS_LIBINTL - 0 == 1
@@ -571,18 +572,37 @@ vhyperref(unsigned char *buf, size_t size,
 }
 
 static void
+parse_action(void)
+{
+  unsigned char *s = cgi_param("action");
+  if (!s || !*s) return;
+  unsigned char *q;
+  for (q = s; isdigit(*q); ++q) {}
+  if (!*q) {
+    char *eptr = NULL;
+    errno = 0;
+    long val = strtol(s, &eptr, 10);
+    if (!errno && !*eptr && val > 0 && val < SSERV_CMD_LAST) {
+      client_action = val;
+    }
+    return;
+  }
+  for (int i = 1; i < SSERV_CMD_LAST; ++i) {
+    if (super_proto_cmd_names[i] && !strcasecmp(super_proto_cmd_names[i], s)) {
+      client_action = i;
+      return;
+    }
+  }
+}
+
+static void
 read_state_params(void)
 {
   unsigned char *s;
   int x, n;
 
   client_action = 0;
-  if ((s = cgi_param("action"))) {
-    n = 0; x = 0;
-    if (sscanf(s, "%d%n", &x, &n) == 1 && !s[n]
-        && x > 0 && x < SSERV_CMD_LAST)
-      client_action = x;
-  }
+  parse_action();
   if (!client_action && (s = cgi_nname("action_", 7))) {
     n = 0; x = 0;
     if (sscanf(s, "action_%d%n", &x, &n) == 1 && !s[n]
@@ -1691,6 +1711,8 @@ static const int next_action_map[SSERV_CMD_LAST] =
   [SSERV_CMD_LANG_CHANGE_INSECURE] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CHANGE_LONG_NAME] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CLEAR_LONG_NAME] = SSERV_CMD_EDIT_CURRENT_LANG,
+  [SSERV_CMD_LANG_CHANGE_EXTID] = SSERV_CMD_EDIT_CURRENT_LANG,
+  [SSERV_CMD_LANG_CLEAR_EXTID] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CHANGE_CONTENT_TYPE] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CLEAR_CONTENT_TYPE] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CHANGE_DISABLE_AUTO_TESTING] = SSERV_CMD_EDIT_CURRENT_LANG,
@@ -2521,6 +2543,8 @@ main(int argc, char *argv[])
   case SSERV_CMD_LANG_CHANGE_INSECURE:
   case SSERV_CMD_LANG_CHANGE_LONG_NAME:
   case SSERV_CMD_LANG_CLEAR_LONG_NAME:
+  case SSERV_CMD_LANG_CHANGE_EXTID:
+  case SSERV_CMD_LANG_CLEAR_EXTID:
   case SSERV_CMD_LANG_CHANGE_CONTENT_TYPE:
   case SSERV_CMD_LANG_CLEAR_CONTENT_TYPE:
   case SSERV_CMD_LANG_CHANGE_DISABLE_SECURITY:
@@ -2995,6 +3019,5 @@ main(int argc, char *argv[])
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

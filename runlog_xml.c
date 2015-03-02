@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: runlog_xml.c 6855 2012-05-25 10:31:22Z cher $ */
+/* $Id: runlog_xml.c 6945 2012-07-06 14:35:48Z cher $ */
 
 /* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -32,6 +32,7 @@
 #include "archive_paths.h"
 #include "fileutl.h"
 #include "base64.h"
+#include "ej_uuid.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -116,6 +117,7 @@ enum
   RUNLOG_A_LANG_SHORT,
   RUNLOG_A_PROB_SHORT,
   RUNLOG_A_LOGIN,
+  RUNLOG_A_RUN_UUID,
 
   RUNLOG_LAST_ATTR,
 };
@@ -180,6 +182,7 @@ static const char * const attr_map[] =
   [RUNLOG_A_LANG_SHORT]       = "lang_short",
   [RUNLOG_A_PROB_SHORT]       = "prob_short",
   [RUNLOG_A_LOGIN]            = "login",
+  [RUNLOG_A_RUN_UUID]         = "run_uuid",
 
   [RUNLOG_LAST_ATTR] 0,
 };
@@ -461,7 +464,7 @@ process_run_elements(struct xml_tree *xt, struct run_xml_helpers *helper)
         if (xml_attr_bool_byte(xa, &xr->r.is_hidden) < 0) return -1;
         break;
       case RUNLOG_A_EXAMINABLE:
-        if (xml_attr_bool_byte(xa, &xr->r.is_examinable) < 0) return -1;
+        //if (xml_attr_bool_byte(xa, &xr->r.is_examinable) < 0) return -1;
         break;
       case RUNLOG_A_NSEC:
         if (!xa->text) goto empty_attr_value;
@@ -487,6 +490,13 @@ process_run_elements(struct xml_tree *xt, struct run_xml_helpers *helper)
           goto invalid_attr_value;
         if (iv < 0 || iv > 255) goto invalid_attr_value;
         xr->r.pages = iv;
+        break;
+      case RUNLOG_A_RUN_UUID:
+#if CONF_HAS_LIBUUID - 0 != 0
+        if (xa->text && xa->text[0]) {
+          ej_uuid_parse(xa->text, xr->r.run_uuid);
+        }
+#endif
         break;
       default:
         return xml_err_attr_not_allowed(xt, xa);
@@ -859,6 +869,11 @@ unparse_runlog_xml(
     ts -= phead->start_time;
     if (ts < 0) ts = 0;
     fprintf(f, " %s=\"%ld\"", attr_map[RUNLOG_A_TIME], ts);
+#if CONF_HAS_LIBUUID - 0 != 0
+    if (pp->run_uuid[0] || pp->run_uuid[1] || pp->run_uuid[2] || pp->run_uuid[3]) {
+      fprintf(f, " %s=\"%s\"", attr_map[RUNLOG_A_RUN_UUID], ej_uuid_unparse(pp->run_uuid, ""));
+    }
+#endif
     if (!external_mode && pp->size > 0) {
       fprintf(f, " %s=\"%u\"", attr_map[RUNLOG_A_SIZE], pp->size);
     }
@@ -939,9 +954,11 @@ unparse_runlog_xml(
     if (!external_mode && pp->pages > 0) {
       fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_PAGES], pp->pages);
     }
+    /*
     if (pp->is_examinable) {
       fprintf(f, " %s=\"%s\"", attr_map[RUNLOG_A_EXAMINABLE], "yes");
     }
+    */
     if (!source_mode || pp->status >= RUN_MAX_STATUS) {
       fprintf(f, "/>\n");
       continue;
@@ -1017,6 +1034,5 @@ unparse_runlog_xml(
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "DIR")
  * End:
  */

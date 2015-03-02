@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.h 6855 2012-05-25 10:31:22Z cher $ */
+/* $Id: runlog.h 6922 2012-06-28 11:55:34Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
@@ -88,6 +88,7 @@ int run_add_record(runlog_state_t state,
                    int            nsec,
                    size_t         size,
                    const ruint32_t sha1[5],
+                   const ruint32_t uuid[4],
                    ruint32_t      ip,
                    int            ssl_flag,
                    int            locale_id,
@@ -214,7 +215,8 @@ enum
     RE_SAVED_STATUS  = 0x01000000,
     RE_SAVED_SCORE   = 0x02000000,
     RE_SAVED_TEST    = 0x04000000,
-    RE_ALL           = 0x003FFFFF,
+    RE_RUN_UUID      = 0x08000000,
+    RE_ALL           = 0x0FFFFFFF,
   };
 
 /* structure size is 128 bytes */
@@ -247,10 +249,13 @@ struct run_entry
   unsigned char  ipv6_flag;     /* 1 */
   unsigned char  ssl_flag;      /* 1 */
   rint16_t       mime_type;     /* 2 */
-  unsigned char  is_examinable; /* 1 */
+  //unsigned char  is_examinable; /* 1 */
+  unsigned char  unused1;       /* 1 */
   unsigned char  is_marked;     /* 1 */
-  int            examiners[3];  /* 12 */
-  int            exam_score[3]; /* 12 */
+  //int            examiners[3];  /* 12 */
+  //int            exam_score[3]; /* 12 */
+  ruint32_t      run_uuid[4];   /* 16 */
+  unsigned char  unused2[8];    /* 8 */
   rint32_t       saved_score;   /* 4 */
   rint16_t       saved_test;    /* 2 */
   unsigned char  saved_status;  /* 1 */

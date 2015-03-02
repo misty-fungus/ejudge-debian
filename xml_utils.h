@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: xml_utils.h 6895 2012-06-18 04:07:06Z cher $ */
+/* $Id: xml_utils.h 6990 2012-08-20 04:21:54Z cher $ */
 
 #ifndef __XML_UTILS_H__
 #define __XML_UTILS_H__
@@ -88,6 +88,15 @@ int xml_attr_ulong(struct xml_attr *attr, unsigned long *value_ptr);
 int xml_attr_date(struct xml_attr *attr, time_t *value_ptr);
 int xml_elem_ip_mask(struct xml_tree *tree,
                      unsigned int *addr_ptr, unsigned int *mask_ptr);
+
+int
+xml_parse_ip6(
+        FILE *log_f,
+        unsigned char const *path,
+        int line,
+        int column,
+        unsigned char const *s,
+        ej_ip6_t *pip);
 
 #endif /* __XML_UTILS_H__ */
 

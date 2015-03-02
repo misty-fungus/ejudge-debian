@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: contests.h 6674 2012-03-24 14:53:50Z cher $ */
+/* $Id: contests.h 6959 2012-07-27 09:48:08Z cher $ */
 
 #ifndef __CONTESTS_H__
 #define __CONTESTS_H__
@@ -122,6 +122,9 @@ enum
     CONTEST_REGISTER_SUBJECT_EN,
     CONTEST_OPEN_TIME,
     CONTEST_CLOSE_TIME,
+    CONTEST_EXT_ID,
+    CONTEST_UPDATE_TIME,
+    CONTEST_PROBLEM_COUNT,
 
     CONTEST_LAST_TAG
   };
@@ -163,6 +166,7 @@ enum
     CONTEST_A_OPTIONS,
     CONTEST_A_CHECKBOX,
     CONTEST_A_OLD_RUN_MANAGED,
+    CONTEST_A_READY,
 
     CONTEST_LAST_ATTR
   };
@@ -304,11 +308,13 @@ struct contest_desc
   ejbytebool_t allow_reg_data_edit;
   ejbytebool_t disable_member_delete;
   ejbytebool_t old_run_managed;
+  ejbytebool_t ready;
 
   time_t         reg_deadline;
   time_t         sched_time;
   time_t         open_time;
   time_t         close_time;
+  time_t         update_time;
 
   unsigned char *name;
   unsigned char *name_en;
@@ -384,6 +390,8 @@ struct contest_desc
   unsigned char *reg_welcome_file;
   unsigned char *logo_url;
   unsigned char *css_url;
+  unsigned char *ext_id;
+  unsigned char *problem_count;
 
   struct xml_tree *slave_rules;
 
@@ -423,9 +431,11 @@ int contests_get_list(const int **p_list);
 int contests_get_set(const unsigned char **);
 int contests_get(int, const struct contest_desc **);
 int contests_load(int number, struct contest_desc **p_cnts);
+int contests_load_file(const unsigned char *path, struct contest_desc **p_cnts);
 struct contest_desc *contests_free(struct contest_desc *cnts);
 void contests_free_2(struct xml_tree *t);
 struct xml_tree *contests_new_node(int tag);
+void contests_clear_cache(void);
 
 const unsigned char *contests_strerror(int);
 

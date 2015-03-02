@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 6889 2012-06-13 14:12:26Z cher $ */
+/* $Id: new-server.h 6955 2012-07-09 06:30:45Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -392,6 +392,8 @@ enum
   NEW_SRV_ACTION_PRIV_EDIT_CLAR_ACTION,
   NEW_SRV_ACTION_PRIV_EDIT_RUN_PAGE,
   NEW_SRV_ACTION_PRIV_EDIT_RUN_ACTION,
+  NEW_SRV_ACTION_PING,
+  NEW_SRV_ACTION_SUBMIT_RUN_BATCH,
 
   NEW_SRV_ACTION_LAST,
 };
@@ -984,7 +986,12 @@ ns_submit_run(
         const unsigned char *prob_param_name,
         const unsigned char *lang_param_name,
         int enable_ans_collect,
+        int enable_path,
+        int enable_uuid,
+        int enable_user_id,
+        int enable_status,
         int admin_mode,
+        int is_hidden,
         int *p_run_id,
         int *p_mime_type,
         int *p_next_prob_id);

@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 6899 2012-06-18 11:37:42Z cher $ */
+/* $Id: reuse_exec.c 6925 2012-06-28 12:16:04Z cher $ */
 
 /* Copyright (C) 1998-2012 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1998-01-21 14:33:28 cher> */
@@ -2130,6 +2130,8 @@ task_NewWait(tTask *tsk)
 
   struct timeval cur_time, rt_timeout;
   gettimeofday(&cur_time, NULL);
+  rt_timeout.tv_sec = 0;
+  rt_timeout.tv_usec = 0;
   if (tsk->max_real_time > 0) {
     rt_timeout = cur_time;
     rt_timeout.tv_sec += tsk->max_real_time;

@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-setup.c 6628 2012-01-14 11:17:56Z cher $ */
+/* $Id: ejudge-setup.c 7003 2012-08-22 13:39:03Z cher $ */
 
 /* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -113,11 +113,11 @@ static int config_ejudge_lang_config_dir_modified;
 static unsigned char config_ejudge_run_path[PATH_MAX];
 static int config_ejudge_run_path_modified;
 
-static unsigned char config_user_id[64];
-static unsigned char config_login[64];
-static unsigned char config_email[256];
-static unsigned char config_name[256];
-static unsigned char config_password_txt[256];
+static unsigned char config_user_id[64] = "1";
+static unsigned char config_login[64] = "ejudge";
+static unsigned char config_email[256] = "ejudge@localhost";
+static unsigned char config_name[256] = "ejudge administrator";
+static unsigned char config_password_txt[256] = "ejudge";
 static unsigned char config_password_sha1[64];
 
 static unsigned char config_charset[256];
@@ -2728,6 +2728,24 @@ generate_serve_cfg(FILE *f)
     fputs("\n", f);
   }
 
+  if (stringset_check(archs, "linux-shared-32")) {
+    fputs("[tester]\n"
+          "name = Linux-shared-32\n"
+          "arch = linux-shared-32\n"
+          "abstract\n"
+          "no_core_dump\n"
+          "kill_signal = KILL\n"
+          "memory_limit_type = \"default\"\n"
+          "secure_exec_type = \"dll32\"\n"
+          "clear_env\n",
+          f);
+    if (check_dir[0]) {
+      fprintf(f, "check_dir = \"%s\"\n",
+              c_armor_2(&ab, check_dir, config_ejudge_contests_home_dir));
+    }
+    fputs("\n", f);
+  }
+
   if (stringset_check(archs, "java")) {
     fputs("[tester]\n"
           "name = Linux-java\n"
@@ -2788,6 +2806,27 @@ generate_serve_cfg(FILE *f)
     fputs("\n", f);
   }
 
+  if (stringset_check(archs, "valgrind")) {
+    fprintf(f, "[tester]\n"
+            "name = Valgrind\n"
+            "arch = \"valgrind\"\n"
+            "abstract\n"
+            "no_core_dump\n"
+            "kill_signal = TERM\n"
+            "memory_limit_type = \"valgrind\"\n"
+            "secure_exec_type = \"valgrind\"\n"
+            "start_cmd = \"runvg\"\n"
+            "clear_env\n"
+            "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
+            "start_env = \"LANG=C\"\n"
+            "start_env = \"HOME\"\n");
+    if (check_dir[0]) {
+      fprintf(f, "check_dir = \"%s\"\n",
+              c_armor_2(&ab, check_dir, config_ejudge_contests_home_dir));
+    }
+    fputs("\n", f);
+  }
+
   if (stringset_check(archs, "")) {
     fputs("[tester]\n"
           "any\n"
@@ -2801,6 +2840,14 @@ generate_serve_cfg(FILE *f)
           "any\n"
           "super = Linux-shared\n"
           "arch = linux-shared\n",
+          f);
+  }
+
+  if (stringset_check(archs, "linux-shared-32")) {
+    fputs("[tester]\n"
+          "any\n"
+          "super = Linux-shared-32\n"
+          "arch = linux-shared-32\n",
           f);
   }
 
@@ -2828,6 +2875,15 @@ generate_serve_cfg(FILE *f)
           "any\n"
           "super = DOSTester\n"
           "arch = dos\n",
+          f);
+  }
+
+  if (stringset_check(archs, "valgrind")) {
+    fputs("\n"
+          "[tester]\n"
+          "any\n"
+          "super = Valgrind\n"
+          "arch = valgrind\n",
           f);
   }
 
@@ -4182,6 +4238,7 @@ main(int argc, char **argv)
     save_install_script(1, "ejudge-install.sh");
   } else {
     //answer = ncurses_yesno(0, initial_warning);
+    make_sha1_passwd(config_password_sha1, "ejudge");
     if (answer == 1) {
       do_main_menu();
     }

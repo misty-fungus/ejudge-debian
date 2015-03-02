@@ -1,5 +1,5 @@
 /* -*- mode: fundamental -*- */
-/* $Id: filter_scan.lex 6634 2012-02-07 14:54:16Z cher $ */
+/* $Id: filter_scan.lex 6922 2012-06-28 11:55:34Z cher $ */
 
 /* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -99,6 +99,8 @@ lett    [A-Za-z_]
 "cursize" { TT(TOK_CURSIZE, FILTER_TYPE_SIZE); }
 "hash" { TT(TOK_HASH, FILTER_TYPE_HASH); }
 "curhash" { TT(TOK_CURHASH, FILTER_TYPE_HASH); }
+"uuid" { TT(TOK_UUID, FILTER_TYPE_STRING); }
+"curuuid" { TT(TOK_CURUUID, FILTER_TYPE_STRING); }
 "ip" { TT(TOK_IP, FILTER_TYPE_IP); }
 "curip" { TT(TOK_CURIP, FILTER_TYPE_IP); }
 "uid" { TT(TOK_UID, FILTER_TYPE_INT); }
@@ -282,6 +284,5 @@ filter_expr_set_string(unsigned char const *str,
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

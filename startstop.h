@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: startstop.h 6677 2012-03-27 07:41:09Z cher $ */
+/* $Id: startstop.h 6984 2012-08-13 14:49:10Z cher $ */
 
 #ifndef __STARTSTOP_H__
 #define __STARTSTOP_H__
@@ -39,5 +39,6 @@ start_find_all_processes(const unsigned char *name, int **p_pids);
 
 int start_kill(int pid, int op);
 int start_daemon(const unsigned char *log_path);
+int start_open_log(const unsigned char *log_path);
 
 #endif /* __STARTSTOP_H__ */

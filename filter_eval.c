@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: filter_eval.c 6517 2011-11-06 18:54:23Z cher $ */
+/* $Id: filter_eval.c 6945 2012-07-06 14:35:48Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -23,6 +23,7 @@
 #include "teamdb.h"
 #include "userlist.h"
 #include "archive_paths.h"
+#include "ej_uuid.h"
 
 #include "reuse_logger.h"
 #include "reuse_mempage.h"
@@ -234,6 +235,7 @@ do_eval(struct filter_env *env,
   case TOK_DUR:
   case TOK_SIZE:
   case TOK_HASH:
+  case TOK_UUID:
   case TOK_IP:
   case TOK_PROB:
   case TOK_UID:
@@ -289,6 +291,11 @@ do_eval(struct filter_env *env,
       res->kind = TOK_HASH_L;
       res->type = FILTER_TYPE_HASH;
       memcpy(res->v.h, env->rentries[r1.v.i].sha1, sizeof(env->cur->sha1));
+      break;
+    case TOK_UUID:
+      res->kind = TOK_STRING_L;
+      res->type = FILTER_TYPE_STRING;
+      res->v.s = envdup(env, ej_uuid_unparse(env->rentries[r1.v.i].run_uuid, ""));
       break;
     case TOK_IP:
       res->kind = TOK_IP_L;
@@ -507,7 +514,8 @@ do_eval(struct filter_env *env,
     case TOK_EXAMINABLE:
       res->kind = TOK_BOOL_L;
       res->type = FILTER_TYPE_BOOL;
-      res->v.b = env->rentries[r1.v.i].is_examinable;
+      //res->v.b = env->rentries[r1.v.i].is_examinable;
+      res->v.b = 0;
       break;
     case TOK_CYPHER:
       res->kind = TOK_STRING_L;
@@ -570,6 +578,11 @@ do_eval(struct filter_env *env,
     res->kind = TOK_HASH_L;
     res->type = FILTER_TYPE_HASH;
     memcpy(res->v.h, env->cur->sha1, sizeof(env->cur->sha1));
+    break;
+  case TOK_CURUUID:
+    res->kind = TOK_STRING_L;
+    res->type = FILTER_TYPE_STRING;
+    res->v.s = envdup(env, ej_uuid_unparse(env->cur->run_uuid, ""));
     break;
   case TOK_CURIP:
     res->kind = TOK_IP_L;
@@ -781,7 +794,8 @@ do_eval(struct filter_env *env,
   case TOK_CUREXAMINABLE:
     res->kind = TOK_BOOL_L;
     res->type = FILTER_TYPE_BOOL;
-    res->v.b = env->cur->is_examinable;
+    //res->v.b = env->cur->is_examinable;
+    res->v.b = 0;
     break;
   case TOK_CURCYPHER:
     res->kind = TOK_STRING_L;
@@ -852,12 +866,14 @@ do_eval(struct filter_env *env,
     res->kind = TOK_BOOL_L;
     res->type = FILTER_TYPE_BOOL;
     res->v.b = 0;
+    /*
     for (c = 0; c < 3; c++) {
       if (env->rentries[r1.v.i].examiners[c] == r2.v.i) {
         res->v.b = 1;
         break;
       }
     }
+    */
     break;
 
   case TOK_CUREXAMINATOR:
@@ -866,12 +882,14 @@ do_eval(struct filter_env *env,
     res->kind = TOK_BOOL_L;
     res->type = FILTER_TYPE_BOOL;
     res->v.b = 0;
+    /*
     for (c = 0; c < 3; c++) {
       if (env->cur->examiners[c] == r1.v.i) {
         res->v.b = 1;
         break;
       }
     }
+    */
     break;
 
   case TOK_INUSERGROUP:
@@ -920,6 +938,5 @@ filter_tree_bool_eval(struct filter_env *env,
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "jmp_buf")
  * End:
  */

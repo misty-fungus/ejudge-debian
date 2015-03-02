@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 6814 2012-05-09 12:34:01Z cher $ */
+/* $Id: rldb_mysql.c 6924 2012-06-28 12:00:52Z cher $ */
 
 /* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -41,6 +41,10 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <sys/time.h>
+
+#if CONF_HAS_LIBUUID - 0 != 0
+#include <uuid/uuid.h>
+#endif
 
 struct rldb_mysql_state
 {
@@ -165,7 +169,7 @@ do_create(struct rldb_mysql_state *state)
   if (mi->simple_fquery(md, create_runs_query, md->table_prefix) < 0)
     db_error_fail(md);
   if (mi->simple_fquery(md,
-                        "INSERT INTO %sconfig VALUES ('run_version', '2') ;",
+                        "INSERT INTO %sconfig VALUES ('run_version', '3') ;",
                         md->table_prefix) < 0)
     db_error_fail(md);
   return 0;
@@ -214,7 +218,12 @@ do_open(struct rldb_mysql_state *state)
       return -1;
     if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '2' WHERE config_key = 'run_version' ;", md->table_prefix) < 0)
       return -1;
-  } else if (run_version != 2) {
+  } else if (run_version == 2) {
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN run_uuid CHAR(40) DEFAULT NULL AFTER hash", md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '3' WHERE config_key = 'run_version' ;", md->table_prefix) < 0)
+      return -1;
+  } else if (run_version != 3) {
     err("run_version == %d is not supported", run_version);
     return -1;
   }
@@ -342,6 +351,7 @@ load_runs(struct rldb_mysql_cnts *cs)
   struct run_entry *re;
   int i, mime_type;
   ruint32_t sha1[5];
+  ruint32_t run_uuid[4];
 
   memset(&ri, 0, sizeof(ri));
   if (mi->fquery(md, RUNS_ROW_WIDTH,
@@ -356,6 +366,7 @@ load_runs(struct rldb_mysql_cnts *cs)
     if (mi->next_row(md) < 0) goto fail;
     memset(&ri, 0, sizeof(ri));
     memset(sha1, 0, sizeof(sha1));
+    memset(run_uuid, 0, sizeof(run_uuid));
     mime_type = 0;
     if (mi->parse_spec(md, md->field_count, md->row, md->lengths,
                        RUNS_ROW_WIDTH, runs_spec, &ri) < 0)
@@ -386,6 +397,11 @@ load_runs(struct rldb_mysql_cnts *cs)
     if (ri.lang_id < 0) db_error_inv_value_fail(md, "lang_id");
     if (ri.hash && parse_sha1(sha1, ri.hash) < 0)
       db_error_inv_value_fail(md, "hash");
+    if (ri.run_uuid) {
+#if CONF_HAS_LIBUUID - 0 != 0
+      uuid_parse(ri.run_uuid, (void*) run_uuid);
+#endif
+    }
     if (ri.ip_version != 4) db_error_inv_value_fail(md, "ip_version");
     if (ri.mime_type && (mime_type = mime_type_parse(ri.mime_type)) < 0)
       db_error_inv_value_fail(md, "mime_type");
@@ -405,6 +421,7 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->a.ip = ri.ip;
     re->ipv6_flag = 0;
     memcpy(re->sha1, sha1, sizeof(re->sha1));
+    memcpy(re->run_uuid, run_uuid, sizeof(re->run_uuid));
     re->score = ri.score;
     re->test = ri.test_num;
     re->score_adj = ri.score_adj;
@@ -418,6 +435,7 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->pages = ri.pages;
     re->ssl_flag = ri.ssl_flag;
     re->mime_type = mime_type;
+    /*
     re->is_examinable = ri.is_examinable;
     re->examiners[0] = ri.examiners0;
     re->examiners[1] = ri.examiners1;
@@ -425,6 +443,7 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->exam_score[0] = ri.exam_score0;
     re->exam_score[1] = ri.exam_score1;
     re->exam_score[2] = ri.exam_score2;
+    */
     re->is_marked = ri.is_marked;
     re->is_saved = ri.is_saved;
     re->saved_status = ri.saved_status;
@@ -821,6 +840,18 @@ generate_update_entry_clause(
     }
     sep =comma;
   }
+  if ((flags & RE_RUN_UUID)) {
+#if CONF_HAS_LIBUUID - 0 != 0
+    if (!re->run_uuid[0] && !re->run_uuid[1] && !re->run_uuid[2] && !re->run_uuid[3]) {
+      fprintf(f, "%srun_uuid = NULL", sep);
+    } else {
+      char uuid_buf[40];
+      uuid_unparse((void*) re->run_uuid, uuid_buf);
+      fprintf(f, "%srun_uuid = '%s'", sep, uuid_buf);
+    }
+    sep =comma;
+#endif
+  }
   if ((flags & RE_SCORE)) {
     fprintf(f, "%sscore = %d", sep, re->score);
     sep = comma;
@@ -861,10 +892,12 @@ generate_update_entry_clause(
     fprintf(f, "%sis_readonly = %d", sep, re->is_readonly);
     sep = comma;
   }
+  /*
   if ((flags & RE_IS_EXAMINABLE)) {
     fprintf(f, "%sis_examinable = %d", sep, re->is_examinable);
     sep = comma;
   }
+  */
   if ((flags & RE_MIME_TYPE)) {
     if (re->mime_type > 0) {
       fprintf(f, "%smime_type = '%s'", sep, mime_type_get_type(re->mime_type));
@@ -874,16 +907,20 @@ generate_update_entry_clause(
     sep = comma;
   }
   if ((flags & RE_EXAMINERS)) {
+    /*
     fprintf(f, "%sexaminers0 = %d", sep, re->examiners[0]);
     sep = comma;
     fprintf(f, "%sexaminers1 = %d", sep, re->examiners[1]);
     fprintf(f, "%sexaminers2 = %d", sep, re->examiners[2]);
+    */
   }
   if ((flags & RE_EXAM_SCORE)) {
+    /*
     fprintf(f, "%sexam_score0 = %d", sep, re->exam_score[0]);
     sep = comma;
     fprintf(f, "%sexam_score1 = %d", sep, re->exam_score[1]);
     fprintf(f, "%sexam_score2 = %d", sep, re->exam_score[2]);
+    */
   }
   if ((flags & RE_IS_MARKED)) {
     fprintf(f, "%sis_marked = %d", sep, re->is_marked);
@@ -938,6 +975,9 @@ update_entry(
   if ((flags & RE_SHA1)) {
     memcpy(dst->sha1, src->sha1, sizeof(dst->sha1));
   }
+  if ((flags & RE_RUN_UUID)) {
+    memcpy(dst->run_uuid, src->run_uuid, sizeof(dst->run_uuid));
+  }
   if ((flags & RE_SCORE)) {
     dst->score = src->score;
   }
@@ -978,13 +1018,13 @@ update_entry(
     dst->mime_type = src->mime_type;
   }
   if ((flags & RE_IS_EXAMINABLE)) {
-    dst->is_examinable = src->is_examinable;
+    //dst->is_examinable = src->is_examinable;
   }
   if ((flags & RE_EXAMINERS)) {
-    memcpy(dst->examiners, src->examiners, sizeof(dst->examiners));
+    //memcpy(dst->examiners, src->examiners, sizeof(dst->examiners));
   }
   if ((flags & RE_EXAM_SCORE)) {
-    memcpy(dst->exam_score, src->exam_score, sizeof(dst->exam_score));
+    //memcpy(dst->exam_score, src->exam_score, sizeof(dst->exam_score));
   }
   if ((flags & RE_IS_MARKED)) {
     dst->is_marked = src->is_marked;
@@ -1453,6 +1493,15 @@ put_entry_func(
       || re->sha1[4]) {
     ri.hash = unparse_sha1(re->sha1);
   }
+#if CONF_HAS_LIBUUID
+  {
+    char uuid_buf[40];
+    if (re->run_uuid[0] || re->run_uuid[1] || re->run_uuid[2] || re->run_uuid[3]) {
+      uuid_unparse((void*) re->run_uuid, uuid_buf);
+      ri.run_uuid = uuid_buf;
+    }
+  }
+#endif
   ri.score = re->score;
   ri.test_num = re->test;
   ri.score_adj = re->score_adj;
@@ -1463,16 +1512,18 @@ put_entry_func(
   ri.is_imported = re->is_imported;
   ri.is_hidden = re->is_hidden;
   ri.is_readonly = re->is_readonly;
-  ri.is_examinable = re->is_examinable;
+  //ri.is_examinable = re->is_examinable;
   if (re->mime_type) {
     ri.mime_type = (unsigned char*) mime_type_get_type(re->mime_type);
   }
+  /*
   ri.examiners0 = re->examiners[0];
   ri.examiners1 = re->examiners[1];
   ri.examiners2 = re->examiners[2];
   ri.exam_score0 = re->exam_score[0];
   ri.exam_score1 = re->exam_score[1];
   ri.exam_score2 = re->exam_score[2];
+  */
   ri.last_change_time = curtime.tv_sec;
   ri.last_change_nsec = curtime.tv_usec * 1000;
   ri.is_marked = re->is_marked;

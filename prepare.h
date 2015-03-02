@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 6859 2012-05-26 10:12:00Z cher $ */
+/* $Id: prepare.h 6965 2012-07-30 08:57:50Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -1068,7 +1068,7 @@ struct section_problem_data
   } xml META_ATTRIB((meta_hidden));
 };
 
-/* sizeof(struct section_language_data) == 33676/33712 */
+/* sizeof(struct section_language_data) == 33680/33720 */
 struct section_language_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -1108,6 +1108,9 @@ struct section_language_data
   path_t style_checker_cmd;
   /** environment to pass to the style checker */
   ejenvlist_t style_checker_env;
+
+  /** external id (for external application binding) */
+  unsigned char *extid;
 
   /** do not test this language automatically */
   ejintbool_t disable_auto_testing;

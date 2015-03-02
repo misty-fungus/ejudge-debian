@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: style_archive.c 6700 2012-03-30 07:16:14Z cher $ */
+/* $Id: style_archive.c 6973 2012-08-07 04:35:08Z cher $ */
 
 /* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -934,19 +934,22 @@ check_tar_tests(
   if ((i = find_entry(arch, n1)) < 0) {
     snprintf(n1, sizeof(n1), "%s", dir_prefix);
     if ((i = find_entry(arch, n1)) < 0) {
-      error("no %s entry in the archive", n1);
-      return -1;
+      // there might be no "tests/" entry in the archive, but tests still there
+      //error("no %s entry in the archive", n1);
+      //return -1;
     }
   }
-  if (!S_ISDIR(arch->v[i].type)) {
-    error("%s entry is not a directory", n1);
-    return -1;
+  if (i >= 0) {
+    if (!S_ISDIR(arch->v[i].type)) {
+      error("%s entry is not a directory", n1);
+      return -1;
+    }
+    if ((arch->v[i].type & 0700) != 0700) {
+      error("invalid permissions on %s entry", n1);
+      return -1;
+    }
+    arch->v[i].is_processed = 1;
   }
-  if ((arch->v[i].type & 0700) != 0700) {
-    error("invalid permissions on %s entry", n1);
-    return -1;
-  }
-  arch->v[i].is_processed = 1;
 
   // find "tests/README" entry
   snprintf(n1, sizeof(n1), "%s/README", dir_prefix);

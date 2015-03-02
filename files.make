@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files.make 6895 2012-06-18 04:07:06Z cher $
+# $Id: files.make 6945 2012-07-06 14:35:48Z cher $
 
 # Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -121,6 +121,7 @@ COMMON_CFILES=\
  archive_paths.c\
  base64.c\
  bitset.c\
+ build_support.c\
  cgi.c\
  charsets.c\
  clarlog.c\
@@ -145,7 +146,9 @@ COMMON_CFILES=\
  digest_4.c\
  digest_5.c\
  dos2unix_str.c\
+ ej_import_packet.c\
  ejudge_cfg.c\
+ ej_uuid.c\
  errlog.c\
  expat_iface.c\
  filehash.c\
@@ -202,13 +205,9 @@ COMMON_CFILES=\
  runlog_import.c\
  runlog_static.c\
  runlog_xml.c\
- run_packet_1.c\
- run_packet_2.c\
- run_packet_3.c\
  run_packet_4.c\
  run_packet_5.c\
  run_packet_6.c\
- run_packet_7.c\
  send_job_packet.c\
  server_framework.c\
  serve_2.c\
@@ -223,6 +222,7 @@ COMMON_CFILES=\
  super_html_5.c\
  super_html_6.c\
  super_html_7.c\
+ super_html_8.c\
  super_proto.c\
  super_run_packet.c\
  sha.c\
@@ -351,6 +351,7 @@ CFILES=\
  edit-userlist.c\
  ej-ncheck.c\
  ej-batch.c\
+ ej-import-contest.c\
  ej-normalize.c\
  ej-polygon.c\
  ej-super-run.c\
@@ -482,6 +483,7 @@ HFILES=\
  archive_paths.h\
  base64.h\
  bitset.h\
+ build_support.h\
  cgi.h\
  charsets.h\
  clarlog.h\
@@ -503,9 +505,11 @@ HFILES=\
  digest_io.h\
  ejudge_cfg.h\
  ejudge_plugin.h\
+ ej_import_packet.h\
  ej_limits.h\
  ej_process.h\
  ej_types.h\
+ ej_uuid.h\
  errlog.h\
  expat_iface.h\
  filehash.h\

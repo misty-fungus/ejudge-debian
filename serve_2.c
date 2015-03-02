@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_2.c 6855 2012-05-25 10:31:22Z cher $ */
+/* $Id: serve_2.c 7006 2012-08-28 09:15:26Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1199,7 +1199,7 @@ serve_compile_request(
     goto failed;
   }
 
-  prio = 0;
+  prio = global->priority_adjustment;
   if (lang) prio += lang->priority_adjustment;
   if (prob) prio += prob->priority_adjustment;
   prio += find_user_priority_adjustment(state, user_id);
@@ -1472,7 +1472,7 @@ serve_run_request(
   }
 
   /* calculate a priority */
-  prio = 0;
+  prio = global->priority_adjustment;
   if (lang) prio += lang->priority_adjustment;
   prio += prob->priority_adjustment;
   prio += find_user_priority_adjustment(state, user_id);
@@ -2059,9 +2059,12 @@ serve_read_compile_packet(
   struct section_language_data *lang = 0;
   int arch_flags;
   path_t run_arch_path;
-  char *run_text = 0;
-  size_t run_size = 0;
+  char *run_text = 0, *txt_text = 0;
+  size_t run_size = 0, txt_size = 0;
   path_t pkt_name;
+  path_t txt_report_path;
+  path_t txt_packet_path;
+  size_t min_txt_size = 1;
 
   if ((r = generic_read_file(&comp_pkt_buf, 0, &comp_pkt_size, SAFE | REMOVE,
                              compile_status_dir, pname, "")) <= 0)
@@ -2098,7 +2101,6 @@ serve_read_compile_packet(
   }
 
   snprintf(pkt_name, sizeof(pkt_name), "%06d", comp_pkt->run_id);
-  snprintf(run_arch_path, sizeof(run_arch_path), "%s/%s.txt", compile_report_dir, pkt_name);
 
   if (comp_pkt->status == RUN_CHECK_FAILED
       || comp_pkt->status == RUN_COMPILE_ERR
@@ -2122,21 +2124,23 @@ serve_read_compile_packet(
     }
   }
 
-  if (generic_read_file(&run_text, 0, &run_size, 0, 0, run_arch_path, 0) >= 0) {
-    if (run_size > 0) {
-      arch_flags = archive_make_write_path(state,
-                                           run_arch_path, sizeof(run_arch_path),
-                                           global->report_archive_dir,
-                                           comp_pkt->run_id, run_size, 0, 0);
-      if (arch_flags >= 0) {
-        if (archive_dir_prepare(state, global->report_archive_dir,
-                                comp_pkt->run_id, 0, 1) >= 0) {
-          generic_write_file(run_text, run_size, arch_flags,
-                             0, run_arch_path, 0);
-        }
-      }
-    }
-    xfree(run_text); run_text = 0; run_size = 0;
+  if ((prob && prob->style_checker_cmd && prob->style_checker_cmd[0])
+      || (lang && lang->style_checker_cmd && lang->style_checker_cmd[0])) {
+    min_txt_size = 0;
+  }
+  snprintf(txt_packet_path, sizeof(txt_packet_path), "%s/%s.txt", compile_report_dir, pkt_name);
+  if (generic_read_file(&txt_text, 0, &txt_size, REMOVE, NULL, txt_packet_path, NULL) >= 0
+      && txt_size >= min_txt_size
+      && (arch_flags = archive_make_write_path(state,
+                                               txt_report_path,
+                                               sizeof(txt_report_path),
+                                               global->report_archive_dir,
+                                               comp_pkt->run_id, txt_size,
+                                               0, 0)) >= 0
+      && archive_dir_prepare(state, global->report_archive_dir,
+                             comp_pkt->run_id, 0, 1) >= 0) {
+    generic_write_file(txt_text, txt_size, arch_flags,
+                       0, txt_report_path, 0);
   }
 
   if (comp_pkt->status == RUN_CHECK_FAILED) {
@@ -2228,24 +2232,6 @@ serve_read_compile_packet(
    * so far compilation is successful, and now we prepare a run packet
    */
 
-  if ((prob && prob->style_checker_cmd && prob->style_checker_cmd[0])
-      || (lang && lang->style_checker_cmd && lang->style_checker_cmd[0])) {
-    if (generic_read_file(&run_text, 0, &run_size, 0, 0, run_arch_path, 0) >= 0){
-      arch_flags = archive_make_write_path(state,
-                                           run_arch_path, sizeof(run_arch_path),
-                                           global->report_archive_dir,
-                                           comp_pkt->run_id, run_size, 0, 0);
-      if (arch_flags >= 0) {
-        if (archive_dir_prepare(state, global->report_archive_dir,
-                                comp_pkt->run_id, 0, 1) >= 0) {
-          generic_write_file(run_text, run_size, arch_flags,
-                             0, run_arch_path, 0);
-        }
-      }
-      xfree(run_text); run_text = 0; run_size = 0;
-    }
-  }
-
   if (prob && prob->type > 0 && prob->style_checker_cmd && prob->style_checker_cmd[0]) {
     arch_flags = archive_make_read_path(state, run_arch_path,
                                         sizeof(run_arch_path),
@@ -2271,6 +2257,7 @@ serve_read_compile_packet(
 
  success:
   xfree(comp_pkt_buf);
+  xfree(txt_text);
   compile_reply_packet_free(comp_pkt);
   return 1;
 
@@ -2295,6 +2282,7 @@ serve_read_compile_packet(
 
  non_fatal_error:
   xfree(comp_pkt_buf);
+  xfree(txt_text);
   compile_reply_packet_free(comp_pkt);
   return 0;
 }
@@ -3891,6 +3879,7 @@ testing_queue_unlock_entry(
 static struct super_run_in_packet *
 testing_queue_lock_entry(
         int contest_id,
+        const unsigned char *user_login,
         const unsigned char *run_queue_dir,
         const unsigned char *packet_name,
         unsigned char *out_name,
@@ -3946,6 +3935,16 @@ testing_queue_lock_entry(
   pkt_size = 0;
 
   if (!srp->global || srp->global->contest_id != contest_id) {
+    // do allow locking if the user has CONTROL_CONTEST capability on that contest
+    const struct contest_desc *cnts = NULL;
+    opcap_t caps = 0;
+    if (srp->global && user_login
+        && contests_get(srp->global->contest_id, &cnts) >= 0
+        && cnts
+        && opcaps_find(&cnts->capabilities, user_login, &caps) >= 0
+        && opcaps_check(caps, OPCAP_CONTROL_CONTEST) >= 0) {
+      return srp;
+    }
     srp = super_run_in_packet_free(srp);
     testing_queue_unlock_entry(run_queue_dir, out_path, packet_name);
     return NULL;
@@ -3998,7 +3997,8 @@ int
 serve_testing_queue_delete(
         const struct contest_desc *cnts,
         const serve_state_t state,
-        const unsigned char *packet_name)
+        const unsigned char *packet_name,
+        const unsigned char *user_login)
 {
   const struct section_global_data *global = state->global;
   path_t out_path;
@@ -4023,7 +4023,7 @@ serve_testing_queue_delete(
     snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/queue", global->run_dir);
   }
 
-  if (!(srp = testing_queue_lock_entry(cnts->id, run_queue_dir, packet_name,
+  if (!(srp = testing_queue_lock_entry(cnts->id, user_login, run_queue_dir, packet_name,
                                        out_name, sizeof(out_name),
                                        out_path, sizeof(out_path))))
     return -1;
@@ -4055,7 +4055,8 @@ serve_testing_queue_change_priority(
         const struct contest_desc *cnts,
         const serve_state_t state,
         const unsigned char *packet_name,
-        int adjustment)
+        int adjustment,
+        const unsigned char *user_login)
 {
   const struct section_global_data *global = state->global;
   path_t out_path;
@@ -4081,7 +4082,7 @@ serve_testing_queue_change_priority(
     snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/queue", global->run_dir);
   }
 
-  if (!(srp = testing_queue_lock_entry(cnts->id, run_queue_dir, packet_name,
+  if (!(srp = testing_queue_lock_entry(cnts->id, user_login, run_queue_dir, packet_name,
                                        out_name, sizeof(out_name),
                                        out_path, sizeof(out_path)))) {
     goto fail;
@@ -4094,7 +4095,10 @@ serve_testing_queue_change_priority(
   snprintf(new_packet_name, sizeof(new_packet_name), "%s", packet_name);
   new_packet_name[0] = get_priority_code(get_priority_value(new_packet_name[0]) + adjustment);
   if (!strcmp(packet_name, new_packet_name)) {
-    goto fail;
+    // already hit min or max priority
+    testing_queue_unlock_entry(run_queue_dir, out_path, packet_name);
+    srp = super_run_in_packet_free(srp);
+    return 0;
   }
 
   snprintf(exe_path, sizeof(exe_path), "%s/%s%s", run_exe_dir, packet_name, exe_sfx);
@@ -4151,14 +4155,15 @@ collect_run_packets(const struct contest_desc *cnts, const serve_state_t state, 
 int
 serve_testing_queue_delete_all(
         const struct contest_desc *cnts,
-        const serve_state_t state)
+        const serve_state_t state,
+        const unsigned char *user_login)
 {
   strarray_t vec;
   int i;
 
   collect_run_packets(cnts, state, &vec);
   for (i = 0; i < vec.u; ++i) {
-    serve_testing_queue_delete(cnts, state, vec.v[i]);
+    serve_testing_queue_delete(cnts, state, vec.v[i], user_login);
   }
 
   xstrarrayfree(&vec);
@@ -4169,14 +4174,15 @@ int
 serve_testing_queue_change_priority_all(
         const struct contest_desc *cnts,
         const serve_state_t state,
-        int adjustment)
+        int adjustment,
+        const unsigned char *user_login)
 {
   strarray_t vec;
   int i;
 
   collect_run_packets(cnts, state, &vec);
   for (i = 0; i < vec.u; ++i) {
-    serve_testing_queue_change_priority(cnts, state, vec.v[i], adjustment);
+    serve_testing_queue_change_priority(cnts, state, vec.v[i], adjustment, user_login);
   }
 
   xstrarrayfree(&vec);

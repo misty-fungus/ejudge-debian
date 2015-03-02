@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_html.h 6879 2012-06-06 08:39:30Z cher $ */
+/* $Id: super_html.h 6950 2012-07-07 18:08:46Z cher $ */
 #ifndef __SUPER_HTML_H__
 #define __SUPER_HTML_H__
 
@@ -548,5 +548,20 @@ struct section_problem_data *
 super_html_create_problem(
         struct sid_state *sstate,
         int prob_id);
+void
+super_html_serve_unparse_serve_cfg(
+        FILE *f,
+        const struct ejudge_cfg *config,
+        const struct sid_state *sstate);
+int
+super_html_get_contest_header_and_footer(
+        const unsigned char *path,
+        unsigned char **before_start,
+        unsigned char **after_end);
+int
+super_html_set_cnts_file_perms(
+        FILE *log_f,
+        const unsigned char *path,
+        const struct contest_desc *cnts);
 
 #endif /* __SUPER_HTML_H__ */

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_proto.h 6881 2012-06-06 10:08:30Z cher $ */
+/* $Id: super_proto.h 6964 2012-07-30 08:56:39Z cher $ */
 
 #ifndef __SUPER_PROTO_H__
 #define __SUPER_PROTO_H__
@@ -559,6 +559,8 @@ enum
   SSERV_CMD_LANG_CHANGE_INSECURE,
   SSERV_CMD_LANG_CHANGE_LONG_NAME,
   SSERV_CMD_LANG_CLEAR_LONG_NAME,
+  SSERV_CMD_LANG_CHANGE_EXTID,
+  SSERV_CMD_LANG_CLEAR_EXTID,
   SSERV_CMD_LANG_CHANGE_DISABLE_SECURITY,
   SSERV_CMD_LANG_CHANGE_DISABLE_AUTO_TESTING,
   SSERV_CMD_LANG_CHANGE_DISABLE_TESTING,
@@ -1055,6 +1057,8 @@ enum
   SSERV_OP_DOWNLOAD_CLEANUP_AND_IMPORT_ACTION,
   SSERV_OP_UPDATE_FROM_POLYGON_PAGE,
   SSERV_OP_UPDATE_FROM_POLYGON_ACTION,
+  SSERV_OP_IMPORT_PROBLEMS_BATCH_ACTION,
+  SSERV_OP_CREATE_CONTEST_BATCH_ACTION,
 
   SSERV_OP_LAST,
 };
@@ -1238,5 +1242,6 @@ struct prot_super_pkt_http_request
 extern const unsigned char * const super_proto_op_names[SSERV_OP_LAST];
 extern const int super_proto_op_redirect[SSERV_OP_LAST];
 extern unsigned char const * const super_proto_op_error_messages[];
+extern const unsigned char * const super_proto_cmd_names[SSERV_CMD_LAST];
 
 #endif /* __SUPER_PROTO_H__ */

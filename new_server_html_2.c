@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 6855 2012-05-25 10:31:22Z cher $ */
+/* $Id: new_server_html_2.c 6962 2012-07-29 19:29:55Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -49,6 +49,7 @@
 #include "run_packet.h"
 #include "prepare_dflt.h"
 #include "super_run_packet.h"
+#include "ej_uuid.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -352,12 +353,23 @@ ns_write_priv_all_runs(
       abort();
     }
 
+    // this is a hidden form to change status
+    fprintf(f, "<form id=\"ChangeStatusForm\" method=\"POST\" action=\"%s\">\n"
+            "<input type=\"hidden\" name=\"SID\" value=\"%016llx\" />\n"
+            "<input type=\"hidden\" name=\"action\" value=\"%d\" />\n"
+            "<input type=\"hidden\" name=\"run_id\" value=\"\" />\n"
+            "<input type=\"hidden\" name=\"status\" value=\"\" />\n"
+            "</form>\n", phr->self_url, phr->session_id, NEW_SRV_ACTION_CHANGE_STATUS);
+
     // FIXME: class should be a parameter
     snprintf(cl, sizeof(cl), " class=\"b1\"");
 
     fprintf(f, "<table%s><tr>", cl);
     if (run_fields & (1 << RUN_VIEW_RUN_ID)) {
       fprintf(f, "<th%s>%s</th>", cl, _("Run ID"));
+    }
+    if (run_fields & (1 << RUN_VIEW_RUN_UUID)) {
+      fprintf(f, "<th%s>%s</th>", cl, "UUID");
     }
     if (run_fields & (1 << RUN_VIEW_TIME)) {
       fprintf(f, "<th%s>%s</th>", cl, _("Time"));
@@ -481,6 +493,9 @@ ns_write_priv_all_runs(
         if (run_fields & (1 << RUN_VIEW_RUN_ID)) {
           fprintf(f, "<td%s>%d</td>", cl, rid);
         }
+        if (run_fields & (1 << RUN_VIEW_RUN_UUID)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
         if (run_fields & (1 << RUN_VIEW_TIME)) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
@@ -572,6 +587,9 @@ ns_write_priv_all_runs(
 
         if (run_fields & (1 << RUN_VIEW_RUN_ID)) {
           fprintf(f, "<td%s>%d%s</td>", cl, rid, examinable_str);
+        }
+        if (run_fields & (1 << RUN_VIEW_RUN_UUID)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
         if (run_fields & (1 << RUN_VIEW_TIME)) {
           fprintf(f, "<td%s>%s</td>", cl, durstr);
@@ -691,9 +709,11 @@ ns_write_priv_all_runs(
         imported_str = "#";
       }
       examinable_str = "";
+      /*
       if (pe->is_examinable) {
         examinable_str = "!";
       }
+      */
       marked_str = "";
       if (pe->is_marked) {
         marked_str = "@";
@@ -714,6 +734,9 @@ ns_write_priv_all_runs(
       if (run_fields & (1 << RUN_VIEW_RUN_ID)) {
         fprintf(f, "<td%s>%d%s%s%s%s</td>", cl, rid, imported_str, examinable_str,
                 marked_str, saved_str);
+      }
+      if (run_fields & (1 << RUN_VIEW_RUN_UUID)) {
+        fprintf(f, "<td%s>%s</td>", cl, ej_uuid_unparse(pe->run_uuid, "&nbsp;"));
       }
       if (run_fields & (1 << RUN_VIEW_TIME)) {
         fprintf(f, "<td%s>%s</td>", cl, durstr);
@@ -1421,6 +1444,10 @@ ns_write_priv_source(const serve_state_t state,
           _("Submission time"), duration_str(1, info.time, 0, 0, 0), info.nsec);
   fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
           _("Contest time"), duration_str_2(filtbuf1, sizeof(filtbuf1), run_time - start_time, info.nsec));
+
+#if CONF_HAS_LIBUUID - 0 != 0
+  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", "UUID", ej_uuid_unparse(info.run_uuid, ""));
+#endif
 
   // IP-address
   fprintf(f, "<tr><td>%s:</td>", _("Originator IP"));
@@ -2778,6 +2805,12 @@ ns_priv_edit_run_page(
           cl, html_input_text(hbuf, sizeof(hbuf), "sha1", 60, info.is_readonly,
                               "%s", unparse_sha1(info.sha1)));
 
+#if CONF_HAS_LIBUUID - 0 != 0
+  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "UUID",
+          cl, html_input_text(hbuf, sizeof(hbuf), "uuid", 60, info.is_readonly,
+                              "%s", ej_uuid_unparse(info.run_uuid, "")));
+#endif
+
   if (!info.lang_id) {
     fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Content type",
             cl, html_input_text(hbuf, sizeof(hbuf), "mime_type", 60, info.is_readonly,
@@ -3278,6 +3311,33 @@ ns_priv_edit_run_action(
       mask |= RE_SHA1;
     }
   }
+
+#if CONF_HAS_LIBUUID - 0 != 0
+  s = NULL;
+  if ((r = ns_cgi_param(phr, "uuid", &s)) < 0) {
+    fprintf(log_f, "invalid 'uuid' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (r > 0 && s && *s) {
+    ruint32_t new_uuid[4];
+    if (ej_uuid_parse(s, new_uuid) < 0) {
+      fprintf(log_f, "invalid 'uuid' field value\n");
+      FAIL(NEW_SRV_ERR_INV_PARAM);    
+    }
+    if (memcmp(info.run_uuid, new_uuid, sizeof(info.run_uuid)) != 0) {
+      memcpy(new_info.run_uuid, new_uuid, sizeof(new_info.run_uuid));
+      mask |= RE_RUN_UUID;
+    }
+  } else if (r > 0) {
+    if (info.run_uuid[0] || info.run_uuid[1] || info.run_uuid[2] || info.run_uuid[3]) {
+      new_info.run_uuid[0] = 0;
+      new_info.run_uuid[1] = 0;
+      new_info.run_uuid[2] = 0;
+      new_info.run_uuid[3] = 0;
+      mask |= RE_RUN_UUID;
+    }
+  }
+#endif
 
   if (new_info.lang_id == 0) {
     s = NULL;
@@ -5100,7 +5160,7 @@ do_add_row(
   gettimeofday(&precise_time, 0);
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
-                          run_size, re->sha1,
+                          run_size, re->sha1, NULL,
                           phr->ip, phr->ssl_flag, phr->locale_id,
                           re->user_id, re->prob_id, re->lang_id,
                           re->variant, re->is_hidden, re->mime_type);
