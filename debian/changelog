@@ -1,10 +1,12 @@
-ejudge (2.3.24-1~2.gbpdecf97) UNRELEASED; urgency=medium
+ejudge (2.3.24-1) unstable; urgency=medium
 
-  ** SNAPSHOT build @decf9743d125a49386cd50ff8a27efcd6418465f **
+  * [e48169e] New upstream version 2.3.24
+  * [514228b] bumped changelog
+  * [492b519] refreshed 03_fix_compile_log
+  * [39568cf] removed python-support dependency
+  * [32fb101] small hotfix to sample contest
 
-  * [f4a12f2] New upstream version 2.3.24
-
- -- Yaroslav Leonov <alximik43@gmail.com>  Mon, 03 Mar 2015 20:36:28 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Tue, 03 Mar 2015 22:15:03 +0300
 
 ejudge (2.3.23-3) unstable; urgency=medium
 
