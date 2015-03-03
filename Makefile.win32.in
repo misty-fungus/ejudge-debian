@@ -1,8 +1,8 @@
 # -*- Makefile -*-
-# $Id: Makefile.win32.in 6226 2011-04-04 19:10:26Z cher $
+# $Id: Makefile.win32.in 7126 2012-11-04 07:48:36Z cher $
 # @configure_input@
 
-# Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -53,8 +53,8 @@ CDEBUGFLAGS=-g -Wall $(WPTRSIGN)
 CEXTRAFLAGS=
 LDEXTRAFLAGS=
 EXTRALIBS=
-CCOMPFLAGS=-mno-cygwin -std=gnu99
-LDCOMPFLAGS=-mno-cygwin -std=gnu99
+CCOMPFLAGS=-std=gnu99
+LDCOMPFLAGS=-std=gnu99
 EXESFX=.exe
 else
 $(error "unsupported configuration")

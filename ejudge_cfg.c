@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: ejudge_cfg.c 6764 2012-04-24 13:32:53Z cher $ */
+/* $Id: ejudge_cfg.c 7037 2012-09-30 14:12:24Z cher $ */
 
 /* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -644,6 +644,7 @@ ejudge_cfg_parse(char const *path)
   unsigned char pathbuf[PATH_MAX];
 
   cfg = ejudge_cfg_do_parse(path);
+  if (!cfg) return NULL;
 
   if (!cfg->db_path) {
     xml_err_elem_undefined(&cfg->b, TG_USERDB_FILE);

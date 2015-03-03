@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.h 6922 2012-06-28 11:55:34Z cher $ */
+/* $Id: runlog.h 7147 2012-11-06 12:20:11Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
@@ -41,7 +41,10 @@ enum
   RUN_MEM_LIMIT_ERR    = 12,
   RUN_SECURITY_ERR     = 13,
   RUN_STYLE_ERR        = 14,
-  RUN_MAX_STATUS       = 14,
+  RUN_WALL_TIME_LIMIT_ERR = 15,
+  RUN_PENDING_REVIEW   = 16,
+  RUN_REJECTED         = 17,
+  RUN_MAX_STATUS       = 17,
 
   RUN_PSEUDO_FIRST     = 20,
   RUN_VIRTUAL_START    = 20,
@@ -100,14 +103,22 @@ int run_add_record(runlog_state_t state,
                    int            mime_type);
 int run_start_contest(runlog_state_t, time_t);
 time_t run_get_start_time(runlog_state_t);
-int run_change_status(runlog_state_t state, int runid, int newstatus,
-                      int newtest, int newscore, int judge_id);
+int
+run_change_status(
+        runlog_state_t state,
+        int runid,
+        int newstatus,
+        int newtest,
+        int newpassedmode,
+        int newscore,
+        int judge_id);
 int
 run_change_status_2(
         runlog_state_t state,
         int runid,
         int newstatus,
         int newtest,
+        int newpassedmode,
         int newscore,
         int judge_id,
         int is_marked);
@@ -117,6 +128,7 @@ run_change_status_3(
         int runid,
         int newstatus,
         int newtest,
+        int newpassedmode,
         int newscore,
         int judge_id,
         int is_marked,
@@ -216,7 +228,8 @@ enum
     RE_SAVED_SCORE   = 0x02000000,
     RE_SAVED_TEST    = 0x04000000,
     RE_RUN_UUID      = 0x08000000,
-    RE_ALL           = 0x0FFFFFFF,
+    RE_PASSED_MODE   = 0x10000000,
+    RE_ALL           = 0x1FFFFFFF,
   };
 
 /* structure size is 128 bytes */
@@ -236,7 +249,9 @@ struct run_entry
   }              a;             /* 16 */
   ruint32_t      sha1[5];       /* 20 */
   rint32_t       score;         /* 4 */
-  rint32_t       test;          /* 4 */
+  rint16_t       test;          /* 2 */
+  signed char    passed_mode;   /* 1 */
+  unsigned char  unused3;       /* 1 */
   rint32_t       score_adj;     /* 4 */
   rint16_t       locale_id;     /* 2 */
   ruint16_t      judge_id;      /* 2 */

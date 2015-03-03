@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 6962 2012-07-29 19:29:55Z cher $ */
+/* $Id: new_server_html_2.c 7150 2012-11-07 08:58:36Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -668,6 +668,7 @@ ns_write_priv_all_runs(
         if (phr->role == USER_ROLE_ADMIN) {
           fprintf(f, "<td%s>", cl);
           html_start_form(f, 1, phr->self_url, phr->hidden_vars);
+          html_hidden(f, "run_id", "%d", rid);
           fprintf(f, "%s", BUTTON(NEW_SRV_ACTION_CLEAR_RUN));
           fprintf(f, "</form></td>");
         } else {
@@ -1540,15 +1541,25 @@ ns_write_priv_source(const serve_state_t state,
           ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0, "filter_expr=%s", filtbuf2),
           run_status_str(info.status, 0, 0, 0, 0));
 
-  if (global->score_system == SCORE_KIROV
-      || global->score_system == SCORE_OLYMPIAD) {
-    // test (number of tests passed)
-    if (info.test <= 0) {
+  if (info.passed_mode > 0) {
+    if (info.test < 0) {
       snprintf(bb, sizeof(bb), "N/A");
     } else {
-      snprintf(bb, sizeof(bb), "%d", info.test - 1);
+      snprintf(bb, sizeof(bb), "%d", info.test);
     }
     fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Tests passed"), bb);
+  }
+  if (global->score_system == SCORE_KIROV
+      || global->score_system == SCORE_OLYMPIAD) {
+    if (info.passed_mode <= 0) {
+      // test (number of tests passed)
+      if (info.test <= 0) {
+        snprintf(bb, sizeof(bb), "N/A");
+      } else {
+        snprintf(bb, sizeof(bb), "%d", info.test - 1);
+      }
+      fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Tests passed"), bb);
+    }
 
     // score
     if (info.score < 0) {
@@ -1558,13 +1569,15 @@ ns_write_priv_source(const serve_state_t state,
     }
     fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"), bb);
   } else if (global->score_system == SCORE_MOSCOW) {
-    // the first failed test
-    if (info.test <= 0) {
-      snprintf(bb, sizeof(bb), "N/A");
-    } else {
-      snprintf(bb, sizeof(bb), "%d", info.test);
+    if (info.passed_mode <= 0) {
+      // the first failed test
+      if (info.test <= 0) {
+        snprintf(bb, sizeof(bb), "N/A");
+      } else {
+        snprintf(bb, sizeof(bb), "%d", info.test);
+      }
+      fprintf(f, "<tr><td>%s:</td><td><i>%s</i></td></tr>\n", _("Failed test"), bb);
     }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Failed test"), bb);
 
     // score
     if (info.score < 0) {
@@ -1575,13 +1588,15 @@ ns_write_priv_source(const serve_state_t state,
     fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"), bb);
   } else {
     // ACM scoring system
-    // first failed test
-    if (info.test <= 0) {
-      snprintf(bb, sizeof(bb), "N/A");
-    } else {
-      snprintf(bb, sizeof(bb), "%d", info.test);
+    if (info.passed_mode <= 0) {
+      // first failed test
+      if (info.test <= 0) {
+        snprintf(bb, sizeof(bb), "N/A");
+      } else {
+        snprintf(bb, sizeof(bb), "%d", info.test);
+      }
+      fprintf(f, "<tr><td>%s:</td><td><i>%s</i></td></tr>\n", _("Failed test"), bb);
     }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Failed test"), bb);
   }
 
   // is_marked
@@ -1826,14 +1841,12 @@ ns_write_priv_source(const serve_state_t state,
   fprintf(f, "<table%s><tr>", cl);
   fprintf(f, "<td%s>%s</td>", cl,
           BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT));
-  /*
   fprintf(f, "<td%s>%s</td>", cl,
           BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE));
   fprintf(f, "<td%s>%s</td>", cl,
           BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK));
-  */
   fprintf(f, "<td%s>%s</td>", cl,
-          BUTTON(NEW_SRV_ACTION_PRIV_SET_RUN_STYLE_ERR));
+          BUTTON(NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED));
   fprintf(f, "</tr></table>\n");
   fprintf(f, "</form>\n");
 
@@ -2616,7 +2629,7 @@ ns_priv_edit_run_page(
     ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
     goto done;
   }
-  if (info.status < 0 || info.status >= RUN_MAX_STATUS) {
+  if (info.status < 0 || info.status > RUN_MAX_STATUS) {
     ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
     goto done;
   }
@@ -2727,18 +2740,25 @@ ns_priv_edit_run_page(
   fprintf(f, "</tr>\n");
 
   buf[0] = 0;
-  if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
-    if (info.test > 0) {
-      snprintf(buf, sizeof(buf), "%d", info.test - 1);
-    }
-    s = "Tests passed";
-  } else if (global->score_system == SCORE_MOSCOW || global->score_system == SCORE_ACM) {
-    if (info.test > 0) {
+  if (info.passed_mode > 0) {
+    if (info.test >= 0) {
       snprintf(buf, sizeof(buf), "%d", info.test);
     }
-    s = "Failed test";
+    s = "Tests passed";
   } else {
-    abort();
+    if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
+      if (info.test > 0) {
+        snprintf(buf, sizeof(buf), "%d", info.test - 1);
+      }
+      s = "Tests passed";
+    } else if (global->score_system == SCORE_MOSCOW || global->score_system == SCORE_ACM) {
+      if (info.test > 0) {
+        snprintf(buf, sizeof(buf), "%d", info.test);
+      }
+      s = "Failed test";
+    } else {
+      abort();
+    }
   }
   fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, s,
           cl, html_input_text(hbuf, sizeof(hbuf), "test", 20, info.is_readonly, "%s", buf));
@@ -2877,7 +2897,7 @@ ns_priv_edit_run_action(
   if (run_get_entry(cs->runlog_state, run_id, &info) < 0) {
     FAIL(NEW_SRV_ERR_INV_RUN_ID);
   }
-  if (info.status < 0 || info.status >= RUN_MAX_STATUS) {
+  if (info.status < 0 || info.status > RUN_MAX_STATUS) {
     FAIL(NEW_SRV_ERR_INV_RUN_ID);
   }
 
@@ -2993,7 +3013,7 @@ ns_priv_edit_run_action(
   }
   if (info.status != value) {
     // FIXME: handle rejudge request
-    if (value >= RUN_MAX_STATUS) {
+    if (value > RUN_MAX_STATUS) {
       fprintf(log_f, "invalid 'status' field value\n");
       FAIL(NEW_SRV_ERR_INV_PARAM);    
     }
@@ -3008,10 +3028,16 @@ ns_priv_edit_run_action(
     fprintf(log_f, "invalid 'test' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
+  if (info.test != value || info.passed_mode <= 0) {
+    new_info.test = value;
+    new_info.passed_mode = 1;
+    mask |= RE_TEST | RE_PASSED_MODE;
+  }
+  /*
   if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
     ++value;
   }
-  if (info.test != value) {
+  if (info._test != value) {
     if (value < 0 || value > 100000) {
       fprintf(log_f, "invalid 'test' field value\n");
       FAIL(NEW_SRV_ERR_INV_PARAM);
@@ -3026,15 +3052,18 @@ ns_priv_edit_run_action(
     case RUN_COMPILE_ERR:
     case RUN_CHECK_FAILED:
     case RUN_ACCEPTED:
+    case RUN_PENDING_REVIEW:
     case RUN_IGNORED:
     case RUN_DISQUALIFIED:
     case RUN_PENDING:
     case RUN_STYLE_ERR:
+    case RUN_REJECTED:
       value = 0;
       break;
 
     case RUN_RUN_TIME_ERR:
     case RUN_TIME_LIMIT_ERR:
+    case RUN_WALL_TIME_LIMIT_ERR:
     case RUN_PRESENTATION_ERR:
     case RUN_WRONG_ANSWER_ERR:
     case RUN_PARTIAL:
@@ -3046,9 +3075,10 @@ ns_priv_edit_run_action(
       }
       break;
     }
-    new_info.test = value;
+    new_info._test = value;
     mask |= RE_TEST;
   }
+  */
 
   if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD
       || global->score_system == SCORE_MOSCOW) {
@@ -3081,15 +3111,18 @@ ns_priv_edit_run_action(
       case RUN_COMPILE_ERR:
       case RUN_CHECK_FAILED:
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
       case RUN_IGNORED:
       case RUN_DISQUALIFIED:
       case RUN_PENDING:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         value = 0;
         break;
 
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_PARTIAL:
@@ -3149,7 +3182,7 @@ ns_priv_edit_run_action(
         FAIL(NEW_SRV_ERR_INV_PARAM);    
       }
       if (info.saved_status != value || !info.is_saved) {
-        if (value >= RUN_MAX_STATUS) {
+        if (value > RUN_MAX_STATUS) {
           fprintf(log_f, "invalid 'saved_status' field value\n");
           FAIL(NEW_SRV_ERR_INV_PARAM);
         }
@@ -3177,15 +3210,18 @@ ns_priv_edit_run_action(
         case RUN_COMPILE_ERR:
         case RUN_CHECK_FAILED:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
         case RUN_IGNORED:
         case RUN_DISQUALIFIED:
         case RUN_PENDING:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           value = 0;
           break;
 
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_PARTIAL:
@@ -3232,15 +3268,18 @@ ns_priv_edit_run_action(
           case RUN_COMPILE_ERR:
           case RUN_CHECK_FAILED:
           case RUN_ACCEPTED:
+          case RUN_PENDING_REVIEW:
           case RUN_IGNORED:
           case RUN_DISQUALIFIED:
           case RUN_PENDING:
           case RUN_STYLE_ERR:
+          case RUN_REJECTED:
             value = 0;
             break;
 
           case RUN_RUN_TIME_ERR:
           case RUN_TIME_LIMIT_ERR:
+          case RUN_WALL_TIME_LIMIT_ERR:
           case RUN_PRESENTATION_ERR:
           case RUN_WRONG_ANSWER_ERR:
           case RUN_PARTIAL:
@@ -3414,7 +3453,8 @@ ns_priv_edit_run_action(
 
   if (need_rejudge > 0) {
     serve_rejudge_run(ejudge_config, cnts, cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                      (need_rejudge == RUN_FULL_REJUDGE), 0);
+                      (need_rejudge == RUN_FULL_REJUDGE),
+                      DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
   }
 
 cleanup:;
@@ -5448,8 +5488,10 @@ ns_upload_csv_runs(
         goto cleanup;
       }
       runs[row].test = x;
+      runs[row].passed_mode = 1;
     } else {
-      runs[row].test = 1;
+      runs[row].test = 0;
+      runs[row].passed_mode = 1;
     }
 
     if (col_ind[CSV_SCORE] < 0) {
@@ -5772,8 +5814,10 @@ ns_upload_csv_results(
         goto cleanup;
       }
       pe->test = x;
+      pe->passed_mode = 1;
     } else {
-      pe->test = 1;
+      pe->test = 0;
+      pe->passed_mode = 1;
     }
 
     if (col_ind[CSV_SCORE] < 0) {
@@ -5825,7 +5869,8 @@ ns_upload_csv_results(
       do_add_row(phr, cs, log_f, row, &runs[row], run_size, run_text);
     }
     run_set_entry(cs->runlog_state, runs[row].run_id,
-                  RE_STATUS | RE_TEST | RE_SCORE, &runs[row]);
+                  RE_STATUS | RE_TEST | RE_SCORE | RE_PASSED_MODE,
+                  &runs[row]);
   }
 
   retval = 0;
@@ -6087,6 +6132,7 @@ static int get_accepting_passed_tests(
   switch (re->status) {
   case RUN_OK:
   case RUN_ACCEPTED:
+  case RUN_PENDING_REVIEW:
   case RUN_PARTIAL:
     if (prob->accept_partial <= 0 && prob->min_tests_to_accept < 0)
       return prob->tests_to_accept;
@@ -6094,12 +6140,16 @@ static int get_accepting_passed_tests(
 
   case RUN_RUN_TIME_ERR:
   case RUN_TIME_LIMIT_ERR:
+  case RUN_WALL_TIME_LIMIT_ERR:
   case RUN_PRESENTATION_ERR:
   case RUN_WRONG_ANSWER_ERR:
   case RUN_MEM_LIMIT_ERR:
   case RUN_SECURITY_ERR:
     r = re->test;
-    if (r > 0) r--;
+    if (re->passed_mode > 0) {
+    } else {
+      if (r > 0) r--;
+    }
     // whether this ever possible?
     if (r > prob->tests_to_accept) r = prob->tests_to_accept;
     return r;
@@ -6292,6 +6342,7 @@ ns_write_olympiads_user_runs(
       case RUN_COMPILE_ERR:
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
       case RUN_STYLE_ERR:
@@ -6310,6 +6361,7 @@ ns_write_olympiads_user_runs(
       case RUN_OK:
       case RUN_PARTIAL:
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
         re.status = RUN_ACCEPTED;
         if (prob && prob->type != PROB_TYPE_STANDARD) {
           snprintf(tests_buf, sizeof(tests_buf), "&nbsp;");
@@ -6324,6 +6376,7 @@ ns_write_olympiads_user_runs(
 
       case RUN_COMPILE_ERR:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         report_allowed = 1;
         snprintf(tests_buf, sizeof(tests_buf), "&nbsp;");
         break;
@@ -6332,6 +6385,7 @@ ns_write_olympiads_user_runs(
       case RUN_WRONG_ANSWER_ERR:
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
         if (prob && prob->type != PROB_TYPE_STANDARD) {
@@ -6361,7 +6415,11 @@ ns_write_olympiads_user_runs(
         if (prob && prob->type != PROB_TYPE_STANDARD) {
           snprintf(tests_buf, sizeof(tests_buf), "&nbsp;");
         } else {
-          snprintf(tests_buf, sizeof(tests_buf), "%d", re.test - 1);
+          if (re.passed_mode > 0) {
+            snprintf(tests_buf, sizeof(tests_buf), "%d", re.test);
+          } else {
+            snprintf(tests_buf, sizeof(tests_buf), "%d", re.test - 1);
+          }
           report_allowed = 1;
         }
         if (prob && !latest_flag[prob->id]) run_latest = 1;
@@ -6375,7 +6433,11 @@ ns_write_olympiads_user_runs(
         if (prob && prob->type != PROB_TYPE_STANDARD) {
           snprintf(tests_buf, sizeof(tests_buf), "&nbsp;");
         } else {
-          snprintf(tests_buf, sizeof(tests_buf), "%d", re.test - 1);
+          if (re.passed_mode > 0) {
+            snprintf(tests_buf, sizeof(tests_buf), "%d", re.test);
+          } else {
+            snprintf(tests_buf, sizeof(tests_buf), "%d", re.test - 1);
+          }
         }
         report_allowed = 1;
         if (prob && !latest_flag[prob->id]) run_latest = 1;
@@ -6386,17 +6448,23 @@ ns_write_olympiads_user_runs(
         break;
       case RUN_COMPILE_ERR:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         snprintf(tests_buf, sizeof(tests_buf), "&nbsp;");
         snprintf(score_buf, sizeof(score_buf), "&nbsp;");
         report_allowed = 1;
         break;
 
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
         if (prob && !latest_flag[prob->id]) run_latest = 1;
         if (prob && prob->type != PROB_TYPE_STANDARD) {
           snprintf(tests_buf, sizeof(tests_buf), "&nbsp;");
         } else {
-          snprintf(tests_buf, sizeof(tests_buf), "%d", re.test - 1);
+          if (re.passed_mode > 0) {
+            snprintf(tests_buf, sizeof(tests_buf), "%d", re.test);
+          } else {
+            snprintf(tests_buf, sizeof(tests_buf), "%d", re.test - 1);
+          }
         }
         report_allowed = 1;
         snprintf(score_buf, sizeof(score_buf), "&nbsp;");
@@ -6404,6 +6472,7 @@ ns_write_olympiads_user_runs(
 
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_CHECK_FAILED:
@@ -6412,7 +6481,11 @@ ns_write_olympiads_user_runs(
         if (prob && prob->type != PROB_TYPE_STANDARD) {
           snprintf(tests_buf, sizeof(tests_buf), "&nbsp;");
         } else {
-          snprintf(tests_buf, sizeof(tests_buf), "%d", re.test);
+          if (re.passed_mode > 0) {
+            snprintf(tests_buf, sizeof(tests_buf), "%d", re.test);
+          } else {
+            snprintf(tests_buf, sizeof(tests_buf), "%d", re.test);
+          }
         }
         report_allowed = 1;
         snprintf(score_buf, sizeof(score_buf), "&nbsp;");
@@ -6471,7 +6544,9 @@ ns_write_olympiads_user_runs(
     }
     if (report_comment && *report_comment) {
       fprintf(fout, "<td%s>%s</td>", cl, report_comment);
-    } else if ((re.status == RUN_COMPILE_ERR || re.status == RUN_STYLE_ERR)
+    } else if ((re.status == RUN_COMPILE_ERR
+                || re.status == RUN_STYLE_ERR
+                || re.status == RUN_REJECTED)
           && (enable_rep_view || global->team_enable_ce_view)
           && report_allowed) {
       fprintf(fout, "<td%s>%s%s</a></td>", cl,
@@ -6590,6 +6665,7 @@ ns_get_user_problems_summary(
         case RUN_OK:
         case RUN_PARTIAL:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
         case RUN_WRONG_ANSWER_ERR:
           status = RUN_ACCEPTED;
           break;
@@ -6597,15 +6673,18 @@ ns_get_user_problems_summary(
         case RUN_COMPILE_ERR:
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_CHECK_FAILED:
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           status = RUN_CHECK_FAILED;
           break;
         }
         switch (status) {
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
           accepted_flag[re.prob_id] = 1;
           best_run[re.prob_id] = run_id;
           break;
@@ -6636,6 +6715,7 @@ ns_get_user_problems_summary(
         case RUN_OK:
         case RUN_PARTIAL:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
           accepted_flag[re.prob_id] = 1;
           best_run[re.prob_id] = run_id;
           break;
@@ -6643,12 +6723,14 @@ ns_get_user_problems_summary(
         case RUN_COMPILE_ERR:
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_CHECK_FAILED:
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           if (!accepted_flag[re.prob_id]) {
             best_run[re.prob_id] = run_id;
           }
@@ -6685,12 +6767,14 @@ ns_get_user_problems_summary(
       case RUN_COMPILE_ERR:
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_CHECK_FAILED:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         break;
 
       case RUN_PARTIAL:
@@ -6705,6 +6789,7 @@ ns_get_user_problems_summary(
         break;
 
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
         break;
 
       case RUN_IGNORED:
@@ -6743,6 +6828,7 @@ ns_get_user_problems_summary(
 
         case RUN_COMPILE_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           if (cur_prob->ignore_compile_errors > 0) continue;
           solved_flag[re.prob_id] = 0;
           attempts[re.prob_id]++;
@@ -6755,6 +6841,7 @@ ns_get_user_problems_summary(
 
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_CHECK_FAILED:
@@ -6784,6 +6871,7 @@ ns_get_user_problems_summary(
           break;
 
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
         case RUN_PENDING:
           pending_flag[re.prob_id] = 1;
           attempts[re.prob_id]++;
@@ -6816,6 +6904,7 @@ ns_get_user_problems_summary(
 
         case RUN_COMPILE_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           if (!cur_prob->ignore_compile_errors) {
             solved_flag[re.prob_id] = 0;
             attempts[re.prob_id]++;
@@ -6830,6 +6919,7 @@ ns_get_user_problems_summary(
 
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_CHECK_FAILED:
@@ -6860,6 +6950,7 @@ ns_get_user_problems_summary(
           break;
 
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
         case RUN_PENDING:
           pending_flag[re.prob_id] = 1;
           attempts[re.prob_id]++;
@@ -6886,6 +6977,7 @@ ns_get_user_problems_summary(
 
       case RUN_COMPILE_ERR:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         if (!cur_prob->ignore_compile_errors) {
           attempts[re.prob_id]++;
           cur_score = 0;
@@ -6898,6 +6990,7 @@ ns_get_user_problems_summary(
         break;
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_CHECK_FAILED:
@@ -6918,6 +7011,7 @@ ns_get_user_problems_summary(
         break;
 
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
       case RUN_PENDING:
         pending_flag[re.prob_id] = 1;
         attempts[re.prob_id]++;
@@ -6939,6 +7033,7 @@ ns_get_user_problems_summary(
 
       case RUN_COMPILE_ERR:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         if (!cur_prob->ignore_compile_errors) {
           attempts[re.prob_id]++;
           best_run[re.prob_id] = run_id;
@@ -6946,6 +7041,7 @@ ns_get_user_problems_summary(
         break;
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_CHECK_FAILED:
@@ -6961,6 +7057,7 @@ ns_get_user_problems_summary(
         break;
  
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
       case RUN_PENDING:
         pending_flag[re.prob_id] = 1;
         attempts[re.prob_id]++;
@@ -7117,6 +7214,7 @@ ns_write_user_problems_summary(
         switch (act_status) {
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_MEM_LIMIT_ERR:
@@ -7141,10 +7239,17 @@ ns_write_user_problems_summary(
                   score_view_display(score_buf, sizeof(score_buf),
                                      cur_prob, best_score[prob_id]));
         } else {
-          fprintf(fout, "<td%s>%d</td><td%s>%s</td>",
-                  cl, test - 1, cl,
-                  score_view_display(score_buf, sizeof(score_buf),
-                                     cur_prob, best_score[prob_id]));
+          if (re.passed_mode > 0) { 
+            fprintf(fout, "<td%s>%d</td><td%s>%s</td>",
+                    cl, test, cl,
+                    score_view_display(score_buf, sizeof(score_buf),
+                                       cur_prob, best_score[prob_id]));
+          } else {
+            fprintf(fout, "<td%s>%d</td><td%s>%s</td>",
+                    cl, test - 1, cl,
+                    score_view_display(score_buf, sizeof(score_buf),
+                                       cur_prob, best_score[prob_id]));
+          }
         }
         break;
       default:
@@ -7160,7 +7265,11 @@ ns_write_user_problems_summary(
       case RUN_OK:
       case RUN_PARTIAL:
         if (global->disable_passed_tests <= 0) {
-          fprintf(fout, "<td%s>%d</td>", cl, test - 1);
+          if (re.passed_mode > 0) {
+            fprintf(fout, "<td%s>%d</td>", cl, test);
+          } else {
+            fprintf(fout, "<td%s>%d</td>", cl, test - 1);
+          }
         }
         fprintf(fout, "<td%s>%s</td>",
                 cl, score_view_display(score_buf, sizeof(score_buf),
@@ -7182,6 +7291,7 @@ ns_write_user_problems_summary(
         break;
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_MEM_LIMIT_ERR:
@@ -7202,6 +7312,7 @@ ns_write_user_problems_summary(
       switch (status) {
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_MEM_LIMIT_ERR:
@@ -7928,6 +8039,5 @@ ns_write_admin_contest_settings(
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

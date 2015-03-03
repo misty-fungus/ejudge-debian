@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_html.h 6950 2012-07-07 18:08:46Z cher $ */
+/* $Id: super_html.h 7059 2012-10-18 19:15:35Z cher $ */
 #ifndef __SUPER_HTML_H__
 #define __SUPER_HTML_H__
 
@@ -449,7 +449,10 @@ super_load_cs_languages(
         const struct ejudge_cfg *config,
         struct sid_state *sstate,
         char **extra_compile_dirs,
-        int check_version_flag);
+        int check_version_flag,
+        unsigned char *cs_conf_file_buf,
+        int cs_conf_file_len);
+
 void
 super_html_lang_activate(
         struct sid_state *sstate,

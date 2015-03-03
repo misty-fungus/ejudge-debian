@@ -1,5 +1,5 @@
 /* -*- mode: fundamental -*- */
-/* $Id: filter_scan.lex 6922 2012-06-28 11:55:34Z cher $ */
+/* $Id: filter_scan.lex 7147 2012-11-06 12:20:11Z cher $ */
 
 /* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -206,6 +206,9 @@ lett    [A-Za-z_]
 [Mm][Ll] { TR(RUN_MEM_LIMIT_ERR); }
 [Ss][Ee] { TR(RUN_SECURITY_ERR); }
 [Ss][Vv] { TR(RUN_STYLE_ERR); }
+[Ww][Tt] { TR(RUN_WALL_TIME_LIMIT_ERR); }
+[Rr][Jj] { TR(RUN_REJECTED); }
+[Pp][Rr] { TR(RUN_PENDING_REVIEW); }
 [Rr][Uu] { TR(RUN_RUNNING); }
 [Cc][Dd] { TR(RUN_COMPILED); }
 [Cc][Gg] { TR(RUN_COMPILING); }

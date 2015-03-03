@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: build_support.c 6997 2012-08-20 10:53:23Z cher $ */
+/* $Id: build_support.c 7176 2012-11-18 15:27:40Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -669,7 +669,7 @@ build_prepare_test_file_names(
     }
     if (prob->info_pat[0] >= ' ' ) {
       snprintf(info_pat, buf_size, "%s%s", pat_prefix, prob->info_pat);
-    } else if (prob->corr_sfx[0] >= ' ') {
+    } else if (prob->info_sfx[0] >= ' ') {
       snprintf(info_pat, buf_size, "%s%%03d%s", pat_prefix, prob->info_sfx);
     } else {
       snprintf(info_pat, buf_size, "%s%%03d%s", pat_prefix, ".inf");
@@ -699,10 +699,10 @@ build_prepare_test_file_names(
     }
     if (prob->tgz_pat[0] >= ' ' ) {
       snprintf(tgz_pat, buf_size, "%s%s", pat_prefix, prob->tgz_pat);
-    } else if (prob->corr_sfx[0] >= ' ') {
+    } else if (prob->tgz_sfx[0] >= ' ') {
       snprintf(tgz_pat, buf_size, "%s%%03d%s", pat_prefix, prob->tgz_sfx);
     } else {
-      snprintf(tgz_pat, buf_size, "%s%%03d%s", pat_prefix, ".inf");
+      snprintf(tgz_pat, buf_size, "%s%%03d%s", pat_prefix, ".tgz");
     }
     snprintf(name1, sizeof(name1), tgz_pat, 1);
     snprintf(name2, sizeof(name2), tgz_pat, 2);
@@ -712,7 +712,7 @@ build_prepare_test_file_names(
     }
     if (prob->tgzdir_pat[0] >= ' ' ) {
       snprintf(tgzdir_pat, buf_size, "%s%s", pat_prefix, prob->tgzdir_pat);
-    } else if (prob->corr_sfx[0] >= ' ') {
+    } else if (prob->tgzdir_sfx[0] >= ' ') {
       snprintf(tgzdir_pat, buf_size, "%s%%03d%s", pat_prefix, prob->tgzdir_sfx);
     } else {
       snprintf(tgzdir_pat, buf_size, "%s%%03d%s", pat_prefix, ".dir");
@@ -1083,9 +1083,16 @@ do_generate_makefile(
   fprintf(mk_f, "EXECUTE_FLAGS = ");
   if (prob->use_stdin > 0) fprintf(mk_f, " --use-stdin");
   if (prob->use_stdout > 0) fprintf(mk_f, " --use-stdout");
+  if (prob->use_stdin <= 0 && prob->input_file[0] > ' ') {
+    fprintf(mk_f, " --input-file=%s", prob->input_file);
+  }
+  if (prob->use_stdout <= 0 && prob->output_file[0] > ' ') {
+    fprintf(mk_f, " --output-file=%s", prob->output_file);
+  }
   if (test_pat[0] > ' ') fprintf(mk_f, " --test-pattern=%s", test_pat);
   if (corr_pat[0] > ' ') fprintf(mk_f, " --corr-pattern=%s", corr_pat);
   if (info_pat[0] > ' ') fprintf(mk_f, " --info-pattern=%s", info_pat);
+  if (tgzdir_pat[0] > ' ') fprintf(mk_f, " --tgzdir-pattern=%s", tgzdir_pat);
   if (cnts->file_group && cnts->file_group[0]) fprintf(mk_f, " --group=%s", cnts->file_group);
   if (cnts->file_mode && cnts->file_mode[0]) fprintf(mk_f, " --mode=%s", cnts->file_mode);
   if (prob->time_limit_millis > 0) {
@@ -1099,6 +1106,11 @@ do_generate_makefile(
     fprintf(mk_f, "TC_EXECUTE_FLAGS = --use-stdin");
     if (test_pat[0] > ' ') fprintf(mk_f, " --test-pattern=%s", test_pat);
     if (info_pat[0] > ' ') fprintf(mk_f, " --info-pattern=%s", info_pat);
+    if (prob->test_checker_env && prob->test_checker_env[0]) {
+      for (int i = 0; prob->test_checker_env[i]; ++i) {
+        fprintf(mk_f, " --env=%s", prob->test_checker_env[i]);
+      }
+    }
     fprintf(mk_f, "\n");
   }
 

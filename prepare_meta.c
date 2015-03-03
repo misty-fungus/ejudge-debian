@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/07/30 12:57:52
+// Generated 2012/11/15 17:14:09
 
 #include "prepare_meta.h"
 #include "prepare.h"
@@ -262,6 +262,7 @@ static struct meta_info_item meta_info_section_global_data_data[] =
   [CNTSGLOB_variant_map] = { CNTSGLOB_variant_map, '?', XSIZE(struct section_global_data, variant_map), NULL, XOFFSET(struct section_global_data, variant_map) },
   [CNTSGLOB_enable_printing] = { CNTSGLOB_enable_printing, 'B', XSIZE(struct section_global_data, enable_printing), "enable_printing", XOFFSET(struct section_global_data, enable_printing) },
   [CNTSGLOB_disable_banner_page] = { CNTSGLOB_disable_banner_page, 'B', XSIZE(struct section_global_data, disable_banner_page), "disable_banner_page", XOFFSET(struct section_global_data, disable_banner_page) },
+  [CNTSGLOB_printout_uses_login] = { CNTSGLOB_printout_uses_login, 'B', XSIZE(struct section_global_data, printout_uses_login), "printout_uses_login", XOFFSET(struct section_global_data, printout_uses_login) },
   [CNTSGLOB_team_page_quota] = { CNTSGLOB_team_page_quota, 'i', XSIZE(struct section_global_data, team_page_quota), "team_page_quota", XOFFSET(struct section_global_data, team_page_quota) },
   [CNTSGLOB_compile_max_vm_size] = { CNTSGLOB_compile_max_vm_size, 'Z', XSIZE(struct section_global_data, compile_max_vm_size), "compile_max_vm_size", XOFFSET(struct section_global_data, compile_max_vm_size) },
   [CNTSGLOB_compile_max_stack_size] = { CNTSGLOB_compile_max_stack_size, 'Z', XSIZE(struct section_global_data, compile_max_stack_size), "compile_max_stack_size", XOFFSET(struct section_global_data, compile_max_stack_size) },
@@ -413,7 +414,7 @@ static struct meta_info_item meta_info_section_problem_data_data[] =
   [CNTSPROB_tgzdir_sfx] = { CNTSPROB_tgzdir_sfx, 'S', XSIZE(struct section_problem_data, tgzdir_sfx), "tgzdir_sfx", XOFFSET(struct section_problem_data, tgzdir_sfx) },
   [CNTSPROB_input_file] = { CNTSPROB_input_file, 'S', XSIZE(struct section_problem_data, input_file), "input_file", XOFFSET(struct section_problem_data, input_file) },
   [CNTSPROB_output_file] = { CNTSPROB_output_file, 'S', XSIZE(struct section_problem_data, output_file), "output_file", XOFFSET(struct section_problem_data, output_file) },
-  [CNTSPROB_test_score_list] = { CNTSPROB_test_score_list, 'S', XSIZE(struct section_problem_data, test_score_list), "test_score_list", XOFFSET(struct section_problem_data, test_score_list) },
+  [CNTSPROB_test_score_list] = { CNTSPROB_test_score_list, 's', XSIZE(struct section_problem_data, test_score_list), "test_score_list", XOFFSET(struct section_problem_data, test_score_list) },
   [CNTSPROB_score_tests] = { CNTSPROB_score_tests, 'S', XSIZE(struct section_problem_data, score_tests), "score_tests", XOFFSET(struct section_problem_data, score_tests) },
   [CNTSPROB_standard_checker] = { CNTSPROB_standard_checker, 'S', XSIZE(struct section_problem_data, standard_checker), "standard_checker", XOFFSET(struct section_problem_data, standard_checker) },
   [CNTSPROB_spelling] = { CNTSPROB_spelling, 'S', XSIZE(struct section_problem_data, spelling), "spelling", XOFFSET(struct section_problem_data, spelling) },
@@ -428,6 +429,7 @@ static struct meta_info_item meta_info_section_problem_data_data[] =
   [CNTSPROB_ignore_unmarked] = { CNTSPROB_ignore_unmarked, 'B', XSIZE(struct section_problem_data, ignore_unmarked), "ignore_unmarked", XOFFSET(struct section_problem_data, ignore_unmarked) },
   [CNTSPROB_interactor_time_limit] = { CNTSPROB_interactor_time_limit, 'i', XSIZE(struct section_problem_data, interactor_time_limit), "interactor_time_limit", XOFFSET(struct section_problem_data, interactor_time_limit) },
   [CNTSPROB_disable_stderr] = { CNTSPROB_disable_stderr, 'B', XSIZE(struct section_problem_data, disable_stderr), "disable_stderr", XOFFSET(struct section_problem_data, disable_stderr) },
+  [CNTSPROB_enable_process_group] = { CNTSPROB_enable_process_group, 'B', XSIZE(struct section_problem_data, enable_process_group), "enable_process_group", XOFFSET(struct section_problem_data, enable_process_group) },
   [CNTSPROB_test_pat] = { CNTSPROB_test_pat, 'S', XSIZE(struct section_problem_data, test_pat), "test_pat", XOFFSET(struct section_problem_data, test_pat) },
   [CNTSPROB_corr_pat] = { CNTSPROB_corr_pat, 'S', XSIZE(struct section_problem_data, corr_pat), "corr_pat", XOFFSET(struct section_problem_data, corr_pat) },
   [CNTSPROB_info_pat] = { CNTSPROB_info_pat, 'S', XSIZE(struct section_problem_data, info_pat), "info_pat", XOFFSET(struct section_problem_data, info_pat) },
@@ -461,6 +463,7 @@ static struct meta_info_item meta_info_section_problem_data_data[] =
   [CNTSPROB_style_checker_env] = { CNTSPROB_style_checker_env, 'X', XSIZE(struct section_problem_data, style_checker_env), "style_checker_env", XOFFSET(struct section_problem_data, style_checker_env) },
   [CNTSPROB_test_checker_env] = { CNTSPROB_test_checker_env, 'X', XSIZE(struct section_problem_data, test_checker_env), "test_checker_env", XOFFSET(struct section_problem_data, test_checker_env) },
   [CNTSPROB_init_env] = { CNTSPROB_init_env, 'X', XSIZE(struct section_problem_data, init_env), "init_env", XOFFSET(struct section_problem_data, init_env) },
+  [CNTSPROB_start_env] = { CNTSPROB_start_env, 'X', XSIZE(struct section_problem_data, start_env), "start_env", XOFFSET(struct section_problem_data, start_env) },
   [CNTSPROB_check_cmd] = { CNTSPROB_check_cmd, 'S', XSIZE(struct section_problem_data, check_cmd), "check_cmd", XOFFSET(struct section_problem_data, check_cmd) },
   [CNTSPROB_valuer_cmd] = { CNTSPROB_valuer_cmd, 'S', XSIZE(struct section_problem_data, valuer_cmd), "valuer_cmd", XOFFSET(struct section_problem_data, valuer_cmd) },
   [CNTSPROB_interactor_cmd] = { CNTSPROB_interactor_cmd, 'S', XSIZE(struct section_problem_data, interactor_cmd), "interactor_cmd", XOFFSET(struct section_problem_data, interactor_cmd) },
@@ -471,6 +474,7 @@ static struct meta_info_item meta_info_section_problem_data_data[] =
   [CNTSPROB_solution_cmd] = { CNTSPROB_solution_cmd, 's', XSIZE(struct section_problem_data, solution_cmd), "solution_cmd", XOFFSET(struct section_problem_data, solution_cmd) },
   [CNTSPROB_lang_time_adj] = { CNTSPROB_lang_time_adj, 'x', XSIZE(struct section_problem_data, lang_time_adj), "lang_time_adj", XOFFSET(struct section_problem_data, lang_time_adj) },
   [CNTSPROB_lang_time_adj_millis] = { CNTSPROB_lang_time_adj_millis, 'x', XSIZE(struct section_problem_data, lang_time_adj_millis), "lang_time_adj_millis", XOFFSET(struct section_problem_data, lang_time_adj_millis) },
+  [CNTSPROB_super_run_dir] = { CNTSPROB_super_run_dir, 's', XSIZE(struct section_problem_data, super_run_dir), "super_run_dir", XOFFSET(struct section_problem_data, super_run_dir) },
   [CNTSPROB_alternative] = { CNTSPROB_alternative, 'x', XSIZE(struct section_problem_data, alternative), "alternative", XOFFSET(struct section_problem_data, alternative) },
   [CNTSPROB_personal_deadline] = { CNTSPROB_personal_deadline, 'x', XSIZE(struct section_problem_data, personal_deadline), "personal_deadline", XOFFSET(struct section_problem_data, personal_deadline) },
   [CNTSPROB_pd_total] = { CNTSPROB_pd_total, 'i', XSIZE(struct section_problem_data, pd_total), NULL, XOFFSET(struct section_problem_data, pd_total) },

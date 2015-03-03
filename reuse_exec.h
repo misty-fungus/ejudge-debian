@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.h 6895 2012-06-18 04:07:06Z cher $ */
+/* $Id: reuse_exec.h 7180 2012-11-18 18:15:58Z cher $ */
 
 #ifndef __REUSE_EXEC_H__
 #define __REUSE_EXEC_H__
@@ -108,6 +108,8 @@ int      task_Start(tpTask);
 tpTask   task_Wait(tpTask);
 tpTask   task_NewWait(tpTask);
 int      task_Kill(tpTask);
+int      task_TryProcessGroup(tpTask);
+int      task_KillProcessGroup(tpTask);
 int      task_Status(tpTask);
 int      task_TermSignal(tpTask);
 int      task_ExitCode(tpTask);
@@ -117,6 +119,7 @@ long     task_GetRealTime(tpTask);
 void     task_Log(tpTask, int fac, int sev);
 int      task_IsAbnormal(tpTask);
 int      task_IsTimeout(tpTask);
+int      task_IsRealTimeout(tpTask);
 int      task_IsMemoryLimit(tpTask);
 int      task_IsSecurityViolation(tpTask);
 int      task_GetPipe(tpTask, int);

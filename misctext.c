@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: misctext.c 6815 2012-05-09 12:48:36Z cher $ */
+/* $Id: misctext.c 7094 2012-10-26 08:39:30Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -28,6 +28,7 @@
 #include <time.h>
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 
 #include "win32_compat.h"
 

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run_packet.h 6911 2012-06-27 08:41:31Z cher $ */
+/* $Id: run_packet.h 7114 2012-11-01 13:35:22Z cher $ */
 #ifndef __RUN_PACKET_H__
 #define __RUN_PACKET_H__
 
@@ -26,6 +26,7 @@ struct run_reply_packet
   int run_id;
   int status;
   int failed_test;
+  int tests_passed;
   int score;
   int notify_flag;
   int marked_flag;

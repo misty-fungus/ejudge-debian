@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 6997 2012-08-20 10:53:23Z cher $ */
+/* $Id: prepare_out.c 7164 2012-11-15 13:21:36Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -235,6 +235,8 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     unparse_bool(f, "enable_printing", global->enable_printing);
   if (global->disable_banner_page != DFLT_G_DISABLE_BANNER_PAGE)
     unparse_bool(f, "disable_banner_page", global->disable_banner_page);
+  if (global->printout_uses_login > 0)
+    unparse_bool(f, "printout_uses_login", global->printout_uses_login);
   if (global->prune_empty_users != DFLT_G_PRUNE_EMPTY_USERS)
     unparse_bool(f, "prune_empty_users", global->prune_empty_users);
   if (global->enable_full_archive != DFLT_G_ENABLE_FULL_ARCHIVE)
@@ -1188,7 +1190,7 @@ prepare_unparse_prob(
           || !prob->abstract)
         fprintf(f, "disqualified_penalty = %d\n", prob->disqualified_penalty);
     }
-    if (prob->test_score_list[0])
+    if (prob->test_score_list && prob->test_score_list[0])
       fprintf(f, "test_score_list = \"%s\"\n", CARMOR(prob->test_score_list));
     if (prob->score_bonus[0])
       fprintf(f, "score_bonus = \"%s\"\n", CARMOR(prob->score_bonus));
@@ -1269,6 +1271,7 @@ prepare_unparse_prob(
   }
   do_xstr(f, &ab, "test_checker_env", prob->test_checker_env);
   do_xstr(f, &ab, "init_env", prob->init_env);
+  do_xstr(f, &ab, "start_env", prob->start_env);
   do_xstr(f, &ab, "lang_time_adj", prob->lang_time_adj);
   do_xstr(f, &ab, "lang_time_adj_millis", prob->lang_time_adj_millis);
   do_xstr(f, &ab, "test_sets", prob->test_sets);
@@ -1331,6 +1334,10 @@ prepare_unparse_prob(
   if (prob->disable_stderr >= 0
       && ((prob->abstract && prob->disable_stderr) || !prob->abstract))
       unparse_bool(f, "disable_stderr", prob->disable_stderr);
+  if ((prob->abstract > 0 && prob->enable_process_group > 0)
+      || (!prob->abstract && prob->enable_process_group >= 0)) {
+    unparse_bool(f, "enable_process_group", prob->enable_process_group);
+  }
   if (prob->enable_text_form >= 0
       && ((prob->abstract && prob->enable_text_form) || !prob->abstract))
       unparse_bool(f, "enable_text_form", prob->enable_text_form);
@@ -1343,6 +1350,8 @@ prepare_unparse_prob(
   if (!prob->abstract && prob->stand_column[0]) {
     fprintf(f, "stand_column = \"%s\"\n", CARMOR(prob->stand_column));
   }
+  if (prob->stand_name[0] >= ' ')
+    fprintf(f, "stand_name = \"%s\"\n", CARMOR(prob->stand_name));
 
   if (!prob->abstract && prob->start_date > 0)
     fprintf(f, "start_date = \"%s\"\n", xml_unparse_date(prob->start_date));
@@ -1356,6 +1365,9 @@ prepare_unparse_prob(
     fprintf(f, "source_footer = \"%s\"\n", CARMOR(prob->source_footer));
   if (prob->normalization[0])
     fprintf(f, "normalization = \"%s\"\n", CARMOR(prob->normalization));
+  if (prob->super_run_dir && prob->super_run_dir[0]) {
+    fprintf(f,"super_run_dir = \"%s\"\n", CARMOR(prob->super_run_dir));
+  }
 
   fprintf(f, "\n");
   if (prob->unhandled_vars) fprintf(f, "%s\n", prob->unhandled_vars);
@@ -1514,7 +1526,7 @@ prepare_unparse_actual_prob(
       fprintf(f, "run_penalty = %d\n", prob->run_penalty);
     if (prob->disqualified_penalty >= 0)
       fprintf(f, "disqualified_penalty = %d\n", prob->disqualified_penalty);
-    if (prob->test_score_list[0])
+    if (prob->test_score_list && prob->test_score_list[0])
       fprintf(f, "test_score_list = \"%s\"\n", CARMOR(prob->test_score_list));
     if (prob->score_bonus[0])
       fprintf(f, "score_bonus = \"%s\"\n", CARMOR(prob->score_bonus));
@@ -1580,6 +1592,7 @@ prepare_unparse_actual_prob(
   }
   do_xstr(f, &ab, "test_checker_env", prob->test_checker_env);
   do_xstr(f, &ab, "init_env", prob->init_env);
+  do_xstr(f, &ab, "start_env", prob->start_env);
   do_xstr(f, &ab, "lang_time_adj", prob->lang_time_adj);
   do_xstr(f, &ab, "lang_time_adj_millis", prob->lang_time_adj_millis);
   do_xstr(f, &ab, "test_sets", prob->test_sets);
@@ -1645,6 +1658,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "ignore_unmarked", prob->ignore_unmarked);
   if (prob->disable_stderr > 0)
     unparse_bool(f, "disable_stderr", prob->disable_stderr);
+  if (prob->enable_process_group > 0)
+    unparse_bool(f, "enable_process_group", prob->enable_process_group);
   if (prob->enable_text_form > 0)
     unparse_bool(f, "enable_text_form", prob->enable_text_form);
   if (prob->stand_ignore_score > 0)
@@ -2853,6 +2868,5 @@ prepare_unparse_variants(FILE *f, const struct variant_map *vmap,
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
  * End:
  */

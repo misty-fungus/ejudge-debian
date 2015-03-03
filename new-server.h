@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 6955 2012-07-09 06:30:45Z cher $ */
+/* $Id: new-server.h 7147 2012-11-06 12:20:11Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -76,6 +76,7 @@ struct http_request_info
   int role;
   int action;
   int user_id;
+  int plain_text;
   int json_reply;
   int reg_status;
   int reg_flags;
@@ -369,7 +370,7 @@ enum
   NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK,
   NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE,
   NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK,
-  NEW_SRV_ACTION_PRIV_SET_RUN_STYLE_ERR,
+  NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED,
   NEW_SRV_ACTION_VIEW_TESTING_QUEUE,
   NEW_SRV_ACTION_TESTING_DELETE,
   NEW_SRV_ACTION_TESTING_UP,

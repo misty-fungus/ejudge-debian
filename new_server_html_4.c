@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 6922 2012-06-28 11:55:34Z cher $ */
+/* $Id: new_server_html_4.c 7147 2012-11-06 12:20:11Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -42,6 +42,7 @@
 #include "compat.h"
 #include "ejudge_cfg.h"
 #include "errlog.h"
+#include "prepare_dflt.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -325,7 +326,7 @@ cmd_operation(
     serve_update_status_file(cs, 1);
     break;
   case NEW_SRV_ACTION_REJUDGE_SUSPENDED_2:
-    serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
+    serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
     break;
   case NEW_SRV_ACTION_HAS_TRANSIENT_RUNS:
     if (serve_count_transient_runs(cs) > 0)
@@ -405,7 +406,7 @@ cmd_operation(
     serve_update_status_file(cs, 1);
     break;
   case NEW_SRV_ACTION_REJUDGE_ALL_2:
-    serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
+    serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
     break;
   case NEW_SRV_ACTION_SCHEDULE:
     return do_schedule(phr, cs, cnts);
@@ -1264,6 +1265,7 @@ static const unsigned char has_failed_test_num[RUN_LAST + 1] =
   [RUN_CHECK_FAILED]     = 1,
   [RUN_MEM_LIMIT_ERR]    = 1,
   [RUN_SECURITY_ERR]     = 1,
+  [RUN_WALL_TIME_LIMIT_ERR] = 1,
 };
 static const unsigned char has_passed_tests[RUN_LAST + 1] =
 {
@@ -1283,6 +1285,7 @@ static const unsigned char has_kirov_score[RUN_LAST + 1] =
   [RUN_PARTIAL]          = 1,
   [RUN_ACCEPTED]         = 1,
   [RUN_STYLE_ERR]        = 1,
+  [RUN_REJECTED]         = 1,
 };
 
 // field codes
@@ -1642,14 +1645,22 @@ do_dump_master_runs(
     if (global->score_system == SCORE_ACM) {
       if (has_failed_test_num[pe->status]) {
         snprintf(failed_test_buf, sizeof(failed_test_buf), "%d", pe->test);
-        csv_rec[F_FAILED_TEST] = failed_test_buf;
+        if (pe->passed_mode > 0) {
+          csv_rec[F_PASSED_TESTS] = failed_test_buf;
+        } else {
+          csv_rec[F_FAILED_TEST] = failed_test_buf;
+        }
       }
       write_csv_record(fout, F_TOTAL_FIELDS, csv_rec);
       continue;
     } else if (global->score_system == SCORE_MOSCOW) {
       if (has_failed_test_num[pe->status]) {
         snprintf(failed_test_buf, sizeof(failed_test_buf), "%d", pe->test);
-        csv_rec[F_FAILED_TEST] = failed_test_buf;
+        if (pe->passed_mode > 0) {
+          csv_rec[F_PASSED_TESTS] = failed_test_buf;
+        } else {
+          csv_rec[F_FAILED_TEST] = failed_test_buf;
+        }
       }
       snprintf(score_buf, sizeof(score_buf), "%d", pe->score);
       csv_rec[F_TOTAL_SCORE] = score_buf;
@@ -1657,13 +1668,18 @@ do_dump_master_runs(
       write_csv_record(fout, F_TOTAL_FIELDS, csv_rec);
       continue;
     } else if (global->score_system == SCORE_OLYMPIAD) {
-      if (has_failed_test_num[pe->status]) {
-        snprintf(failed_test_buf, sizeof(failed_test_buf), "%d", pe->test);
-        csv_rec[F_FAILED_TEST] = failed_test_buf;
-      }
-      if (has_passed_tests[pe->status]) {
+      if (pe->passed_mode > 0 && pe->test >= 0) {
         snprintf(passed_tests_buf, sizeof(passed_tests_buf), "%d", pe->test);
-        csv_rec[F_PASSED_TESTS] = passed_tests_buf;
+        csv_rec[F_PASSED_TESTS] = passed_tests_buf;        
+      } else {
+        if (has_failed_test_num[pe->status]) {
+          snprintf(failed_test_buf, sizeof(failed_test_buf), "%d", pe->test);
+          csv_rec[F_FAILED_TEST] = failed_test_buf;
+        }
+        if (has_passed_tests[pe->status]) {
+          snprintf(passed_tests_buf, sizeof(passed_tests_buf), "%d", pe->test);
+          csv_rec[F_PASSED_TESTS] = passed_tests_buf;
+        }
       }
       if (has_olympiad_score[pe->status]) {
         snprintf(score_buf, sizeof(score_buf), "%d", pe->score);
@@ -1678,7 +1694,11 @@ do_dump_master_runs(
         continue;
       }
 
-      snprintf(passed_tests_buf, sizeof(passed_tests_buf), "%d", pe->test - 1);
+      if (pe->passed_mode > 0) {
+        snprintf(passed_tests_buf, sizeof(passed_tests_buf), "%d", pe->test);
+      } else {
+        snprintf(passed_tests_buf, sizeof(passed_tests_buf), "%d", pe->test - 1);
+      }
       csv_rec[F_PASSED_TESTS] = passed_tests_buf;
 
       prev_successes = RUN_TOO_MANY;

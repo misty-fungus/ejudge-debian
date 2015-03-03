@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-import-contest.c 6999 2012-08-20 12:34:29Z cher $ */
+/* $Id: ej-import-contest.c 7176 2012-11-18 15:27:40Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -672,6 +672,7 @@ merge_problem_section(
         { CNTSPROB_valuer_sets_marked, META_PROBLEM_CONFIG_SECTION_valuer_sets_marked },
         { CNTSPROB_ignore_unmarked, META_PROBLEM_CONFIG_SECTION_ignore_unmarked },
         { CNTSPROB_disable_stderr, META_PROBLEM_CONFIG_SECTION_disable_stderr },
+        { CNTSPROB_enable_process_group, META_PROBLEM_CONFIG_SECTION_enable_process_group },
 
         { 0, 0 },
     };
@@ -869,6 +870,7 @@ merge_problem_section(
         { CNTSPROB_style_checker_env, META_PROBLEM_CONFIG_SECTION_style_checker_env },
         { CNTSPROB_test_checker_env, META_PROBLEM_CONFIG_SECTION_test_checker_env },
         { CNTSPROB_init_env, META_PROBLEM_CONFIG_SECTION_init_env },
+        { CNTSPROB_start_env, META_PROBLEM_CONFIG_SECTION_start_env },
 
         { 0,  0 },
     };
@@ -915,6 +917,8 @@ generate_makefile(struct sid_state *ss,
     prepare_set_prob_value(CNTSPROB_use_stdout, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_combined_stdin, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_combined_stdout, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_input_file, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_output_file, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_scoring_checker, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_manual_checking, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_examinator_num, tmp_prob, abstr, global);

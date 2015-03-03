@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_6.c 7012 2012-08-31 07:04:42Z cher $ */
+/* $Id: super_html_6.c 7128 2012-11-04 09:35:11Z cher $ */
 
 /* Copyright (C) 2011-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -9633,6 +9633,22 @@ save_auth(
   chmod(path, 0600);
 }
 
+static int
+find_free_prob_id(const struct sid_state *ss)
+{
+  if (ss->prob_a <= 1) return 1;
+  if (ss->probs[ss->prob_a - 1]) return ss->prob_a;
+
+  int prob_id = ss->prob_a - 1;
+  while (prob_id > 0 && !ss->probs[prob_id]) --prob_id;
+  if (prob_id <= 0) {
+    prob_id = 1;
+  } else {
+    ++prob_id;
+  }
+  return prob_id;
+}
+
 int
 super_serve_op_IMPORT_FROM_POLYGON_PAGE(
         FILE *log_f,
@@ -9673,7 +9689,8 @@ super_serve_op_IMPORT_FROM_POLYGON_PAGE(
     goto cleanup;
   }
 
-  problem_id_to_short_name(ss->prob_a - 1, prob_buf);
+  int prob_id = find_free_prob_id(ss);
+  problem_id_to_short_name(prob_id - 1, prob_buf);
 
   get_saved_auth(phr->login, &saved_login, &saved_password, &saved_url);
   if (!saved_login) saved_login = xstrdup("");
@@ -9729,6 +9746,15 @@ super_serve_op_IMPORT_FROM_POLYGON_PAGE(
   fprintf(out_f, "<tr><td%s><b>%s</b> *:</td><td%s><input type=\"text\" size=\"40\" name=\"ejudge_short_name\" value=\"%s\" /></td></tr>\n",
           cl, "Short name", cl, prob_buf);
 
+  fprintf(out_f, "<tr><td%s><b>%s</b>:</td><td%s>"
+          "<select name=\"language_priority\">"
+          "<option></option"
+          "<option>ru,en</option>"
+          "<option>en,ru</option>"
+          "</select>"
+          "</td></tr>\n",
+          cl, "Language priority", cl);
+
   fprintf(out_f, "<tr><td colspan=\"2\" align=\"center\"%s><b>Polygon information</b></td></tr>\n", cl);
   fprintf(out_f, "<tr><td%s><b>%s</b> *:</td><td%s><input type=\"text\" size=\"40\" name=\"polygon_login\" value=\"%s\" /></td></tr>\n",
           cl, "Login", cl, ARMOR(saved_login));
@@ -9776,6 +9802,7 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
   unsigned char *polygon_password = NULL;
   unsigned char *polygon_id = NULL;
   unsigned char *polygon_url = NULL;
+  const unsigned char *language_priority = NULL;
   int save_auth_flag = 0;
   int max_stack_size_flag = 0;
   struct polygon_packet *pp = NULL;
@@ -9879,6 +9906,13 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
 
   if (ss_cgi_param(phr, "max_stack_size", &s) > 0) max_stack_size_flag = 1;
 
+  if (ss_cgi_param(phr, "language_priority", &s) > 0 && *s) {
+    if (!strcmp(s, "ru,en")
+        || !strcmp(s, "en,ru")) {
+      language_priority = s;
+    }
+  }
+
   if (save_auth_flag) {
     save_auth(phr->login, polygon_login, polygon_password, polygon_url);
   }
@@ -9938,6 +9972,7 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
   pp->polygon_url = polygon_url; polygon_url = NULL;
   pp->login = polygon_login; polygon_login = NULL;
   pp->password = polygon_password; polygon_password = NULL;
+  pp->language_priority = xstrdup2(language_priority);
   pp->working_dir = xstrdup(working_dir);
   pp->log_file = xstrdup(log_path);
   pp->status_file = xstrdup(stat_path);
@@ -10468,9 +10503,9 @@ do_import_problem(
         FAIL(S_ERR_OPERATION_FAILED);
       }
     }
-    if (cfg->id <= 0) cfg->id = ss->prob_a;
+    if (cfg->id <= 0) cfg->id = find_free_prob_id(ss);
   } else {
-    if (cfg->id <= 0) cfg->id = ss->prob_a;
+    if (cfg->id <= 0) cfg->id = find_free_prob_id(ss);
     unsigned char name_buf[32];
     problem_id_to_short_name(cfg->id - 1, name_buf);
     for (int prob_id = 1; prob_id < ss->prob_a; ++prob_id) {

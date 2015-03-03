@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.in 6980 2012-08-13 07:48:30Z cher $
+# $Id: Makefile.in 7182 2012-11-20 14:46:00Z cher $
 # @configure_input@
 
 # Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
@@ -112,8 +112,16 @@ SCRIPTS_IN = \
  vbnc-version.in\
  make.in\
  make-version.in\
+ make-vg.in\
+ make-vg-version.in\
  ghc.in\
  ghc-version.in\
+ clang.in\
+ clang-version.in\
+ clang++.in\
+ clang++-version.in\
+ gccgo.in\
+ gccgo-version.in\
  runvg.in\
  runjava.in\
  runmono.in\

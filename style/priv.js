@@ -1,5 +1,5 @@
 /* -*- mode: java; coding: utf-8 -*- */
-// $Id: priv.js 6961 2012-07-29 19:27:44Z cher $
+// $Id: priv.js 7148 2012-11-06 12:20:57Z cher $
 
 // Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru>
 
@@ -597,18 +597,21 @@ var ej_valid_statuses =
   0  : "OK",
   9  : "Ignored",
   10 : "Disqualified",
-  14 : "Coding style violation",
+  17 : "Rejected",
   6  : "Check failed",
   11 : "Pending check",
   7  : "Partial solution",
   8  : "Accepted for testing",
+  16 : "Pending review",
   1  : "Compilation error",
   2  : "Run-time error",
   3  : "Time-limit exceeded",
+  15 : "Wall time-limit exceeded",
   4  : "Presentation error",
   5  : "Wrong answer",
   12 : "Memory limit exceeded",
-  13 : "Security violation"
+  13 : "Security violation",
+  14 : "Coding style violation"
 }
 
 function ej_stat(run_id)

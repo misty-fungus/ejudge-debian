@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 6927 2012-07-03 04:14:58Z cher $ */
+/* $Id: problem_config.h 7163 2012-11-15 13:13:28Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
@@ -80,6 +80,7 @@ struct problem_config_section
   ejintbool_t valuer_sets_marked;
   ejintbool_t ignore_unmarked;
   ejintbool_t disable_stderr;
+  ejintbool_t enable_process_group;
 
   int id;
   int real_time_limit;
@@ -173,6 +174,7 @@ struct problem_config_section
   ejenvlist_t style_checker_env;
   ejenvlist_t test_checker_env;
   ejenvlist_t init_env;
+  ejenvlist_t start_env;
 };
 
 void

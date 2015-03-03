@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.h 6850 2012-05-25 07:41:06Z cher $ */
+/* $Id: super_run_packet.h 7166 2012-11-15 17:44:05Z cher $ */
 #ifndef __SUPER_RUN_PACKET_H__
 #define __SUPER_RUN_PACKET_H__
 
@@ -135,6 +135,7 @@ struct super_run_in_problem_packet
   ejenvlist_t interactor_env;
   ejenvlist_t test_checker_env;
   ejenvlist_t init_env;
+  ejenvlist_t start_env;
   unsigned char *check_cmd;
   unsigned char *valuer_cmd;
   unsigned char *interactor_cmd;
@@ -150,6 +151,7 @@ struct super_run_in_problem_packet
   int max_process_count;
   unsigned char *spelling;
   unsigned char *open_tests;
+  ejintbool_t enable_process_group;
 
   int type_val META_ATTRIB((meta_hidden));
 };
@@ -192,6 +194,8 @@ void
 super_run_in_packet_set_default(struct super_run_in_packet *p);
 struct super_run_in_packet *
 super_run_in_packet_free(struct super_run_in_packet *p);
+void
+super_run_in_packet_free_tester(struct super_run_in_packet *p);
 
 void
 super_run_in_packet_unparse_cfg(FILE *out_f, struct super_run_in_packet *p);

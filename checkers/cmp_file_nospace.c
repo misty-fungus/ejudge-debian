@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cmp_file_nospace.c 5687 2010-01-19 10:10:15Z cher $ */
+/* $Id: cmp_file_nospace.c 7036 2012-09-25 08:41:24Z cher $ */
 
-/* Copyright (C) 2004-2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,6 +24,13 @@ int checker_main(int argc, char **argv)
 {
   char **out_lines, **corr_lines;
   size_t out_lines_num, corr_lines_num, i;
+
+  if (getenv("EJ_REQUIRE_NL")) {
+    if (fseek(f_out, -1L, SEEK_END) >= 0) {
+      if (getc(f_out) != '\n') fatal_PE("no final \\n in the output file");
+      fseek(f_out, 0L, SEEK_SET);
+    }
+  }
 
   // считываем файл результата работы программы
   checker_read_file_by_line(1, &out_lines, &out_lines_num);

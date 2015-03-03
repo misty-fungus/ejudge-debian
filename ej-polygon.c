@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-polygon.c 6969 2012-07-31 07:15:24Z cher $ */
+/* $Id: ej-polygon.c 7080 2012-10-23 04:31:28Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1182,13 +1182,14 @@ find_revision(FILE *log_f, const unsigned char *text, int revision, struct Revis
     if (!p) return 0;
     p = strstr(p, "<tbody>");
     if (!p) return 0;
+    const unsigned char *endp = strstr(p, "</tbody>");
 
     while (1) {
         free(tr); tr = NULL;
         free(buf); buf = NULL;
 
         p = strstr(p, "<tr>");
-        if (!p) break;
+        if (!p || p >= endp) break;
         p += 4;
         const unsigned char *s = p;
         const unsigned char *q = strstr(p, "</tr>");
@@ -1938,8 +1939,13 @@ process_polygon_zip(
         prob_cfg->time_limit_millis = pi->time_limit_ms;
     }
     if (pi->long_name_ru && pi->long_name_en) {
-        prob_cfg->long_name = xstrdup(pi->long_name_ru);
-        prob_cfg->long_name_en = xstrdup(pi->long_name_en);
+        if (pkt->language_priority
+            && !strcasecmp(pkt->language_priority, "en,ru")) {
+            prob_cfg->long_name = xstrdup(pi->long_name_en);
+        } else {
+            prob_cfg->long_name = xstrdup(pi->long_name_ru);
+            prob_cfg->long_name_en = xstrdup(pi->long_name_en);
+        }
     } else if (pi->long_name_ru) {
         prob_cfg->long_name = xstrdup(pi->long_name_ru);
     } else if (pi->long_name_en) {
@@ -2100,6 +2106,10 @@ check_problem_status(
     }
     if (!strcasecmp(rinfo.state, "RUNNING")) {
         pi->state = STATE_RUNNING;
+        goto cleanup;
+    }
+    if (!strcasecmp(rinfo.state, "FAILED")) {
+        pi->state = STATE_FAILED;
         goto cleanup;
     }
     if (strcasecmp(rinfo.state, "READY")) {

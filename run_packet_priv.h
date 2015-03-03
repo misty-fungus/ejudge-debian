@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run_packet_priv.h 6913 2012-06-27 09:01:51Z cher $ */
+/* $Id: run_packet_priv.h 7114 2012-11-01 13:35:22Z cher $ */
 #ifndef __RUN_PACKET_PRIV_H__
 #define __RUN_PACKET_PRIV_H__
 
@@ -51,6 +51,7 @@ struct run_reply_bin_packet
   rint32_t  run_id;
   rint32_t  status;
   rint32_t  failed_test;
+  rint32_t  tests_passed;
   rint32_t  score;
   rint32_t  user_status;
   rint32_t  user_tests_passed;

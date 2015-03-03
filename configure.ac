@@ -1,11 +1,11 @@
-dnl $Id: configure.ac 7001 2012-08-22 13:36:53Z cher $
+dnl $Id: configure.ac 7143 2012-11-04 20:07:20Z cher $
 dnl Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru>
 
 AC_INIT(ejudge,2.3)
 AC_PREREQ(2.59)
-AC_REVISION($Revision: 7001 $)
+AC_REVISION($Revision: 7143 $)
 
-AC_PREFIX_DEFAULT([$HOME/inst-ejudge])
+AC_PREFIX_DEFAULT([/opt/ejudge])
 AC_PROG_INSTALL
 AC_PROG_AWK
 AC_PROG_GREP
@@ -149,8 +149,8 @@ case "${target}" in
     ac_cv_conf_dos_filenaming=1
     ac_cv_dir_separator='\\'
     ac_cv_path_separator=';'
-    CFLAGS="${CFLAGS} -mno-cygwin"
-    LDFLAGS="${LDFLAGS} -mno-cygwin"
+    #CFLAGS="${CFLAGS} -mno-cygwin"
+    #LDFLAGS="${LDFLAGS} -mno-cygwin"
     AC_MSG_RESULT([win32])
     ;;
   *)
@@ -393,6 +393,9 @@ dnl check libuuid library
 AC_CHECK_HEADER([uuid/uuid.h],[ac_cv_has_libuuid=1],[ac_cv_has_libuuid=0])
 AC_CHECK_LIB([uuid],[uuid_parse],[ac_cv_has_lib_libuuid=-luuid],[ac_cv_has_lib_libuuid=])
 
+dnl check regex library
+AC_CHECK_HEADER([regex.h],[ac_cv_has_regex=1],[ac_cv_has_regex=0])
+
 dnl Libcap checking stuff
 ac_cv_has_libcap=1
 if [[ x"${ac_cv_libcap_root}" = xno ]]
@@ -619,8 +622,12 @@ then
       case "$xx" in
         -L*)
           [[ x"${ac_cv_mysql_lib_opt}" != x ]] && ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt} "
-          tmp_rpath=`echo "$xx" | sed s+-L+-Wl,-rpath,+`
-          ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt}${xx} ${tmp_rpath}"
+          ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt}${xx}"
+          if [[ x"${ac_cv_rpath}" != xno ]]
+          then
+            tmp_rpath=`echo "$xx" | sed s+-L+-Wl,-rpath,+`
+            ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt} ${tmp_rpath}"
+          fi
           ;;
         -l*)
           [[ x"${ac_cv_mysql_libs}" != x ]] && ac_cv_mysql_libs="${ac_cv_mysql_libs} "
@@ -1027,6 +1034,11 @@ AC_SUBST(ac_cv_libcap_link)
 AC_SUBST(ac_cv_ejudge_server_bin_path_m)
 AC_SUBST(ac_cv_lang_config_dir)
 AC_SUBST(ac_cv_lang_config_dir_expanded)
+
+if [[ x"${ac_cv_has_regex}" = x1 ]]
+then
+  AC_DEFINE(CONF_HAS_REGEX,1)
+fi
 
 if [[ x"${ac_cv_has_libuuid}" = x1 -a x"${ac_cv_has_lib_libuuid}" != x ]]
 then

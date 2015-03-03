@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 6976 2012-08-09 12:41:30Z cher $ */
+/* $Id: new_server_html.c 7152 2012-11-08 20:03:24Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -54,6 +54,7 @@
 #include "charsets.h"
 #include "compat.h"
 #include "ej_uuid.h"
+#include "prepare_dflt.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -239,7 +240,8 @@ ns_client_destroy_callback(struct client_state *p)
     cs->testing_suspended = cs->saved_testing_suspended;
     serve_update_status_file(cs, 1);
     if (!cs->testing_suspended)
-      serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0);
+      serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0,
+                            DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
   }
   xfree(cs->pending_xml_import); cs->pending_xml_import = 0;
   cs->client_id = -1;
@@ -364,7 +366,8 @@ handle_pending_xml_import(const struct contest_desc *cnts, serve_state_t cs)
       cs->testing_suspended = cs->saved_testing_suspended;
       serve_update_status_file(cs, 1);
       if (!cs->testing_suspended)
-        serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0);
+        serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0,
+                              DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
     }
     xfree(cs->pending_xml_import); cs->pending_xml_import = 0;
     cs->client_id = -1; cs->destroy_callback = 0;
@@ -387,7 +390,8 @@ handle_pending_xml_import(const struct contest_desc *cnts, serve_state_t cs)
     cs->testing_suspended = cs->saved_testing_suspended;
     serve_update_status_file(cs, 1);
     if (!cs->testing_suspended)
-      serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0);
+      serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0,
+                            DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
   }
   xfree(cs->pending_xml_import); cs->pending_xml_import = 0;
   cs->client_id = -1; cs->destroy_callback = 0;
@@ -3190,7 +3194,7 @@ priv_set_run_style_error_status(
     ns_error(log_f, NEW_SRV_ERR_USER_ID_NONEXISTANT, re.user_id);
     goto cleanup;
   }
-  if (re.status != RUN_ACCEPTED && opcaps_check(phr->caps, OPCAP_EDIT_RUN)<0){
+  if ((re.status != RUN_ACCEPTED && re.status != RUN_PENDING_REVIEW) && opcaps_check(phr->caps, OPCAP_EDIT_RUN)<0){
     ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
     goto cleanup;    
   }
@@ -3228,15 +3232,15 @@ priv_set_run_style_error_status(
              global->xml_report_archive_dir, run_id, text2_len);
     goto invalid_param;
   }
-  if (run_change_status_4(cs->runlog_state, run_id, RUN_STYLE_ERR) < 0)
+  if (run_change_status_4(cs->runlog_state, run_id, RUN_REJECTED) < 0)
     goto invalid_param;
 
   serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                  "set-style-error", "ok", RUN_STYLE_ERR, NULL);
+                  "set-rejected", "ok", RUN_REJECTED, NULL);
 
   if (global->notify_status_change > 0 && !re.is_hidden) {
     serve_notify_user_run_status_change(ejudge_config, cnts, cs, re.user_id,
-                                        run_id, RUN_STYLE_ERR);
+                                        run_id, RUN_REJECTED);
   }
 
  cleanup:
@@ -3332,7 +3336,7 @@ priv_submit_run_comment(
       if (user_score < 0) user_score = 0;
     }
     run_change_status_3(cs->runlog_state, run_id, RUN_OK,
-                        full_score, re.test, 0, 0,
+                        full_score, re.test, re.passed_mode, 0, 0,
                         re.saved_score, user_status, re.saved_test,
                         user_score);
   }
@@ -3825,7 +3829,8 @@ priv_edit_run(FILE *fout, FILE *log_f,
         || global->score_system == SCORE_OLYMPIAD)
       param_int++;
     ne.test = param_int;
-    ne_mask = RE_TEST;
+    ne.passed_mode = 1;
+    ne_mask = RE_TEST | RE_PASSED_MODE;
     audit_cmd = "change-test";
     snprintf(old_buf, sizeof(old_buf), "%d", re.test);
     snprintf(new_buf, sizeof(new_buf), "%d", ne.test);
@@ -3963,7 +3968,8 @@ priv_change_status(
   }
   if (status == RUN_REJUDGE || status == RUN_FULL_REJUDGE) {
     serve_rejudge_run(ejudge_config, cnts, cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
-                      (status == RUN_FULL_REJUDGE), 0);
+                      (status == RUN_FULL_REJUDGE),
+                      DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
     goto cleanup;
   }
   if (!serve_is_valid_status(cs, status, 1)) {
@@ -3988,6 +3994,23 @@ priv_change_status(
     new_run.score = prob->full_score;
     flags |= RE_SCORE;
   }
+
+  if (prob->type >= PROB_TYPE_OUTPUT_ONLY
+      && prob->type <= PROB_TYPE_SELECT_MANY) {
+    if (status == RUN_OK) {
+      new_run.test = 1;
+      new_run.passed_mode = 1;
+      flags |= RE_TEST | RE_PASSED_MODE;
+    } else if (status == RUN_WRONG_ANSWER_ERR
+               || status == RUN_PRESENTATION_ERR
+               || status == RUN_PARTIAL) {
+      new_run.test = 0;
+      new_run.passed_mode = 1;
+      new_run.score = 0;
+      flags |= RE_TEST | RE_PASSED_MODE | RE_SCORE;
+    }
+  }
+
   if (run_set_entry(cs->runlog_state, run_id, flags, &new_run) < 0) {
     ns_error(log_f, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
     goto cleanup;
@@ -4053,7 +4076,7 @@ priv_simple_change_status(
     ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
     goto cleanup;
   }
-  if (re.status != RUN_ACCEPTED && opcaps_check(phr->caps, OPCAP_EDIT_RUN)<0){
+  if ((re.status != RUN_ACCEPTED && re.status != RUN_PENDING_REVIEW) && opcaps_check(phr->caps, OPCAP_EDIT_RUN)<0){
     ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
     goto cleanup;    
   }
@@ -4224,7 +4247,7 @@ priv_rejudge_displayed(FILE *fout,
   unsigned long *mask = 0;
   size_t mask_size;
   int force_full = 0;
-  int prio_adj = 0;
+  int prio_adj = DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT;
   int retval = 0;
 
   if (parse_run_mask(phr, 0, 0, &mask_size, &mask) < 0) goto invalid_param;
@@ -4275,7 +4298,7 @@ priv_rejudge_problem(FILE *fout,
     goto cleanup;
   }
 
-  serve_rejudge_problem(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, prob_id);
+  serve_rejudge_problem(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, prob_id, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
 
  cleanup:
   return 0;
@@ -4301,10 +4324,10 @@ priv_rejudge_all(FILE *fout,
 
   switch (phr->action) {
   case NEW_SRV_ACTION_REJUDGE_SUSPENDED_2:
-    serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
+    serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
     break;
   case NEW_SRV_ACTION_REJUDGE_ALL_2:
-    serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag);
+    serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
     break;
   default:
     abort();
@@ -4497,7 +4520,8 @@ priv_new_run(FILE *fout,
         || tests < -1 || tests > 100000)
       FAIL(NEW_SRV_ERR_INV_TEST);
     re.test = tests;
-    re_flags |= RE_TEST;
+    re.passed_mode = 1;
+    re_flags |= RE_TEST | RE_PASSED_MODE;
   }
   if (ns_cgi_param(phr, "score", &s) > 0 && *s) {
     if (sscanf(s, "%d%n", &score, &n) != 1 || s[n]
@@ -7596,7 +7620,7 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK] = priv_submit_run_comment,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE] = priv_simple_change_status,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK] = priv_simple_change_status,
-  [NEW_SRV_ACTION_PRIV_SET_RUN_STYLE_ERR] = priv_set_run_style_error_status,
+  [NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED] = priv_set_run_style_error_status,
   [NEW_SRV_ACTION_TESTING_DELETE] = priv_testing_queue_operation,
   [NEW_SRV_ACTION_TESTING_UP] = priv_testing_queue_operation,
   [NEW_SRV_ACTION_TESTING_DOWN] = priv_testing_queue_operation,
@@ -7717,7 +7741,11 @@ priv_generic_operation(FILE *fout,
                     phr->next_run_id);
     }
     */
-    ns_refresh_page(fout, phr, r, phr->next_extra);
+    if (phr->plain_text) {
+      fprintf(fout, "Content-type: text/plain\n\n%d\n", 0);
+    } else {
+      ns_refresh_page(fout, phr, r, phr->next_extra);
+    }
   } else {
     html_error_status_page(fout, phr, cnts, extra, log_txt, rr, 0);
   }
@@ -9107,7 +9135,7 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_VIEW_IP_USERS] = priv_generic_page,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK] = priv_generic_operation,
-  [NEW_SRV_ACTION_PRIV_SET_RUN_STYLE_ERR] = priv_generic_operation,
+  [NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED] = priv_generic_operation,
   [NEW_SRV_ACTION_VIEW_TESTING_QUEUE] = priv_generic_page,
   [NEW_SRV_ACTION_TESTING_DELETE] = priv_generic_operation,
   [NEW_SRV_ACTION_TESTING_UP] = priv_generic_operation,
@@ -12015,10 +12043,12 @@ unpriv_view_test(FILE *fout,
   case RUN_OK:
   case RUN_RUN_TIME_ERR:
   case RUN_TIME_LIMIT_ERR:
+  case RUN_WALL_TIME_LIMIT_ERR:
   case RUN_PRESENTATION_ERR:
   case RUN_WRONG_ANSWER_ERR:
   case RUN_PARTIAL:
   case RUN_ACCEPTED:
+  case RUN_PENDING_REVIEW:
   case RUN_MEM_LIMIT_ERR:
   case RUN_SECURITY_ERR:
     break;
@@ -12116,13 +12146,16 @@ unpriv_view_report(FILE *fout,
   case RUN_COMPILE_ERR:
   case RUN_RUN_TIME_ERR:
   case RUN_TIME_LIMIT_ERR:
+  case RUN_WALL_TIME_LIMIT_ERR:
   case RUN_PRESENTATION_ERR:
   case RUN_WRONG_ANSWER_ERR:
   case RUN_PARTIAL:
   case RUN_ACCEPTED:
+  case RUN_PENDING_REVIEW:
   case RUN_MEM_LIMIT_ERR:
   case RUN_SECURITY_ERR:
   case RUN_STYLE_ERR:
+  case RUN_REJECTED:
     // these statuses have viewable reports
     break;
   default:
@@ -12138,7 +12171,9 @@ unpriv_view_report(FILE *fout,
   if (enable_rep_view) enable_rep_view = prob->team_enable_rep_view;
   if (!enable_rep_view
       && (!prob->team_enable_ce_view
-          || (re.status != RUN_COMPILE_ERR && re.status != RUN_STYLE_ERR))) {
+          || (re.status != RUN_COMPILE_ERR
+              && re.status != RUN_STYLE_ERR
+              && re.status != RUN_REJECTED))) {
     ns_error(log_f, NEW_SRV_ERR_REPORT_VIEW_DISABLED);
     goto done;
   }
@@ -12152,13 +12187,17 @@ unpriv_view_report(FILE *fout,
     }
     content_type = get_content_type(rep_text, &rep_start);
     if (content_type != CONTENT_TYPE_XML
-        && re.status != RUN_COMPILE_ERR && re.status != RUN_STYLE_ERR) {
+        && re.status != RUN_COMPILE_ERR
+        && re.status != RUN_STYLE_ERR
+        && re.status != RUN_REJECTED) {
       ns_error(log_f, NEW_SRV_ERR_REPORT_UNAVAILABLE);
       goto done;
     }
   } else {
     if (prob->team_enable_ce_view
-        && (re.status == RUN_COMPILE_ERR || re.status == RUN_STYLE_ERR))
+        && (re.status == RUN_COMPILE_ERR
+            || re.status == RUN_STYLE_ERR
+            || re.status == RUN_REJECTED))
       arch_dir = global->report_archive_dir;
     else if (prob->team_show_judge_report)
       arch_dir = global->report_archive_dir;
@@ -13520,14 +13559,14 @@ unpriv_main_page(FILE *fout,
         if (i == prob_id) {
           li_attr = "  id=\"nTopNavSelected\"";
           div_class = "nProbCurrent";
-        } else if (prob->disable_user_submit > 0) {
-          div_class = "nProbDisabled";
         } else if (!all_attempts[i]) {
           div_class = "nProbEmpty";
         } else if (pending_flag[i] || trans_flag[i]) {
           div_class = "nProbTrans";
         } else if (accepted_flag[i] || solved_flag[i]) {
           div_class = "nProbOk";
+        } else if (prob->disable_user_submit > 0) {
+          div_class = "nProbDisabled";
         } else {
           div_class = "nProbBad";
         }
@@ -14293,14 +14332,14 @@ unpriv_main_page(FILE *fout,
 
       if (i == prob_id) {
         cc = "probCurrent";
-      } else if (prob->disable_user_submit > 0) {
-        cc = "probDisabled";
       } else if (!all_attempts[i]) {
         cc = "probEmpty";
       } else if (pending_flag[i] || trans_flag[i]) {
         cc = "probTrans";
       } else if (accepted_flag[i] || solved_flag[i]) {
         cc = "probOk";
+      } else if (prob->disable_user_submit > 0) {
+        cc = "probDisabled";
       } else {
         cc = "probBad";
       }
@@ -14337,14 +14376,14 @@ unpriv_main_page(FILE *fout,
       if (i == upper_tab_id) {
         div_class = "nProbCurrent";
         li_attr = " id=\"nBottomNavSelected\"";
-      } else if (prob->disable_user_submit > 0) {
-        div_class = "nProbDisabled";
       } else if (!all_attempts[i]) {
         div_class = "nProbEmpty";
       } else if (pending_flag[i] || trans_flag[i]) {
         div_class = "nProbTrans";
       } else if (accepted_flag[i] || solved_flag[i]) {
         div_class = "nProbOk";
+      } else if (prob->disable_user_submit > 0) {
+        div_class = "nProbDisabled";
       } else {
         div_class = "nProbBad";
       }
@@ -15310,7 +15349,7 @@ static const unsigned char * const symbolic_action_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK] = "PRIV_SUBMIT_RUN_COMMENT_AND_OK",
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE] = "PRIV_SUBMIT_RUN_JUST_IGNORE",
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK] = "PRIV_SUBMIT_RUN_JUST_OK",
-  [NEW_SRV_ACTION_PRIV_SET_RUN_STYLE_ERR] = "PRIV_SET_RUN_STYLE_ERR",
+  [NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED] = "PRIV_SET_RUN_REJECTED",
   [NEW_SRV_ACTION_VIEW_TESTING_QUEUE] = "VIEW_TESTING_QUEUE",
   [NEW_SRV_ACTION_TESTING_DELETE] = "TESTING_DELETE",
   [NEW_SRV_ACTION_TESTING_UP] = "TESTING_UP",
@@ -15384,6 +15423,10 @@ ns_handle_http_request(struct server_framework_state *state,
     if (sscanf(s, "%d%n", &phr->contest_id, &n) != 1
         || s[n] || phr->contest_id <= 0)
       return ns_html_err_inv_param(fout, phr, 0, "cannot parse contest_id");
+  }
+
+  if (ns_cgi_param(phr, "plain_text", &s) > 0) {
+    phr->plain_text = 1;
   }
 
   // parse the session_id
@@ -15468,6 +15511,5 @@ ns_handle_http_request(struct server_framework_state *state,
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

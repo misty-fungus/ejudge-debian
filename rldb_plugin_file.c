@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 6916 2012-06-28 04:58:59Z cher $ */
+/* $Id: rldb_plugin_file.c 7117 2012-11-01 19:50:16Z cher $ */
 
 /* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -114,6 +114,7 @@ change_status_func(
         int run_id,
         int new_status,
         int new_test,
+        int new_passed_mode,
         int new_score,
         int judge_id);
 static int
@@ -176,6 +177,7 @@ change_status_2_func(
         int run_id,
         int new_status,
         int new_test,
+        int new_passed_mode,
         int new_score,
         int judge_id,
         int is_marked);
@@ -189,6 +191,7 @@ change_status_3_func(
         int run_id,
         int new_status,
         int new_test,
+        int new_passed_mode,
         int new_score,
         int judge_id,
         int is_marked,
@@ -360,7 +363,7 @@ run_read_entry_v0(struct rldb_file_cnts *cs, int n)
 
   memset(buf, 0, sizeof(buf));
   if (run_read_record_v0(cs, buf, RUN_RECORD_SIZE) < 0) return -1;
-  r = sscanf(buf, " %lld %d %u %hd %d %d %d %hhu %d %d %s %n",
+  r = sscanf(buf, " %lld %d %u %hd %d %d %d %hhu %hd %d %s %n",
              &rls->runs[n].time, &rls->runs[n].run_id,
              &rls->runs[n].size, &rls->runs[n].locale_id,
              &rls->runs[n].user_id, &rls->runs[n].lang_id,
@@ -1223,6 +1226,9 @@ add_entry_func(
   if ((flags & RE_SAVED_TEST)) {
     de->saved_test = re->saved_test;
   }
+  if ((flags & RE_PASSED_MODE)) {
+    de->passed_mode = re->passed_mode;
+  }
 
   return do_flush_entry(cs, run_id);
 }
@@ -1257,6 +1263,7 @@ change_status_func(
         int run_id,
         int new_status,
         int new_test,
+        int new_passed_mode,
         int new_score,
         int judge_id)
 {
@@ -1267,6 +1274,7 @@ change_status_func(
 
   rls->runs[run_id].status = new_status;
   rls->runs[run_id].test = new_test;
+  rls->runs[run_id].passed_mode = !!new_passed_mode;
   rls->runs[run_id].score = new_score;
   rls->runs[run_id].judge_id = judge_id;
   return do_flush_entry(cs, run_id);
@@ -1508,6 +1516,7 @@ change_status_2_func(
         int run_id,
         int new_status,
         int new_test,
+        int new_passed_mode,
         int new_score,
         int judge_id,
         int is_marked)
@@ -1519,6 +1528,7 @@ change_status_2_func(
 
   rls->runs[run_id].status = new_status;
   rls->runs[run_id].test = new_test;
+  rls->runs[run_id].passed_mode = !!new_passed_mode;
   rls->runs[run_id].score = new_score;
   rls->runs[run_id].judge_id = judge_id;
   rls->runs[run_id].is_marked = is_marked;
@@ -1550,6 +1560,7 @@ change_status_3_func(
         int run_id,
         int new_status,
         int new_test,
+        int new_passed_mode,
         int new_score,
         int judge_id,
         int is_marked,
@@ -1565,6 +1576,7 @@ change_status_3_func(
 
   rls->runs[run_id].status = new_status;
   rls->runs[run_id].test = new_test;
+  rls->runs[run_id].passed_mode = !!new_passed_mode;
   rls->runs[run_id].score = new_score;
   rls->runs[run_id].judge_id = judge_id;
   rls->runs[run_id].is_marked = is_marked;

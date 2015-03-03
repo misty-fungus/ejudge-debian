@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 6855 2012-05-25 10:31:22Z cher $ */
+/* $Id: html.c 7147 2012-11-06 12:20:11Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -299,7 +299,7 @@ write_html_run_status(
       fprintf(f, "<td%s>&nbsp;</td>", cl);
     }
     return;
-  } else if (status > RUN_MAX_STATUS) {
+  } else if (status < 0 || status > RUN_MAX_STATUS) {
     if (run_fields & (1 << RUN_VIEW_TEST)) {
       fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
     }
@@ -312,12 +312,20 @@ write_html_run_status(
   switch (status) {
   case RUN_CHECK_FAILED:
     if (priv_level > 0) break;
-  case RUN_ACCEPTED:
+    goto dona;
+  case RUN_OK:
+    if (global->score_system == SCORE_KIROV
+        || global->score_system == SCORE_OLYMPIAD) break;
+    goto dona;
+    //case RUN_ACCEPTED:
+    //case RUN_PENDING_REVIEW:
   case RUN_IGNORED:
   case RUN_DISQUALIFIED:
   case RUN_PENDING:
   case RUN_COMPILE_ERR:
   case RUN_STYLE_ERR:
+  case RUN_REJECTED:
+  dona:
     if (run_fields & (1 << RUN_VIEW_TEST)) {
       fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
     }
@@ -329,8 +337,13 @@ write_html_run_status(
 
   if (global->score_system == SCORE_ACM) {
     if (run_fields & (1 << RUN_VIEW_TEST)) {
+      if (pe->passed_mode > 0) {
+        // if passed_mode is set, in 'test' the number of ok tests is stored
+        // add +1 for compatibility, until the legend is updated
+        ++test;
+      }
       if (!disable_failed) {
-        if (status == RUN_OK || status == RUN_ACCEPTED || test <= 0
+        if (status == RUN_OK || status == RUN_ACCEPTED || status == RUN_PENDING_REVIEW || test <= 0
             || global->disable_failed_test_view > 0) {
           fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
         } else {
@@ -345,7 +358,12 @@ write_html_run_status(
 
   if (global->score_system == SCORE_MOSCOW) {
     if (run_fields & (1 << RUN_VIEW_TEST)) {
-      if (status == RUN_OK || status == RUN_ACCEPTED || test <= 0
+      if (pe->passed_mode > 0) {
+        // if passed_mode is set, in 'test' the number of ok tests is stored
+        // add +1 for compatibility, until the legend is updated
+        ++test;
+      }
+      if (status == RUN_OK || status == RUN_ACCEPTED || status == RUN_PENDING_REVIEW || test <= 0
           || global->disable_failed_test_view > 0) {
         fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
       } else {
@@ -363,10 +381,52 @@ write_html_run_status(
   }
 
   if (run_fields & (1 << RUN_VIEW_TEST)) {
-    if (test <= 0) {
-      fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
+    if (global->score_system == SCORE_OLYMPIAD) {
+      if (pe->passed_mode > 0) {
+        // always report the count of passed tests
+        if (test < 0) {
+          fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
+        } else {
+          fprintf(f, "<td%s>%d</td>", cl, test);
+        }
+      } else {
+        // we have to guess what to report: the count of passed tests
+        // or the number of the first failed test...
+        if (status == RUN_RUN_TIME_ERR
+            || status == RUN_TIME_LIMIT_ERR
+            || status == RUN_PRESENTATION_ERR
+            || status == RUN_WRONG_ANSWER_ERR
+            || status == RUN_MEM_LIMIT_ERR
+            || status == RUN_SECURITY_ERR
+            || status == RUN_WALL_TIME_LIMIT_ERR) {
+          // do like ACM
+          if (test <= 0) {
+            fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
+          } else {
+            fprintf(f, "<td%s><i>%d</i></td>", cl, test);
+          }
+        } else {
+          if (test <= 0) {
+            fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
+          } else {
+            fprintf(f, "<td%s>%d</td>", cl, test - 1);
+          }
+        }
+      }
     } else {
-      fprintf(f, "<td%s>%d</td>", cl, test - 1);
+      if (pe->passed_mode > 0) {
+        if (test < 0) {
+          fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
+        } else {
+          fprintf(f, "<td%s>%d</td>", cl, test);
+        }
+      } else {
+        if (test <= 0) {
+          fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
+        } else {
+          fprintf(f, "<td%s>%d</td>", cl, test - 1);
+        }
+      }
     }
   }
 
@@ -427,16 +487,21 @@ write_text_run_status(
   case RUN_CHECK_FAILED:
     if (priv_level > 0) break;
   case RUN_ACCEPTED:
+  case RUN_PENDING_REVIEW:
   case RUN_IGNORED:
   case RUN_DISQUALIFIED:
   case RUN_PENDING:
   case RUN_COMPILE_ERR:
   case RUN_STYLE_ERR:
+  case RUN_REJECTED:
     return;
   }
 
   if (global->score_system == SCORE_ACM) {
-    if (status == RUN_OK || status == RUN_ACCEPTED || test <= 0
+    if (pe->passed_mode > 0) {
+      ++test;
+    }
+    if (status == RUN_OK || status == RUN_ACCEPTED || status == RUN_PENDING_REVIEW || test <= 0
         || global->disable_failed_test_view > 0) {
       fprintf(f, ";");
     } else {
@@ -446,7 +511,10 @@ write_text_run_status(
   }
 
   if (global->score_system == SCORE_MOSCOW) {
-    if (status == RUN_OK || status == RUN_ACCEPTED || test <= 0
+    if (pe->passed_mode > 0) {
+      ++test;
+    }
+    if (status == RUN_OK || status == RUN_ACCEPTED || status == RUN_PENDING_REVIEW || test <= 0
         || global->disable_failed_test_view > 0) {
       fprintf(f, ";");
     } else {
@@ -460,10 +528,18 @@ write_text_run_status(
     return;
   }
 
-  if (test <= 0) {
-    fprintf(f, ";");
+  if (pe->passed_mode > 0) {
+    if (test < 0) {
+      fprintf(f, ";");
+    } else {
+      fprintf(f, "%d;", test);
+    }
   } else {
-    fprintf(f, "%d;", test - 1);
+    if (test <= 0) {
+      fprintf(f, ";");
+    } else {
+      fprintf(f, "%d;", test - 1);
+    }
   }
 
   if (score < 0 || !pr) {
@@ -1583,14 +1659,18 @@ do_write_kirov_standings(
         if (prob->full_user_score >= 0) run_score = prob->full_user_score;
         else run_score = prob->full_score;
       }
-      run_tests = pe->saved_test - 1;
+      run_tests = pe->saved_test;
     } else {
       run_status = pe->status;
       run_score = pe->score;
       if (run_status == RUN_OK && !prob->variable_full_score) {
         run_score = prob->full_score;
       }
-      run_tests = pe->test - 1;
+      if (pe->passed_mode > 0) {
+        run_tests = pe->test;
+      } else {
+        run_tests = pe->test - 1;
+      }
     }
 
     if (global->score_system == SCORE_OLYMPIAD && accepting_mode) {
@@ -1600,6 +1680,7 @@ do_write_kirov_standings(
       switch (run_status) {
       case RUN_OK:
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
         if (!full_sol[up_ind]) sol_att[up_ind]++;
         full_sol[up_ind] = 1;
         prob_score[up_ind] = prob->tests_to_accept;
@@ -1616,12 +1697,14 @@ do_write_kirov_standings(
         break;
       case RUN_COMPILE_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_RUN_TIME_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         if (!full_sol[up_ind]) sol_att[up_ind]++;
         if (run_tests > prob->tests_to_accept)
           run_tests = prob->tests_to_accept;
@@ -1673,6 +1756,7 @@ do_write_kirov_standings(
         }
         break;
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
         att_num[up_ind]++;
         trans_num[up_ind]++;
         break;
@@ -1682,12 +1766,14 @@ do_write_kirov_standings(
         break;
       case RUN_COMPILE_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_RUN_TIME_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         att_num[up_ind]++;
         break;
       case RUN_DISQUALIFIED:
@@ -1755,7 +1841,9 @@ do_write_kirov_standings(
           if (!full_sol[up_ind]) tot_att[pind]++;
           full_sol[up_ind] = 0;
           last_submit_run = k;
-        } else if ((run_status == RUN_COMPILE_ERR || run_status == RUN_STYLE_ERR)
+        } else if ((run_status == RUN_COMPILE_ERR
+                    || run_status == RUN_STYLE_ERR
+                    || run_status == RUN_REJECTED)
                    && !prob->ignore_compile_errors) {
           if (!full_sol[up_ind]) sol_att[up_ind]++;
           att_num[up_ind]++;
@@ -1766,6 +1854,7 @@ do_write_kirov_standings(
           disq_num[up_ind]++;
         } else if (run_status == RUN_PENDING
                    || run_status == RUN_ACCEPTED
+                   || run_status == RUN_PENDING_REVIEW
                    || run_status == RUN_COMPILING
                    || run_status == RUN_RUNNING) {
           trans_num[up_ind]++;
@@ -1833,7 +1922,9 @@ do_write_kirov_standings(
           att_num[up_ind]++;
           if (!full_sol[up_ind]) tot_att[pind]++;
           last_submit_run = k;
-        } else if ((run_status == RUN_COMPILE_ERR || run_status == RUN_STYLE_ERR)
+        } else if ((run_status == RUN_COMPILE_ERR 
+                    || run_status == RUN_STYLE_ERR
+                    || run_status == RUN_REJECTED)
                    && !prob->ignore_compile_errors) {
           if (!full_sol[up_ind]) sol_att[up_ind]++;
           att_num[up_ind]++;
@@ -1844,6 +1935,7 @@ do_write_kirov_standings(
           disq_num[up_ind]++;
         } else if (run_status == RUN_PENDING
                    || run_status == RUN_ACCEPTED
+                   || run_status == RUN_PENDING_REVIEW
                    || run_status == RUN_COMPILING
                    || run_status == RUN_RUNNING) {
           trans_num[up_ind]++;
@@ -3045,7 +3137,9 @@ do_write_moscow_standings(
         last_submit_time = pe->time;
         last_submit_start = ustart;
       }
-    } else if ((pe->status == RUN_COMPILE_ERR || pe->status == RUN_STYLE_ERR)
+    } else if ((pe->status == RUN_COMPILE_ERR
+                || pe->status == RUN_STYLE_ERR
+                || pe->status == RUN_REJECTED)
                && !prob->ignore_compile_errors) {
       up_totatt[up_ind]++;
       p_att[p]++;
@@ -3054,7 +3148,9 @@ do_write_moscow_standings(
         last_submit_time = pe->time;
         last_submit_start = ustart;
       }
-    } else if (pe->status == RUN_COMPILE_ERR || pe->status == RUN_STYLE_ERR) {
+    } else if (pe->status == RUN_COMPILE_ERR
+               || pe->status == RUN_STYLE_ERR
+               || pe->status == RUN_REJECTED) {
       // silently ignore compilation error
     } else if (pe->status == RUN_CHECK_FAILED) {
       up_cf[up_ind] = 1;
@@ -3927,7 +4023,9 @@ do_write_standings(
         last_success_time = run_time;
         last_success_start = start_time;
       }
-    } else if ((pe->status == RUN_COMPILE_ERR || pe->status == RUN_STYLE_ERR)
+    } else if ((pe->status == RUN_COMPILE_ERR
+                || pe->status == RUN_STYLE_ERR
+                || pe->status == RUN_REJECTED)
                && !prob->ignore_compile_errors) {
       if (calc[up_ind] <= 0) {
         calc[up_ind]--;
@@ -3941,7 +4039,7 @@ do_write_standings(
       }
     } else if (pe->status == RUN_DISQUALIFIED) {
       disq_flag[up_ind] = 1;
-    } else if (pe->status == RUN_PENDING || pe->status == RUN_ACCEPTED) {
+    } else if (pe->status == RUN_PENDING || pe->status == RUN_ACCEPTED || pe->status == RUN_PENDING_REVIEW) {
       trans_flag[up_ind] = 1;
     } else if (pe->status >= RUN_TRANSIENT_FIRST
                && pe->status <= RUN_TRANSIENT_LAST) {
@@ -4640,7 +4738,7 @@ write_xml_team_tests_report(
 
   if (r->status == RUN_CHECK_FAILED) {
     font_color = " color=\"magenta\"";
-  } else if (r->status == RUN_OK || r->status == RUN_ACCEPTED) {
+  } else if (r->status == RUN_OK || r->status == RUN_ACCEPTED || r->status == RUN_PENDING_REVIEW) {
     font_color = " color=\"green\"";
   } else {
     font_color = " color=\"red\"";
@@ -4769,7 +4867,7 @@ write_xml_team_testing_report(
     if (r->user_tests_passed >= 0) tests_passed = r->user_tests_passed;
   }
 
-  if (status == RUN_OK || status == RUN_ACCEPTED) {
+  if (status == RUN_OK || status == RUN_ACCEPTED || status == RUN_PENDING_REVIEW) {
     font_color = "green";
   } else {
     font_color = "red";
@@ -4795,7 +4893,7 @@ write_xml_team_testing_report(
 
     fprintf(f, "<tr>");
     fprintf(f, "<td%s>%d</td>", cl, t->num);
-    if (t->status == RUN_OK || t->status == RUN_ACCEPTED) {
+    if (t->status == RUN_OK || t->status == RUN_ACCEPTED || t->status == RUN_PENDING_REVIEW) {
       font_color = "green";
     } else {
       font_color = "red";
@@ -4825,7 +4923,7 @@ write_xml_team_testing_report(
     fprintf(f, _("Score gained: %d (out of %d).<br/><br/></big>\n"),
             score, max_score);
   } else {
-    if (status != RUN_OK && status != RUN_ACCEPTED) {
+    if (status != RUN_OK && status != RUN_ACCEPTED && status != RUN_PENDING_REVIEW) {
       fprintf(f, _("<big>Failed test: %d.<br/><br/></big>\n"), r->failed_test);
     }
   }
@@ -4914,14 +5012,14 @@ write_xml_team_testing_report(
 
     fprintf(f, "<tr>");
     fprintf(f, "<td%s>%d</td>", cl, serial);
-    if (t->status == RUN_OK || t->status == RUN_ACCEPTED) {
+    if (t->status == RUN_OK || t->status == RUN_ACCEPTED || t->status == RUN_PENDING_REVIEW) {
       font_color = "green";
     } else {
       font_color = "red";
     }
     fprintf(f, "<td%s><font color=\"%s\">%s</font></td>\n",
             cl, font_color, run_status_str(t->status, 0, 0, output_only, 0));
-    if (t->status == RUN_TIME_LIMIT_ERR && r->time_limit_ms > 0) {
+    if ((t->status == RUN_TIME_LIMIT_ERR || t->status == RUN_WALL_TIME_LIMIT_ERR) && r->time_limit_ms > 0) {
       fprintf(f, "<td%s>&gt;%d.%03d</td>", cl,
               r->time_limit_ms / 1000, r->time_limit_ms % 1000);
     } else {
@@ -5132,7 +5230,7 @@ write_xml_team_output_only_acc_report(FILE *f, const unsigned char *txt,
     fprintf(f, "<tr>");
     fprintf(f, "<td%s>%d</td>", cl, t->num);
     act_status = t->status;
-    if (act_status == RUN_OK || act_status == RUN_ACCEPTED
+    if (act_status == RUN_OK || act_status == RUN_ACCEPTED || act_status == RUN_PENDING_REVIEW
         || act_status == RUN_WRONG_ANSWER_ERR) {
       act_status = RUN_OK;
       font_color = "green";
@@ -5146,6 +5244,7 @@ write_xml_team_output_only_acc_report(FILE *f, const unsigned char *txt,
     switch (t->status) {
     case RUN_OK:
     case RUN_ACCEPTED:
+    case RUN_PENDING_REVIEW:
     case RUN_WRONG_ANSWER_ERR:
       fprintf(f, "&nbsp;");
       break;
@@ -5162,6 +5261,7 @@ write_xml_team_output_only_acc_report(FILE *f, const unsigned char *txt,
       break;
 
     case RUN_TIME_LIMIT_ERR:
+    case RUN_WALL_TIME_LIMIT_ERR:
       fprintf(f, "&nbsp;");
       break;
 
@@ -5252,7 +5352,7 @@ write_xml_team_accepting_report(FILE *f, const unsigned char *txt,
   fprintf(f, "<h2><font color=\"%s\">%s</font></h2>\n",
           font_color, run_status_str(act_status, 0, 0, 0, 0));
 
-  if (act_status != RUN_ACCEPTED) {
+  if (act_status != RUN_ACCEPTED && act_status != RUN_PENDING_REVIEW) {
     fprintf(f, _("<big>Failed test: %d.<br/><br/></big>\n"), r->failed_test);
   }
 
@@ -5283,7 +5383,7 @@ write_xml_team_accepting_report(FILE *f, const unsigned char *txt,
     if (!(t = r->tests[i])) continue;
     fprintf(f, "<tr>");
     fprintf(f, "<td%s>%d</td>", cl, t->num);
-    if (t->status == RUN_OK || t->status == RUN_ACCEPTED) {
+    if (t->status == RUN_OK || t->status == RUN_ACCEPTED || t->status == RUN_PENDING_REVIEW) {
       font_color = "green";
     } else {
       font_color = "red";
@@ -5291,7 +5391,7 @@ write_xml_team_accepting_report(FILE *f, const unsigned char *txt,
     fprintf(f, "<td%s><font color=\"%s\">%s</font></td>\n",
             cl, font_color, run_status_str(t->status, 0, 0, 0, 0));
     if (!exam_mode) {
-      if (t->status == RUN_TIME_LIMIT_ERR && r->time_limit_ms > 0) {
+      if ((t->status == RUN_TIME_LIMIT_ERR || t->status == RUN_WALL_TIME_LIMIT_ERR) && r->time_limit_ms > 0) {
         fprintf(f, "<td%s>&gt;%d.%03d</td>", cl,
                 r->time_limit_ms / 1000, r->time_limit_ms % 1000);
       } else {
@@ -5311,6 +5411,7 @@ write_xml_team_accepting_report(FILE *f, const unsigned char *txt,
     switch (t->status) {
     case RUN_OK:
     case RUN_ACCEPTED:
+    case RUN_PENDING_REVIEW:
       if (t->checker_comment) {
         s = html_armor_string_dup(t->checker_comment);
         fprintf(f, "%s", s);
@@ -5332,6 +5433,7 @@ write_xml_team_accepting_report(FILE *f, const unsigned char *txt,
       break;
 
     case RUN_TIME_LIMIT_ERR:
+    case RUN_WALL_TIME_LIMIT_ERR:
       fprintf(f, "&nbsp;");
       break;
 
