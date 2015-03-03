@@ -1,17 +1,8 @@
 Index: ejudge-debian/configure
 ===================================================================
---- ejudge-debian.orig/configure	2011-12-25 23:26:39.000000000 +0300
-+++ ejudge-debian/configure	2011-12-25 23:26:47.000000000 +0300
-@@ -6748,7 +6748,7 @@
-       case "$xx" in
-         -L*)
-           [ x"${ac_cv_mysql_lib_opt}" != x ] && ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt} "
--          tmp_rpath=`echo "$xx" | sed s+-L+-Wl,-rpath,+`
-+          tmp_rpath=`echo "$xx" | sed s+-L+-Wl,+`
-           ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt}${xx} ${tmp_rpath}"
-           ;;
-         -l*)
-@@ -7221,8 +7221,8 @@
+--- ejudge-debian.orig/configure
++++ ejudge-debian/configure
+@@ -7432,8 +7432,8 @@ then
    ac_cv_ejudge_server_bin_path="${actual_libexecdir}/ejudge/bin"
    ac_cv_ejudge_server_bin_path_m="${libexecdir}/ejudge/bin"
  else
@@ -24,18 +15,9 @@ Index: ejudge-debian/configure
  ac_cv_ejudge_run_path="${ac_cv_ejudge_server_bin_path}/ej-run"
 Index: ejudge-debian/configure.ac
 ===================================================================
---- ejudge-debian.orig/configure.ac	2011-12-25 23:26:39.000000000 +0300
-+++ ejudge-debian/configure.ac	2011-12-25 23:26:47.000000000 +0300
-@@ -610,7 +610,7 @@
-       case "$xx" in
-         -L*)
-           [[ x"${ac_cv_mysql_lib_opt}" != x ]] && ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt} "
--          tmp_rpath=`echo "$xx" | sed s+-L+-Wl,-rpath,+`
-+          tmp_rpath=`echo "$xx" | sed s+-L+-Wl,+`
-           ac_cv_mysql_lib_opt="${ac_cv_mysql_lib_opt}${xx} ${tmp_rpath}"
-           ;;
-         -l*)
-@@ -837,8 +837,8 @@
+--- ejudge-debian.orig/configure.ac
++++ ejudge-debian/configure.ac
+@@ -891,8 +891,8 @@ then
    ac_cv_ejudge_server_bin_path="${actual_libexecdir}/ejudge/bin"
    ac_cv_ejudge_server_bin_path_m="${libexecdir}/ejudge/bin"
  else
