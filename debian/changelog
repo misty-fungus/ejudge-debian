@@ -1,3 +1,9 @@
+ejudge (2.3.23-3) unstable; urgency=medium
+
+  * [a94f6c3] added missing log to logrotate config
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Tue, 03 Mar 2015 20:16:06 +0300
+
 ejudge (2.3.23-2) unstable; urgency=medium
 
   * [29c8184] typo in control
