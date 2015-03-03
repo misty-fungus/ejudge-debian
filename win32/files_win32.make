@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files_win32.make 6661 2012-03-20 06:08:23Z cher $
+# $Id: files_win32.make 7140 2012-11-04 15:48:08Z cher $
 
 # Copyright (C) 2009-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -48,8 +48,6 @@ WIN32_COMMON_CFILES=\
  run_inverse.c\
  runlog.c\
  runlog_static.c\
- run_packet_1.c\
- run_packet_3.c\
  run_packet_5.c\
  serve_state.c\
  sformat.c\
@@ -71,6 +69,7 @@ WIN32_COMMON_CFILES=\
  xml_utils/attr_bool_byte.c\
  xml_utils/attr_date.c\
  xml_utils/attr_int.c\
+ xml_utils/attr_ulong.c\
  xml_utils/elem_ip_mask.c\
  xml_utils/empty_text.c\
  xml_utils/err_attrs.c\

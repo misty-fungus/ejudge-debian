@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cmp_double_seq.c 5687 2010-01-19 10:10:15Z cher $ */
+/* $Id: cmp_double_seq.c 7036 2012-09-25 08:41:24Z cher $ */
 
-/* Copyright (C) 2005, 2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,6 +26,13 @@ int checker_main(int argc, char **argv)
   unsigned char *s, *abs_flag = 0;
   int n, i = 0;
   unsigned char buf[32];
+
+  if (getenv("EJ_REQUIRE_NL")) {
+    if (fseek(f_out, -1L, SEEK_END) >= 0) {
+      if (getc(f_out) != '\n') fatal_PE("no final \\n in the output file");
+      fseek(f_out, 0L, SEEK_SET);
+    }
+  }
 
   if (!(s = getenv("EPS")))
     fatal_CF("environment variable EPS is not set");

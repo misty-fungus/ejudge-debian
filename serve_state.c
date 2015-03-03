@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_state.c 6853 2012-05-25 08:34:35Z cher $ */
+/* $Id: serve_state.c 7123 2012-11-03 17:55:23Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -101,7 +101,7 @@ serve_state_destroy(
       state->testing_suspended = state->saved_testing_suspended;
       serve_update_status_file(state, 1);
       if (!state->testing_suspended && cnts)
-        serve_judge_suspended(config, cnts, state, 0, 0, 0);
+        serve_judge_suspended(config, cnts, state, 0, 0, 0, 0);
     }
     if (state->destroy_callback) (*state->destroy_callback)(state);
     xfree(state->pending_xml_import);

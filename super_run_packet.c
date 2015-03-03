@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.c 6851 2012-05-25 07:49:42Z cher $ */
+/* $Id: super_run_packet.c 7167 2012-11-15 17:47:14Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -137,6 +137,7 @@ super_run_in_problem_packet_init(struct generic_section_config *gp)
   p->disable_stderr = -1;
   p->max_open_file_count = -1;
   p->max_process_count = -1;
+  p->enable_process_group = -1;
 
   p->type_val = -1;
 }
@@ -168,7 +169,6 @@ super_run_in_problem_packet_set_default(struct generic_section_config *gp)
   if (p->use_tgz < 0) p->use_tgz = 0;
   if (p->tests_to_accept < 0) p->tests_to_accept = 0;
   if (p->accept_partial < 0) p->accept_partial = 0;
-  if (p->min_tests_to_accept < 0) p->min_tests_to_accept = 0;
   if (p->checker_real_time_limit_ms < 0) p->checker_real_time_limit_ms = 0;
   if (p->valuer_sets_marked < 0) p->valuer_sets_marked = 0;
   if (p->interactor_time_limit_ms < 0) p->interactor_time_limit_ms = 0;
@@ -282,6 +282,15 @@ super_run_in_packet_free(struct super_run_in_packet *p)
     xfree(p);
   }
   return NULL;
+}
+
+void
+super_run_in_packet_free_tester(struct super_run_in_packet *p)
+{
+  if (p) {
+    super_run_in_tester_packet_free((struct generic_section_config*) p->tester);
+    p->tester = NULL;
+  }
 }
 
 struct config_section_info super_run_in_packet_info[] =

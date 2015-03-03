@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: testing_report_xml.h 6895 2012-06-18 04:07:06Z cher $ */
+/* $Id: testing_report_xml.h 7055 2012-10-17 04:20:40Z cher $ */
 #ifndef __TESTING_REPORT_XML_H__
 #define __TESTING_REPORT_XML_H__
 
@@ -123,6 +123,8 @@ typedef struct testing_report_xml
   unsigned char *valuer_judge_comment;
   unsigned char *valuer_errors;
   unsigned char *host;
+  unsigned char *cpu_model;
+  unsigned char *cpu_mhz;
   unsigned char *errors;
   unsigned char *compiler_output;
 

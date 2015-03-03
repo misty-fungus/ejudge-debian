@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 6925 2012-06-28 12:16:04Z cher $ */
+/* $Id: reuse_exec.c 7178 2012-11-18 18:13:15Z cher $ */
 
 /* Copyright (C) 1998-2012 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1998-01-21 14:33:28 cher> */
@@ -86,6 +86,7 @@ struct tTask
   int    max_time_millis;       /* maximal allowed time in milliseconds */
   int    max_real_time;         /* maximal allowed realtime */
   int    was_timeout;           /* was the timeout happened? */
+  int    was_real_timeout;      /* was the real time limit exceeded? */
   int    was_memory_limit;      /* was the memory limit happened? */
   int    was_security_violation;/* was the security violation happened? */
   int    termsig;               /* termination signal */
@@ -1945,6 +1946,7 @@ task_Wait(tTask *tsk)
         } else {
           kill(tsk->pid, tsk->termsig);
         }
+        tsk->was_real_timeout = 1;
         tsk->was_timeout = 1;
         /*
         fprintf(stderr, "EXEC: TASK_WAIT: 1: REAL TIME TIMEOUT %ld.%09ld\n",
@@ -1961,6 +1963,7 @@ task_Wait(tTask *tsk)
           kill(tsk->pid, tsk->termsig);
         }
         tsk->was_timeout = 1;
+        tsk->was_real_timeout = 1;
         //fprintf(stderr, "EXEC: TASK_WAIT: 2: REAL TIME TIMEOUT %d\n", n);
         break;
       }
@@ -2175,6 +2178,7 @@ task_NewWait(tTask *tsk)
           kill(tsk->pid, tsk->termsig);
         }
         tsk->was_timeout = 1;
+        tsk->was_real_timeout = 1;
         tsk->used_vm_size = used_vm_size;
         break;
       }
@@ -2182,6 +2186,10 @@ task_NewWait(tTask *tsk)
 
     struct process_info info;
     if (parse_proc_pid_stat(tsk->pid, &info) >= 0) {
+      if (info.vsize > 0 && info.vsize > used_vm_size) {
+        used_vm_size = info.vsize;
+        //fprintf(stderr, "VMSize: %lu\n", used_vm_size);
+      }
       if (max_time_ms > 0) {
         long long cur_utime = info.utime + info.stime;
         cur_utime = (cur_utime * 1000) / info.clock_ticks;
@@ -2196,10 +2204,6 @@ task_NewWait(tTask *tsk)
           tsk->used_vm_size = used_vm_size;
           break;
         }
-      }
-      if (info.vsize > 0 && info.vsize > used_vm_size) {
-        used_vm_size = info.vsize;
-        //fprintf(stderr, "VMSize: %lu\n", used_vm_size);
       }
     } else {
       fprintf(stderr, "Failed to parse /proc/PID/stat\n");
@@ -2315,7 +2319,16 @@ task_IsTimeout(tTask *tsk)
   task_init_module();
   ASSERT(tsk);
   if (tsk->state != TSK_EXITED && tsk->state != TSK_SIGNALED) return -1;
-  return tsk->was_timeout;
+  return tsk->was_timeout || tsk->was_real_timeout;
+}
+
+int
+task_IsRealTimeout(tTask *tsk)
+{
+  task_init_module();
+  ASSERT(tsk);
+  if (tsk->state != TSK_EXITED && tsk->state != TSK_SIGNALED) return -1;
+  return tsk->was_real_timeout;
 }
 
 long
@@ -2443,6 +2456,21 @@ task_Kill(tTask *tsk)
   task_init_module();
   ASSERT(tsk);
   kill(tsk->pid, tsk->termsig);
+  return 0;
+}
+
+int
+task_TryProcessGroup(tTask *tsk)
+{
+  task_init_module();
+  return kill(-tsk->pid, 0);
+}
+
+int
+task_KillProcessGroup(tTask *tsk)
+{
+  task_init_module();
+  kill(-tsk->pid, SIGKILL);
   return 0;
 }
 

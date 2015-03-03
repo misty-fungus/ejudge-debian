@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 7016 2012-08-31 14:37:46Z cher $ */
+/* $Id: super_html_3.c 7176 2012-11-18 15:27:40Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -290,6 +290,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_SHOW_DEADLINE] = "Serve.cfg:global:show_deadline",
   [SSERV_CMD_GLOB_CHANGE_ENABLE_PRINTING] = "Serve.cfg:global:enable_printing",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE] = "Serve.cfg:global:disable_banner_page",
+  [SSERV_CMD_GLOB_CHANGE_PRINTOUT_USES_LOGIN] = "Serve.cfg:global:printout_uses_login",
   [SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS] = "Serve.cfg:global:prune_empty_users",
   [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = "Serve.cfg:global:enable_full_archive",
   [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = "Serve.cfg:global:advanced_layout",
@@ -492,6 +493,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_VALUER_SETS_MARKED] = "Serve.cfg:problem:valuer_sets_marked",
   [SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED] = "Serve.cfg:problem:ignore_unmarked",
   [SSERV_CMD_PROB_CHANGE_DISABLE_STDERR] = "Serve.cfg:problem:disable_stderr",
+  [SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP] = "Serve.cfg:problem:enable_process_group",
   [SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM] = "Serve.cfg:problem:enable_text_form",
   [SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE] = "Serve.cfg:problem:stand_ignore_score",
   [SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN] = "Serve.cfg:problem:stand_last_column",
@@ -537,6 +539,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV] = "Serve.cfg:problem:test_checker_env",
   [SSERV_CMD_PROB_CHANGE_INIT_CMD] = "Serve.cfg:problem:init_cmd",
   [SSERV_CMD_PROB_CHANGE_INIT_ENV] = "Serve.cfg:problem:init_env",
+  [SSERV_CMD_PROB_CHANGE_START_ENV] = "Serve.cfg:problem:start_env",
   [SSERV_CMD_PROB_CHANGE_SOLUTION_SRC] = "Serve.cfg:problem:solution_src",
   [SSERV_CMD_PROB_CHANGE_SOLUTION_CMD] = "Serve.cfg:problem:solution_cmd",
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ] = "Serve.cfg:problem:lang_time_adj",
@@ -777,6 +780,7 @@ Participant's capabilities
   GLOBAL_PARAM(ignore_compile_errors, "d"),
   GLOBAL_PARAM(enable_printing, "d"),
   GLOBAL_PARAM(disable_banner_page, "d"),
+  GLOBAL_PARAM(printout_uses_login, "d"),
   GLOBAL_PARAM(ignore_duplicated_runs, "d"),
   GLOBAL_PARAM(report_error_code, "d"),
   GLOBAL_PARAM(show_deadline, "d"),
@@ -1284,6 +1288,19 @@ super_html_edit_global_parameters(FILE *f,
       html_submit_button(f, SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE, "Change");
       fprintf(f, "</td>");
       print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE);
+      fprintf(f, "</tr></form>\n");
+    }
+
+    if (global->enable_printing > 0 && global->disable_banner_page > 0) {
+      //GLOBAL_PARAM(printout_uses_login, "d"),
+      html_start_form(f, 1, self_url, hidden_vars);
+      fprintf(f, "<tr%s><td>Show login (not name) on printouts:</td><td>",
+              form_row_attrs[row ^= 1]);
+      html_boolean_select(f, global->printout_uses_login, "param", 0, 0);
+      fprintf(f, "</td><td>");
+      html_submit_button(f, SSERV_CMD_GLOB_CHANGE_PRINTOUT_USES_LOGIN, "Change");
+      fprintf(f, "</td>");
+      print_help_url(f, SSERV_CMD_GLOB_CHANGE_PRINTOUT_USES_LOGIN);
       fprintf(f, "</tr></form>\n");
     }
 
@@ -2968,6 +2985,10 @@ super_html_global_param(struct sid_state *sstate, int cmd,
     p_int = &global->disable_banner_page;
     goto handle_boolean;
 
+  case SSERV_CMD_GLOB_CHANGE_PRINTOUT_USES_LOGIN:
+    p_int = &global->printout_uses_login;
+    goto handle_boolean;
+
   case SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS:
     p_int = &global->prune_empty_users;
     goto handle_boolean;
@@ -3816,6 +3837,7 @@ super_html_edit_languages(
   int row = 1;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   unsigned char num_buf[1024];
+  unsigned char cs_conf_file[PATH_MAX];
 
   if (!global) {
     super_html_contest_page_menu(f, session_id, sstate, 3, self_url,
@@ -3841,7 +3863,8 @@ super_html_edit_languages(
   }
 
   if (!sstate->cs_langs_loaded) {
-    super_load_cs_languages(config, sstate, global->extra_compile_dirs, 1);
+    super_load_cs_languages(config, sstate, global->extra_compile_dirs, 1,
+                            cs_conf_file, sizeof(cs_conf_file));
   }
 
   if (!sstate->cs_langs) {
@@ -5869,6 +5892,24 @@ super_html_print_problem(FILE *f,
     }
   }
 
+  if (show_adv) {
+    //PROBLEM_PARAM(enable_process_group, "d"),
+    extra_msg = "Undefined";
+    if (!prob->abstract) {
+      prepare_set_prob_value(CNTSPROB_enable_process_group,
+                             tmp_prob, sup_prob, sstate->global);
+      snprintf(msg_buf, sizeof(msg_buf), "Default (%s)",
+               tmp_prob->enable_process_group?"Yes":"No");
+      extra_msg = msg_buf;
+    }
+    print_boolean_3_select_row(f,"Use separate process group:",
+                               prob->enable_process_group,
+                               SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+  }
+
   //PROBLEM_PARAM(checker_real_time_limit, "d"),
   if (show_adv) {
     extra_msg = "";
@@ -6698,6 +6739,24 @@ super_html_print_problem(FILE *f,
                                extra_msg,
                                session_id, form_row_attrs[row ^= 1],
                                self_url, extra_args, prob_hidden_vars);
+  }
+
+  //PROBLEM_PARAM(start_env, "x"),
+  if (!prob->abstract && show_adv) {
+    if (!prob->start_env || !prob->start_env[0]) {
+      extra_msg = "(not set)";
+      checker_env = xstrdup("");
+    } else {
+      extra_msg = "";
+      checker_env = sarray_unparse(prob->start_env);
+    }
+    print_string_editing_row_3(f, "Start environment:", checker_env,
+                               SSERV_CMD_PROB_CHANGE_START_ENV,
+                               SSERV_CMD_PROB_CLEAR_START_ENV,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+    xfree(checker_env);
   }
 
   //PROBLEM_PARAM(valuer_cmd, "s"),
@@ -7824,11 +7883,13 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CHANGE_TEST_SCORE_LIST:
     // FIXME: check for correctness
-    PROB_ASSIGN_STRING(test_score_list);
+    xfree(prob->test_score_list);
+    prob->test_score_list = xstrdup(param2);
     return 0;
 
   case SSERV_CMD_PROB_CLEAR_TEST_SCORE_LIST:
-    PROB_CLEAR_STRING(test_score_list);
+    xfree(prob->test_score_list);
+    prob->test_score_list = NULL;
     return 0;
 
   case SSERV_CMD_PROB_CHANGE_SCORE_TESTS:
@@ -7883,6 +7944,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CHANGE_DISABLE_STDERR:
     p_int = &prob->disable_stderr;
+    goto handle_boolean_1;
+
+  case SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP:
+    p_int = &prob->enable_process_group;
     goto handle_boolean_1;
 
   case SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM:
@@ -8242,6 +8307,18 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
   case SSERV_CMD_PROB_CLEAR_INIT_ENV:
     sarray_free(prob->init_env);
     prob->init_env = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_START_ENV:
+    if (sarray_parse(param2, &tmp_env) < 0)
+      return -SSERV_ERR_INVALID_PARAMETER;
+    sarray_free(prob->start_env);
+    prob->start_env = tmp_env;
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_START_ENV:
+    sarray_free(prob->start_env);
+    prob->start_env = 0;
     return 0;
 
   case SSERV_CMD_PROB_CHANGE_SOLUTION_SRC:
@@ -9233,6 +9310,8 @@ super_html_check_tests(FILE *f,
     prepare_set_prob_value(CNTSPROB_use_stdout, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_combined_stdin, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_combined_stdout, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_input_file, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_output_file, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_scoring_checker, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_manual_checking, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_examinator_num, tmp_prob, abstr, global);

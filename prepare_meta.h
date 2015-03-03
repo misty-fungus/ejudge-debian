@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/07/30 12:57:52
+// Generated 2012/11/15 17:14:09
 
 #ifndef __PREPARE_META_H__
 #define __PREPARE_META_H__
@@ -257,6 +257,7 @@ enum
   CNTSGLOB_variant_map,
   CNTSGLOB_enable_printing,
   CNTSGLOB_disable_banner_page,
+  CNTSGLOB_printout_uses_login,
   CNTSGLOB_team_page_quota,
   CNTSGLOB_compile_max_vm_size,
   CNTSGLOB_compile_max_stack_size,
@@ -388,6 +389,7 @@ enum
   CNTSPROB_ignore_unmarked,
   CNTSPROB_interactor_time_limit,
   CNTSPROB_disable_stderr,
+  CNTSPROB_enable_process_group,
   CNTSPROB_test_pat,
   CNTSPROB_corr_pat,
   CNTSPROB_info_pat,
@@ -421,6 +423,7 @@ enum
   CNTSPROB_style_checker_env,
   CNTSPROB_test_checker_env,
   CNTSPROB_init_env,
+  CNTSPROB_start_env,
   CNTSPROB_check_cmd,
   CNTSPROB_valuer_cmd,
   CNTSPROB_interactor_cmd,
@@ -431,6 +434,7 @@ enum
   CNTSPROB_solution_cmd,
   CNTSPROB_lang_time_adj,
   CNTSPROB_lang_time_adj_millis,
+  CNTSPROB_super_run_dir,
   CNTSPROB_alternative,
   CNTSPROB_personal_deadline,
   CNTSPROB_pd_total,

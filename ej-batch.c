@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-batch.c 6674 2012-03-24 14:53:50Z cher $ */
+/* $Id: ej-batch.c 7027 2012-09-16 13:38:18Z cher $ */
 
 /* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -711,6 +711,8 @@ get_status_str_rus(int status)
     return "Превышение_ограничения_по_памяти";
   case RUN_SECURITY_ERR:
     return "Недопустимая_системная_операция";
+  case RUN_WALL_TIME_LIMIT_ERR:
+    return "Превышение_времени";
   default:
     return "Недопустимый_статус";
   }

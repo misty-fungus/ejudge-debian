@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: rldb_plugin.h 6103 2011-03-01 18:42:57Z cher $ */
+/* $Id: rldb_plugin.h 7114 2012-11-01 13:35:22Z cher $ */
 
 #ifndef __RLDB_PLUGIN_H__
 #define __RLDB_PLUGIN_H__
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -85,6 +85,7 @@ struct rldb_plugin_iface
                        int run_id,
                        int new_status,
                        int new_test,
+                       int new_passed_mode,
                        int new_score,
                        int judge_id);
   // start the contest
@@ -133,6 +134,7 @@ struct rldb_plugin_iface
                          int run_id,
                          int new_status,
                          int new_test,
+                         int new_passed_mode,
                          int new_score,
                          int judge_id,
                          int is_marked);
@@ -143,6 +145,7 @@ struct rldb_plugin_iface
                          int run_id,
                          int new_status,
                          int new_test,
+                         int new_passed_mode,
                          int new_score,
                          int judge_id,
                          int is_marked,

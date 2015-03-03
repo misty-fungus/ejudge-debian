@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 7006 2012-08-28 09:15:26Z cher $ */
+/* $Id: super-serve.c 7164 2012-11-15 13:21:36Z cher $ */
 
 /* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -2457,6 +2457,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_VALUER_SETS_MARKED:
   case SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED:
   case SSERV_CMD_PROB_CHANGE_DISABLE_STDERR:
+  case SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP:
   case SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM:
   case SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE:
   case SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN:
@@ -2533,6 +2534,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_INIT_CMD:
   case SSERV_CMD_PROB_CHANGE_INIT_ENV:
   case SSERV_CMD_PROB_CLEAR_INIT_ENV:
+  case SSERV_CMD_PROB_CHANGE_START_ENV:
+  case SSERV_CMD_PROB_CLEAR_START_ENV:
   case SSERV_CMD_PROB_CHANGE_SOLUTION_SRC:
   case SSERV_CMD_PROB_CLEAR_SOLUTION_SRC:
   case SSERV_CMD_PROB_CHANGE_SOLUTION_CMD:
@@ -2600,6 +2603,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CHANGE_SHOW_DEADLINE:
   case SSERV_CMD_GLOB_CHANGE_ENABLE_PRINTING:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE:
+  case SSERV_CMD_GLOB_CHANGE_PRINTOUT_USES_LOGIN:
   case SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS:
   case SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE:
   case SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT:
@@ -3507,6 +3511,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_VALUER_SETS_MARKED] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_STDERR] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN] = { cmd_set_value },
@@ -3583,6 +3588,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_INIT_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_INIT_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_INIT_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_START_ENV] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_START_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SOLUTION_SRC] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_SOLUTION_SRC] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SOLUTION_CMD] = { cmd_set_value },
@@ -3646,6 +3653,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_SHOW_DEADLINE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ENABLE_PRINTING] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_BANNER_PAGE] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_PRINTOUT_USES_LOGIN] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = { cmd_set_value },
@@ -4760,6 +4768,5 @@ main(int argc, char **argv)
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
  * End:
  */

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: polygon_packet.h 6875 2012-06-04 04:22:49Z cher $ */
+/* $Id: polygon_packet.h 7079 2012-10-23 04:27:13Z cher $ */
 #ifndef __POLYGON_PACKET_H__
 #define __POLYGON_PACKET_H__
 
@@ -56,6 +56,7 @@ struct polygon_packet
     unsigned char *working_dir;
     unsigned char *problem_xml_name;
     unsigned char *testset;
+    unsigned char *language_priority;
 
     char **id;
     char **ejudge_id;

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: nwrun_packet.h 6846 2012-05-23 04:59:28Z cher $ */
+/* $Id: nwrun_packet.h 7137 2012-11-04 13:27:53Z cher $ */
 #ifndef __NWRUN_PACKET_H__
 #define __NWRUN_PACKET_H__
 
@@ -107,6 +107,8 @@ struct generic_section_config *
 nwrun_in_packet_parse(const unsigned char *path, struct nwrun_in_packet **pkt);
 struct generic_section_config *
 nwrun_in_packet_free(struct generic_section_config *config);
+void
+nwrun_in_packet_print(FILE *fout, const struct nwrun_in_packet *p);
 
 struct generic_section_config *
 nwrun_out_packet_parse(const unsigned char*path,struct nwrun_out_packet **pkt);

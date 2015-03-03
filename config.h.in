@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: config.h.in 6918 2012-06-28 05:16:26Z cher $ */
+/* $Id: config.h.in 7126 2012-11-04 07:48:36Z cher $ */
 
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
@@ -132,6 +132,9 @@
 
 /* libuuid available */
 #undef CONF_HAS_LIBUUID
+
+/* regex.h available */
+#undef CONF_HAS_REGEX
 
 /* DOS path rules */
 #undef CONF_DOS_FILENAMING

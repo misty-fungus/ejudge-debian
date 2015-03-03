@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run_common.c 6896 2012-06-18 04:12:15Z cher $ */
+/* $Id: run_common.c 7180 2012-11-18 18:15:58Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -36,6 +36,7 @@
 #include "nwrun_packet.h"
 #include "filehash.h"
 #include "curtime.h"
+#include "cpu.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_osdeps.h"
@@ -52,6 +53,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <signal.h>
 #ifndef __MINGW32__
 #include <sys/vfs.h>
 #endif
@@ -158,7 +160,9 @@ generate_xml_report(
         const unsigned char *additional_comment,
         const unsigned char *valuer_comment,
         const unsigned char *valuer_judge_comment,
-        const unsigned char *valuer_errors)
+        const unsigned char *valuer_errors,
+        const unsigned char *cpu_model,
+        const unsigned char *cpu_mhz)
 {
   FILE *f = 0;
   unsigned char buf1[32], buf2[32], buf3[128];
@@ -200,20 +204,22 @@ generate_xml_report(
   }
   if (srgp->scoring_system_val == SCORE_OLYMPIAD && srgp->accepting_mode > 0
       && reply_pkt->status != RUN_ACCEPTED) {
-    fprintf(f, " failed-test=\"%d\"", total_tests - 1);
+    fprintf(f, " tests-passed=\"%d\" failed-test=\"%d\"", reply_pkt->tests_passed, total_tests - 1);
   } else if (srgp->scoring_system_val == SCORE_ACM && reply_pkt->status != RUN_OK) {
-    fprintf(f, " failed-test=\"%d\"", total_tests - 1);
+    fprintf(f, " tests-passed=\"%d\" failed-test=\"%d\"", reply_pkt->tests_passed, total_tests - 1);
   } else if (srgp->scoring_system_val == SCORE_OLYMPIAD && srgp->accepting_mode <= 0) {
     fprintf(f, " tests-passed=\"%d\" score=\"%d\" max-score=\"%d\"",
-            reply_pkt->failed_test - 1, reply_pkt->score, max_score);
+            reply_pkt->tests_passed, reply_pkt->score, max_score);
   } else if (srgp->scoring_system_val == SCORE_KIROV) {
     fprintf(f, " tests-passed=\"%d\" score=\"%d\" max-score=\"%d\"",
-            reply_pkt->failed_test - 1, reply_pkt->score, max_score);
+            reply_pkt->tests_passed, reply_pkt->score, max_score);
   } else if (srgp->scoring_system_val == SCORE_MOSCOW) {
     if (reply_pkt->status != RUN_OK) {
       fprintf(f, " failed-test=\"%d\"", total_tests - 1);
     }
-    fprintf(f, " score=\"%d\" max-score=\"%d\"", reply_pkt->score, max_score);
+    fprintf(f, " tests-passed=\"%d\" score=\"%d\" max-score=\"%d\"", reply_pkt->tests_passed, reply_pkt->score, max_score);
+  } else {
+    fprintf(f, " tests-passed=\"%d\"", reply_pkt->tests_passed);
   }
   if (report_time_limit_ms > 0) {
     fprintf(f, " time-limit-ms=\"%d\"", report_time_limit_ms);
@@ -260,6 +266,12 @@ generate_xml_report(
   }
   if ((msg = os_NodeName())) {
     fprintf(f, "  <host>%s</host>\n", msg);
+  }
+  if (cpu_model) {
+    fprintf(f, "  <cpu-model>%s</cpu-model>\n", cpu_model);
+  }
+  if (cpu_mhz) {
+    fprintf(f, "  <cpu-mhz>%s</cpu-mhz>\n", cpu_mhz);
   }
 
   fprintf(f, "  <tests>\n");
@@ -966,7 +978,8 @@ invoke_nwrun(
         const unsigned char *test_src_path,
         const unsigned char *test_basename,
         long time_limit_millis,
-        struct testinfo *result)
+        struct testinfo *result,
+        const unsigned char *check_dir)
 {
   path_t full_spool_dir;
   path_t pkt_name;
@@ -983,6 +996,8 @@ invoke_nwrun(
   path_t packet_output_path;
   path_t packet_error_path;
   path_t arch_entry_name;
+  path_t error_file_name;
+  path_t log_file_name;
   FILE *f = 0;
   int r;
   struct generic_section_config *generic_out_packet = 0;
@@ -1060,6 +1075,16 @@ invoke_nwrun(
     goto fail;
   }
 
+  error_file_name[0] = 0;
+  if (tst && tst->error_file && tst->error_file[0] >= ' ') {
+    snprintf(error_file_name, sizeof(error_file_name), "%s", tst->error_file);
+  } else {
+    snprintf(error_file_name, sizeof(error_file_name), "%s", "errors.txt");
+  }
+
+  log_file_name[0] = 0;
+  snprintf(log_file_name, sizeof(log_file_name), "%s", "log.txt");
+
   // make the description file
   snprintf(tmp_in_path, sizeof(tmp_in_path), "%s/packet.cfg", full_in_path);
   f = fopen(tmp_in_path, "w");
@@ -1126,8 +1151,8 @@ invoke_nwrun(
   fprintf(f, "input_file_name = \"%s\"\n", srpp->input_file);
   fprintf(f, "output_file_name = \"%s\"\n", srpp->output_file);
   fprintf(f, "result_file_name = \"%s\"\n", srpp->output_file);
-  fprintf(f, "error_file_name = \"%s\"\n", tst->error_file);
-  fprintf(f, "log_file_name = \"%s\"\n", tst->error_file);
+  fprintf(f, "error_file_name = \"%s\"\n", error_file_name);
+  fprintf(f, "log_file_name = \"%s\"\n", log_file_name);
 
   fflush(f);
   if (ferror(f)) {
@@ -1234,6 +1259,7 @@ invoke_nwrun(
       && result->status != RUN_PRESENTATION_ERR
       && result->status != RUN_RUN_TIME_ERR
       && result->status != RUN_TIME_LIMIT_ERR
+      && result->status != RUN_WALL_TIME_LIMIT_ERR
       && result->status != RUN_CHECK_FAILED
       && result->status != RUN_MEM_LIMIT_ERR
       && result->status != RUN_SECURITY_ERR) {
@@ -1289,7 +1315,7 @@ invoke_nwrun(
     if (result->status == RUN_OK) {
       // copy file into the working directory for further checking
       snprintf(check_output_path, sizeof(check_output_path),
-               "%s/%s", tst->check_dir, srpp->output_file);
+               "%s/%s", check_dir, srpp->output_file);
       if (fast_copy_file(packet_output_path, check_output_path) < 0) {
         chk_printf(result, "copy_file(%s, %s) failed\n",
                    packet_output_path, check_output_path);
@@ -1320,7 +1346,7 @@ invoke_nwrun(
   /* handle the program error file */
   if (out_packet->error_file_existed > 0) {
     snprintf(packet_error_path, sizeof(packet_error_path),
-             "%s/%s", out_entry_packet, tst->error_file);
+             "%s/%s", out_entry_packet, error_file_name);
     result->error_size = out_packet->error_file_size;
     if (srgp->enable_full_archive <= 0
         && srgp->max_file_length > 0
@@ -1363,7 +1389,7 @@ invoke_tar(
   info("starting: %s", tar_path);
   tsk = task_New();
   task_AddArg(tsk, tar_path);
-  task_AddArg(tsk, "xfz");
+  task_AddArg(tsk, "xfvz");
   task_AddArg(tsk, archive_path);
   task_SetPathAsArg0(tsk);
   task_SetWorkingDir(tsk, working_dir);
@@ -1453,6 +1479,7 @@ invoke_init_cmd(
     status = RUN_CHECK_FAILED;
     goto cleanup;
   }
+  status = exitcode;
 
 cleanup:
   task_Delete(tsk);
@@ -1556,7 +1583,7 @@ report_args_and_env(testinfo_t *ti)
   for (i = 0; i < ti->cmd_argc; i++) {
     cmd_args_len += 16;
     if (ti->cmd_argv[i]) {
-      cmd_args_len += strlen(ti->cmd_argv[i] + 16);
+      cmd_args_len += strlen(ti->cmd_argv[i]) + 16;
     }
   }
   if (cmd_args_len > 0) {
@@ -1772,6 +1799,7 @@ run_one_test(
   int error_code_value = 0;
   long long file_size;
   int init_cmd_started = 0;
+  int pg_not_empty = 0;
 
   int pfd1[2] = { -1, -1 };
   int pfd2[2] = { -1, -1 };
@@ -1884,7 +1912,8 @@ run_one_test(
                           tst, srp, far,
                           cur_test, 0, p_has_real_time,
                           global->run_work_dir,
-                          exe_name, test_src, test_base, time_limit_value_ms, cur_info);
+                          exe_name, test_src, test_base, time_limit_value_ms,
+                          cur_info, check_dir);
     if (cur_info->max_memory_used > 0) {
       *p_has_max_memory_used = 1;
     }
@@ -2032,6 +2061,7 @@ run_one_test(
   }
   task_SetPathAsArg0(tsk);
   task_SetWorkingDir(tsk, working_dir);
+  if (srpp->enable_process_group > 0) task_EnableProcessGroup(tsk);
 
   if (srpp->interactor_cmd && srpp->interactor_cmd[0]) {
     task_SetRedir(tsk, 0, TSR_DUP, pfd2[0]);
@@ -2246,6 +2276,15 @@ run_one_test(
 
   if (tsk_int) task_Wait(tsk_int);
 
+  if (srpp->enable_process_group > 0 && task_TryProcessGroup(tsk) >= 0) {
+    // there exist some processes beloging to the process group
+    append_msg_to_log(check_out_path,
+                      "There exist processes belonging to the process group of the program being tested\n");
+    pg_not_empty = 1;
+    task_KillProcessGroup(tsk);
+  }
+
+
   /* set normal permissions for the working directory */
   make_writable(check_dir);
   /* make the output file readable */
@@ -2345,6 +2384,10 @@ run_one_test(
     }
   }
 
+  if (task_IsRealTimeout(tsk)) {
+    status = RUN_WALL_TIME_LIMIT_ERR;
+    goto cleanup;
+  }
   if (task_IsTimeout(tsk)) {
     status = RUN_TIME_LIMIT_ERR;
     goto cleanup;
@@ -2388,6 +2431,11 @@ run_one_test(
     goto cleanup;
   }
 
+  if (pg_not_empty) {
+    status = RUN_SECURITY_ERR;
+    goto read_checker_output;
+  }
+
   task_Delete(tsk); tsk = NULL;
 
   if (tsk_int) {
@@ -2429,9 +2477,11 @@ run_checker:;
     }
   }
 
-  output_path_to_check = srpp->output_file;
-  if (srpp->interactor_cmd && srpp->interactor_cmd[0]) {
-    output_path_to_check = output_path;
+  if (!output_path_to_check) {
+    output_path_to_check = srpp->output_file;
+    if (srpp->interactor_cmd && srpp->interactor_cmd[0]) {
+      output_path_to_check = output_path;
+    }
   }
   status = invoke_checker(srgp, srpp, cur_test, cur_info,
                           check_cmd, test_src, output_path_to_check,
@@ -2642,6 +2692,7 @@ play_sound(
     const unsigned char *sound = NULL;
     switch (status) {
     case RUN_TIME_LIMIT_ERR:   sound = global->timelimit_sound;    break;
+    case RUN_WALL_TIME_LIMIT_ERR: sound = global->timelimit_sound; break;
     case RUN_RUN_TIME_ERR:     sound = global->runtime_sound;      break;
     case RUN_CHECK_FAILED:     sound = global->internal_sound;     break;
     case RUN_PRESENTATION_ERR: sound = global->presentation_sound; break;
@@ -2767,9 +2818,11 @@ check_output_only(
       reply_pkt->score = srpp->full_score;
     }
     reply_pkt->failed_test = 2;
+    reply_pkt->tests_passed = 1;
   } else {
     reply_pkt->score = cur_info->score;
     reply_pkt->failed_test = 1;
+    reply_pkt->tests_passed = 0;
   }
 
   // output file
@@ -2858,6 +2911,32 @@ merge_env(char **env1, char **env2)
   return res;
 }
 
+static char **
+merge_env_2(char **env1, char **env2)
+{
+  if ((!env1 || !env1[0]) && (!env2 || !env2[0])) return NULL;
+  if (!env1 || !env1[0]) return sarray_copy(env2);
+  if (!env2 || !env2[0]) return env1;
+
+  char **res = merge_env(env1, env2);
+  sarray_free(env1);
+  return res;
+}
+
+static int
+is_piped_core_dump(void)
+{
+  int fd = open("/proc/sys/kernel/core_pattern", O_RDONLY, 0);
+  if (fd < 0) return 0;
+  char c = 0;
+  if (read(fd, &c, sizeof(c)) == sizeof(c) && c == '|') {
+    close(fd);
+    return 1;
+  }
+  close(fd);
+  return 0;
+}
+
 void
 run_tests(
         const struct ejudge_cfg *config,
@@ -2898,6 +2977,7 @@ run_tests(
   int user_tests_passed = -1;
   int user_run_tests = -1;
   int marked_flag = 0;
+  int tests_passed = 0;
 
   unsigned char messages_path[PATH_MAX];
   unsigned char check_dir[PATH_MAX];
@@ -2927,6 +3007,11 @@ run_tests(
   char **merged_start_env = NULL;
   char **start_env = NULL;
 
+  unsigned char *cpu_model = NULL;
+  unsigned char *cpu_mhz = NULL;
+
+  cpu_get_performance_info(&cpu_model, &cpu_mhz);
+
   init_testinfo_vector(&tests);
   messages_path[0] = 0;
 
@@ -2936,14 +3021,25 @@ run_tests(
 
   snprintf(messages_path, sizeof(messages_path), "%s/%s", global->run_work_dir, "messages");
 
-  if (tst && tst->start_env && tst->start_env[0] && srtp && srtp->start_env && srtp->start_env[0]) {
-    merged_start_env = merge_env(tst->start_env, srtp->start_env);
-    start_env = merged_start_env;
-  } else if (tst && tst->start_env && tst->start_env[0]) {
-    start_env = tst->start_env;
-  } else if (srtp && srtp->start_env && srtp->start_env[0]) {
-    start_env = srtp->start_env;
+  if (is_piped_core_dump()) {
+    append_msg_to_log(messages_path,
+                      "ATTENTION: core file pattern in /proc/sys/kernel/core_pattern\n"
+                      "is set to pipe the core file to a helper program.\n"
+                      "This is NOT RECOMMENDED for correct judging.\n"
+                      "Please, modify the core_pattern file.\n"
+                      "For example, consider disabling abrtd.\n");
   }
+
+  if (tst) {
+    merged_start_env = merge_env_2(merged_start_env, tst->start_env);
+  }
+  if (srtp) {
+    merged_start_env = merge_env_2(merged_start_env, srtp->start_env);
+  }
+  if (srpp) {
+    merged_start_env = merge_env_2(merged_start_env, srpp->start_env);
+  }
+  start_env = merged_start_env;
 
   report_path[0] = 0;
   pathmake(report_path, global->run_work_dir, "/", "report", NULL);
@@ -3035,6 +3131,7 @@ run_tests(
       status = RUN_OK;
       break;
     }
+    if (status == RUN_OK) ++tests_passed;
     if (status > 0) {
       if (srgp->scoring_system_val == SCORE_ACM) break;
       if (srgp->scoring_system_val == SCORE_MOSCOW) break;
@@ -3047,10 +3144,15 @@ run_tests(
   get_current_time(&reply_pkt->ts6, &reply_pkt->ts6_us);
 
   // no tests?
-  if (tests.size <= 1) {
+  if (srgp->scoring_system_val == SCORE_OLYMPIAD
+      && accept_testing > 0 && srpp->tests_to_accept <= 0) {
+    // no tests is ok
+  } else if (tests.size <= 1) {
     append_msg_to_log(messages_path, "No tests found");
     goto check_failed;
   }
+
+  reply_pkt->tests_passed = tests_passed;
 
   // check failed?
   for (cur_test = 1; cur_test < tests.size; ++cur_test) {
@@ -3264,7 +3366,8 @@ done:;
                       has_real_time, has_max_memory_used, marked_flag,
                       user_run_tests,
                       additional_comment, valuer_comment,
-                      valuer_judge_comment, valuer_errors);
+                      valuer_judge_comment, valuer_errors,
+                      cpu_model, cpu_mhz);
 
   get_current_time(&reply_pkt->ts7, &reply_pkt->ts7_us);
 
@@ -3279,6 +3382,8 @@ done:;
   xfree(valuer_judge_comment);
   xfree(additional_comment);
   merged_start_env = sarray_free(merged_start_env);
+  xfree(cpu_model);
+  xfree(cpu_mhz);
   return;
 
 check_failed:

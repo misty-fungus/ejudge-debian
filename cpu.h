@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: cpu.h 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: cpu.h 7055 2012-10-17 04:20:40Z cher $ */
 #ifndef __CPU_H__
 #define __CPU_H__
 
-/* Copyright (C) 2005 Alexander Chernov <cher@unicorn.cmc.msu.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,5 +18,6 @@
  */
 
 int cpu_get_bogomips(void);
+void cpu_get_performance_info(unsigned char **p_model, unsigned char **p_mhz);
 
 #endif /* __CPU_H__ */

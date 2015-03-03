@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: testing_report_xml.c 6895 2012-06-18 04:07:06Z cher $ */
+/* $Id: testing_report_xml.c 7130 2012-11-04 13:06:17Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -42,6 +42,8 @@
   <valuer_judge_comment>T</valuer_judge_comment>
   <valuer_errors>T</valuer_errors>
   <host>T</host>
+  <cpu_model>T</cpu_model>
+  <cpu_mhz>T</cpu_mhz>
   <errors>T</errors>
   [<compiler_output>T</compiler_output>]
   <tests>
@@ -80,6 +82,8 @@ enum
   TR_T_VALUER_JUDGE_COMMENT,
   TR_T_VALUER_ERRORS,
   TR_T_HOST,
+  TR_T_CPU_MODEL,
+  TR_T_CPU_MHZ,
   TR_T_ERRORS,
   TR_T_TTROWS,
   TR_T_TTROW,
@@ -161,6 +165,8 @@ static const char * const elem_map[] =
   [TR_T_VALUER_JUDGE_COMMENT] = "valuer-judge-comment",
   [TR_T_VALUER_ERRORS] = "valuer-errors",
   [TR_T_HOST] = "host",
+  [TR_T_CPU_MODEL] = "cpu-model",
+  [TR_T_CPU_MHZ] = "cpu-mhz",
   [TR_T_ERRORS] = "errors",
   [TR_T_TTROWS] = "ttrows",
   [TR_T_TTROW] = "ttrow",
@@ -669,7 +675,7 @@ parse_testing_report(struct xml_tree *t, testing_report_xml_t r)
 {
   struct xml_attr *a;
   int x, was_tests = 0, was_ttrows = 0, was_ttcells = 0;
-  struct xml_attr *a_failed_test = 0, *a_tests_passed = 0, *a_score = 0;
+  struct xml_attr *a_failed_test = 0, *a_score = 0;
   struct xml_attr *a_max_score = 0;
   struct xml_tree *t2;
   int i, j;
@@ -825,7 +831,6 @@ parse_testing_report(struct xml_tree *t, testing_report_xml_t r)
       }
       if (x < 0) x = 0;
       r->tests_passed = x;
-      a_tests_passed = a;
       break;
     case TR_A_USER_TESTS_PASSED:
       if (xml_attr_int(a, &x) < 0) return -1;
@@ -960,10 +965,12 @@ parse_testing_report(struct xml_tree *t, testing_report_xml_t r)
       return -1;
     }
     */
+    /*
     if (r->tests_passed >= 0) {
       xml_err_attr_not_allowed(t, a_tests_passed);
       return -1;
     }
+    */
     if (r->score >= 0) {
       xml_err_attr_not_allowed(t, a_score);
       return -1;
@@ -1051,6 +1058,12 @@ parse_testing_report(struct xml_tree *t, testing_report_xml_t r)
       break;
     case TR_T_HOST:
       if (xml_leaf_elem(t2, &r->host, 1, 1) < 0) return -1;
+      break;
+    case TR_T_CPU_MODEL:
+      if (xml_leaf_elem(t2, &r->cpu_model, 1, 1) < 0) return -1;
+      break;
+    case TR_T_CPU_MHZ:
+      if (xml_leaf_elem(t2, &r->cpu_mhz, 1, 1) < 0) return -1;
       break;
     case TR_T_ERRORS:
       if (xml_leaf_elem(t2, &r->errors, 1, 1) < 0) return -1;
@@ -1153,6 +1166,8 @@ testing_report_free(testing_report_xml_t r)
   xfree(r->valuer_judge_comment); r->valuer_judge_comment = 0;
   xfree(r->valuer_errors); r->valuer_errors = 0;
   xfree(r->host); r->host = 0;
+  xfree(r->cpu_model); r->cpu_model = 0;
+  xfree(r->cpu_mhz); r->cpu_mhz = 0;
   xfree(r->errors); r->errors = 0;
   xfree(r->compiler_output); r->compiler_output = 0;
 
@@ -1379,6 +1394,8 @@ testing_report_unparse_xml(
                       r->valuer_judge_comment);
   unparse_string_elem(out, &ab, TR_T_VALUER_ERRORS, r->valuer_errors);
   unparse_string_elem(out, &ab, TR_T_HOST, r->host);
+  unparse_string_elem(out, &ab, TR_T_CPU_MODEL, r->cpu_model);
+  unparse_string_elem(out, &ab, TR_T_CPU_MHZ, r->cpu_mhz);
   unparse_string_elem(out, &ab, TR_T_ERRORS, r->errors);
   unparse_string_elem(out, &ab, TR_T_COMPILER_OUTPUT, r->compiler_output);
 

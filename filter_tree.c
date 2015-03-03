@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: filter_tree.c 6634 2012-02-07 14:54:16Z cher $ */
+/* $Id: filter_tree.c 7137 2012-11-04 13:27:53Z cher $ */
 
 /* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -29,14 +29,19 @@
 #include <errno.h>
 #include <limits.h>
 #include <sys/types.h>
+
+#if CONF_HAS_REGEX - 0 == 1
 #include <regex.h>
+#endif
 
 #include "win32_compat.h"
 
 struct filter_tree_regexp
 {
   unsigned char *str;
+#if CONF_HAS_REGEX - 0 == 1
   regex_t re;
+#endif
   int status;
 };
 
@@ -66,7 +71,9 @@ filter_tree_delete(struct filter_tree_mem *mem)
 
   for (size_t re_i = 0; re_i < mem->re_u; ++re_i) {
     xfree(mem->re_v[re_i].str);
+#if CONF_HAS_REGEX - 0 == 1
     regfree(&mem->re_v[re_i].re);
+#endif
   }
   xfree(mem->re_v); mem->re_v = 0; mem->re_a = 0; mem->re_u = 0;
 
@@ -327,12 +334,16 @@ filter_tree_regexp_match(
     }
 
     mem->re_v[re_i].str = xstrdup(regexp);
+#if CONF_HAS_REGEX - 0 == 1
     mem->re_v[re_i].status = regcomp(&mem->re_v[re_i].re, regexp, REG_EXTENDED | REG_NOSUB);
+#endif
     mem->re_u++;
   }
 
   if (mem->re_v[re_i].status != 0) return 0;
+#if CONF_HAS_REGEX - 0 == 1
   if (regexec(&mem->re_v[re_i].re, str, 0, 0, 0) != 0) return 0;
+#endif
   return 1;
 }
 
@@ -1484,11 +1495,13 @@ filter_tree_eval_node(struct filter_tree_mem *mem,
       case RUN_COMPILE_ERR:
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_CHECK_FAILED:
       case RUN_PARTIAL:
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
       case RUN_IGNORED:
       case RUN_DISQUALIFIED:
       case RUN_PENDING:

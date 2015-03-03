@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: reports.c 6925 2012-06-28 12:16:04Z cher $ */
+/* $Id: reports.c 7147 2012-11-06 12:20:11Z cher $ */
 
 /* Copyright (C) 2007-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -397,6 +397,7 @@ user_report_generate(
         case RUN_WRONG_ANSWER_ERR:
         case RUN_PARTIAL:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
           run_ids[re.prob_id] = run_id;
           break;
 
@@ -416,12 +417,14 @@ user_report_generate(
         case RUN_OK:
         case RUN_PARTIAL:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
           run_ids[re.prob_id] = run_id;
           break;
 
         case RUN_COMPILE_ERR:
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_IGNORED:
@@ -429,6 +432,7 @@ user_report_generate(
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           break;
 
         default:
@@ -466,11 +470,13 @@ user_report_generate(
         case RUN_COMPILE_ERR:
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           run_ids[re.prob_id] = run_id;
           break;
 
@@ -583,7 +589,11 @@ user_report_generate(
       if (run_get_entry(cs->runlog_state, run_ids[i], &re) < 0) abort();
       if (re.status == RUN_OK || re.status == RUN_PARTIAL)
         re.status = RUN_ACCEPTED;
-      passed_tests = re.test - 1;
+      if (re.passed_mode > 0) {
+        passed_tests = re.test;
+      } else {
+        passed_tests = re.test - 1;
+      }
       if (passed_tests > prob->tests_to_accept)
         passed_tests = prob->tests_to_accept;
       if (re.lang_id <= 0 || re.lang_id > cs->max_lang
@@ -1003,6 +1013,7 @@ full_user_report_generate(
         case RUN_WRONG_ANSWER_ERR:
         case RUN_PARTIAL:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
           run_ids[re.prob_id] = run_id;
           break;
 
@@ -1022,12 +1033,14 @@ full_user_report_generate(
         case RUN_OK:
         case RUN_PARTIAL:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
           run_ids[re.prob_id] = run_id;
           break;
 
         case RUN_COMPILE_ERR:
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_IGNORED:
@@ -1035,6 +1048,7 @@ full_user_report_generate(
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           break;
 
         default:
@@ -1072,11 +1086,13 @@ full_user_report_generate(
         case RUN_COMPILE_ERR:
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           run_ids[re.prob_id] = run_id;
           break;
 
@@ -1250,10 +1266,18 @@ full_user_report_generate(
         cur_score = prob->full_score;
 
       // print the table
-      if (re.test > 0) {
-        fprintf(fout, " & %d", re.test - 1);
+      if (re.passed_mode > 0) {
+        if (re.test >= 0) {
+          fprintf(fout, " & %d", re.test);
+        } else {
+          fprintf(fout, " &");
+        }
       } else {
-        fprintf(fout, " &");
+        if (re.test > 0) {
+          fprintf(fout, " & %d", re.test - 1);
+        } else {
+          fprintf(fout, " &");
+        }
       }
       if (re.score >= 0) {
         fprintf(fout, " & %d", cur_score);
@@ -2210,6 +2234,7 @@ ns_olympiad_final_user_report(
         case RUN_WRONG_ANSWER_ERR:
         case RUN_PARTIAL:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
           run_ids[re.prob_id] = run_id;
           break;
 
@@ -2229,12 +2254,14 @@ ns_olympiad_final_user_report(
         case RUN_OK:
         case RUN_PARTIAL:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
           run_ids[re.prob_id] = run_id;
           break;
 
         case RUN_COMPILE_ERR:
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_IGNORED:
@@ -2242,6 +2269,7 @@ ns_olympiad_final_user_report(
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           break;
 
         default:
@@ -2279,11 +2307,13 @@ ns_olympiad_final_user_report(
         case RUN_COMPILE_ERR:
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
         case RUN_STYLE_ERR:
+        case RUN_REJECTED:
           run_ids[re.prob_id] = run_id;
           break;
 
@@ -2397,7 +2427,11 @@ ns_olympiad_final_user_report(
       if (run_get_entry(cs->runlog_state, run_ids[i], &re) < 0) abort();
       if (re.status == RUN_OK || re.status == RUN_PARTIAL)
         re.status = RUN_ACCEPTED;
-      passed_tests = re.test - 1;
+      if (re.passed_mode > 0) {
+        passed_tests = re.test;
+      } else {
+        passed_tests = re.test - 1;
+      }
       if (passed_tests > prob->tests_to_accept)
         passed_tests = prob->tests_to_accept;
       if (re.lang_id <= 0 || re.lang_id > cs->max_lang
@@ -2809,6 +2843,7 @@ write_xml_tex_testing_report(
       }
       break;
     case RUN_TIME_LIMIT_ERR:
+    case RUN_WALL_TIME_LIMIT_ERR:
       if (max_cpu_time_tl <= 0 || max_cpu_time < 0
           || max_cpu_time < r->tests[i]->time) {
         max_cpu_time = r->tests[i]->time;
@@ -2870,6 +2905,7 @@ write_xml_tex_testing_report(
     switch (t->status) {
     case RUN_OK:
     case RUN_ACCEPTED:
+    case RUN_PENDING_REVIEW:
       if (t->checker_comment) {
         fprintf(fout, " & %s", TARMOR(t->checker_comment));
       } else {
@@ -2889,6 +2925,7 @@ write_xml_tex_testing_report(
       break;
 
     case RUN_TIME_LIMIT_ERR:
+    case RUN_WALL_TIME_LIMIT_ERR:
       fprintf(fout, " &");
       break;
 
@@ -3073,6 +3110,7 @@ problem_report_generate(
       case RUN_WRONG_ANSWER_ERR:
       case RUN_PARTIAL:
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
         run_ids[user_id] = run_id;
         break;
 
@@ -3092,12 +3130,14 @@ problem_report_generate(
       case RUN_OK:
       case RUN_PARTIAL:
       case RUN_ACCEPTED:
+      case RUN_PENDING_REVIEW:
         run_ids[user_id] = run_id;
         break;
 
       case RUN_COMPILE_ERR:
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_IGNORED:
@@ -3105,6 +3145,7 @@ problem_report_generate(
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         break;
 
       default:
@@ -3150,11 +3191,13 @@ problem_report_generate(
       case RUN_COMPILE_ERR:
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
+      case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PRESENTATION_ERR:
       case RUN_WRONG_ANSWER_ERR:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
       case RUN_STYLE_ERR:
+      case RUN_REJECTED:
         run_ids[user_id] = run_id;
         break;
 
@@ -3295,10 +3338,18 @@ problem_report_generate(
       fprintf(fout, "%s & %s & %s & %s & %s\\\\\n\\hline\n",
               _("Problem"), use_exam_cypher?_("Cypher"):_("Name"), _("Tests passed"), _("Score"), _("Status"));
       fprintf(fout, "%s & %s", probname, TARMOR(user_str[user_id]));
-      if (re.test > 0) {
-        fprintf(fout, " & %d", re.test - 1);
+      if (re.passed_mode > 0) {
+        if (re.test >= 0) {
+          fprintf(fout, " & %d", re.test);
+        } else {
+          fprintf(fout, " &");
+        }
       } else {
-        fprintf(fout, " &");
+        if (re.test > 0) {
+          fprintf(fout, " & %d", re.test - 1);
+        } else {
+          fprintf(fout, " &");
+        }
       }
       if (re.score >= 0) {
         fprintf(fout, " & %d", re.score);

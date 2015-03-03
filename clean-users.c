@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: clean-users.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: clean-users.c 7027 2012-09-16 13:38:18Z cher $ */
 
-/* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -206,11 +206,13 @@ main(int argc, char **argv)
         case RUN_COMPILE_ERR:
         case RUN_RUN_TIME_ERR:
         case RUN_TIME_LIMIT_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
         case RUN_CHECK_FAILED:
         case RUN_PARTIAL:
         case RUN_ACCEPTED:
+        case RUN_PENDING_REVIEW:
         case RUN_IGNORED:
         case RUN_DISQUALIFIED:
         case RUN_PENDING:

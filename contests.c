@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: contests.c 6962 2012-07-29 19:29:55Z cher $ */
+/* $Id: contests.c 7184 2012-11-20 16:17:27Z cher $ */
 
 /* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -596,11 +596,13 @@ handle_final_tag(char const *path, struct xml_tree *t, unsigned char **ps)
         path, t->line, t->column, contests_elem_map[t->tag]);
     return -1;
   }
+  /*
   if (!t->text || !*t->text) {
     err("%s:%d:%d: empty element <%s>", path, t->line, t->column,
         contests_elem_map[t->tag]);
     return -1;
   }
+  */
   if (t->first_down) {
     err("%s:%d:%d: element <%s> cannot contain nested elements",
         path, t->line, t->column, contests_elem_map[t->tag]);

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.c 6945 2012-07-06 14:35:48Z cher $ */
+/* $Id: runlog.c 7147 2012-11-06 12:20:11Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -452,6 +452,7 @@ run_change_status(
         int runid,
         int newstatus,
         int newtest,
+        int newpassedmode,
         int newscore,
         int judge_id)
 {
@@ -476,7 +477,7 @@ run_change_status(
     ERR_R("this entry is read-only");
 
   return state->iface->change_status(state->cnts, runid, newstatus, newtest,
-                                     newscore, judge_id);
+                                     newpassedmode, newscore, judge_id);
 }
 
 int
@@ -485,6 +486,7 @@ run_change_status_2(
         int runid,
         int newstatus,
         int newtest,
+        int newpassedmode,
         int newscore,
         int judge_id,
         int is_marked)
@@ -510,7 +512,7 @@ run_change_status_2(
     ERR_R("this entry is read-only");
 
   return state->iface->change_status_2(state->cnts, runid, newstatus, newtest,
-                                       newscore, judge_id, is_marked);
+                                       newpassedmode, newscore, judge_id, is_marked);
 }
 
 int
@@ -519,6 +521,7 @@ run_change_status_3(
         int runid,
         int newstatus,
         int newtest,
+        int newpassedmode,
         int newscore,
         int judge_id,
         int is_marked,
@@ -548,7 +551,7 @@ run_change_status_3(
     ERR_R("this entry is read-only");
 
   return state->iface->change_status_3(state->cnts, runid, newstatus, newtest,
-                                       newscore, judge_id, is_marked,
+                                       newpassedmode, newscore, judge_id, is_marked,
                                        has_user_score, user_status,
                                        user_tests_passed, user_score);
 }
@@ -735,7 +738,9 @@ run_get_attempts(
       continue;
     if (state->runs[i].user_id != state->runs[runid].user_id) continue;
     if (state->runs[i].prob_id != state->runs[runid].prob_id) continue;
-    if ((state->runs[i].status == RUN_COMPILE_ERR || state->runs[i].status == RUN_STYLE_ERR)
+    if ((state->runs[i].status == RUN_COMPILE_ERR
+         || state->runs[i].status == RUN_STYLE_ERR
+         || state->runs[i].status == RUN_REJECTED)
         && skip_ce_flag) continue;
     if (state->runs[i].status == RUN_IGNORED) continue;
     if (state->runs[i].is_hidden) continue;
@@ -1149,6 +1154,10 @@ run_set_entry(
   }
   if ((mask & RE_SAVED_TEST) && te.saved_test != in->saved_test) {
     te.saved_test = in->saved_test;
+    f = 1;
+  }
+  if ((mask & RE_PASSED_MODE) && te.passed_mode != in->passed_mode) {
+    te.passed_mode = in->passed_mode;
     f = 1;
   }
 

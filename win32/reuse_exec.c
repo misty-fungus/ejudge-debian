@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 6893 2012-06-18 03:52:49Z cher $ */
+/* $Id: reuse_exec.c 7179 2012-11-18 18:14:31Z cher $ */
 
 /* Copyright (C) 1999-2012 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 11:05:09 cher> */
@@ -1039,7 +1039,12 @@ task_Start(tTask *tsk)
           rw_mode   = GENERIC_READ;
           open_mode = OPEN_EXISTING;
           sh_mode   = FILE_SHARE_READ | FILE_SHARE_WRITE;
-          break;  
+          break;
+		case TSK_APPEND:
+		  rw_mode = GENERIC_WRITE;
+		  open_mode = CREATE_ALWAYS;
+          sh_mode   = FILE_SHARE_READ | FILE_SHARE_WRITE;
+		  break;
         default:
           SWERR(("unsupported open mode: %d", p->u.s.oflag));
         }
@@ -1385,6 +1390,12 @@ task_IsTimeout(tTask *tsk)
 }
 
 int
+task_IsRealTimeout(tTask *tsk)
+{
+  return 0;
+}
+
+int
 task_IsMemoryLimit(tTask *tsk)
 {
   return 0;
@@ -1457,7 +1468,24 @@ int
 task_ErrorCode(tTask *tsk, int *p_exit_code, int *p_error)
 {
   return 0;
-  NOT_IMPLEMENTED();
+}
+
+int
+task_Kill(tTask *tsk)
+{
+  return 0;
+}
+
+int
+task_TryProcessGroup(tTask *tsk)
+{
+  return 0;
+}
+
+int
+task_KillProcessGroup(tTask *tsk)
+{
+  return 0;
 }
 
 static envvar_table_t *

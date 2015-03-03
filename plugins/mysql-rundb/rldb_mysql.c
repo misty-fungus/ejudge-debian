@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 6924 2012-06-28 12:00:52Z cher $ */
+/* $Id: rldb_mysql.c 7124 2012-11-03 18:03:52Z cher $ */
 
 /* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -169,7 +169,7 @@ do_create(struct rldb_mysql_state *state)
   if (mi->simple_fquery(md, create_runs_query, md->table_prefix) < 0)
     db_error_fail(md);
   if (mi->simple_fquery(md,
-                        "INSERT INTO %sconfig VALUES ('run_version', '3') ;",
+                        "INSERT INTO %sconfig VALUES ('run_version', '4') ;",
                         md->table_prefix) < 0)
     db_error_fail(md);
   return 0;
@@ -218,12 +218,23 @@ do_open(struct rldb_mysql_state *state)
       return -1;
     if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '2' WHERE config_key = 'run_version' ;", md->table_prefix) < 0)
       return -1;
-  } else if (run_version == 2) {
+    run_version = 2;
+  }
+  if (run_version == 2) {
     if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN run_uuid CHAR(40) DEFAULT NULL AFTER hash", md->table_prefix) < 0)
       return -1;
     if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '3' WHERE config_key = 'run_version' ;", md->table_prefix) < 0)
       return -1;
-  } else if (run_version != 3) {
+    run_version = 3;
+  }
+  if (run_version == 3) {
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN passed_mode TINYINT NOT NULL DEFAULT 0 AFTER saved_test", md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '4' WHERE config_key = 'run_version' ;", md->table_prefix) < 0)
+      return -1;
+    run_version = 4;
+  }
+  if (run_version != 4) {
     err("run_version == %d is not supported", run_version);
     return -1;
   }
@@ -449,6 +460,7 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->saved_status = ri.saved_status;
     re->saved_score = ri.saved_score;
     re->saved_test = ri.saved_test;
+    re->passed_mode = ri.passed_mode;
   }
   return 1;
 
@@ -584,13 +596,20 @@ set_runlog_func(
         struct run_entry *entries)
 {
   struct rldb_mysql_cnts *cs = (struct rldb_mysql_cnts*) cdata;
+  struct rldb_mysql_state *state = cs->plugin_state;
+  struct common_mysql_iface *mi = state->mi;
+  struct common_mysql_state *md = state->md;
   struct runlog_state *rls = cs->rl_state;
   int i;
 
-  // only work for empty runlog
-  if (rls->run_u > 0) {
-    err("rldb_mysql: set_runlog: runlog is not empty");
-    return -1;
+  mi->simple_fquery(md, "DELETE FROM %sruns WHERE contest_id = %d ;",
+                    md->table_prefix, cs->contest_id);
+
+  rls->run_u = 0;
+  if (rls->run_a > 0) {
+    memset(rls->runs, 0, sizeof(rls->runs[0]) * rls->run_a);
+    for (i = 0; i < rls->run_a; ++i)
+      rls->runs[i].status = RUN_EMPTY;
   }
 
   // FIXME: handle errors
@@ -942,6 +961,10 @@ generate_update_entry_clause(
     fprintf(f, "%ssaved_test = %d", sep, re->saved_test);
     sep = comma;
   }
+  if ((flags & RE_PASSED_MODE)) {
+    fprintf(f, "%spassed_mode = %d", sep, !!re->passed_mode);
+    sep = comma;
+  }
 
   gettimeofday(&curtime, 0);
   fprintf(f, "%slast_change_time = ", sep);
@@ -1041,6 +1064,9 @@ update_entry(
   if ((flags & RE_SAVED_TEST)) {
     dst->saved_test = src->saved_test;
   }
+  if ((flags & RE_PASSED_MODE)) {
+    dst->passed_mode = src->passed_mode;
+  }
 }
 
 static int
@@ -1130,6 +1156,7 @@ change_status_func(
         int run_id,
         int new_status,
         int new_test,
+        int new_passed_mode,
         int new_score,
         int new_judge_id)
 {
@@ -1139,11 +1166,12 @@ change_status_func(
   memset(&te, 0, sizeof(te));
   te.status = new_status;
   te.test = new_test;
+  te.passed_mode = !!new_passed_mode;
   te.score = new_score;
   te.judge_id = new_judge_id;
 
   return do_update_entry(cs, run_id, &te,
-                         RE_STATUS | RE_TEST | RE_SCORE | RE_JUDGE_ID);
+                         RE_STATUS | RE_TEST | RE_SCORE | RE_JUDGE_ID | RE_PASSED_MODE);
 }
 
 static void
@@ -1531,6 +1559,7 @@ put_entry_func(
   ri.saved_status = re->saved_status;
   ri.saved_score = re->saved_score;
   ri.saved_test = re->saved_test;
+  ri.passed_mode = re->passed_mode;
 
   cmd_f = open_memstream(&cmd_t, &cmd_z);
   fprintf(cmd_f, "INSERT INTO %sruns VALUES ( ", state->md->table_prefix);
@@ -1566,6 +1595,7 @@ change_status_2_func(
         int run_id,
         int new_status,
         int new_test,
+        int new_passed_mode,
         int new_score,
         int new_judge_id,
         int new_is_marked)
@@ -1576,12 +1606,13 @@ change_status_2_func(
   memset(&te, 0, sizeof(te));
   te.status = new_status;
   te.test = new_test;
+  te.passed_mode = !!new_passed_mode;
   te.score = new_score;
   te.judge_id = new_judge_id;
   te.is_marked = new_is_marked;
 
   return do_update_entry(cs, run_id, &te,
-                         RE_STATUS | RE_TEST | RE_SCORE | RE_JUDGE_ID | RE_IS_MARKED);
+                         RE_STATUS | RE_TEST | RE_SCORE | RE_JUDGE_ID | RE_IS_MARKED | RE_PASSED_MODE);
 }
 
 static int
@@ -1608,6 +1639,7 @@ change_status_3_func(
         int run_id,
         int new_status,
         int new_test,
+        int new_passed_mode,
         int new_score,
         int new_judge_id,
         int new_is_marked,
@@ -1622,6 +1654,7 @@ change_status_3_func(
   memset(&te, 0, sizeof(te));
   te.status = new_status;
   te.test = new_test;
+  te.passed_mode = !!new_passed_mode;
   te.score = new_score;
   te.judge_id = new_judge_id;
   te.is_marked = new_is_marked;
@@ -1632,7 +1665,7 @@ change_status_3_func(
 
   return do_update_entry(cs, run_id, &te,
                          RE_STATUS | RE_TEST | RE_SCORE | RE_JUDGE_ID | RE_IS_MARKED
-                         | RE_IS_SAVED | RE_SAVED_STATUS | RE_SAVED_TEST | RE_SAVED_SCORE);
+                         | RE_IS_SAVED | RE_SAVED_STATUS | RE_SAVED_TEST | RE_SAVED_SCORE | RE_PASSED_MODE);
 }
 
 static int
@@ -1654,11 +1687,12 @@ change_status_4_func(
   te.saved_status = 0;
   te.saved_test = 0;
   te.saved_score = 0;
+  te.passed_mode = 1;
 
   return do_update_entry(cs, run_id, &te,
                          RE_STATUS | RE_TEST | RE_SCORE | RE_JUDGE_ID
                          | RE_IS_MARKED | RE_IS_SAVED | RE_SAVED_STATUS
-                         | RE_SAVED_TEST | RE_SAVED_SCORE);
+                         | RE_SAVED_TEST | RE_SAVED_SCORE | RE_PASSED_MODE);
 }
 
 /*

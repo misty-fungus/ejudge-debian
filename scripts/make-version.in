@@ -1,6 +1,6 @@
 #!/bin/sh
-# $Id: make-version.in 6385 2011-06-30 05:21:01Z cher $
-# Copyright (c) 2011 Alexander Chernov <cher@ejudge.ru>
+# $Id: make-version.in 7182 2012-11-20 14:46:00Z cher $
+# Copyright (c) 2012 Alexander Chernov <cher@ejudge.ru>
 
 # This is a version script for a generic build system.
 # It supports make, ant, scons, etc...
@@ -10,7 +10,7 @@
 LANG_CONFIG_DIR="@lang_config_dir@"
 
 common_config() {
-  echo 'long_name="Generic build"'
+  echo 'long_name="Make"'
   echo 'src_sfx=".tar"'
   echo 'arch="linux-shared"'
 }
@@ -43,7 +43,7 @@ then
 
   [ "${verbose}" = 1 ] && echo -n "checking whether make is available... " >&2
 
-  version=generic
+  version=`make --version | grep Make | gawk '{print $3}'`
   echo 'version="'"${version}"'"'
   echo 'arg="'"${arg}"'"'
   echo 'binary=1'
@@ -55,7 +55,7 @@ fi
 
 if [ x"$1" = x-l ]
 then
-  echo "Generic build"
+  echo "Make"
   exit 0
 fi
 
@@ -82,4 +82,5 @@ fi
 
 [ x"$1" = x-f ] && echo -n "Make "
 
-echo "generic"
+make --version | grep Make | gawk '{print $3}'
+

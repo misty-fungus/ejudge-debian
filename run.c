@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run.c 6752 2012-04-18 12:11:46Z cher $ */
+/* $Id: run.c 7086 2012-10-24 05:22:10Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1000,7 +1000,7 @@ check_config(void)
         prb->tscores[j] = prb->test_score;
 
       // test_score_list overrides test_score
-      if (prb->test_score_list[0]) {
+      if (prb->test_score_list && prb->test_score_list[0]) {
         char const *s = prb->test_score_list;
         int tn = 1;
         int was_indices = 0;

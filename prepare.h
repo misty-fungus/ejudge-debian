@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 6965 2012-07-30 08:57:50Z cher $ */
+/* $Id: prepare.h 7163 2012-11-15 13:13:28Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -116,7 +116,7 @@ struct user_adjustment_info
 };
 struct user_adjustment_map;
 
-/* sizeof(struct section_global_data) == 350108/350264 */
+/* sizeof(struct section_global_data) == 350112/350264 */
 struct section_global_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -669,6 +669,8 @@ struct section_global_data
   ejintbool_t enable_printing;
   /** disable banner page on printouts */
   ejintbool_t disable_banner_page;
+  /** use participant login rather then name on printouts */
+  ejintbool_t printout_uses_login;
   /** printing quota (in pages) */
   int team_page_quota;
 
@@ -732,7 +734,7 @@ struct section_global_data
   +unsigned char *solution_cmd;
  */
 
-/* sizeof(struct section_problem_data) == 65344/65568 */
+/* sizeof(struct section_problem_data) == 65348/65576 */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -895,7 +897,7 @@ struct section_problem_data
   /** output file name */
   unsigned char output_file[256];
   /** scores for individual tests */
-  unsigned char test_score_list[256];
+  unsigned char *test_score_list;
   /** number of tests for Moscow scoring */
   unsigned char score_tests[256];
   /** name of the built-in checker */
@@ -924,6 +926,8 @@ struct section_problem_data
   int interactor_time_limit;
   /** consider any output to stderr as presentation error */
   ejintbool_t disable_stderr;
+  /** use process groups */
+  ejintbool_t enable_process_group;
 
   /** printf pattern for the test files */
   unsigned char test_pat[32];
@@ -989,6 +993,8 @@ struct section_problem_data
   ejenvlist_t test_checker_env;
   /** environment variables for the init-style interactor */
   ejenvlist_t init_env;
+  /** environment variables for the program itself */
+  ejenvlist_t start_env;
   /** checker program */
   path_t check_cmd;
   /** valuer program */
@@ -1009,6 +1015,8 @@ struct section_problem_data
   char **lang_time_adj;
   /** time limit milliseconds adjustments depending on language (priority over lang_time_adj) */
   char **lang_time_adj_millis;
+  /** tester specially for this problem */
+  unsigned char *super_run_dir;
 
   /** alternatives for test-like problems */
   char **alternative;
