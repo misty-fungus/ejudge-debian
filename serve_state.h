@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 6837 2012-05-20 17:25:24Z cher $ */
+/* $Id: serve_state.h 6976 2012-08-09 12:41:30Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
@@ -627,24 +627,31 @@ serve_get_user_result_score(
         int user_id);
 
 int
-serve_testing_queue_delete(const struct contest_desc *cnts, 
-                           serve_state_t state, const unsigned char *packet);
+serve_testing_queue_delete(
+        const struct contest_desc *cnts, 
+        serve_state_t state,
+        const unsigned char *packet,
+        const unsigned char *user_login);
 int
 serve_testing_queue_change_priority(
         const struct contest_desc *cnts,
         const serve_state_t state,
         const unsigned char *packet_name,
-        int adjustment);
+        int adjustment,
+        const unsigned char *user_login);
 
 int
-serve_testing_queue_delete_all(const struct contest_desc *cnts, 
-                               serve_state_t state);
+serve_testing_queue_delete_all(
+        const struct contest_desc *cnts, 
+        serve_state_t state,
+        const unsigned char *user_login);
 
 int
 serve_testing_queue_change_priority_all(
         const struct contest_desc *cnts,
         const serve_state_t state,
-        int adjustment);
+        int adjustment,
+        const unsigned char *user_login);
 
 extern const size_t serve_struct_sizes_array[];
 extern const size_t serve_struct_sizes_array_size;

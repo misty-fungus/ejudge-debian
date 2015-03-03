@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: t3m_zip_packet_class.c 6753 2012-04-18 12:16:59Z cher $ */
+/* $Id: t3m_zip_packet_class.c 6999 2012-08-20 12:34:29Z cher $ */
 
 /* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -177,7 +177,7 @@ zip_packet_class_parse(
   }
   if (zs.size > MAX_ROOT_XML_SIZE) {
     logerr("entry '%s' it too big (size = %ld) in '%s'",
-           ROOT_XML_FILE_NAME, zs.size, path);
+           ROOT_XML_FILE_NAME, (long) zs.size, path);
     goto cleanup;
   }
 

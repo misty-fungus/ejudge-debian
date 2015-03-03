@@ -1,5 +1,5 @@
 /* -*- mode: java; coding: utf-8 -*- */
-// $Id: priv.js 6776 2012-04-27 08:19:21Z cher $
+// $Id: priv.js 6961 2012-07-29 19:27:44Z cher $
 
 // Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru>
 
@@ -579,7 +579,14 @@ function ej_change_stat(run_id, status)
     return;
   }
 
-  document.location.href = self_url + "?SID=" + SID + "&action=CHANGE_STATUS" + "&run_id=" + run_id + "&status=" + status;
+  var form = document.forms["ChangeStatusForm"];
+  if (form !== undefined && form != null) {
+    form.run_id.value = run_id;
+    form.status.value = status;
+    form.submit();
+  }
+
+  //  document.location.href = self_url + "?SID=" + SID + "&action=CHANGE_STATUS" + "&run_id=" + run_id + "&status=" + status;
 }
 
 var ej_valid_statuses =
@@ -659,7 +666,8 @@ var ej_valid_fields =
   20 : "Mime Type",
   21 : "Saved Score",
   22 : "Saved Test",
-  23 : "Saved Result"
+  23 : "Saved Result",
+  24 : "UUID"
 }
 
 function ej_field_popup(field_mask)

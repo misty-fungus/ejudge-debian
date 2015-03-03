@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 6905 2012-06-21 12:24:37Z cher $ */
+/* $Id: prepare_out.c 6997 2012-08-20 10:53:23Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -834,6 +834,9 @@ prepare_unparse_lang(
     fprintf(f, "long_name = \"%s\"\n", CARMOR(long_name));
   else if (lang->long_name[0])
     fprintf(f, "long_name = \"%s\"\n", CARMOR(lang->long_name));
+  if (lang->extid && lang->extid[0]) {
+    fprintf(f, "extid = \"%s\"\n", CARMOR(lang->extid));
+  }
   if (lang->arch[0])
     fprintf(f, "arch = \"%s\"\n", CARMOR(lang->arch));
   fprintf(f, "src_sfx = \"%s\"\n", CARMOR(lang->src_sfx));
@@ -1234,21 +1237,21 @@ prepare_unparse_prob(
       fprintf(f, "min_tests_to_accept = %d\n", prob->min_tests_to_accept);
     }
   }
-  if (prob->standard_checker[0])
+  if (prob->standard_checker[0] && prob->standard_checker[0] != 1)
     fprintf(f, "standard_checker = \"%s\"\n", CARMOR(prob->standard_checker));
-  if (prob->check_cmd[0])
+  if (prob->check_cmd[0] && prob->check_cmd[0] != 1)
     fprintf(f, "check_cmd = \"%s\"\n", CARMOR(prob->check_cmd));
   do_xstr(f, &ab, "checker_env", prob->checker_env);
-  if (prob->valuer_cmd[0])
+  if (prob->valuer_cmd[0] && prob->valuer_cmd[0] != 1)
     fprintf(f, "valuer_cmd = \"%s\"\n", CARMOR(prob->valuer_cmd));
   do_xstr(f, &ab, "valuer_env", prob->valuer_env);
-  if (prob->interactor_cmd[0])
+  if (prob->interactor_cmd[0] && prob->interactor_cmd[0] != 1)
     fprintf(f,"interactor_cmd = \"%s\"\n",CARMOR(prob->interactor_cmd));
   do_xstr(f, &ab, "interactor_env", prob->interactor_env);
   if (prob->interactor_time_limit > 0) {
     fprintf(f, "interactor_time_limit = %d\n", prob->interactor_time_limit);
   }
-  if (prob->style_checker_cmd[0])
+  if (prob->style_checker_cmd[0] && prob->style_checker_cmd[0] != 1)
     fprintf(f,"style_checker_cmd = \"%s\"\n",CARMOR(prob->style_checker_cmd));
   do_xstr(f, &ab, "style_checker_env", prob->style_checker_env);
   do_xstr(f, &ab, "lang_compiler_env", prob->lang_compiler_env);
@@ -1311,7 +1314,7 @@ prepare_unparse_prob(
         || !prob->abstract)
       unparse_bool(f, "hidden", prob->hidden);
   }
-  if (prob->stand_hide_time)
+  if (prob->stand_hide_time > 0)
     unparse_bool(f, "stand_hide_time", prob->stand_hide_time);
   if (prob->advance_to_next >= 0
       && ((prob->abstract && prob->advance_to_next) || !prob->abstract))
@@ -1812,7 +1815,7 @@ static const unsigned char * const arch_abstract_names [] =
 {
   "Generic",
   "Linux-shared",
-  "linux-shared-32",
+  "Linux-shared-32",
   "DOSTester",
   "Linux-java",
   "Linux-java14",

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 6889 2012-06-13 14:12:26Z cher $ */
+/* $Id: new_server_html_4.c 6922 2012-06-28 11:55:34Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1049,7 +1049,7 @@ cmd_submit_run(
 
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
-                          run_size, shaval,
+                          run_size, shaval, NULL,
                           phr->ip, phr->ssl_flag,
                           phr->locale_id, phr->user_id,
                           prob->id, lang_id, variant, hidden_flag, mime_type);

@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/03/24 18:53:57
+// Generated 2012/07/27 13:48:20
 
 #ifndef __CONTESTS_META_H__
 #define __CONTESTS_META_H__
@@ -29,10 +29,12 @@ enum
   CNTS_allow_reg_data_edit,
   CNTS_disable_member_delete,
   CNTS_old_run_managed,
+  CNTS_ready,
   CNTS_reg_deadline,
   CNTS_sched_time,
   CNTS_open_time,
   CNTS_close_time,
+  CNTS_update_time,
   CNTS_name,
   CNTS_name_en,
   CNTS_main_url,
@@ -105,6 +107,8 @@ enum
   CNTS_reg_welcome_file,
   CNTS_logo_url,
   CNTS_css_url,
+  CNTS_ext_id,
+  CNTS_problem_count,
   CNTS_slave_rules,
   CNTS_user_contest_num,
   CNTS_default_locale_num,

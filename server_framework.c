@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: server_framework.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: server_framework.c 6984 2012-08-13 14:49:10Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,6 +22,7 @@
 #include "server_framework.h"
 #include "new_server_proto.h"
 #include "sock_op.h"
+#include "startstop.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -657,8 +658,7 @@ nsf_prepare(struct server_framework_state *state)
 {
   struct sockaddr_un addr;
   struct sigaction act;
-  int log_fd, pid;
-  unsigned char *log_path;
+  int pid;
   unsigned char socket_dir[4096];
 
   if (getuid() == 0) {
@@ -717,20 +717,15 @@ nsf_prepare(struct server_framework_state *state)
   sigaction(SIGCHLD, &act, 0);
 
   if (state->params->daemon_mode_flag) {
-    log_path = state->params->log_path;
-    if (!log_path) log_path = "/dev/null";
-    if ((log_fd = open(log_path, O_WRONLY | O_CREAT | O_APPEND, 0600)) < 0) {
-      err("cannot open log file %s", log_path);
+    if (start_open_log(state->params->log_path) < 0)
       goto cleanup;
-    }
-    close(0);
-    if (open("/dev/null", O_RDONLY) < 0) return -1;
-    close(1);
-    if (open("/dev/null", O_WRONLY) < 0) return -1;
-    close(2); dup(log_fd); close(log_fd);
+
     if ((pid = fork()) < 0) return -1;
     if (pid > 0) _exit(0);
     if (setsid() < 0) return -1;
+  } else if (state->params->restart_mode_flag) {
+    if (start_open_log(state->params->log_path) < 0)
+      goto cleanup;
   }
 
   return 0;

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: contests_2.c 6674 2012-03-24 14:53:50Z cher $ */
+/* $Id: contests_2.c 6952 2012-07-08 04:42:33Z cher $ */
 
 /* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -71,7 +71,7 @@ contests_write_header(FILE *f, const struct contest_desc *cnts)
     CONTEST_A_DISABLE_PASSWORD_CHANGE, CONTEST_A_DISABLE_LOCALE_CHANGE,
     CONTEST_A_PERSONAL, CONTEST_A_ALLOW_REG_DATA_EDIT,
     CONTEST_A_DISABLE_MEMBER_DELETE, CONTEST_A_CLOSED, CONTEST_A_INVISIBLE,
-    CONTEST_A_MANAGED, CONTEST_A_RUN_MANAGED, CONTEST_A_OLD_RUN_MANAGED,
+    CONTEST_A_MANAGED, CONTEST_A_RUN_MANAGED, CONTEST_A_OLD_RUN_MANAGED, CONTEST_A_READY,
     0
   };
   for (i = 0; flist[i]; ++i) {
@@ -275,6 +275,11 @@ contests_unparse(FILE *f,
             xml_unparse_date(cnts->close_time),
             contests_elem_map[CONTEST_CLOSE_TIME]);
   }
+  if (cnts->update_time > 0) {
+    fprintf(f, "  <%s>%s</%s>\n", contests_elem_map[CONTEST_UPDATE_TIME],
+            xml_unparse_date(cnts->update_time),
+            contests_elem_map[CONTEST_UPDATE_TIME]);
+  }
 
   unparse_texts(f, cnts, (const int[]) {
     CONTEST_REGISTER_EMAIL, CONTEST_REGISTER_URL, CONTEST_TEAM_URL,
@@ -337,6 +342,8 @@ contests_unparse(FILE *f,
     CONTEST_USER_NAME_COMMENT, CONTEST_ALLOWED_LANGUAGES,
     CONTEST_ALLOWED_REGIONS, CONTEST_CF_NOTIFY_EMAIL,
     CONTEST_CLAR_NOTIFY_EMAIL, CONTEST_DAILY_STAT_EMAIL,
+
+    CONTEST_EXT_ID, CONTEST_PROBLEM_COUNT,
 
     0,
   });
@@ -448,9 +455,9 @@ contests_unparse_and_save(
 
   f = open_memstream(&new_text, &new_size);
   fprintf(f, "<?xml version=\"1.0\" encoding=\"%s\" ?>\n", charset);
-  fputs(header, f);
+  if (header) fputs(header, f);
   contests_unparse(f, cnts);
-  fputs(footer, f);
+  if (footer) fputs(footer, f);
   close_memstream(f); f = 0;
 
   contests_make_path(xml_path, sizeof(xml_path), cnts->id);
@@ -486,7 +493,7 @@ contests_unparse_and_save(
   fwrite(new_text, 1, new_size, f);
   xfree(new_text); new_text = 0;
   new_size = 0;
-  fputs(add_footer, f);
+  if (add_footer) fputs(add_footer, f);
   if (ferror(f)) {
     fclose(f);
     unlink(tmp_path);

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 6879 2012-06-06 08:39:30Z cher $ */
+/* $Id: super-serve.c 7006 2012-08-28 09:15:26Z cher $ */
 
 /* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -46,6 +46,8 @@
 
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -118,6 +120,7 @@ struct client_state
 };
 
 static int daemon_mode;
+static int restart_mode;
 static int autonomous_mode;
 static int forced_mode;
 static int slave_mode;
@@ -2358,6 +2361,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_LANG_CHANGE_INSECURE:
   case SSERV_CMD_LANG_CHANGE_LONG_NAME:
   case SSERV_CMD_LANG_CLEAR_LONG_NAME:
+  case SSERV_CMD_LANG_CHANGE_EXTID:
+  case SSERV_CMD_LANG_CLEAR_EXTID:
   case SSERV_CMD_LANG_CHANGE_DISABLE_SECURITY:
   case SSERV_CMD_LANG_CHANGE_DISABLE_AUTO_TESTING:
   case SSERV_CMD_LANG_CHANGE_DISABLE_TESTING:
@@ -3411,6 +3416,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_LANG_CHANGE_INSECURE] = { cmd_set_value },
   [SSERV_CMD_LANG_CHANGE_LONG_NAME] = { cmd_set_value },
   [SSERV_CMD_LANG_CLEAR_LONG_NAME] = { cmd_set_value },
+  [SSERV_CMD_LANG_CHANGE_EXTID] = { cmd_set_value },
+  [SSERV_CMD_LANG_CLEAR_EXTID] = { cmd_set_value },
   [SSERV_CMD_LANG_CHANGE_CONTENT_TYPE] = { cmd_set_value },
   [SSERV_CMD_LANG_CLEAR_CONTENT_TYPE] = { cmd_set_value },
   [SSERV_CMD_LANG_CHANGE_DISABLE_SECURITY] = { cmd_set_value },
@@ -4485,7 +4492,6 @@ static int
 prepare_sockets(void)
 {
   struct sockaddr_un addr;
-  int log_fd;
   pid_t pid;
   path_t socket_dir;
 
@@ -4551,19 +4557,15 @@ prepare_sockets(void)
 
   // daemonize itself
   if (daemon_mode) {
-    if ((log_fd = open(config->super_serve_log,
-                       O_WRONLY | O_CREAT | O_APPEND, 0600)) < 0) {
-      err("cannot open log file `%s'", config->super_serve_log);
+    if (start_open_log(config->super_serve_log) < 0)
       return 1;
-    }
-    close(0);
-    if (open("/dev/null", O_RDONLY) < 0) return 1;
-    close(1);
-    if (open("/dev/null", O_WRONLY) < 0) return 1;
-    close(2); dup(log_fd); close(log_fd);
+
     if ((pid = fork()) < 0) return 1;
     if (pid > 0) _exit(0);
     if (setsid() < 0) return 1;
+  } else if (restart_mode) {
+    if (start_open_log(config->super_serve_log) < 0)
+      return 1;
   }
 
   return 0;
@@ -4617,7 +4619,7 @@ main(int argc, char **argv)
 
   program_name = os_GetBasename(argv[0]);
   start_set_self_args(argc, argv);
-  XCALLOC(argv_restart, argc + 1);
+  XCALLOC(argv_restart, argc + 2);
   argv_restart[j++] = argv[0];
 
   while (cur_arg < argc) {
@@ -4627,6 +4629,9 @@ main(int argc, char **argv)
       write_version();
     } else if (!strcmp(argv[cur_arg], "-D")) {
       daemon_mode = 1;
+      cur_arg++;
+    } else if (!strcmp(argv[cur_arg], "-R")) {
+      restart_mode = 1;
       cur_arg++;
     } else if (!strcmp(argv[cur_arg], "-a")) {
       autonomous_mode = 1;
@@ -4664,6 +4669,7 @@ main(int argc, char **argv)
       break;
     }
   }
+  argv_restart[j++] = "-R";
   if (cur_arg < argc) {
     ejudge_xml_path = argv[cur_arg];
     argv_restart[j++] = argv[cur_arg];

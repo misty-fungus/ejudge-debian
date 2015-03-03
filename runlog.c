@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.c 6855 2012-05-25 10:31:22Z cher $ */
+/* $Id: runlog.c 6945 2012-07-06 14:35:48Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -28,6 +28,7 @@
 #include "runlog_state.h"
 #include "rldb_plugin.h"
 #include "prepare.h"
+#include "ej_uuid.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -291,6 +292,7 @@ run_add_record(
         int            nsec,
         size_t         size,
         const ruint32_t sha1[5],
+        const ruint32_t uuid[4],
         ruint32_t      ip,
         int            ssl_flag,
         int            locale_id,
@@ -412,6 +414,17 @@ run_add_record(
     memcpy(re.sha1, sha1, sizeof(state->runs[i].sha1));
     flags |= RE_SHA1;
   }
+#if CONF_HAS_LIBUUID - 0 != 0
+  if (!uuid) {
+    ruint32_t tmp_uuid[4];
+    ej_uuid_generate(tmp_uuid);
+    memcpy(re.run_uuid, tmp_uuid, sizeof(re.run_uuid));
+    flags |= RE_RUN_UUID;
+  } else {
+    memcpy(re.run_uuid, uuid, sizeof(re.run_uuid));
+    flags |= RE_RUN_UUID;
+  }
+#endif
 
   if (state->max_user_id >= 0 && re.user_id > state->max_user_id) {
     state->max_user_id = re.user_id;
@@ -1058,6 +1071,10 @@ run_set_entry(
     memcpy(te.sha1, in->sha1, sizeof(te.sha1));
     f = 1;
   }
+  if ((mask & RE_RUN_UUID) && memcmp(te.run_uuid, in->run_uuid, sizeof(te.run_uuid))) {
+    memcpy(te.run_uuid, in->run_uuid, sizeof(te.run_uuid));
+    f = 1;
+  }
   if ((mask & RE_USER_ID) && te.user_id != in->user_id) {
     te.user_id = in->user_id;
     f = 1;
@@ -1108,10 +1125,12 @@ run_set_entry(
     te.score_adj = in->score_adj;
     f = 1;
   }
+  /*
   if ((mask & RE_IS_EXAMINABLE) && te.is_examinable != in->is_examinable) {
     te.is_examinable = in->is_examinable;
     f = 1;
   }
+  */
   if ((mask & RE_IS_MARKED) && te.is_marked != in->is_marked) {
     te.is_marked = in->is_marked;
     f = 1;
@@ -2080,6 +2099,9 @@ run_count_examinable_runs(
         int exam_num,
         int *p_assigned)
 {
+  return 0;
+
+  /*
   int count = 0, i, assigned_count = 0, j;
   const struct run_entry *p;
 
@@ -2099,6 +2121,7 @@ run_count_examinable_runs(
   }
   if (p_assigned) *p_assigned = assigned_count;
   return count;
+  */
 }
 
 int
@@ -2178,6 +2201,5 @@ run_get_total_users(runlog_state_t state)
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: meta_generic.c 6867 2012-06-01 04:04:25Z cher $ */
+/* $Id: meta_generic.c 6978 2012-08-10 14:44:59Z cher $ */
 
 /* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -246,10 +246,16 @@ meta_unparse_cfg(FILE *out_f, const struct meta_methods *mth, const void *ptr, c
       }
       break;
     case 'z':                   /* ejintsize_t */
-    case 'i':                   /* int type */
       ASSERT(fz == sizeof(int));
       if (!dfp || *(const int *) dfp != *(const int*) fp) {
         num_to_size_str(buf, sizeof(buf), *(const int*) fp);
+        fprintf(out_f, "%s = %s\n", fn, buf);
+      }
+      break;
+    case 'i':                   /* int type */
+      ASSERT(fz == sizeof(int));
+      if (!dfp || *(const int *) dfp != *(const int*) fp) {
+        snprintf(buf, sizeof(buf), "%d", *(const int*) fp);
         fprintf(out_f, "%s = %s\n", fn, buf);
       }
       break;
