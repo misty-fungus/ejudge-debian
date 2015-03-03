@@ -10,7 +10,8 @@
 export DH_VERBOSE=1
 
 %:
-	dh --with quilt $@ --parallel 
+	dh --with quilt --without python2,pypy,python-support,python3 $@ --parallel 
+
 override_dh_auto_configure:
 	[ -f ejudge.ru_RU.KOI8-R.po.bak ] || cp -a ejudge.ru_RU.KOI8-R.po ejudge.ru_RU.KOI8-R.po.bak
 	./configure --build=x86_64-linux-gnu \
