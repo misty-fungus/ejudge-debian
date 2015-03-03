@@ -1,3 +1,11 @@
+ejudge (2.3.24-1~2.gbpdecf97) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @decf9743d125a49386cd50ff8a27efcd6418465f **
+
+  * [f4a12f2] New upstream version 2.3.24
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Mon, 03 Mar 2015 20:36:28 +0300
+
 ejudge (2.3.23-3) unstable; urgency=medium
 
   * [a94f6c3] added missing log to logrotate config
