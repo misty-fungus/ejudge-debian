@@ -1,3 +1,9 @@
+ejudge (2.3.25-2) unstable; urgency=medium
+
+  * [dd92828] fix js links creation in postinst
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Wed, 04 Mar 2015 15:02:20 +0300
+
 ejudge (2.3.25-1) unstable; urgency=medium
 
   * [28c0a2a] New upstream version 2.3.25
