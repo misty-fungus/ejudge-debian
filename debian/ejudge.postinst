@@ -128,7 +128,11 @@ case "${action}" in
 
         #creating links to dojox
         for folder in dijit dojo dojox; do
-            [ -L "$cgi_data_dir/$folder" ] || ln -s "/usr/share/javascript/$folder" "$cgi_data_dir/$folder"
+            if [ -e "$cgi_data_dir/$folder" ]; then
+               echo "Skip creation of $cgi_data_dir/$folder"
+               continue
+            fi
+            ln -sf "/usr/share/javascript/$folder" "$cgi_data_dir/$folder"
         done
 
         #probe run for ej-compile
