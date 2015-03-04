@@ -2,7 +2,7 @@ Source: ejudge
 Section: net
 Priority: extra
 Maintainer: Yaroslav Leonov <alximik43@gmail.com>
-Build-Depends: debhelper (>= 7.0.50~), autotools-dev, quilt (>= 0.46-7~), bison, flex, libncursesw5-dev, libexpat1-dev, po-debconf, zlib1g-dev, gawk, libcurl-dev
+Build-Depends: debhelper (>= 7.0.50~), autotools-dev, quilt (>= 0.46-7~), bison, flex, libncursesw5-dev, libexpat1-dev, po-debconf, zlib1g-dev, gawk, libcurl-dev, uuid-dev
 Standards-Version: 3.9.6
 Homepage: http://www.ejudge.ru 
 
