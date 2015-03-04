@@ -1,10 +1,16 @@
-ejudge (2.3.25-1~1.gbp712040) UNRELEASED; urgency=medium
-
-  ** SNAPSHOT build @712040a7eaae976283a7a5accb9364eab812ad5f **
+ejudge (2.3.25-1) unstable; urgency=medium
 
   * [28c0a2a] New upstream version 2.3.25
+  * [ef39a08] new snapshot: 2.3.25-1
+  * [c68e434] refreshed patch 01_fix_configure
+  * [6a51a59] refreshed 04_dont_run_ejudge-setup_on_install
+  * [ad6c176] refreshed 07_fix_ej-super-run_logpath
+  * [39ef171] ignore .idea in root in local-options
+  * [f5b45e6] updated sample contest
+  * [3daf68f] updated debian/source/include-binaries
+  * [b9b20ca] added uuid-dev build dependency
 
- -- Yaroslav Leonov <alximik43@gmail.com>  Tue, 03 Mar 2015 22:50:46 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Wed, 04 Mar 2015 14:26:42 +0300
 
 ejudge (2.3.24-1) unstable; urgency=medium
 
