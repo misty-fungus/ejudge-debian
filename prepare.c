@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.c 7167 2012-11-15 17:47:14Z cher $ */
+/* $Id: prepare.c 7246 2012-12-14 18:44:35Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -345,6 +345,9 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(tester_id, "d"),
   PROBLEM_PARAM(abstract, "d"),
   PROBLEM_PARAM(scoring_checker, "d"),  
+  PROBLEM_PARAM(interactive_valuer, "d"),  
+  PROBLEM_PARAM(disable_pe, "d"),  
+  PROBLEM_PARAM(disable_wtl, "d"),  
   PROBLEM_PARAM(manual_checking, "d"),  
   PROBLEM_PARAM(examinator_num, "d"),  
   PROBLEM_PARAM(check_presentation, "d"),  
@@ -406,6 +409,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(stand_last_column, "d"),
   PROBLEM_PARAM(score_multiplier, "d"),
   PROBLEM_PARAM(prev_runs_to_show, "d"),
+  PROBLEM_PARAM(max_user_run_count, "d"),
   PROBLEM_ALIAS(output_only, type, "d"),
   PROBLEM_PARAM(max_vm_size, "z"),
   PROBLEM_PARAM(max_stack_size, "z"),
@@ -877,6 +881,9 @@ prepare_problem_init_func(struct generic_section_config *gp)
 
   p->type = -1;
   p->scoring_checker = -1;
+  p->interactive_valuer = -1;
+  p->disable_pe = -1;
+  p->disable_wtl = -1;
   p->manual_checking = -1;
   p->check_presentation = -1;
   p->use_stdin = -1;
@@ -951,6 +958,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->max_open_file_count = -1;
   p->max_process_count = -1;
   p->interactor_time_limit = -1;
+  p->max_user_run_count = -1;
 }
 
 void prepare_free_testsets(int t, struct testset_info *p);
@@ -3411,6 +3419,9 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_stand_ignore_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_stand_last_column, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_scoring_checker, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_interactive_valuer, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_disable_pe, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_disable_wtl, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_manual_checking, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_examinator_num, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_check_presentation, prob, aprob, g);
@@ -3462,6 +3473,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_source_header, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_source_footer, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_normalization, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_max_user_run_count, prob, aprob, g);
 
     if (prob->priority_adjustment == -1000 && si != -1 &&
         aprob->priority_adjustment != -1000) {
@@ -5097,7 +5109,10 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
 
   if (prob->type < 0) prob->type = 0;
   if (prob->scoring_checker < 0) prob->scoring_checker = 0;
-  if (prob->scoring_checker < 0) prob->manual_checking = 0;
+  if (prob->interactive_valuer < 0) prob->interactive_valuer = 0;
+  if (prob->disable_pe < 0) prob->disable_pe = 0;
+  if (prob->disable_wtl < 0) prob->disable_wtl = 0;
+  if (prob->manual_checking < 0) prob->manual_checking = 0;
   if (prob->examinator_num < 0) prob->examinator_num = 0;
   if (prob->check_presentation < 0) prob->check_presentation = 0;
   if (prob->use_stdin < 0) prob->use_stdin = 0;
@@ -5600,6 +5615,24 @@ prepare_set_prob_value(
     if (out->scoring_checker == -1) out->scoring_checker = 0;
     break;
 
+  case CNTSPROB_interactive_valuer:
+    if (out->interactive_valuer == -1 && abstr)
+      out->interactive_valuer = abstr->interactive_valuer;
+    if (out->interactive_valuer == -1) out->interactive_valuer = 0;
+    break;
+
+  case CNTSPROB_disable_pe:
+    if (out->disable_pe == -1 && abstr)
+      out->disable_pe = abstr->disable_pe;
+    if (out->disable_pe == -1) out->disable_pe = 0;
+    break;
+
+  case CNTSPROB_disable_wtl:
+    if (out->disable_wtl == -1 && abstr)
+      out->disable_wtl = abstr->disable_wtl;
+    if (out->disable_wtl == -1) out->disable_wtl = 0;
+    break;
+
   case CNTSPROB_manual_checking:
     if (out->manual_checking == -1 && abstr)
       out->manual_checking = abstr->manual_checking;
@@ -5812,6 +5845,13 @@ prepare_set_prob_value(
       out->skip_testing = abstr->skip_testing;
     if (out->skip_testing == -1)
       out->skip_testing = 0;
+    break;
+
+  case CNTSPROB_max_user_run_count:
+    if (out->max_user_run_count < 0 && abstr)
+      out->max_user_run_count = abstr->max_user_run_count;
+    if (out->max_user_run_count < 0)
+      out->max_user_run_count = 0;
     break;
 
   case CNTSPROB_full_score:
@@ -6418,7 +6458,8 @@ static const int prob_settable_list[] =
   CNTSPROB_super, CNTSPROB_short_name, CNTSPROB_long_name,
   CNTSPROB_group_name, CNTSPROB_stand_name, CNTSPROB_stand_column,
   CNTSPROB_internal_name, 
-  CNTSPROB_scoring_checker, CNTSPROB_manual_checking, CNTSPROB_examinator_num,
+  CNTSPROB_scoring_checker, CNTSPROB_interactive_valuer, CNTSPROB_disable_pe, CNTSPROB_disable_wtl,
+  CNTSPROB_manual_checking, CNTSPROB_examinator_num,
   CNTSPROB_check_presentation, CNTSPROB_use_stdin, CNTSPROB_use_stdout,
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
   CNTSPROB_binary_input, CNTSPROB_binary, CNTSPROB_ignore_exit_code,
@@ -6444,6 +6485,7 @@ static const int prob_settable_list[] =
   CNTSPROB_enable_text_form,
   CNTSPROB_stand_ignore_score, CNTSPROB_stand_last_column,
   CNTSPROB_score_multiplier, CNTSPROB_prev_runs_to_show,
+  CNTSPROB_max_user_run_count,
   CNTSPROB_max_vm_size, CNTSPROB_max_stack_size, CNTSPROB_max_data_size,
   CNTSPROB_max_core_size, CNTSPROB_max_file_size,
   CNTSPROB_max_open_file_count, CNTSPROB_max_process_count,
@@ -6480,6 +6522,9 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_tester_id] = 1,
   [CNTSPROB_abstract] = 1,
   [CNTSPROB_scoring_checker] = 1,  
+  [CNTSPROB_interactive_valuer] = 1,  
+  [CNTSPROB_disable_pe] = 1,  
+  [CNTSPROB_disable_wtl] = 1,  
   [CNTSPROB_manual_checking] = 1,  
   [CNTSPROB_examinator_num] = 1,  
   [CNTSPROB_check_presentation] = 1,  
@@ -6542,6 +6587,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_stand_last_column] = 1,
   [CNTSPROB_score_multiplier] = 1,
   [CNTSPROB_prev_runs_to_show] = 1,
+  [CNTSPROB_max_user_run_count] = 1,
   [CNTSPROB_max_vm_size] = 1,
   [CNTSPROB_max_stack_size] = 1,
   [CNTSPROB_max_data_size] = 1,
@@ -6623,7 +6669,8 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
 
 static const int prob_inheritable_list[] =
 {
-  CNTSPROB_scoring_checker, CNTSPROB_manual_checking,  
+  CNTSPROB_scoring_checker, CNTSPROB_interactive_valuer, CNTSPROB_disable_pe, CNTSPROB_disable_wtl,
+  CNTSPROB_manual_checking,  
   CNTSPROB_examinator_num, CNTSPROB_check_presentation,
   CNTSPROB_use_stdin, CNTSPROB_use_stdout,
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
@@ -6651,7 +6698,8 @@ static const int prob_inheritable_list[] =
   CNTSPROB_enable_process_group,
   CNTSPROB_enable_text_form, CNTSPROB_stand_ignore_score,
   CNTSPROB_stand_last_column, CNTSPROB_score_multiplier,
-  CNTSPROB_prev_runs_to_show, CNTSPROB_max_vm_size,
+  CNTSPROB_prev_runs_to_show, CNTSPROB_max_user_run_count,
+  CNTSPROB_max_vm_size,
   CNTSPROB_max_stack_size, CNTSPROB_max_data_size,
   CNTSPROB_max_core_size, CNTSPROB_max_file_size,
   CNTSPROB_max_open_file_count, CNTSPROB_max_process_count,
@@ -6684,6 +6732,9 @@ static const int prob_inheritable_list[] =
 static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
 {
   [CNTSPROB_scoring_checker] = 1,
+  [CNTSPROB_interactive_valuer] = 1,
+  [CNTSPROB_disable_pe] = 1,
+  [CNTSPROB_disable_wtl] = 1,
   [CNTSPROB_manual_checking] = 1,  
   [CNTSPROB_examinator_num] = 1,
   [CNTSPROB_check_presentation] = 1,
@@ -6746,6 +6797,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_stand_last_column] = 1,
   [CNTSPROB_score_multiplier] = 1,
   [CNTSPROB_prev_runs_to_show] = 1,
+  [CNTSPROB_max_user_run_count] = 1,
   [CNTSPROB_max_vm_size] = 1,
   [CNTSPROB_max_stack_size] = 1,
   [CNTSPROB_max_data_size] = 1,
@@ -6828,6 +6880,9 @@ static const struct section_problem_data prob_undef_values =
   .examinator_num = -1,
   .check_presentation = -1,
   .scoring_checker = -1,
+  .interactive_valuer = -1,
+  .disable_pe = -1,
+  .disable_wtl = -1,
   .use_stdin = -1,
   .use_stdout = -1,
   .combined_stdin = -1,
@@ -6876,6 +6931,7 @@ static const struct section_problem_data prob_undef_values =
   .stand_hide_time = -1,
   .score_multiplier = -1,
   .prev_runs_to_show = -1,
+  .max_user_run_count = -1,
   .advance_to_next = -1,
   .disable_ctrl_chars = -1,
   .valuer_sets_marked = -1,
@@ -6973,6 +7029,9 @@ static const struct section_problem_data prob_default_values =
   .examinator_num = 0,
   .check_presentation = 0,
   .scoring_checker = 0,
+  .interactive_valuer = 0,
+  .disable_pe = 0,
+  .disable_wtl = 0,
   .use_stdin = 0,
   .use_stdout = 0,
   .combined_stdin = 0,
@@ -7021,6 +7080,7 @@ static const struct section_problem_data prob_default_values =
   .stand_hide_time = 0,
   .score_multiplier = 0,
   .prev_runs_to_show = 0,
+  .max_user_run_count = 0,
   .advance_to_next = 0,
   .disable_ctrl_chars = 0,
   .valuer_sets_marked = 0,

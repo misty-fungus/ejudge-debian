@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/11/15 17:14:09
+// Generated 2012/12/14 22:42:37
 
 #include "prepare_meta.h"
 #include "prepare.h"
@@ -343,6 +343,9 @@ static struct meta_info_item meta_info_section_problem_data_data[] =
   [CNTSPROB_examinator_num] = { CNTSPROB_examinator_num, 'i', XSIZE(struct section_problem_data, examinator_num), "examinator_num", XOFFSET(struct section_problem_data, examinator_num) },
   [CNTSPROB_check_presentation] = { CNTSPROB_check_presentation, 'B', XSIZE(struct section_problem_data, check_presentation), "check_presentation", XOFFSET(struct section_problem_data, check_presentation) },
   [CNTSPROB_scoring_checker] = { CNTSPROB_scoring_checker, 'B', XSIZE(struct section_problem_data, scoring_checker), "scoring_checker", XOFFSET(struct section_problem_data, scoring_checker) },
+  [CNTSPROB_interactive_valuer] = { CNTSPROB_interactive_valuer, 'B', XSIZE(struct section_problem_data, interactive_valuer), "interactive_valuer", XOFFSET(struct section_problem_data, interactive_valuer) },
+  [CNTSPROB_disable_pe] = { CNTSPROB_disable_pe, 'B', XSIZE(struct section_problem_data, disable_pe), "disable_pe", XOFFSET(struct section_problem_data, disable_pe) },
+  [CNTSPROB_disable_wtl] = { CNTSPROB_disable_wtl, 'B', XSIZE(struct section_problem_data, disable_wtl), "disable_wtl", XOFFSET(struct section_problem_data, disable_wtl) },
   [CNTSPROB_use_stdin] = { CNTSPROB_use_stdin, 'B', XSIZE(struct section_problem_data, use_stdin), "use_stdin", XOFFSET(struct section_problem_data, use_stdin) },
   [CNTSPROB_use_stdout] = { CNTSPROB_use_stdout, 'B', XSIZE(struct section_problem_data, use_stdout), "use_stdout", XOFFSET(struct section_problem_data, use_stdout) },
   [CNTSPROB_combined_stdin] = { CNTSPROB_combined_stdin, 'B', XSIZE(struct section_problem_data, combined_stdin), "combined_stdin", XOFFSET(struct section_problem_data, combined_stdin) },
@@ -390,6 +393,7 @@ static struct meta_info_item meta_info_section_problem_data_data[] =
   [CNTSPROB_stand_hide_time] = { CNTSPROB_stand_hide_time, 'B', XSIZE(struct section_problem_data, stand_hide_time), "stand_hide_time", XOFFSET(struct section_problem_data, stand_hide_time) },
   [CNTSPROB_score_multiplier] = { CNTSPROB_score_multiplier, 'i', XSIZE(struct section_problem_data, score_multiplier), "score_multiplier", XOFFSET(struct section_problem_data, score_multiplier) },
   [CNTSPROB_prev_runs_to_show] = { CNTSPROB_prev_runs_to_show, 'i', XSIZE(struct section_problem_data, prev_runs_to_show), "prev_runs_to_show", XOFFSET(struct section_problem_data, prev_runs_to_show) },
+  [CNTSPROB_max_user_run_count] = { CNTSPROB_max_user_run_count, 'i', XSIZE(struct section_problem_data, max_user_run_count), "max_user_run_count", XOFFSET(struct section_problem_data, max_user_run_count) },
   [CNTSPROB_advance_to_next] = { CNTSPROB_advance_to_next, 'B', XSIZE(struct section_problem_data, advance_to_next), "advance_to_next", XOFFSET(struct section_problem_data, advance_to_next) },
   [CNTSPROB_disable_ctrl_chars] = { CNTSPROB_disable_ctrl_chars, 'B', XSIZE(struct section_problem_data, disable_ctrl_chars), "disable_ctrl_chars", XOFFSET(struct section_problem_data, disable_ctrl_chars) },
   [CNTSPROB_enable_text_form] = { CNTSPROB_enable_text_form, 'B', XSIZE(struct section_problem_data, enable_text_form), "enable_text_form", XOFFSET(struct section_problem_data, enable_text_form) },

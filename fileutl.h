@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: fileutl.h 6752 2012-04-18 12:11:46Z cher $ */
+/* $Id: fileutl.h 7201 2012-12-05 06:07:32Z cher $ */
 #ifndef __FILEUTL_H__
 #define __FILEUTL_H__
 
@@ -20,9 +20,13 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include "reuse_xalloc.h"
+
 int   scan_dir(char const *dir, char *result, size_t res_size);
 void  scan_dir_add_ignored(const unsigned char *dir,
                            const unsigned char *filename);
+
+int get_file_list(const char *partial_path, strarray_t *files);
 
 /* operation flags */
 enum { SAFE = 1, REMOVE = 2, CONVERT = 4, PIPE = 8, GZIP = 16, KEEP_ON_FAIL = 32, ZIP = 64 };

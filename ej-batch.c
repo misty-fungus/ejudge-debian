@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-batch.c 7027 2012-09-16 13:38:18Z cher $ */
+/* $Id: ej-batch.c 7259 2012-12-20 13:11:33Z cher $ */
 
 /* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -577,6 +577,7 @@ process_submit(
                             sb.run_id /* run_id */,
                             1 /* user_id */,
                             lang->compile_id,
+                            0 /* variant */,
                             1 /* locale_id */,
                             0 /* output_only */,
                             lang->src_sfx /* sfx */,

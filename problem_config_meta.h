@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/11/15 17:14:09
+// Generated 2012/12/14 22:42:37
 
 #ifndef __PROBLEM_CONFIG_META_H__
 #define __PROBLEM_CONFIG_META_H__
@@ -11,6 +11,9 @@ enum
   META_PROBLEM_CONFIG_SECTION_manual_checking = 1,
   META_PROBLEM_CONFIG_SECTION_check_presentation,
   META_PROBLEM_CONFIG_SECTION_scoring_checker,
+  META_PROBLEM_CONFIG_SECTION_interactive_valuer,
+  META_PROBLEM_CONFIG_SECTION_disable_pe,
+  META_PROBLEM_CONFIG_SECTION_disable_wtl,
   META_PROBLEM_CONFIG_SECTION_use_stdin,
   META_PROBLEM_CONFIG_SECTION_use_stdout,
   META_PROBLEM_CONFIG_SECTION_combined_stdin,
@@ -68,6 +71,7 @@ enum
   META_PROBLEM_CONFIG_SECTION_priority_adjustment,
   META_PROBLEM_CONFIG_SECTION_score_multiplier,
   META_PROBLEM_CONFIG_SECTION_prev_runs_to_show,
+  META_PROBLEM_CONFIG_SECTION_max_user_run_count,
   META_PROBLEM_CONFIG_SECTION_interactor_time_limit,
   META_PROBLEM_CONFIG_SECTION_max_open_file_count,
   META_PROBLEM_CONFIG_SECTION_max_process_count,

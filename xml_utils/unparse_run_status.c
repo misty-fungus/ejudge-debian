@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: unparse_run_status.c 7149 2012-11-07 08:57:48Z cher $ */
+/* $Id: unparse_run_status.c 7228 2012-12-09 08:38:21Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -39,6 +39,7 @@ static const unsigned char tree_result_strs[RUN_LAST + 1][4] =
   [RUN_STYLE_ERR] =        "SV",
   [RUN_WALL_TIME_LIMIT_ERR] = "WT",
   [RUN_PENDING_REVIEW] =   "PR",
+  [RUN_SKIPPED] =          "SK",
   [RUN_REJECTED] =         "RJ",
   [RUN_VIRTUAL_START] =    "VS",
   [RUN_VIRTUAL_STOP] =     "VT",

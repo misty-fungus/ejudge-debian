@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 7123 2012-11-03 17:55:23Z cher $ */
+/* $Id: serve_state.h 7259 2012-12-20 13:11:33Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
@@ -410,6 +410,7 @@ serve_compile_request(
         int run_id,
         int user_id,
         int lang_id,
+        int variant,
         int locale_id,
         int output_only,
         unsigned char const *sfx,

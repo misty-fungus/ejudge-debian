@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.h 7166 2012-11-15 17:44:05Z cher $ */
+/* $Id: super_run_packet.h 7239 2012-12-11 09:16:35Z cher $ */
 #ifndef __SUPER_RUN_PACKET_H__
 #define __SUPER_RUN_PACKET_H__
 
@@ -88,6 +88,9 @@ struct super_run_in_problem_packet
   int id;
   ejintbool_t check_presentation;
   ejintbool_t scoring_checker;
+  ejintbool_t interactive_valuer;
+  ejintbool_t disable_pe;
+  ejintbool_t disable_wtl;
   ejintbool_t use_stdin;
   ejintbool_t use_stdout;
   ejintbool_t combined_stdin;
@@ -112,6 +115,7 @@ struct super_run_in_problem_packet
   unsigned char *short_name;
   unsigned char *long_name;
   unsigned char *internal_name;
+  unsigned char *problem_dir;
   unsigned char *test_dir;
   unsigned char *corr_dir;
   unsigned char *info_dir;

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-import-contest.c 7176 2012-11-18 15:27:40Z cher $ */
+/* $Id: ej-import-contest.c 7246 2012-12-14 18:44:35Z cher $ */
 
 /* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -631,6 +631,9 @@ merge_problem_section(
         { CNTSPROB_manual_checking, META_PROBLEM_CONFIG_SECTION_manual_checking },
         { CNTSPROB_check_presentation, META_PROBLEM_CONFIG_SECTION_check_presentation },
         { CNTSPROB_scoring_checker, META_PROBLEM_CONFIG_SECTION_scoring_checker },
+        { CNTSPROB_interactive_valuer, META_PROBLEM_CONFIG_SECTION_interactive_valuer },
+        { CNTSPROB_disable_pe, META_PROBLEM_CONFIG_SECTION_disable_pe },
+        { CNTSPROB_disable_wtl, META_PROBLEM_CONFIG_SECTION_disable_wtl },
         { CNTSPROB_use_stdin, META_PROBLEM_CONFIG_SECTION_use_stdin },
         { CNTSPROB_use_stdout, META_PROBLEM_CONFIG_SECTION_use_stdout },
         { CNTSPROB_combined_stdin, META_PROBLEM_CONFIG_SECTION_combined_stdin },
@@ -695,6 +698,7 @@ merge_problem_section(
         { CNTSPROB_checker_real_time_limit, META_PROBLEM_CONFIG_SECTION_checker_real_time_limit, 0 },
         { CNTSPROB_score_multiplier, META_PROBLEM_CONFIG_SECTION_score_multiplier, 0 },
         { CNTSPROB_prev_runs_to_show, META_PROBLEM_CONFIG_SECTION_prev_runs_to_show, 0 },
+        { CNTSPROB_max_user_run_count, META_PROBLEM_CONFIG_SECTION_max_user_run_count, 0 },
         { CNTSPROB_interactor_time_limit, META_PROBLEM_CONFIG_SECTION_interactor_time_limit, 0 },
         { CNTSPROB_max_open_file_count, META_PROBLEM_CONFIG_SECTION_max_open_file_count, 0 },
         { CNTSPROB_max_process_count, META_PROBLEM_CONFIG_SECTION_max_process_count, 0 },
@@ -920,6 +924,9 @@ generate_makefile(struct sid_state *ss,
     prepare_set_prob_value(CNTSPROB_input_file, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_output_file, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_scoring_checker, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_interactive_valuer, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_disable_pe, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_disable_wtl, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_manual_checking, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_examinator_num, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_check_presentation, tmp_prob, abstr, global);

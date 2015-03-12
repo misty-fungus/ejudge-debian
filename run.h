@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run.h 6895 2012-06-18 04:07:06Z cher $ */
+/* $Id: run.h 7230 2012-12-09 08:40:44Z cher $ */
 #ifndef __RUN_H__
 #define __RUN_H__
 
@@ -56,7 +56,6 @@ struct testinfo
   unsigned char *comment;       /* judge's comment */
   unsigned char *team_comment;  /* team's comment */
   unsigned char *exit_comment;  /* comment on exit status */
-  //  int            checker_score;
   int            visibility;    /* test visibility */
 };
 

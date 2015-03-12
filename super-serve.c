@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 7164 2012-11-15 13:21:36Z cher $ */
+/* $Id: super-serve.c 7246 2012-12-14 18:44:35Z cher $ */
 
 /* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -2406,6 +2406,9 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_SUPER:
   case SSERV_CMD_PROB_CHANGE_TYPE:
   case SSERV_CMD_PROB_CHANGE_SCORING_CHECKER:
+  case SSERV_CMD_PROB_CHANGE_INTERACTIVE_VALUER:
+  case SSERV_CMD_PROB_CHANGE_DISABLE_PE:
+  case SSERV_CMD_PROB_CHANGE_DISABLE_WTL:
   case SSERV_CMD_PROB_CHANGE_MANUAL_CHECKING:
   case SSERV_CMD_PROB_CHANGE_EXAMINATOR_NUM:
   case SSERV_CMD_PROB_CHANGE_CHECK_PRESENTATION:
@@ -2441,6 +2444,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_TEST_SCORE:
   case SSERV_CMD_PROB_CHANGE_RUN_PENALTY:
   case SSERV_CMD_PROB_CHANGE_ACM_RUN_PENALTY:
+  case SSERV_CMD_PROB_CHANGE_MAX_USER_RUN_COUNT:
   case SSERV_CMD_PROB_CHANGE_DISQUALIFIED_PENALTY:
   case SSERV_CMD_PROB_CHANGE_VARIABLE_FULL_SCORE:
   case SSERV_CMD_PROB_CHANGE_TEST_SCORE_LIST:
@@ -3460,6 +3464,9 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_SUPER] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TYPE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SCORING_CHECKER] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_INTERACTIVE_VALUER] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_DISABLE_PE] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_DISABLE_WTL] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_MANUAL_CHECKING] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_EXAMINATOR_NUM] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_CHECK_PRESENTATION] = { cmd_set_value },
@@ -3495,6 +3502,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_TEST_SCORE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_RUN_PENALTY] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ACM_RUN_PENALTY] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_MAX_USER_RUN_COUNT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISQUALIFIED_PENALTY] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_VARIABLE_FULL_SCORE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEST_SCORE_LIST] = { cmd_set_value },

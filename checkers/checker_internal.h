@@ -1,7 +1,7 @@
 #ifndef __CHECKER_INTERNAL_H__
 #define __CHECKER_INTERNAL_H__
 
-/* $Id: checker_internal.h 7025 2012-09-16 13:36:02Z cher $ */
+/* $Id: checker_internal.h 7229 2012-12-09 08:38:40Z cher $ */
 
 /* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -67,8 +67,9 @@ enum
   RUN_SECURITY_ERR     = 13,
   RUN_STYLE_ERR        = 14,
   RUN_WALL_TIME_LIMIT_ERR = 15,
+  RUN_SKIPPED          = 18,
 
-  RUN_MAX_STATUS       = 16,
+  RUN_MAX_STATUS       = 18,
 };
 
 /* S-expression types */

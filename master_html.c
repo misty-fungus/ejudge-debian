@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: master_html.c 7147 2012-11-06 12:20:11Z cher $ */
+/* $Id: master_html.c 7224 2012-12-09 07:20:07Z cher $ */
 
 /* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -524,7 +524,8 @@ write_xml_testing_report(
 
   if (r->comment) {
     s = html_armor_string_dup(r->comment);
-    fprintf(f, "<big>Note: %s.<br><br></big><br/><br/>\n", s);
+    fprintf(f, "<big><u>Testing messages</u>:</big><br/><br/>\n");
+    fprintf(f, "<pre>%s</pre>\n", s);
     xfree(s);
   }
 

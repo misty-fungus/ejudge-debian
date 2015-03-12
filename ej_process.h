@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_process.h 6879 2012-06-06 08:39:30Z cher $ */
+/* $Id: ej_process.h 7250 2012-12-16 09:38:20Z cher $ */
 
 #ifndef __EJ_PROCESS_H__
 #define __EJ_PROCESS_H__
@@ -19,6 +19,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 
 enum
 {
@@ -141,5 +142,21 @@ int
 ejudge_start_daemon_process(
         char **args,
         const unsigned char *workdir);
+
+int
+ejudge_timed_write(
+        const unsigned char *log,
+        int fd,
+        const void *data,
+        ssize_t size,
+        int timeout_ms);
+
+ssize_t
+ejudge_timed_fdgets(
+        const unsigned char *log,
+        int fd,
+        unsigned char *buf,
+        ssize_t size,
+        int timeout_ms);
 
 #endif /* __EJ_PROCESS_H__ */
