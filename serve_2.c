@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_2.c 7167 2012-11-15 17:47:14Z cher $ */
+/* $Id: serve_2.c 7259 2012-12-20 13:11:33Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1035,6 +1035,7 @@ serve_compile_request(
         int run_id,
         int user_id,
         int lang_id,
+        int variant,
         int locale_id,
         int output_only,
         unsigned char const *sfx,
@@ -1070,6 +1071,16 @@ serve_compile_request(
   const unsigned char *compile_queue_dir = 0;
   int errcode = -SERVE_ERR_GENERIC;
 
+  if (prob->variant_num <= 0 && variant > 0) {
+    goto failed;
+  }
+  if (prob->variant_num > 0) {
+    if (variant <= 0) variant = find_variant(state, user_id, prob->id, 0);
+    if (variant <= 0) {
+      goto failed;
+    }
+  }
+
   if (prob->source_header[0]) {
     sformat_message(tmp_path, sizeof(tmp_path), 0, prob->source_header,
                     global, prob, lang, 0, 0, 0, 0, 0);
@@ -1095,7 +1106,7 @@ serve_compile_request(
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s", tmp_path);
     } else if (global->advanced_layout > 0) {
       get_advanced_layout_path(tmp_path_2, sizeof(tmp_path_2),
-                               global, prob, tmp_path, -1);
+                               global, prob, tmp_path, variant);
     } else {
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s/%s",
                global->statement_dir, tmp_path);
@@ -1123,7 +1134,7 @@ serve_compile_request(
       style_checker_cmd = tmp_path;
     } else if (global->advanced_layout > 0) {
       get_advanced_layout_path(tmp_path_2, sizeof(tmp_path_2),
-                               global, prob, tmp_path, -1);
+                               global, prob, tmp_path, variant);
       style_checker_cmd = tmp_path_2;
     } else {
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s/%s",
@@ -1631,6 +1642,9 @@ serve_run_request(
   srpp->id = prob->tester_id;
   srpp->check_presentation = prob->check_presentation;
   srpp->scoring_checker = prob->scoring_checker;
+  srpp->interactive_valuer = prob->interactive_valuer;
+  srpp->disable_pe = prob->disable_pe;
+  srpp->disable_wtl = prob->disable_wtl;
   srpp->use_stdin = prob->use_stdin;
   srpp->use_stdout = prob->use_stdout;
   srpp->combined_stdin = prob->combined_stdin;
@@ -1660,6 +1674,11 @@ serve_run_request(
   srpp->long_name = xstrdup(prob->long_name);
   srpp->internal_name = xstrdup2(prob->internal_name);
   srpp->open_tests = xstrdup2(prob->open_tests);
+
+  if (srgp->advanced_layout > 0) {
+    get_advanced_layout_path(pathbuf, sizeof(pathbuf), global, prob, NULL, variant);
+    srpp->problem_dir = xstrdup(pathbuf);
+  }
 
   if (srgp->advanced_layout > 0) {
     get_advanced_layout_path(pathbuf, sizeof(pathbuf), global, prob, DFLT_P_TEST_DIR, variant);
@@ -2239,9 +2258,11 @@ serve_read_compile_packet(
     goto success;
   }
 
+  /*
   if (run_change_status(state->runlog_state, comp_pkt->run_id, RUN_COMPILED,
                         0, 1, -1, comp_pkt->judge_id) < 0)
     goto non_fatal_error;
+  */
 
   /*
    * so far compilation is successful, and now we prepare a run packet
@@ -2260,7 +2281,7 @@ serve_read_compile_packet(
 
   if (serve_run_request(state, cnts, stderr, run_text, run_size,
                         global->contest_id, comp_pkt->run_id,
-                        re.user_id, re.prob_id, re.lang_id, 0,
+                        re.user_id, re.prob_id, re.lang_id, re.variant,
                         comp_extra->priority_adjustment,
                         comp_pkt->judge_id, comp_extra->accepting_mode,
                         comp_extra->notify_flag, re.mime_type,
@@ -2409,7 +2430,7 @@ dur_to_str(unsigned char *buf, size_t size, int sec1, int usec1,
     snprintf(buf, size, "N/A");
     return buf;
   }
-  if ((d = sec2 * 1000000 + usec2 - (sec1 * 1000000 + usec1)) < 0) {
+  if ((d = sec2 * 1000000LL + usec2 - (sec1 * 1000000LL + usec1)) < 0) {
     snprintf(buf, size, "t1 > t2");
     return buf;
   }
@@ -2950,7 +2971,7 @@ serve_rejudge_run(
 
     if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
       r = serve_compile_request(state, 0 /* str*/, -1 /* len*/, global->contest_id,
-                                run_id, re.user_id, 0 /* lang_id */,
+                                run_id, re.user_id, 0 /* lang_id */, re.variant,
                                 0 /* locale_id */, 1 /* output_only*/,
                                 mime_type_get_suffix(re.mime_type),
                                 NULL /* compiler_env */,
@@ -2981,7 +3002,8 @@ serve_rejudge_run(
 
     serve_run_request(state, cnts, stderr, run_text, run_size,
                       global->contest_id, run_id,
-                      re.user_id, re.prob_id, 0, 0, priority_adjustment,
+                      re.user_id, re.prob_id, re.lang_id,
+                      re.variant, priority_adjustment,
                       -1, accepting_mode, 1, re.mime_type, 0, 0, 0);
     xfree(run_text);
     return;
@@ -2998,7 +3020,7 @@ serve_rejudge_run(
   }
 
   r = serve_compile_request(state, 0, -1, global->contest_id, run_id, re.user_id,
-                            lang->compile_id, re.locale_id,
+                            lang->compile_id, re.variant, re.locale_id,
                             (prob->type > 0),
                             lang->src_sfx,
                             lang->compiler_env,

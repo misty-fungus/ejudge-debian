@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 7164 2012-11-15 13:21:36Z cher $ */
+/* $Id: prepare_out.c 7246 2012-12-14 18:44:35Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -994,6 +994,15 @@ prepare_unparse_prob(
   if ((prob->abstract && prob->scoring_checker == 1)
       || (!prob->abstract && prob->scoring_checker >= 0))
     unparse_bool(f, "scoring_checker", prob->scoring_checker);
+  if ((prob->abstract && prob->interactive_valuer == 1)
+      || (!prob->abstract && prob->interactive_valuer >= 0))
+    unparse_bool(f, "interactive_valuer", prob->interactive_valuer);
+  if ((prob->abstract && prob->disable_pe == 1)
+      || (!prob->abstract && prob->disable_pe >= 0))
+    unparse_bool(f, "disable_pe", prob->disable_pe);
+  if ((prob->abstract && prob->disable_wtl == 1)
+      || (!prob->abstract && prob->disable_wtl >= 0))
+    unparse_bool(f, "disable_wtl", prob->disable_wtl);
   if ((prob->abstract && prob->manual_checking == 1)
       || (!prob->abstract && prob->manual_checking >= 0))
     unparse_bool(f, "manual_checking", prob->manual_checking);
@@ -1283,6 +1292,9 @@ prepare_unparse_prob(
   if (!prob->abstract && prob->variant_num > 0) {
     fprintf(f, "variant_num = %d\n", prob->variant_num);
   }
+  if (prob->max_user_run_count > 0) {
+    fprintf(f, "max_user_run_count = %d\n", prob->max_user_run_count);
+  }
  
   if (prob->use_ac_not_ok >= 0)
     unparse_bool(f, "use_ac_not_ok", prob->use_ac_not_ok);
@@ -1396,6 +1408,12 @@ prepare_unparse_actual_prob(
 
   if (prob->scoring_checker > 0)
     unparse_bool(f, "scoring_checker", prob->scoring_checker);
+  if (prob->interactive_valuer > 0)
+    unparse_bool(f, "interactive_valuer", prob->interactive_valuer);
+  if (prob->disable_pe > 0)
+    unparse_bool(f, "disable_pe", prob->disable_pe);
+  if (prob->disable_wtl > 0)
+    unparse_bool(f, "disable_wtl", prob->disable_wtl);
   if (prob->manual_checking > 0)
     unparse_bool(f, "manual_checking", prob->manual_checking);
   if (prob->examinator_num > 0)
@@ -1650,6 +1668,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "advance_to_next", prob->advance_to_next);
   if (prob->prev_runs_to_show > 0)
     fprintf(f, "prev_runs_to_show = %d\n", prob->prev_runs_to_show);    
+  if (prob->max_user_run_count > 0)
+    fprintf(f, "max_user_run_count = %d\n", prob->max_user_run_count);
   if (prob->disable_ctrl_chars > 0)
     unparse_bool(f, "disable_ctrl_chars", prob->disable_ctrl_chars);
   if (prob->valuer_sets_marked > 0)
@@ -2307,6 +2327,9 @@ prepare_unparse_testers(
     tmp_prob = prepare_copy_problem(probs[i]);
     prepare_set_prob_value(CNTSPROB_type, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_scoring_checker, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_interactive_valuer, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_disable_pe, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_disable_wtl, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_manual_checking, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_examinator_num, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_check_presentation,tmp_prob, abstr, global);

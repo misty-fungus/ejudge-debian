@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: fileutl.c 6160 2011-03-27 07:01:05Z cher $ */
+/* $Id: fileutl.c 7203 2012-12-05 08:02:01Z cher $ */
 
 /* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -40,6 +40,8 @@
 #if HAVE_FERROR_UNLOCKED - 0 == 0
 #define ferror_unlocked(x) ferror(x)
 #endif
+
+static int name_sort_func(const void *p1, const void *p2);
 
 void
 get_uniq_prefix(char *prefix)
@@ -298,6 +300,33 @@ scan_dir(char const *partial_path, char *found_item, size_t fi_size)
     }
   }
   err("scan_dir: found == %d, but no items found!!!", found);
+  return 0;
+}
+
+int
+get_file_list(const char *partial_path, strarray_t *files)
+{
+  path_t         dir_path;
+  DIR           *d = NULL;
+  struct dirent *de;
+
+  snprintf(dir_path, sizeof(dir_path), "%s/dir", partial_path);
+  files->u = 0;
+
+  if (!(d = opendir(dir_path))) {
+    return -1;
+  }
+  while ((de = readdir(d))) {
+    if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
+    xexpand(files);
+    files->v[files->u++] = xstrdup(de->d_name);
+  }
+  closedir(d); d = NULL;
+
+  if (files->u > 0) {
+    qsort(files->v, files->u, sizeof(files->v[0]), name_sort_func);
+  }
+
   return 0;
 }
 

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 7163 2012-11-15 13:13:28Z cher $ */
+/* $Id: problem_config.h 7246 2012-12-14 18:44:35Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
@@ -39,6 +39,9 @@ struct problem_config_section
   ejintbool_t manual_checking;
   ejintbool_t check_presentation;
   ejintbool_t scoring_checker;
+  ejintbool_t interactive_valuer;
+  ejintbool_t disable_pe;
+  ejintbool_t disable_wtl;
   ejintbool_t use_stdin;
   ejintbool_t use_stdout;
   ejintbool_t combined_stdin;
@@ -97,6 +100,7 @@ struct problem_config_section
   int priority_adjustment;
   int score_multiplier;
   int prev_runs_to_show;
+  int max_user_run_count;
   int interactor_time_limit;
   int max_open_file_count;
   int max_process_count;

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: ej_process.c 6878 2012-06-06 08:27:34Z cher $ */
+/* $Id: ej_process.c 7223 2012-12-09 07:18:49Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1136,9 +1136,239 @@ ejudge_start_daemon_process(
   _exit(1);
 }
 
+static void
+msg(const unsigned char *path, const char *function, int lineno,
+    const char *format, ...)
+  __attribute__((format(printf, 4, 5)));
+static void
+msg(const unsigned char *path, const char *function, int lineno,
+    const char *format, ...)
+{
+  va_list args;
+  char buf[1024];
+
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  int revision = 0;
+  sscanf("$Revision: 7223 $", "$" "Revision:%d", &revision);
+
+  if (!path) {
+    fprintf(stderr, "%s: %d: %d: %s\n", function, lineno, revision, buf);
+  } else {
+    FILE *f = fopen(path, "a");
+    if (f) {
+      fprintf(f, "%s: %d: %d: %s\n", function, lineno, revision, buf);
+      fflush(f);
+      fclose(f);
+      f = NULL;
+    }
+  }
+}
+
+#define MSG(p,f,...) msg(p,__FUNCTION__,__LINE__,f, ## __VA_ARGS__)
+
+int
+ejudge_timed_write(
+        const unsigned char *log,
+        int fd,
+        const void *data,
+        ssize_t size,
+        int timeout_ms)
+{
+  if (size <= 0) {
+    MSG(log, "invalid size: %lld", (long long) size);
+    goto fail;
+  }
+  if (timeout_ms <= 0) {
+    MSG(log, "invalid timeout %d", timeout_ms);
+    goto fail;
+  }
+  int flags = fcntl(fd, F_GETFL);
+  if (flags < 0) {
+    MSG(log, "fcntl failed: %s", strerror(errno));
+    goto fail;
+  }
+  if (!(flags & O_NONBLOCK)) {
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+      MSG(log, "fcntl failed: %s", strerror(errno));
+      goto fail;
+    }
+  }
+  struct timeval cur;
+  gettimeofday(&cur, NULL);
+  long long cur_ms = cur.tv_sec * 1000LL + cur.tv_usec / 1000;
+  long long break_ms = cur_ms + timeout_ms;
+  const unsigned char *cur_data = (const unsigned char*) data;
+  while (1) {
+    long long wait_ms = break_ms - cur_ms;
+    if (wait_ms <= 0) {
+      MSG(log, "write time-out");
+      goto fail;
+    }
+    struct timeval wait_tv;
+    wait_tv.tv_sec = wait_ms / 1000;
+    wait_tv.tv_usec = (wait_ms % 1000) * 1000;
+    fd_set wfd;
+    FD_ZERO(&wfd);
+    FD_SET(fd, &wfd);
+    int n = select(fd + 1, NULL, &wfd, NULL, &wait_tv);
+    if (n < 0 && errno == EINTR) {
+      gettimeofday(&cur, NULL);
+      cur_ms = cur.tv_sec * 1000LL + cur.tv_usec / 1000;
+      continue;
+    }
+    if (n < 0) {
+      MSG(log, "select failed: %s", strerror(errno));
+      goto fail;
+    }
+    if (n == 0) {
+      MSG(log, "write time-out");
+      goto fail;
+    }
+    if (!FD_ISSET(fd, &wfd)) {
+      gettimeofday(&cur, NULL);
+      cur_ms = cur.tv_sec * 1000LL + cur.tv_usec / 1000;
+      continue;
+    }
+    while (1) {
+      ssize_t w = write(fd, cur_data, size);
+      if (w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        break;
+      }
+      if (w < 0) {
+        MSG(log, "write failed: %s", strerror(errno));
+        goto fail;
+      }
+      if (w == 0) {
+        MSG(log, "write returned 0");
+        goto fail;
+      }
+      cur_data += w;
+      size -= w;
+      if (!size) {
+        goto success;
+      }
+    }
+    gettimeofday(&cur, NULL);
+    cur_ms = cur.tv_sec * 1000LL + cur.tv_usec / 1000;
+  }
+
+success:
+  return 0;
+
+fail:
+  return -1;
+}
+
+ssize_t
+ejudge_timed_fdgets(
+        const unsigned char *log,
+        int fd,
+        unsigned char *buf,
+        ssize_t size,
+        int timeout_ms)
+{
+  if (size < 2) {
+    MSG(log, "invalid size: %lld", (long long) size);
+    goto fail;
+  }
+  if (timeout_ms <= 0) {
+    MSG(log, "invalid timeout %d", timeout_ms);
+    goto fail;
+  }
+  int flags = fcntl(fd, F_GETFL);
+  if (flags < 0) {
+    MSG(log, "fcntl failed: %s", strerror(errno));
+    goto fail;
+  }
+  if (!(flags & O_NONBLOCK)) {
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+      MSG(log, "fcntl failed: %s", strerror(errno));
+      goto fail;
+    }
+  }
+  struct timeval cur;
+  gettimeofday(&cur, NULL);
+  long long cur_ms = cur.tv_sec * 1000LL + cur.tv_usec / 1000;
+  long long break_ms = cur_ms + timeout_ms;
+  unsigned char *cur_buf = (unsigned char*) buf;
+  ssize_t cur_size = size - 1;
+  while (1) {
+    long long wait_ms = break_ms - cur_ms;
+    if (wait_ms <= 0) {
+      MSG(log, "read time-out");
+      goto fail;
+    }
+    struct timeval wait_tv;
+    wait_tv.tv_sec = wait_ms / 1000;
+    wait_tv.tv_usec = (wait_ms % 1000) * 1000;
+    fd_set rfd;
+    FD_ZERO(&rfd);
+    FD_SET(fd, &rfd);
+    int n = select(fd + 1, &rfd, NULL, NULL, &wait_tv);
+    if (n < 0 && errno == EINTR) {
+      gettimeofday(&cur, NULL);
+      cur_ms = cur.tv_sec * 1000LL + cur.tv_usec / 1000;
+      continue;
+    }
+    if (n < 0) {
+      MSG(log, "select failed: %s", strerror(errno));
+      goto fail;
+    }
+    if (n == 0) {
+      MSG(log, "read time-out");
+      goto fail;
+    }
+    if (!FD_ISSET(fd, &rfd)) {
+      gettimeofday(&cur, NULL);
+      cur_ms = cur.tv_sec * 1000LL + cur.tv_usec / 1000;
+      continue;
+    }
+    while (1) {
+      ssize_t r = read(fd, cur_buf, cur_size);
+      if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        break;
+      }
+      if (r < 0) {
+        MSG(log, "read failed: %s", strerror(errno));
+        goto fail;
+      }
+      if (!r) {
+        // EOF
+        cur_size = size - 1 - cur_size;
+        buf[cur_size] = 0;
+        return cur_size;
+      }
+      cur_size -= r; cur_buf += r;
+      ssize_t len = size - 1 - cur_size;
+      buf[len] = 0;
+      if (strlen(buf) != len) {
+        // '\0' in the middle
+        MSG(log, "\\0 byte in read data");
+        goto fail;
+      }
+      char *pp = strchr(buf, '\n');
+      if (pp && pp[1]) {
+        // '\n' not in the last byte
+        MSG(log, "\\n in the middle of read data");
+        goto fail;
+      }
+      if (pp || !cur_size) {
+        return len;
+      }
+    }
+    gettimeofday(&cur, NULL);
+    cur_ms = cur.tv_sec * 1000LL + cur.tv_usec / 1000;
+  }
+
+fail:
+  return -1;
+}
+
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
  * End:
  */

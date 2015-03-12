@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 7178 2012-11-18 18:13:15Z cher $ */
+/* $Id: reuse_exec.c 7214 2012-12-07 06:11:30Z cher $ */
 
 /* Copyright (C) 1998-2012 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1998-01-21 14:33:28 cher> */
@@ -1900,6 +1900,8 @@ task_Start(tTask *tsk)
   tTask *
 task_Wait(tTask *tsk)
 {
+  return task_NewWait(tsk);
+
   pid_t pid;
   int   stat, n;
   struct rusage usage;
@@ -2185,13 +2187,14 @@ task_NewWait(tTask *tsk)
     }
 
     struct process_info info;
+    long long cur_utime = 0;
     if (parse_proc_pid_stat(tsk->pid, &info) >= 0) {
       if (info.vsize > 0 && info.vsize > used_vm_size) {
         used_vm_size = info.vsize;
         //fprintf(stderr, "VMSize: %lu\n", used_vm_size);
       }
       if (max_time_ms > 0) {
-        long long cur_utime = info.utime + info.stime;
+        cur_utime = info.utime + info.stime;
         cur_utime = (cur_utime * 1000) / info.clock_ticks;
         //fprintf(stderr, "CPUTime: %lld\n", cur_utime);
         if (cur_utime >= max_time_ms) {
@@ -2207,12 +2210,22 @@ task_NewWait(tTask *tsk)
       }
     } else {
       fprintf(stderr, "Failed to parse /proc/PID/stat\n");
+      cur_utime = 1000; // not to poll too often
     }
 
     // wait 0.1 s
     struct timespec wt;
     wt.tv_sec = 0;
-    wt.tv_nsec = 100000000;
+    if (cur_utime >= 500) {
+      // if running time >= 0.5 s poll each 0.1 s
+      wt.tv_nsec = 100000000;
+    } else if (cur_utime >= 10) {
+      // if running time >= 0.01 s poll each 0.01 s
+      wt.tv_nsec = 10000000;
+    } else {
+      // poll each 0.002 s
+      wt.tv_nsec = 2000000;
+    }
     sigtimedwait(&bs, 0, &wt);
   }
 
@@ -2455,7 +2468,9 @@ task_Kill(tTask *tsk)
 {
   task_init_module();
   ASSERT(tsk);
-  kill(tsk->pid, tsk->termsig);
+  if (tsk->pid > 0) {
+    kill(tsk->pid, tsk->termsig);
+  }
   return 0;
 }
 
@@ -2470,7 +2485,9 @@ int
 task_KillProcessGroup(tTask *tsk)
 {
   task_init_module();
-  kill(-tsk->pid, SIGKILL);
+  if (tsk->pid > 0) {
+    kill(-tsk->pid, SIGKILL);
+  }
   return 0;
 }
 

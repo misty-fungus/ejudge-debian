@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: ej_process.c 5678 2010-01-19 10:00:07Z cher $ */
+/* $Id: ej_process.c 7222 2012-12-09 07:18:37Z cher $ */
 
-/* Copyright (C) 2005-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -27,9 +27,32 @@ read_process_output(const unsigned char *cmd,
   return 0;
 }
 
+int
+ejudge_timed_write(
+        const unsigned char *log,
+        int fd,
+        const void *data,
+        ssize_t size,
+        int timeout_ms)
+{
+  fprintf(stderr, "%s: not implemented\n", __FUNCTION__);
+  return -1;
+}
+
+int
+ejudge_timed_fdgets(
+        const unsigned char *log,
+        int fd,
+        unsigned char *buf,
+        ssize_t size,
+        int timeout_ms)
+{
+  fprintf(stderr, "%s: not implemented\n", __FUNCTION__);
+  return -1;
+}
+
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
  * End:
  */

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: cgi.c 6823 2012-05-17 15:23:29Z cher $ */
+/* $Id: cgi.c 7233 2012-12-09 18:55:15Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -60,7 +60,7 @@ static int param_u;
 static char *query;
 static int   query_ind;
 static int   source = 0;
-static int   content_length = INT_MAX;
+static int   content_length = 0;
 
 #define MARK_PLACE fprintf(stderr, "DEBUG: %s, %d\n", __FILE__, __LINE__)
 

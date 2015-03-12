@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.h 7147 2012-11-06 12:20:11Z cher $ */
+/* $Id: runlog.h 7230 2012-12-09 08:40:44Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
@@ -44,7 +44,8 @@ enum
   RUN_WALL_TIME_LIMIT_ERR = 15,
   RUN_PENDING_REVIEW   = 16,
   RUN_REJECTED         = 17,
-  RUN_MAX_STATUS       = 17,
+  RUN_SKIPPED          = 18,
+  RUN_MAX_STATUS       = 18,
 
   RUN_PSEUDO_FIRST     = 20,
   RUN_VIRTUAL_START    = 20,

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 7163 2012-11-15 13:13:28Z cher $ */
+/* $Id: prepare.h 7246 2012-12-14 18:44:35Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -734,7 +734,7 @@ struct section_global_data
   +unsigned char *solution_cmd;
  */
 
-/* sizeof(struct section_problem_data) == 65348/65576 */
+/* sizeof(struct section_problem_data) == 65120/? */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -754,6 +754,12 @@ struct section_problem_data
   ejintbool_t check_presentation;
   /** 1, if the checker calculates test score */
   ejintbool_t scoring_checker;
+  /** 1, if the valuer works in parallel with testing */
+  ejintbool_t interactive_valuer;
+  /** 1, if PEs are converted to WAs */
+  ejintbool_t disable_pe;
+  /** 1, if WTLs are converted to TLs */
+  ejintbool_t disable_wtl;
   /** 1, if solution uses stdin for input */
   ejintbool_t use_stdin;
   /** 1, if solution uses stdout for output */
@@ -848,6 +854,8 @@ struct section_problem_data
   int score_multiplier;
   /** number of previous runs to show */
   int prev_runs_to_show;
+  /** limit for the number of submits for this problem for a user */
+  int max_user_run_count;
   /** automatically advance to the next problem in navigation mode */
   ejintbool_t advance_to_next;
   /** disable any control characters except \r, \n in the source code */

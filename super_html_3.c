@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 7176 2012-11-18 15:27:40Z cher $ */
+/* $Id: super_html_3.c 7246 2012-12-14 18:44:35Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -444,6 +444,9 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_SUPER] = "Serve.cfg:problem:super",
   [SSERV_CMD_PROB_CHANGE_TYPE] = "Serve.cfg:problem:type",
   [SSERV_CMD_PROB_CHANGE_SCORING_CHECKER] = "Serve.cfg:problem:scoring_checker",
+  [SSERV_CMD_PROB_CHANGE_INTERACTIVE_VALUER] = "Serve.cfg:problem:interactive_valuer",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_PE] = "Serve.cfg:problem:disable_pe",
+  [SSERV_CMD_PROB_CHANGE_DISABLE_WTL] = "Serve.cfg:problem:disable_wtl",
   [SSERV_CMD_PROB_CHANGE_MANUAL_CHECKING] = "Serve.cfg:problem:manual_checking",
   [SSERV_CMD_PROB_CHANGE_EXAMINATOR_NUM] = "Serve.cfg:problem:examinator_num",
   [SSERV_CMD_PROB_CHANGE_CHECK_PRESENTATION] = "Serve.cfg:problem:check_presentation",
@@ -479,6 +482,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_TEST_SCORE] = "Serve.cfg:problem:test_score",
   [SSERV_CMD_PROB_CHANGE_RUN_PENALTY] = "Serve.cfg:problem:run_penalty",
   [SSERV_CMD_PROB_CHANGE_ACM_RUN_PENALTY] = "Serve.cfg:problem:acm_run_penalty",
+  [SSERV_CMD_PROB_CHANGE_MAX_USER_RUN_COUNT] = "Serve.cfg:problem:max_user_run_count",
   [SSERV_CMD_PROB_CHANGE_DISQUALIFIED_PENALTY] = "Serve.cfg:problem:disqualified_penalty",
   [SSERV_CMD_PROB_CHANGE_VARIABLE_FULL_SCORE] = "Serve.cfg:problem:variable_full_score",
   [SSERV_CMD_PROB_CHANGE_TEST_SCORE_LIST] = "Serve.cfg:problem:test_score_list",
@@ -6576,6 +6580,27 @@ super_html_print_problem(FILE *f,
   }
 
   if (show_adv) {
+    //PROBLEM_PARAM(max_user_run_count, "d"),
+    extra_msg = "";
+    if (prob->max_user_run_count < 0) {
+      if (prob->abstract) {
+        extra_msg = "<i>(Undefined)</i>";
+      } else {
+        prepare_set_prob_value(CNTSPROB_max_user_run_count,
+                               tmp_prob, sup_prob, sstate->global);
+        snprintf(msg_buf, sizeof(msg_buf), "<i>(Default - %d)</i>",
+                 tmp_prob->max_user_run_count);
+        extra_msg = msg_buf;
+      }
+    }
+    print_int_editing_row(f, "Max submissions for the problem:",
+                          prob->max_user_run_count, extra_msg,
+                          SSERV_CMD_PROB_CHANGE_MAX_USER_RUN_COUNT,
+                          session_id, form_row_attrs[row ^= 1],
+                          self_url, extra_args, prob_hidden_vars);
+  }
+
+  if (show_adv) {
     //PROBLEM_PARAM(hidden, "d"),
       extra_msg = "Undefined";
       if (!prob->abstract) {
@@ -6680,6 +6705,42 @@ super_html_print_problem(FILE *f,
                                  session_id, form_row_attrs[row ^= 1],
                                  self_url, extra_args, prob_hidden_vars);
     }
+  }
+
+  //PROBLEM_PARAM(disable_pe, "d")
+  if (show_adv) {
+    extra_msg = 0;
+    if (!prob->abstract) {
+      prepare_set_prob_value(CNTSPROB_disable_pe,
+                             tmp_prob, sup_prob, sstate->global);
+      snprintf(msg_buf, sizeof(msg_buf), "Default (%s)",
+               tmp_prob->disable_pe?"Yes":"No");
+      extra_msg = msg_buf;
+    }
+    print_boolean_3_select_row(f, "Convert PEs to VAs",
+                               prob->disable_pe,
+                               SSERV_CMD_PROB_CHANGE_DISABLE_PE,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+  }
+
+  //PROBLEM_PARAM(disable_wtl, "d")
+  if (show_adv) {
+    extra_msg = 0;
+    if (!prob->abstract) {
+      prepare_set_prob_value(CNTSPROB_disable_wtl,
+                             tmp_prob, sup_prob, sstate->global);
+      snprintf(msg_buf, sizeof(msg_buf), "Default (%s)",
+               tmp_prob->disable_wtl?"Yes":"No");
+      extra_msg = msg_buf;
+    }
+    print_boolean_3_select_row(f, "Convert WTLs to TLs",
+                               prob->disable_wtl,
+                               SSERV_CMD_PROB_CHANGE_DISABLE_WTL,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
   }
 
   //PROBLEM_PARAM(standard_checker, "s"),
@@ -6796,6 +6857,24 @@ super_html_print_problem(FILE *f,
                                  extra_msg,
                                  session_id, form_row_attrs[row ^= 1],
                                  self_url, extra_args, prob_hidden_vars);
+  }
+
+  //PROBLEM_PARAM(interactive_valuer, "d")
+  if (show_adv) {
+    extra_msg = 0;
+    if (!prob->abstract) {
+      prepare_set_prob_value(CNTSPROB_interactive_valuer,
+                             tmp_prob, sup_prob, sstate->global);
+      snprintf(msg_buf, sizeof(msg_buf), "Default (%s)",
+               tmp_prob->interactive_valuer?"Yes":"No");
+      extra_msg = msg_buf;
+    }
+    print_boolean_3_select_row(f, "Valuer works interactively",
+                               prob->interactive_valuer,
+                               SSERV_CMD_PROB_CHANGE_INTERACTIVE_VALUER,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
   }
 
   if (show_adv) {
@@ -7498,6 +7577,9 @@ super_html_add_abstract_problem(
   prob->examinator_num = 0;
   prob->check_presentation = 0;
   prob->scoring_checker = 0;
+  prob->interactive_valuer = 0;
+  prob->disable_pe = 0;
+  prob->disable_wtl = 0;
   prob->use_stdin = 1;
   prob->use_stdout = 1;
   prob->combined_stdin = 0;
@@ -7708,6 +7790,18 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     p_int = &prob->scoring_checker;
     goto handle_boolean_1;
 
+  case SSERV_CMD_PROB_CHANGE_INTERACTIVE_VALUER:
+    p_int = &prob->interactive_valuer;
+    goto handle_boolean_1;
+
+  case SSERV_CMD_PROB_CHANGE_DISABLE_PE:
+    p_int = &prob->disable_pe;
+    goto handle_boolean_1;
+
+  case SSERV_CMD_PROB_CHANGE_DISABLE_WTL:
+    p_int = &prob->disable_wtl;
+    goto handle_boolean_1;
+
   case SSERV_CMD_PROB_CHANGE_MANUAL_CHECKING:
     p_int = &prob->manual_checking;
     goto handle_boolean_1;
@@ -7871,6 +7965,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CHANGE_ACM_RUN_PENALTY:
     p_int = &prob->acm_run_penalty;
+    goto handle_int_1;
+
+  case SSERV_CMD_PROB_CHANGE_MAX_USER_RUN_COUNT:
+    p_int = &prob->max_user_run_count;
     goto handle_int_1;
 
   case SSERV_CMD_PROB_CHANGE_DISQUALIFIED_PENALTY:
@@ -9313,6 +9411,7 @@ super_html_check_tests(FILE *f,
     prepare_set_prob_value(CNTSPROB_input_file, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_output_file, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_scoring_checker, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_interactive_valuer, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_manual_checking, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_examinator_num, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_check_presentation, tmp_prob, abstr, global);

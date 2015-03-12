@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/11/15 17:14:09
+// Generated 2012/12/14 22:42:37
 
 #ifndef __PREPARE_META_H__
 #define __PREPARE_META_H__
@@ -303,6 +303,9 @@ enum
   CNTSPROB_examinator_num,
   CNTSPROB_check_presentation,
   CNTSPROB_scoring_checker,
+  CNTSPROB_interactive_valuer,
+  CNTSPROB_disable_pe,
+  CNTSPROB_disable_wtl,
   CNTSPROB_use_stdin,
   CNTSPROB_use_stdout,
   CNTSPROB_combined_stdin,
@@ -350,6 +353,7 @@ enum
   CNTSPROB_stand_hide_time,
   CNTSPROB_score_multiplier,
   CNTSPROB_prev_runs_to_show,
+  CNTSPROB_max_user_run_count,
   CNTSPROB_advance_to_next,
   CNTSPROB_disable_ctrl_chars,
   CNTSPROB_enable_text_form,

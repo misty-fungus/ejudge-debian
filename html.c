@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 7147 2012-11-06 12:20:11Z cher $ */
+/* $Id: html.c 7230 2012-12-09 08:40:44Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -4928,11 +4928,13 @@ write_xml_team_testing_report(
     }
   }
 
+  /*
   if (r->comment) {
     s = html_armor_string_dup(r->comment);
     fprintf(f, "<big>Note: %s.<br/><br/></big>\n", s);
     xfree(s);
   }
+  */
 
   if (r->valuer_comment) {
     fprintf(f, "<p><b>%s</b>:<br/></p><pre>%s</pre>\n", _("Valuer comments"),
