@@ -1,10 +1,9 @@
-ejudge (2.3.26-1~1.gbp1ee136) UNRELEASED; urgency=medium
-
-  ** SNAPSHOT build @1ee136e03fbcb82c1b7d8c968d5cfa37d955446d **
+ejudge (2.3.26-1) unstable; urgency=medium
 
   * [6e2fffa] New upstream version 2.3.26
+  * [100740e] new debian snapshot: 2.3.26-1~1
 
- -- Yaroslav Leonov <alximik43@gmail.com>  Thu, 12 Mar 2015 14:15:52 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Thu, 12 Mar 2015 14:19:39 +0300
 
 ejudge (2.3.25-2) unstable; urgency=medium
 
