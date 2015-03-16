@@ -124,7 +124,11 @@ case "${action}" in
         fi
 
         #configuring compilers
-        ejudge-configure-compilers --batch
+        extra_options=""
+        if [ -e /var/lib/ejudge/compile/ ]; then
+            extra_options="--preserve-compile-cfg"
+        fi
+        ejudge-configure-compilers --batch ${extra_options}
 
         #creating links to dojox
         for folder in dijit dojo dojox; do
