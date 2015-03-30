@@ -1,3 +1,11 @@
+ejudge (2.3.28-2~1.gbpf5466b) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @f5466b97fd5b8b68a72fe2a3c7bbd16f1df671ac **
+
+  * UNRELEASED
+
+ -- Yaroslav Leonov <alximik@aeon.btty.su>  Tue, 31 Mar 2015 00:43:37 +0300
+
 ejudge (2.3.28-1) unstable; urgency=medium
 
   * [2d41ab2] New upstream version 2.3.28

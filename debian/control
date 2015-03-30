@@ -14,3 +14,14 @@ Suggests: libjs-dojo-dojox, emboss-lib
 Description: Programming contest managment system
  Ejudge is a programming contest managment system.
 
+
+Package: ejudge-dbg
+Section: debug
+Architecture: any
+Priority: extra
+Depends: ejudge (= ${binary:Version}), ${misc:Depends}
+Description: Programming contest managment system
+ Ejudge is a programming contest managment system.
+ .
+ This package contains the debugging symbols for libreuse4
+
