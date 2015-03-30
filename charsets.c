@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: charsets.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: charsets.c 7516 2013-10-30 17:44:40Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -312,7 +312,15 @@ charset_decode_to_heap(
   struct html_armor_buffer rb = HTML_ARMOR_INITIALIZER;
   const unsigned char *str2;
 
-  if (id <= 0) return xstrdup(str);
+  if (id <= 0) {
+    if (!strcasecmp(INTERNAL_CHARSET, "utf-8")) {
+      if (str && str[0] == 0xEF && str[1] == 0xBB && str[2] == 0xBF) {
+        // skip UTF-8 BOM
+        str += 3;
+      }
+    }
+    return xstrdup(str);
+  }
   str2 = charset_decode(id, &rb, str);
   if (str2 == str) return xstrdup(str);
   return rb.buf;

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-import-contest.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: ej-import-contest.c 7454 2013-10-20 19:14:04Z cher $ */
 
 /* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -650,6 +650,7 @@ merge_problem_section(
         { CNTSPROB_team_enable_rep_view, META_PROBLEM_CONFIG_SECTION_team_enable_rep_view },
         { CNTSPROB_team_enable_ce_view, META_PROBLEM_CONFIG_SECTION_team_enable_ce_view },
         { CNTSPROB_team_show_judge_report, META_PROBLEM_CONFIG_SECTION_team_show_judge_report },
+        { CNTSPROB_show_checker_comment, META_PROBLEM_CONFIG_SECTION_show_checker_comment },
         { CNTSPROB_ignore_compile_errors, META_PROBLEM_CONFIG_SECTION_ignore_compile_errors },
         { CNTSPROB_variable_full_score, META_PROBLEM_CONFIG_SECTION_variable_full_score },
         { CNTSPROB_ignore_penalty, META_PROBLEM_CONFIG_SECTION_ignore_penalty },
@@ -864,6 +865,8 @@ merge_problem_section(
         { CNTSPROB_require, META_PROBLEM_CONFIG_SECTION_require },
         { CNTSPROB_lang_time_adj, META_PROBLEM_CONFIG_SECTION_lang_time_adj },
         { CNTSPROB_lang_time_adj_millis, META_PROBLEM_CONFIG_SECTION_lang_time_adj_millis },
+        { CNTSPROB_lang_max_vm_size, META_PROBLEM_CONFIG_SECTION_lang_max_vm_size },
+        { CNTSPROB_lang_max_stack_size, META_PROBLEM_CONFIG_SECTION_lang_max_stack_size },
         { CNTSPROB_personal_deadline, META_PROBLEM_CONFIG_SECTION_personal_deadline },
         { CNTSPROB_score_view, META_PROBLEM_CONFIG_SECTION_score_view },
         { CNTSPROB_score_view_text, META_PROBLEM_CONFIG_SECTION_score_view_text },

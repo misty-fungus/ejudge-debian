@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: super-serve.c 7464 2013-10-22 06:17:01Z cher $ */
 
 /* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -2432,6 +2432,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_REP_VIEW:
   case SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_CE_VIEW:
   case SSERV_CMD_PROB_CHANGE_TEAM_SHOW_JUDGE_REPORT:
+  case SSERV_CMD_PROB_CHANGE_SHOW_CHECKER_COMMENT:
   case SSERV_CMD_PROB_CHANGE_IGNORE_COMPILE_ERRORS:
   case SSERV_CMD_PROB_CHANGE_DISABLE_USER_SUBMIT:
   case SSERV_CMD_PROB_CHANGE_DISABLE_TAB:
@@ -2550,6 +2551,10 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_LANG_TIME_ADJ:
   case SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ_MILLIS:
   case SSERV_CMD_PROB_CLEAR_LANG_TIME_ADJ_MILLIS:
+  case SSERV_CMD_PROB_CHANGE_LANG_MAX_VM_SIZE:
+  case SSERV_CMD_PROB_CLEAR_LANG_MAX_VM_SIZE:
+  case SSERV_CMD_PROB_CHANGE_LANG_MAX_STACK_SIZE:
+  case SSERV_CMD_PROB_CLEAR_LANG_MAX_STACK_SIZE:
   case SSERV_CMD_PROB_CHANGE_DISABLE_LANGUAGE:
   case SSERV_CMD_PROB_CLEAR_DISABLE_LANGUAGE:
   case SSERV_CMD_PROB_CHANGE_ENABLE_LANGUAGE:
@@ -2595,6 +2600,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CHANGE_UNFOG_TIME:
   case SSERV_CMD_GLOB_DISABLE_FOG:
   case SSERV_CMD_GLOB_CHANGE_STAND_LOCALE:
+  case SSERV_CMD_GLOB_CHANGE_CHECKER_LOCALE:
+  case SSERV_CMD_GLOB_CLEAR_CHECKER_LOCALE:
   case SSERV_CMD_GLOB_CHANGE_SRC_VIEW:
   case SSERV_CMD_GLOB_CHANGE_REP_VIEW:
   case SSERV_CMD_GLOB_CHANGE_CE_VIEW:
@@ -3493,6 +3500,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_REP_VIEW] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_CE_VIEW] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEAM_SHOW_JUDGE_REPORT] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_SHOW_CHECKER_COMMENT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_IGNORE_COMPILE_ERRORS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_USER_SUBMIT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_TAB] = { cmd_set_value },
@@ -3611,6 +3619,10 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_LANG_TIME_ADJ] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ_MILLIS] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_LANG_TIME_ADJ_MILLIS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_LANG_MAX_VM_SIZE] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_LANG_MAX_VM_SIZE] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_LANG_MAX_STACK_SIZE] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_LANG_MAX_STACK_SIZE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_LANGUAGE] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_DISABLE_LANGUAGE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ENABLE_LANGUAGE] = { cmd_set_value },
@@ -3652,6 +3664,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_UNFOG_TIME] = { cmd_set_value },
   [SSERV_CMD_GLOB_DISABLE_FOG] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_STAND_LOCALE] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_CHECKER_LOCALE] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CLEAR_CHECKER_LOCALE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_SRC_VIEW] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_REP_VIEW] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_CE_VIEW] = { cmd_set_value },

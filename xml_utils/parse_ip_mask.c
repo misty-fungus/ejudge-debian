@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: parse_ip_mask.c 7363 2013-02-09 19:54:16Z cher $ */
+/* $Id: parse_ip_mask.c 7374 2013-03-07 20:08:26Z cher $ */
 
 /* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -130,7 +130,7 @@ xml_parse_ipv6_mask(
   char *eptr = NULL;
   errno = 0;
   int m = strtol(slash + 1, &eptr, 10);
-  if (errno || m < 0 || m > 64) {
+  if (errno || m < 0 || m > 128) {
     xml_msg(log_f, path, line, column, "Invalid mask");
     return -1;
   }

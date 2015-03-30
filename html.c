@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 7275 2013-01-20 05:32:20Z cher $ */
+/* $Id: html.c 7494 2013-10-24 12:11:59Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -274,7 +274,7 @@ write_html_run_status(
     test = pe->test;
   }
 
-  if (pe->prob_id > 0 && pe->prob_id <= state->max_prob)
+  if (pe->prob_id > 0 && pe->prob_id <= state->max_prob && state->probs)
     pr = state->probs[pe->prob_id];
   run_status_str(status, status_str, sizeof(status_str),
                  pr?pr->type:0, pr?pr->scoring_checker:0);
@@ -472,7 +472,7 @@ write_text_run_status(
     test = pe->test;
   }
 
-  if (pe->prob_id > 0 && pe->prob_id <= state->max_prob)
+  if (pe->prob_id > 0 && pe->prob_id <= state->max_prob && state->probs)
     pr = state->probs[pe->prob_id];
   run_status_to_str_short(status_str, sizeof(status_str), status);
   fprintf(f, "%s;", status_str);
@@ -593,7 +593,8 @@ new_write_user_runs(
     sprintf(cl, " class=\"%s\"", table_class);
   }
 
-  if (prob_id < 0 || prob_id > state->max_prob || !state->probs[prob_id])
+  if (prob_id < 0 || prob_id > state->max_prob 
+      || !state->probs || !state->probs[prob_id])
     prob_id = 0;
 
   if (global->is_virtual) {
@@ -636,9 +637,9 @@ new_write_user_runs(
 
   fprintf(f, "</tr>\n");
 
-  for (showed = 0, i = run_get_total(state->runlog_state) - 1;
+  for (showed = 0, i = run_get_user_last_run_id(state->runlog_state, uid);
        i >= 0 && showed < runs_to_show;
-       i--) {
+       i = run_get_user_prev_run_id(state->runlog_state, i)) {
     if (run_get_entry(state->runlog_state, i, &re) < 0) continue;
     if (re.status == RUN_VIRTUAL_START || re.status == RUN_VIRTUAL_STOP
         || re.status == RUN_EMPTY)
@@ -647,7 +648,7 @@ new_write_user_runs(
     if (prob_id > 0 && re.prob_id != prob_id) continue;
 
     cur_prob = 0;
-    if (re.prob_id > 0 && re.prob_id <= state->max_prob)
+    if (re.prob_id > 0 && re.prob_id <= state->max_prob && state->probs)
       cur_prob = state->probs[re.prob_id];
     if (!cur_prob) continue;
 
@@ -1309,6 +1310,7 @@ get_problem_map(
   }
 
   for (i = 1, p_tot = 0; i < p_max; i++) {
+    if (!state->probs) continue;
     if (!(prob = state->probs[i])) continue;
     if (prob->hidden > 0) continue;
     if (prob->stand_column[0]) continue;
@@ -1542,6 +1544,7 @@ do_write_kirov_standings(
   get_problem_map(state, cur_time, p_rev, p_max, p_ind, &p_tot, &last_col_ind,
                   user_filter);
   for (i = 1; i < p_max; i++) {
+    if (!state->probs) continue;
     if (!(prob = state->probs[i]) || !prob->stand_column[0]) continue;
     if (prob->start_date > 0 && cur_time < prob->start_date) continue;
     for (j = 1; j < p_max; j++) {
@@ -1954,13 +1957,37 @@ do_write_kirov_standings(
   }
 
   /* compute the total for each team */
-  for (i = 0; i < t_tot; i++) {
-    for (j = 0; j < p_tot; j++) {
-      up_ind = (i << row_sh) + j;
-      if (state->probs[p_ind[j]]->stand_ignore_score <= 0) {
+  if (global->score_n_best_problems > 0 && p_tot > 0) {
+    unsigned char *used_flag = alloca(p_tot);
+    for (i = 0; i < t_tot; ++i) {
+      memset(used_flag, 0, p_tot);
+      for (int k = 0; k < global->score_n_best_problems; ++k) {
+        int max_ind = -1;
+        int max_score = -1;
+        for (j = 0; j < p_tot; ++j) {
+          up_ind = (i << row_sh) + j;
+          if (!used_flag[j] && prob_score[up_ind] > 0 && (max_ind < 0 || prob_score[up_ind] > max_score)) {
+            max_ind = j;
+            max_score = prob_score[up_ind];
+          }
+        }
+        if (max_ind < 0) break;
+        up_ind = (i << row_sh) + max_ind;
         tot_score[i] += prob_score[up_ind];
         tot_full[i] += full_sol[up_ind];
         tot_penalty[i] += penalty[up_ind];
+        used_flag[max_ind] = 1;
+      }
+    }
+  } else {
+    for (i = 0; i < t_tot; i++) {
+      for (j = 0; j < p_tot; j++) {
+        up_ind = (i << row_sh) + j;
+        if (state->probs[p_ind[j]]->stand_ignore_score <= 0) {
+          tot_score[i] += prob_score[up_ind];
+          tot_full[i] += full_sol[up_ind];
+          tot_penalty[i] += penalty[up_ind];
+        }
       }
     }
   }
@@ -4890,7 +4917,7 @@ write_xml_team_testing_report(
             cl, cl, cl, _("Result"));
     if (t->score >= 0 && t->nominal_score >= 0)
       fprintf(f, "<th%s>%s</th>", cl, _("Score"));
-    if (t->status == RUN_PRESENTATION_ERR) {
+    if (t->status == RUN_PRESENTATION_ERR || prob->show_checker_comment > 0) {
       fprintf(f, "<th%s>%s</th>", cl, _("Extra info"));
     }
     fprintf(f, "</tr>\n");
@@ -4906,7 +4933,7 @@ write_xml_team_testing_report(
             cl, font_color, run_status_str(t->status, 0, 0, output_only, 0));
     if (t->score >= 0 && t->nominal_score >= 0)
       fprintf(f, "<td%s>%d (%d)</td>", cl, t->score, t->nominal_score);
-    if (t->status == RUN_PRESENTATION_ERR) {
+    if (t->status == RUN_PRESENTATION_ERR || prob->show_checker_comment > 0) {
       s = html_armor_string_dup(t->checker_comment);
       fprintf(f, "<td%s>%s</td>", cl, s);
       xfree(s); s = 0;
@@ -5642,7 +5669,7 @@ write_xml_team_accepting_report(FILE *f, const unsigned char *txt,
       fprintf(f, "%s", s);
       xfree(s);
     }
-    if (t->correct) {
+    if (t->error) {
       fprintf(f, "<a name=\"%dE\"></a>", t->num);
       fprintf(f, _("<u>--- Stderr ---</u>\n"));
       s = html_armor_string_dup(t->error);

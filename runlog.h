@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.h 7355 2013-02-08 15:21:50Z cher $ */
+/* $Id: runlog.h 7505 2013-10-26 19:47:17Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
@@ -165,6 +165,7 @@ time_t run_get_duration(runlog_state_t);
 void run_get_team_usage(runlog_state_t, int, int *, size_t*);
 int  run_get_attempts(runlog_state_t, int, int *, int *, int);
 int run_count_all_attempts(runlog_state_t state, int user_id, int prob_id);
+int run_count_all_attempts_2(runlog_state_t state, int user_id, int prob_id, int ignored_set);
 char *run_status_str(int, char *, int, int, int);
 
 int run_get_fog_period(runlog_state_t, time_t, int, int);
@@ -397,5 +398,14 @@ void
 run_entry_to_ipv6(const struct run_entry *p_re, ej_ip_t *p_ip);
 void
 ipv6_to_run_entry(const ej_ip_t *p_ip, struct run_entry *p_re);
+
+int
+run_get_insert_position(runlog_state_t state, time_t t, int uid, int nsec);
+int run_clear_index(runlog_state_t state, int run_id);
+
+int run_get_user_last_run_id(runlog_state_t state, int user_id);
+int run_get_user_first_run_id(runlog_state_t state, int user_id);
+int run_get_user_next_run_id(runlog_state_t state, int run_id);
+int run_get_user_prev_run_id(runlog_state_t state, int run_id);
 
 #endif /* __RUNLOG_H__ */

@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2013/01/20 09:12:00
+// Generated 2013/10/20 23:14:36
 
 #include "problem_config_meta.h"
 #include "problem_config.h"
@@ -35,6 +35,7 @@ static struct meta_info_item meta_info_problem_config_section_data[] =
   [META_PROBLEM_CONFIG_SECTION_team_enable_rep_view] = { META_PROBLEM_CONFIG_SECTION_team_enable_rep_view, 'B', XSIZE(struct problem_config_section, team_enable_rep_view), "team_enable_rep_view", XOFFSET(struct problem_config_section, team_enable_rep_view) },
   [META_PROBLEM_CONFIG_SECTION_team_enable_ce_view] = { META_PROBLEM_CONFIG_SECTION_team_enable_ce_view, 'B', XSIZE(struct problem_config_section, team_enable_ce_view), "team_enable_ce_view", XOFFSET(struct problem_config_section, team_enable_ce_view) },
   [META_PROBLEM_CONFIG_SECTION_team_show_judge_report] = { META_PROBLEM_CONFIG_SECTION_team_show_judge_report, 'B', XSIZE(struct problem_config_section, team_show_judge_report), "team_show_judge_report", XOFFSET(struct problem_config_section, team_show_judge_report) },
+  [META_PROBLEM_CONFIG_SECTION_show_checker_comment] = { META_PROBLEM_CONFIG_SECTION_show_checker_comment, 'B', XSIZE(struct problem_config_section, show_checker_comment), "show_checker_comment", XOFFSET(struct problem_config_section, show_checker_comment) },
   [META_PROBLEM_CONFIG_SECTION_ignore_compile_errors] = { META_PROBLEM_CONFIG_SECTION_ignore_compile_errors, 'B', XSIZE(struct problem_config_section, ignore_compile_errors), "ignore_compile_errors", XOFFSET(struct problem_config_section, ignore_compile_errors) },
   [META_PROBLEM_CONFIG_SECTION_variable_full_score] = { META_PROBLEM_CONFIG_SECTION_variable_full_score, 'B', XSIZE(struct problem_config_section, variable_full_score), "variable_full_score", XOFFSET(struct problem_config_section, variable_full_score) },
   [META_PROBLEM_CONFIG_SECTION_ignore_penalty] = { META_PROBLEM_CONFIG_SECTION_ignore_penalty, 'B', XSIZE(struct problem_config_section, ignore_penalty), "ignore_penalty", XOFFSET(struct problem_config_section, ignore_penalty) },
@@ -140,6 +141,8 @@ static struct meta_info_item meta_info_problem_config_section_data[] =
   [META_PROBLEM_CONFIG_SECTION_require] = { META_PROBLEM_CONFIG_SECTION_require, 'x', XSIZE(struct problem_config_section, require), "require", XOFFSET(struct problem_config_section, require) },
   [META_PROBLEM_CONFIG_SECTION_lang_time_adj] = { META_PROBLEM_CONFIG_SECTION_lang_time_adj, 'x', XSIZE(struct problem_config_section, lang_time_adj), "lang_time_adj", XOFFSET(struct problem_config_section, lang_time_adj) },
   [META_PROBLEM_CONFIG_SECTION_lang_time_adj_millis] = { META_PROBLEM_CONFIG_SECTION_lang_time_adj_millis, 'x', XSIZE(struct problem_config_section, lang_time_adj_millis), "lang_time_adj_millis", XOFFSET(struct problem_config_section, lang_time_adj_millis) },
+  [META_PROBLEM_CONFIG_SECTION_lang_max_vm_size] = { META_PROBLEM_CONFIG_SECTION_lang_max_vm_size, 'x', XSIZE(struct problem_config_section, lang_max_vm_size), "lang_max_vm_size", XOFFSET(struct problem_config_section, lang_max_vm_size) },
+  [META_PROBLEM_CONFIG_SECTION_lang_max_stack_size] = { META_PROBLEM_CONFIG_SECTION_lang_max_stack_size, 'x', XSIZE(struct problem_config_section, lang_max_stack_size), "lang_max_stack_size", XOFFSET(struct problem_config_section, lang_max_stack_size) },
   [META_PROBLEM_CONFIG_SECTION_personal_deadline] = { META_PROBLEM_CONFIG_SECTION_personal_deadline, 'x', XSIZE(struct problem_config_section, personal_deadline), "personal_deadline", XOFFSET(struct problem_config_section, personal_deadline) },
   [META_PROBLEM_CONFIG_SECTION_score_view] = { META_PROBLEM_CONFIG_SECTION_score_view, 'x', XSIZE(struct problem_config_section, score_view), "score_view", XOFFSET(struct problem_config_section, score_view) },
   [META_PROBLEM_CONFIG_SECTION_score_view_text] = { META_PROBLEM_CONFIG_SECTION_score_view_text, 'x', XSIZE(struct problem_config_section, score_view_text), "score_view_text", XOFFSET(struct problem_config_section, score_view_text) },

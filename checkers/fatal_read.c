@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: fatal_read.c 5687 2010-01-19 10:10:15Z cher $ */
+/* $Id: fatal_read.c 7462 2013-10-22 05:39:39Z cher $ */
 
-/* Copyright (C) 2005 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,21 +17,16 @@
 
 #include "checker_internal.h"
 
+#include "l10n_impl.h"
+
 void fatal_read(int streamno, char const *format, ...)
 {
   va_list args;
 
-  fprintf(stderr, "%s: ", f_arr_names[streamno]);
+  fprintf(stderr, "%s: ", gettext(f_arr_names[streamno]));
   va_start(args, format);
   vfprintf(stderr, format, args);
   va_end(args);
   fprintf(stderr, "\n");
   exit((streamno == 1)?RUN_PRESENTATION_ERR:RUN_CHECK_FAILED);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

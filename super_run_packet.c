@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.c 7278 2013-01-22 18:14:44Z cher $ */
+/* $Id: super_run_packet.c 7430 2013-10-15 11:50:45Z cher $ */
 
 /* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -49,6 +49,7 @@ super_run_in_global_packet_init(struct generic_section_config *gp)
   p->advanced_layout = -1;
   p->disable_sound = -1;
   p->is_dos = -1;
+  p->time_limit_retry_count = -1;
 
   p->scoring_system_val = -1;
 }

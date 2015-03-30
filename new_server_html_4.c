@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: new_server_html_4.c 7467 2013-10-22 08:16:07Z cher $ */
 
 /* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1133,7 +1133,7 @@ cmd_submit_run(
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0, 0, 0) < 0)
+                              mime_type, 0, phr->locale_id, 0, 0, 0) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }
@@ -1184,7 +1184,7 @@ cmd_submit_run(
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0, 0, 0) < 0)
+                              mime_type, 0, phr->locale_id, 0, 0, 0) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }

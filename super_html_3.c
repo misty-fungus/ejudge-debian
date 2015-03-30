@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: super_html_3.c 7464 2013-10-22 06:17:01Z cher $ */
 
 /* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -275,7 +275,8 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_TYPE] = "Serve.cfg:global:score_system",
   [SSERV_CMD_GLOB_CHANGE_FOG_TIME] = "Serve.cfg:global:board_fog_time",
   [SSERV_CMD_GLOB_CHANGE_UNFOG_TIME] = "Serve.cfg:global:board_unfog_time",
-  [SSERV_CMD_GLOB_CHANGE_STAND_LOCALE] = "Serve.cfg:global:stand_locale",
+  [SSERV_CMD_GLOB_CHANGE_STAND_LOCALE] = "Serve.cfg:global:standings_locale",
+  [SSERV_CMD_GLOB_CHANGE_CHECKER_LOCALE] = "Serve.cfg:global:checker_locale",
   [SSERV_CMD_GLOB_CHANGE_SRC_VIEW] = "Serve.cfg:global:team_enable_src_view",
   [SSERV_CMD_GLOB_CHANGE_REP_VIEW] = "Serve.cfg:global:team_enable_rep_view",
   [SSERV_CMD_GLOB_CHANGE_CE_VIEW] = "Serve.cfg:global:team_enable_ce_view",
@@ -471,6 +472,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_REP_VIEW] = "Serve.cfg:problem:team_enable_rep_view",
   [SSERV_CMD_PROB_CHANGE_TEAM_ENABLE_CE_VIEW] = "Serve.cfg:problem:team_enable_ce_view",
   [SSERV_CMD_PROB_CHANGE_TEAM_SHOW_JUDGE_REPORT] = "Serve.cfg:problem:team_show_judge_report",
+  [SSERV_CMD_PROB_CHANGE_SHOW_CHECKER_COMMENT] = "Serve.cfg:problem:show_checker_comment",
   [SSERV_CMD_PROB_CHANGE_IGNORE_COMPILE_ERRORS] = "Serve.cfg:problem:ignore_compile_errors",
   [SSERV_CMD_PROB_CHANGE_DISABLE_USER_SUBMIT] = "Serve.cfg:problem:disable_user_submit",
   [SSERV_CMD_PROB_CHANGE_DISABLE_TAB] = "Serve.cfg:problem:disable_tab",
@@ -551,6 +553,8 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_SOLUTION_CMD] = "Serve.cfg:problem:solution_cmd",
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ] = "Serve.cfg:problem:lang_time_adj",
   [SSERV_CMD_PROB_CHANGE_LANG_TIME_ADJ_MILLIS] = "Serve.cfg:problem:lang_time_adj_millis",
+  [SSERV_CMD_PROB_CHANGE_LANG_MAX_VM_SIZE] = "Serve.cfg:problem:lang_max_vm_size",
+  [SSERV_CMD_PROB_CHANGE_LANG_MAX_STACK_SIZE] = "Serve.cfg:problem:lang_max_stack_size",
   [SSERV_CMD_PROB_CHANGE_DISABLE_LANGUAGE] = "Serve.cfg:problem:disable_language",
   [SSERV_CMD_PROB_CHANGE_ENABLE_LANGUAGE] = "Serve.cfg:problem:enable_language",
   [SSERV_CMD_PROB_CHANGE_REQUIRE] = "Serve.cfg:problem:require",
@@ -1127,6 +1131,13 @@ super_html_edit_global_parameters(
   fprintf(f, "</td>");
   print_help_url(f, SSERV_CMD_GLOB_CHANGE_STAND_LOCALE);
   fprintf(f, "</tr></form>\n");
+
+  print_string_editing_row(f, "Checker locale:", global->checker_locale,
+                           SSERV_CMD_GLOB_CHANGE_CHECKER_LOCALE,
+                           SSERV_CMD_GLOB_CLEAR_CHECKER_LOCALE,
+                           0,
+                           session_id, form_row_attrs[row ^= 1],
+                           self_url, extra_args, hidden_vars);
 
   html_start_form(f, 1, self_url, hidden_vars);
   fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Contestant's capabilities</b>", head_row_attr);
@@ -2941,6 +2952,15 @@ super_html_global_param(struct sid_state *sstate, int cmd,
       abort();
     }
     snprintf(global->standings_locale, sizeof(global->standings_locale), "%s", s);
+    return 0;
+
+  case SSERV_CMD_GLOB_CHANGE_CHECKER_LOCALE:
+    xfree(global->checker_locale);
+    global->checker_locale = xstrdup(param2);
+    return 0;
+
+  case SSERV_CMD_GLOB_CLEAR_CHECKER_LOCALE:
+    xfree(global->checker_locale); global->checker_locale = 0;
     return 0;
 
   case SSERV_CMD_GLOB_CHANGE_SRC_VIEW:
@@ -6058,6 +6078,22 @@ super_html_print_problem(FILE *f,
                                  extra_msg,
                                  session_id, form_row_attrs[row ^= 1],
                                  self_url, extra_args, prob_hidden_vars);
+
+      //PROBLEM_PARAM(show_checker_comment, "d"),
+      extra_msg = "Undefined";
+      if (!prob->abstract) {
+        prepare_set_prob_value(CNTSPROB_show_checker_comment,
+                               tmp_prob, sup_prob, sstate->global);
+        snprintf(msg_buf, sizeof(msg_buf), "Default (%s)",
+                 tmp_prob->show_checker_comment?"Yes":"No");
+        extra_msg = msg_buf;
+      }
+      print_boolean_3_select_row(f,"Contestant may view checker comment:",
+                                 prob->show_checker_comment,
+                                 SSERV_CMD_PROB_CHANGE_SHOW_CHECKER_COMMENT,
+                                 extra_msg,
+                                 session_id, form_row_attrs[row ^= 1],
+                                 self_url, extra_args, prob_hidden_vars);
     }
 
     //PROBLEM_PARAM(ignore_compile_errors, "d"),
@@ -7307,6 +7343,42 @@ super_html_print_problem(FILE *f,
     xfree(checker_env);
   }
 
+  //PROBLEM_PARAM(lang_max_vm_size, "x"),
+  if (!prob->abstract && !problem_type_flag && show_adv) {
+    if (!prob->lang_max_vm_size || !prob->lang_max_vm_size[0]) {
+      extra_msg = "(not set)";
+      checker_env = xstrdup("");
+    } else {
+      extra_msg = "";
+      checker_env = sarray_unparse_2(prob->lang_max_vm_size);
+    }
+    print_string_editing_row_3(f, "Language-based memory limit:", checker_env,
+                               SSERV_CMD_PROB_CHANGE_LANG_MAX_VM_SIZE,
+                               SSERV_CMD_PROB_CLEAR_LANG_MAX_VM_SIZE,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+    xfree(checker_env);
+  }
+
+  //PROBLEM_PARAM(lang_max_stack_size, "x"),
+  if (!prob->abstract && !problem_type_flag && show_adv) {
+    if (!prob->lang_max_stack_size || !prob->lang_max_stack_size[0]) {
+      extra_msg = "(not set)";
+      checker_env = xstrdup("");
+    } else {
+      extra_msg = "";
+      checker_env = sarray_unparse_2(prob->lang_max_stack_size);
+    }
+    print_string_editing_row_3(f, "Language-based stack limit:", checker_env,
+                               SSERV_CMD_PROB_CHANGE_LANG_MAX_STACK_SIZE,
+                               SSERV_CMD_PROB_CLEAR_LANG_MAX_STACK_SIZE,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+    xfree(checker_env);
+  }
+
   //PROBLEM_PARAM(disable_language, "x"),
   if (!prob->abstract && show_adv) {
     if (!prob->disable_language || !prob->disable_language[0]) {
@@ -7518,6 +7590,8 @@ super_html_edit_problems(
   } else {
     fprintf(f, " [<a href=\"%s?SID=%16llx&amp;action=%d&amp;op=%d\">Import from Polygon</a>]",
             self_url, session_id, SSERV_CMD_HTTP_REQUEST, SSERV_OP_IMPORT_FROM_POLYGON_PAGE);
+    fprintf(f, " [<a href=\"%s?SID=%16llx&amp;action=%d&amp;op=%d\">Import contest from Polygon</a>]",
+            self_url, session_id, SSERV_CMD_HTTP_REQUEST, SSERV_OP_IMPORT_CONTEST_FROM_POLYGON_PAGE);
   }
   fprintf(f, "</td></tr>\n");
   html_start_form(f, 1, self_url, hidden_vars);
@@ -7963,6 +8037,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CHANGE_TEAM_SHOW_JUDGE_REPORT:
     p_int = &prob->team_show_judge_report;
+    goto handle_boolean_2;
+
+  case SSERV_CMD_PROB_CHANGE_SHOW_CHECKER_COMMENT:
+    p_int = &prob->show_checker_comment;
     goto handle_boolean_2;
 
   case SSERV_CMD_PROB_CHANGE_IGNORE_COMPILE_ERRORS:
@@ -8515,6 +8593,30 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
   case SSERV_CMD_PROB_CLEAR_LANG_TIME_ADJ_MILLIS:
     sarray_free(prob->lang_time_adj_millis);
     prob->lang_time_adj_millis = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_LANG_MAX_VM_SIZE:
+    if (sarray_parse_2(param2, &tmp_env) < 0)
+      return -SSERV_ERR_INVALID_PARAMETER;
+    sarray_free(prob->lang_max_vm_size);
+    prob->lang_max_vm_size = tmp_env;
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_LANG_MAX_VM_SIZE:
+    sarray_free(prob->lang_max_vm_size);
+    prob->lang_max_vm_size = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_LANG_MAX_STACK_SIZE:
+    if (sarray_parse_2(param2, &tmp_env) < 0)
+      return -SSERV_ERR_INVALID_PARAMETER;
+    sarray_free(prob->lang_max_stack_size);
+    prob->lang_max_stack_size = tmp_env;
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_LANG_MAX_STACK_SIZE:
+    sarray_free(prob->lang_max_stack_size);
+    prob->lang_max_stack_size = 0;
     return 0;
 
   case SSERV_CMD_PROB_CHANGE_DISABLE_LANGUAGE:

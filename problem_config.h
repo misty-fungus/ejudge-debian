@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 7274 2013-01-20 05:11:18Z cher $ */
+/* $Id: problem_config.h 7454 2013-10-20 19:14:04Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
@@ -58,6 +58,7 @@ struct problem_config_section
   ejintbool_t team_enable_rep_view;
   ejintbool_t team_enable_ce_view;
   ejintbool_t team_show_judge_report;
+  ejintbool_t show_checker_comment;
   ejintbool_t ignore_compile_errors;
   ejintbool_t variable_full_score;
   ejintbool_t ignore_penalty;
@@ -168,6 +169,8 @@ struct problem_config_section
   char **require;
   char **lang_time_adj;
   char **lang_time_adj_millis;
+  char **lang_max_vm_size;
+  char **lang_max_stack_size;
   char **personal_deadline;
   char **score_view;
   char **score_view_text;

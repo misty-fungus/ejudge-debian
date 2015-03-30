@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 7286 2013-01-23 09:10:53Z cher $ */
+/* $Id: prepare.h 7501 2013-10-25 09:52:01Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -116,7 +116,7 @@ struct user_adjustment_info
 };
 struct user_adjustment_map;
 
-/* sizeof(struct section_global_data) == 350112/350264 */
+/* sizeof(struct section_global_data) == 350120/350264 */
 struct section_global_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -170,6 +170,10 @@ struct section_global_data
   ejintbool_t disable_user_database;
   /** enable stack limit equal to memory limit */
   ejintbool_t enable_max_stack_size;
+  /** number of retries in case of time limit errors */
+  int time_limit_retry_count;
+  /** score n best problems */
+  int score_n_best_problems;
 
   /** do not show submits after this time in the standings */
   time_t stand_ignore_after;
@@ -257,6 +261,7 @@ struct section_global_data
   unsigned char standings_locale[128];
   /** parsed `standings_locale' */
   int standings_locale_id META_ATTRIB((meta_private));
+  unsigned char *checker_locale;
 
   /** the contest number (mandatory) */
   int contest_id;
@@ -800,6 +805,8 @@ struct section_problem_data
   ejintbool_t team_enable_ce_view;
   /** show the full testing report to contestants */
   ejintbool_t team_show_judge_report;
+  /** always show checker comments */
+  ejintbool_t show_checker_comment;
   /** do not count compilation errors as failed runs */
   ejintbool_t ignore_compile_errors;
   /** score for successful solution */
@@ -1029,6 +1036,9 @@ struct section_problem_data
   char **lang_time_adj_millis;
   /** tester specially for this problem */
   unsigned char *super_run_dir;
+  /** language-specific memory limit */
+  char **lang_max_vm_size;
+  char **lang_max_stack_size;
 
   /** alternatives for test-like problems */
   char **alternative;
@@ -1133,6 +1143,9 @@ struct section_language_data
 
   /** external id (for external application binding) */
   unsigned char *extid;
+
+  /** directory for non-default super-run directory */
+  unsigned char *super_run_dir;
 
   /** do not test this language automatically */
   ejintbool_t disable_auto_testing;

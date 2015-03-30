@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: xmalloc.c 5687 2010-01-19 10:10:15Z cher $ */
+/* $Id: xmalloc.c 7462 2013-10-22 05:39:39Z cher $ */
 
-/* Copyright (C) 2003 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,17 +17,12 @@
 
 #include "checker_internal.h"
 
+#include "l10n_impl.h"
+
 void *
 xmalloc(size_t size)
 {
   void *ptr = malloc(size);
-  if (!ptr) fatal_CF("Out of heap memory: malloc(%zu) failed",size);
+  if (!ptr) fatal_CF(_("Out of heap memory: malloc(%zu) failed"),size);
   return ptr;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

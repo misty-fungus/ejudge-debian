@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.in 7292 2013-01-23 20:52:01Z cher $
+# $Id: Makefile.in 7511 2013-10-30 06:00:59Z cher $
 # @configure_input@
 
 # Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
@@ -62,12 +62,18 @@ SCRIPTS_IN = \
  dcc-version.in\
  fbc.in\
  fbc-version.in\
+ fbc-32.in\
+ fbc-32-version.in\
  fpc.in\
  fpc-version.in\
+ fpc-32.in\
+ fpc-32-version.in\
  g++.in\
  g++-version.in\
  g++-vg.in\
  g++-vg-version.in\
+ g++-32.in\
+ g++-32-version.in\
  g77.in\
  g77-version.in\
  gfortran.in\
@@ -76,6 +82,8 @@ SCRIPTS_IN = \
  gcc-version.in\
  gcc-vg.in\
  gcc-vg-version.in\
+ gcc-32.in\
+ gcc-32-version.in\
  gcj.in\
  gcj-version.in\
  gpc.in\
@@ -118,8 +126,12 @@ SCRIPTS_IN = \
  ghc-version.in\
  clang.in\
  clang-version.in\
+ clang-32.in\
+ clang-32-version.in\
  clang++.in\
  clang++-version.in\
+ clang++-32.in\
+ clang++-32-version.in\
  gccgo.in\
  gccgo-version.in\
  pasabc-linux.in\

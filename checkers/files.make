@@ -1,7 +1,7 @@
 # -*- Makefile -*-
-# $Id: files.make 6073 2011-02-23 12:51:19Z cher $
+# $Id: files.make 7458 2013-10-21 14:58:21Z cher $
 
-# Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru>
+# Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru>
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -100,7 +100,8 @@ CFILES=\
  utf8.c\
  ucs4.c\
  valuer_parse_input.c\
- ruscmp.c
+ ruscmp.c\
+ l10n.c
 
 CHKCFILES =\
  cmp_bytes.c\

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: misctext.c 7094 2012-10-26 08:39:30Z cher $ */
+/* $Id: misctext.c 7497 2013-10-24 13:50:17Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -801,7 +801,7 @@ check_str_2(
 
   if (!utf8_flag) {
     invset = (unsigned char*) alloca(256);
-    memset(invset, 0, sizeof(invset));
+    memset(invset, 0, 256);
 
     for (; *str; str++)
       if (!map[*str]) {
@@ -1338,9 +1338,34 @@ ucs4_to_utf8_size(const int *in)
     } else {
       out_size += 4;
     }
+    ++in;
   }
 
   return out_size;
+}
+
+unsigned char *
+ucs4_to_utf8_char(unsigned char *buf, int value)
+{
+  unsigned char *pout = buf;
+  if (value < 0 || value >= 0x10000) {
+    *pout++ = '?';
+  } else if (value <= 0x7f) {
+    *pout++ = value;
+  } else if (value <= 0x7ff) {
+    *pout++ = (value >> 6) | 0xc0;
+    *pout++ = (value & 0x3f) | 0x80;
+  } else if (value <= 0xffff) {
+    *pout++ = (value >> 12) | 0xe0;
+    *pout++ = ((value >> 6) & 0x3f) | 0x80;
+    *pout++ = (value & 0x3f) | 0x80;
+  } else {
+    *pout++ = ((value >> 18) & 0x07) | 0xf0;
+    *pout++ = ((value >> 12) & 0x3f) | 0x80;
+    *pout++ = ((value >> 6) & 0x3f) | 0x80;
+    *pout++ = (value & 0x3f) | 0x80;
+  }
+  return pout;
 }
 
 const unsigned char *
@@ -2093,13 +2118,13 @@ ucs2_to_utf8(
     for (i = 0; i < u16len; i += 2) {
       if (u16str[i] >= ' ') ++count0;
       if (u16str[i + 1] >= ' ') ++count1;
-      if (count0 <= 0) {
-        is_be = 1;
-      }
-      if (count0 > 0 && count1 > 0) {
-        // do not risk it
-        return -1;
-      }
+    }
+    if (count0 <= 0) {
+      is_be = 1;
+    }
+    if (count0 > 0 && count1 > 0) {
+      // do not risk it
+      return -1;
     }
   }
 
@@ -2125,9 +2150,9 @@ ucs2_to_utf8(
   u8p = u8o;
   for (i = 0; i < u16len; i += 2) {
     if (is_be) {
-      c = (u16str[i] << 8) | u16str[i + 1];
+      c = (u16p[i] << 8) | u16p[i + 1];
     } else {
-      c = (u16str[i + 1] << 8) | u16str[i];
+      c = (u16p[i + 1] << 8) | u16p[i];
     }
 
     if (c <= 0x7f) {

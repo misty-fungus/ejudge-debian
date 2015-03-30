@@ -1,6 +1,6 @@
 #!/bin/sh
-# $Id: gccgo-version.in 7101 2012-10-28 10:34:17Z cher $
-# Copyright (c) 2012 Alexander Chernov <cher@ejudge.ru>
+# $Id: gccgo-version.in 7414 2013-10-10 12:26:15Z cher $
+# Copyright (c) 2012-2013 Alexander Chernov <cher@ejudge.ru>
 
 # compiler script interface is as follows
 # <comp>-version [OPTION]
@@ -62,7 +62,7 @@ package main
 func main() {
 }
 EOF
-  "${GCCRUN}" conftest.go -o conftest >/dev/null 2>&1 || failure
+  "${GCCRUN}" -g conftest.go -o conftest >/dev/null 2>&1 || failure
   [ -x conftest ] || failure
   ./conftest >/dev/null 2>&1 || failure
 

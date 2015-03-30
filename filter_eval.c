@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: filter_eval.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: filter_eval.c 7377 2013-03-27 07:51:42Z cher $ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -174,7 +174,7 @@ do_eval(struct filter_env *env,
   const struct userlist_member *m;
   const unsigned char *s;
 
-  memset(res, 0, sizeof(res));
+  memset(res, 0, sizeof(*res));
   switch (t->kind) {
   case TOK_LOGOR:
     res->kind = TOK_BOOL_L;

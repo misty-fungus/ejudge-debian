@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_2.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: serve_2.c 7501 2013-10-25 09:52:01Z cher $ */
 
 /* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -841,6 +841,7 @@ serve_move_files_to_insert_run(serve_state_t state, int run_id)
                     "To-run-id: %d\n", i, i + 1);
 
     s = run_get_status(state->runlog_state, i + 1);
+    run_clear_index(state->runlog_state, i + 1);
     archive_rename(state, global->run_archive_dir, 0, i, 0, i + 1, 0, 0);
     if (s >= RUN_PSEUDO_FIRST && s <= RUN_PSEUDO_LAST) continue;
     if (s == RUN_IGNORED || s == RUN_DISQUALIFIED || s ==RUN_PENDING) continue;
@@ -1089,7 +1090,7 @@ serve_compile_request(
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s", tmp_path);
     } else if (global->advanced_layout > 0) {
       get_advanced_layout_path(tmp_path_2, sizeof(tmp_path_2),
-                               global, prob, tmp_path, -1);
+                               global, prob, tmp_path, variant);
     } else {
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s/%s",
                global->statement_dir, tmp_path);
@@ -1353,6 +1354,27 @@ find_lang_specific_value(
   return default_value;
 }
 
+static int
+find_lang_specific_size(
+        char **values,
+        const struct section_language_data *lang,
+        size_t *p_size)
+{
+  if (!values || !values[0] || !lang) return 0;
+  if (lang->short_name[0] <= ' ') return 0;
+
+  int lsn = strlen(lang->short_name);
+  const unsigned char *sn;
+  for (int i = 0; (sn = values[i]); ++i) {
+    int vl = strlen(sn);
+    if (vl > lsn + 1 && !strncmp(sn, lang->short_name, lsn) && sn[lsn] == '=') {
+      return size_str_to_size_t(sn + lsn + 1, p_size) >= 0;
+    }
+  }
+
+  return 0;
+}
+
 int
 serve_run_request(
         serve_state_t state,
@@ -1372,6 +1394,7 @@ serve_run_request(
         int notify_flag,
         int mime_type,
         int eoln_type,
+        int locale_id,
         const unsigned char *compile_report_dir,
         const struct compile_reply_packet *comp_pkt,
         int no_db_flag)
@@ -1406,6 +1429,7 @@ serve_run_request(
   FILE *srp_f = NULL;
   char *srp_t = NULL;
   size_t srp_z = 0;
+  size_t lang_specific_size;
 
   get_current_time(&current_time, &current_time_us);
 
@@ -1466,9 +1490,13 @@ serve_run_request(
   */
 
   if (cnts && cnts->run_managed) {
+    // FIXME: resolve conflict when both prob->super_run_dir and lang->super_run_dir are set
     if (prob->super_run_dir && prob->super_run_dir[0]) {
       snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/var/exe", prob->super_run_dir);
       snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/var/queue", prob->super_run_dir);
+    } else if (lang && lang->super_run_dir && lang->super_run_dir[0]) {
+      snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/var/exe", lang->super_run_dir);
+      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/var/queue", lang->super_run_dir);
     } else if (global->super_run_dir && global->super_run_dir[0]) {
       snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/var/exe", global->super_run_dir);
       snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/var/queue", global->super_run_dir);
@@ -1575,6 +1603,7 @@ serve_run_request(
   srgp->secure_run = secure_run;
   srgp->enable_memory_limit_error = global->enable_memory_limit_error;
   srgp->detect_violations = global->detect_violations;
+  srgp->time_limit_retry_count = global->time_limit_retry_count;
   srgp->priority = prio;
   srgp->arch = xstrdup(arch);
   if (comp_pkt) {
@@ -1642,6 +1671,15 @@ serve_run_request(
     if (srgp->enable_full_archive > 0) {
       snprintf(pathbuf, sizeof(pathbuf), "%s/%06d/output", global->run_dir, contest_id);
       srgp->reply_full_archive_dir = xstrdup(pathbuf);
+    }
+  }
+  if (global->checker_locale && global->checker_locale[0]) {
+    if (!strcasecmp(global->checker_locale, "user") && locale_id > 0) {
+      char buf[64];
+      snprintf(buf, sizeof(buf), "%d", locale_id);
+      srgp->checker_locale = xstrdup(buf);
+    } else {
+      srgp->checker_locale = xstrdup(global->checker_locale);
     }
   }
 
@@ -1857,6 +1895,15 @@ serve_run_request(
   srpp->max_open_file_count = prob->max_open_file_count;
   srpp->max_process_count = prob->max_process_count;
   srpp->enable_process_group = prob->enable_process_group;
+
+  if (find_lang_specific_size(prob->lang_max_vm_size, lang,
+                              &lang_specific_size) > 0) {
+    srpp->max_vm_size = lang_specific_size;
+  }
+  if (find_lang_specific_size(prob->lang_max_stack_size, lang,
+                              &lang_specific_size) > 0) {
+    srpp->max_stack_size = lang_specific_size;
+  }
 
   if (tester) {
     struct super_run_in_tester_packet *srtp = srp->tester;
@@ -2293,7 +2340,7 @@ serve_read_compile_packet(
                         comp_extra->priority_adjustment,
                         comp_pkt->judge_id, comp_extra->accepting_mode,
                         comp_extra->notify_flag, re.mime_type, re.eoln_type,
-                        compile_report_dir, comp_pkt, 0) < 0) {
+                        re.locale_id, compile_report_dir, comp_pkt, 0) < 0) {
     snprintf(errmsg, sizeof(errmsg), "failed to write run packet\n");
     goto report_check_failed;
   }
@@ -3013,7 +3060,7 @@ serve_rejudge_run(
                       re.user_id, re.prob_id, re.lang_id,
                       re.variant, priority_adjustment,
                       -1, accepting_mode, 1, re.mime_type, re.eoln_type,
-                      0, 0, 0);
+                      re.locale_id, 0, 0, 0);
     xfree(run_text);
     return;
   }
@@ -4092,6 +4139,22 @@ handle_virtual_stop_event(
       nsec = precise_time.tv_usec * 1000;
     }
   }
+
+  /*
+  if (p->time + 15 * 60 < cs->current_time) {
+    // too old virtual stop, skip it
+    info("virtual stop event is too old, skip it for now...");
+    serve_event_remove(cs, p);
+    return;
+  }
+
+  run_id = run_get_insert_position(cs->runlog_state, p->user_id, p->time, nsec);
+  if (run_id + 500 < run_get_total(cs->runlog_state)) {
+    info("virtual stop event would be inserted at position %d, that is too far away", run_id);
+    serve_event_remove(cs, p);
+    return;
+  }
+  */
 
   run_id = run_virtual_stop(cs->runlog_state, p->user_id, p->time,
                             0 /* IP */, 0, nsec);

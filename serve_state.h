@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: serve_state.h 7467 2013-10-22 08:16:07Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
@@ -450,6 +450,7 @@ serve_run_request(
         int notify_flag,
         int mime_type,
         int eoln_type,
+        int locale_id,
         const unsigned char *compile_report_dir,
         const struct compile_reply_packet *comp_pkt,
         int no_db_flag);
