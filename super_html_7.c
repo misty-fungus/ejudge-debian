@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_7.c 6950 2012-07-07 18:08:46Z cher $ */
+/* $Id: super_html_7.c 7361 2013-02-09 19:09:22Z cher $ */
 
 /* Copyright (C) 2011-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -211,7 +211,8 @@ check_other_editors(
     fprintf(out_f, "<table%s><tr><td%s>%s</td><td%s>%016llx</td></tr>",
             cl, cl, "Session", cl, other_session->sid);
     fprintf(out_f, "<tr><td%s>%s</td><td%s>%s</td></tr>",
-            cl, "IP address", cl, xml_unparse_ip(other_session->remote_addr));
+            cl, "IP address", cl,
+            xml_unparse_ipv6(&other_session->remote_addr));
     fprintf(out_f, "<tr><td%s>%s</td><td%s>%s</td></tr></table>\n",
             cl, "User login", cl, other_session->user_login);
     ss_write_html_footer(out_f);
@@ -236,7 +237,8 @@ check_other_editors(
     fprintf(out_f, "<table%s><tr><td%s>%s</td><td%s>%016llx</td></tr>",
             cl, cl, "Session", cl, other_session->sid);
     fprintf(out_f, "<tr><td%s>%s</td><td%s>%s</td></tr>",
-            cl, "IP address", cl, xml_unparse_ip(other_session->remote_addr));
+            cl, "IP address", cl,
+            xml_unparse_ipv6(&other_session->remote_addr));
     fprintf(out_f, "<tr><td%s>%s</td><td%s>%s</td></tr></table>\n",
             cl, "User login", cl, other_session->user_login);
     ss_write_html_footer(out_f);

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 7246 2012-12-14 18:44:35Z cher $ */
+/* $Id: prepare_out.c 7286 2013-01-23 09:10:53Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -221,6 +221,8 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     unparse_bool(f, "disable_clars", global->disable_clars);
   if (global->disable_team_clars != DFLT_G_DISABLE_TEAM_CLARS)
     unparse_bool(f, "disable_team_clars", global->disable_team_clars);
+  if (global->enable_eoln_select > 0)
+    unparse_bool(f, "enable_eoln_select", global->enable_eoln_select);
   if (global->disable_submit_after_ok)
     unparse_bool(f, "disable_submit_after_ok", global->disable_submit_after_ok);
   if (global->ignore_compile_errors != DFLT_G_IGNORE_COMPILE_ERRORS)
@@ -856,6 +858,8 @@ prepare_unparse_lang(
     unparse_bool(f, "insecure", lang->insecure);
   if (lang->disable_security)
     unparse_bool(f, "disable_security", lang->disable_security);
+  if (lang->is_dos > 0)
+    unparse_bool(f, "is_dos", lang->is_dos);
   if (lang->binary)
     unparse_bool(f, "binary", lang->binary);
   if (lang->disable_auto_testing)
@@ -1046,6 +1050,9 @@ prepare_unparse_prob(
   if ((prob->abstract && prob->score_latest_or_unmarked == 1)
       || (!prob->abstract && prob->score_latest_or_unmarked >= 0))
     unparse_bool(f, "score_latest_or_unmarked", prob->score_latest_or_unmarked);
+  if ((prob->abstract && prob->score_latest_marked == 1)
+      || (!prob->abstract && prob->score_latest_marked >= 0))
+    unparse_bool(f, "score_latest_marked", prob->score_latest_marked);
   if (prob->xml_file[0])
     fprintf(f, "xml_file = \"%s\"\n", CARMOR(prob->xml_file));
   if (prob->alternatives_file[0])
@@ -1444,6 +1451,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "score_latest", prob->score_latest);
   if (prob->score_latest_or_unmarked > 0)
     unparse_bool(f, "score_latest_or_unmarked", prob->score_latest_or_unmarked);
+  if (prob->score_latest_marked > 0)
+    unparse_bool(f, "score_latest_marked", prob->score_latest_marked);
   if ((show_paths || (global && global->advanced_layout > 0)) && prob->xml_file[0])
     fprintf(f, "xml_file = \"%s\"\n", CARMOR(prob->xml_file));
   if (show_paths && prob->alternatives_file[0])

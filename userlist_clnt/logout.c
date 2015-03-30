@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: logout.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: logout.c 7364 2013-02-09 20:19:53Z cher $ */
 
-/* Copyright (C) 2002-2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 int
 userlist_clnt_logout(struct userlist_clnt *clnt,
                      int cmd,
-                     ej_ip_t origin_ip,
+                     const ej_ip_t *origin_ip,
                      int ssl,
                      ej_cookie_t cookie)
 {
@@ -32,7 +32,9 @@ userlist_clnt_logout(struct userlist_clnt *clnt,
 
   memset(&out, 0, sizeof(out));
   out.request_id = cmd;
-  out.origin_ip = origin_ip;
+  if (origin_ip) {
+    out.origin_ip = *origin_ip;
+  }
   out.ssl = ssl;
   out.cookie = cookie;
   if ((r = userlist_clnt_send_packet(clnt, sizeof(out), &out)) < 0) return r;
@@ -51,6 +53,5 @@ userlist_clnt_logout(struct userlist_clnt *clnt,
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

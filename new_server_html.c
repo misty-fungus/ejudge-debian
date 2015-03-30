@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 7259 2012-12-20 13:11:33Z cher $ */
+/* $Id: new_server_html.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -89,6 +89,9 @@
 enum { CONTEST_EXPIRE_TIME = 300 };
 static struct contest_extra **extras = 0;
 static size_t extra_a = 0, extra_u = 0;
+
+static struct server_framework_job *job_first, *job_last;
+static int job_count, job_serial;
 
 static void unprivileged_page_login(FILE *fout,
                                     struct http_request_info *phr,
@@ -241,7 +244,7 @@ ns_client_destroy_callback(struct client_state *p)
     serve_update_status_file(cs, 1);
     if (!cs->testing_suspended)
       serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0,
-                            DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
+                            DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, 0);
   }
   xfree(cs->pending_xml_import); cs->pending_xml_import = 0;
   cs->client_id = -1;
@@ -353,6 +356,42 @@ ns_unload_expired_contests(time_t cur_time)
   extra_u = j;
 }
 
+void
+ns_add_job(struct server_framework_job *job)
+{
+  if (!job) return;
+  job->id = ++job_serial;
+  job->start_time = time(NULL);
+  ++job_count;
+  job->prev = job_last;
+  job->next = NULL;
+  if (job_last) {
+    job_last->next = job;
+  } else {
+    job_first = job;
+  }
+  job_last = job;
+}
+
+void
+ns_remove_job(struct server_framework_job *job)
+{
+  if (job->next) {
+    job->next->prev = job->prev;
+  } else {
+    job_last = job->prev;
+  }
+  if (job->prev) {
+    job->prev->next = job->next;
+  } else {
+    job_first = job->next;
+  }
+  job->next = NULL;
+  job->prev = NULL;
+  job->vt->destroy(job);
+  --job_count;
+}
+
 static void
 handle_pending_xml_import(const struct contest_desc *cnts, serve_state_t cs)
 {
@@ -367,7 +406,7 @@ handle_pending_xml_import(const struct contest_desc *cnts, serve_state_t cs)
       serve_update_status_file(cs, 1);
       if (!cs->testing_suspended)
         serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0,
-                              DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
+                              DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, 0);
     }
     xfree(cs->pending_xml_import); cs->pending_xml_import = 0;
     cs->client_id = -1; cs->destroy_callback = 0;
@@ -391,7 +430,7 @@ handle_pending_xml_import(const struct contest_desc *cnts, serve_state_t cs)
     serve_update_status_file(cs, 1);
     if (!cs->testing_suspended)
       serve_judge_suspended(ejudge_config, cnts, cs, 0, 0, 0,
-                            DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
+                            DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, 0);
   }
   xfree(cs->pending_xml_import); cs->pending_xml_import = 0;
   cs->client_id = -1; cs->destroy_callback = 0;
@@ -399,7 +438,9 @@ handle_pending_xml_import(const struct contest_desc *cnts, serve_state_t cs)
   p->destroy_callback = 0;
 }
 
-void
+enum { MAX_WORK_BATCH = 10 };
+
+int
 ns_loop_callback(struct server_framework_state *state)
 {
   time_t cur_time = time(0);
@@ -408,8 +449,19 @@ ns_loop_callback(struct server_framework_state *state)
   const struct contest_desc *cnts;
   int contest_id, i, eind;
   strarray_t files;
+  int count = 0;
 
   memset(&files, 0, sizeof(files));
+
+  if (job_first) {
+    if (job_first->contest_id > 0) {
+      e = ns_try_contest_extra(job_first->contest_id);
+      e->last_access_time = cur_time;
+    }
+    if (job_first->vt->run(job_first, &count, MAX_WORK_BATCH)) {
+      ns_remove_job(job_first);
+    }
+  }
 
   for (eind = 0; eind < extra_u; eind++) {
     e = extras[eind];
@@ -429,7 +481,8 @@ ns_loop_callback(struct server_framework_state *state)
       if (get_file_list(cs->compile_dirs[i].status_dir, &files) < 0)
         continue;
       if (files.u <= 0) continue;
-      for (int j = 0; j < files.u; ++j) {
+      for (int j = 0; j < files.u && count < MAX_WORK_BATCH; ++j) {
+        ++count;
         serve_read_compile_packet(ejudge_config, cs, cnts,
                                   cs->compile_dirs[i].status_dir,
                                   cs->compile_dirs[i].report_dir,
@@ -443,7 +496,8 @@ ns_loop_callback(struct server_framework_state *state)
       if (get_file_list(cs->run_dirs[i].status_dir, &files) < 0
           || files.u <= 0)
         continue;
-      for (int j = 0; j < files.u; ++j) {
+      for (int j = 0; j < files.u && count < MAX_WORK_BATCH; ++j) {
+        ++count;
         serve_read_run_packet(ejudge_config, cs, cnts,
                               cs->run_dirs[i].status_dir,
                               cs->run_dirs[i].report_dir,
@@ -460,6 +514,7 @@ ns_loop_callback(struct server_framework_state *state)
 
   ns_unload_expired_contests(cur_time);
   xstrarrayfree(&files);
+  return count < MAX_WORK_BATCH;
 }
 
 void
@@ -1189,12 +1244,14 @@ privileged_page_cookie_login(FILE *fout,
   // analyze IP limitations
   if (phr->role == USER_ROLE_ADMIN) {
     // as for the master program
-    if (!contests_check_master_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+    if (!contests_check_master_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag],
+                                 xml_unparse_ipv6(&phr->ip), phr->contest_id);
   } else {
     // as for judge program
-    if (!contests_check_judge_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for JUDGE for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+    if (!contests_check_judge_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for JUDGE for contest %d", ns_ssl_flag_str[phr->ssl_flag],
+                                 xml_unparse_ipv6(&phr->ip), phr->contest_id);
   }
 
   if (ns_open_ul_connection(phr->fw_state) < 0)
@@ -1203,7 +1260,7 @@ privileged_page_cookie_login(FILE *fout,
   xfree(phr->login); phr->login = 0;
   xfree(phr->name); phr->name = 0;
   if ((r = userlist_clnt_priv_cookie_login(ul_conn, ULS_PRIV_COOKIE_LOGIN,
-                                           phr->ip, phr->ssl_flag,
+                                           &phr->ip, phr->ssl_flag,
                                            phr->contest_id, phr->session_id,
                                            phr->locale_id,
                                            phr->role, &phr->user_id,
@@ -1284,18 +1341,20 @@ privileged_page_login(FILE *fout,
   // analyze IP limitations
   if (phr->role == USER_ROLE_ADMIN) {
     // as for the master program
-    if (!contests_check_master_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+    if (!contests_check_master_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag],
+                                 xml_unparse_ipv6(&phr->ip), phr->contest_id);
   } else {
     // as for judge program
-    if (!contests_check_judge_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for JUDGE for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+    if (!contests_check_judge_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for JUDGE for contest %d", ns_ssl_flag_str[phr->ssl_flag],
+                                 xml_unparse_ipv6(&phr->ip), phr->contest_id);
   }
 
   if (ns_open_ul_connection(phr->fw_state) < 0)
     return ns_html_err_ul_server_down(fout, phr, 1, 0);
   if ((r = userlist_clnt_priv_login(ul_conn, ULS_PRIV_CHECK_USER,
-                                    phr->ip, phr->ssl_flag, phr->contest_id,
+                                    &phr->ip, phr->ssl_flag, phr->contest_id,
                                     phr->locale_id, phr->role, login,
                                     password, &phr->user_id, &phr->session_id,
                                     0, &phr->name)) < 0) {
@@ -1553,9 +1612,9 @@ priv_add_user_by_user_id(FILE *fout,
     retval = -1;
     goto cleanup;
   }
-  
+
   r = userlist_clnt_register_contest(ul_conn, ULS_PRIV_REGISTER_CONTEST,
-                                     x, phr->contest_id, phr->ip,
+                                     x, phr->contest_id, &phr->ip,
                                      phr->ssl_flag);
   if (r < 0) {
     ns_error(log_f, NEW_SRV_ERR_REGISTRATION_FAILED, userlist_strerror(-r));
@@ -1593,7 +1652,7 @@ priv_add_user_by_login(FILE *fout,
   }
   if ((r = userlist_clnt_register_contest(ul_conn, ULS_PRIV_REGISTER_CONTEST,
                                           user_id, phr->contest_id,
-                                          phr->ip, phr->ssl_flag)) < 0) {
+                                          &phr->ip, phr->ssl_flag)) < 0) {
     ns_error(log_f, NEW_SRV_ERR_REGISTRATION_FAILED, userlist_strerror(-r));
     goto cleanup;
   }
@@ -1855,7 +1914,7 @@ priv_user_issue_warning(
   }
 
   team_extra_append_warning(cs->team_extra_state, user_id, phr->user_id,
-                            phr->ip, cs->current_time, warn_txt, cmt_txt);
+                            &phr->ip, cs->current_time, warn_txt, cmt_txt);
   team_extra_flush(cs->team_extra_state);
 
  cleanup:
@@ -2553,6 +2612,7 @@ priv_submit_run(FILE *fout,
   size_t text_form_size = 0;
   unsigned char *utf8_str = 0;
   int utf8_len = 0;
+  int eoln_type = 0;
 
   if (ns_cgi_param_int(phr, "problem", &prob_id) < 0) {
     errmsg = "problem is not set or binary";
@@ -2619,6 +2679,10 @@ priv_submit_run(FILE *fout,
     if (lang_id <= 0 || lang_id > cs->max_lang || !(lang = cs->langs[lang_id])){
       errmsg = "lang_id is invalid";
       goto invalid_param;
+    }
+    if (cs->global->enable_eoln_select > 0) {
+      ns_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
+      if (eoln_type < 0 || eoln_type > EOLN_CRLF) eoln_type = 0;
     }
   }
 
@@ -2850,9 +2914,10 @@ priv_submit_run(FILE *fout,
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
                           run_size, shaval, NULL,
-                          phr->ip, phr->ssl_flag,
+                          &phr->ip, phr->ssl_flag,
                           phr->locale_id, phr->user_id,
-                          prob_id, lang_id, variant, 1, mime_type);
+                          prob_id, lang_id, eoln_type,
+                          variant, 1, mime_type);
   if (run_id < 0) {
     ns_error(log_f, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
     goto cleanup;
@@ -2883,12 +2948,12 @@ priv_submit_run(FILE *fout,
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)
         || lang->disable_auto_testing || lang->disable_testing) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "priv-submit", "ok", RUN_PENDING,
                       "  Testing disabled for this problem or language");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
     } else {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "priv-submit", "ok", RUN_COMPILING, NULL);
       if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
                                      run_id, phr->user_id,
@@ -2905,12 +2970,12 @@ priv_submit_run(FILE *fout,
   } else if (prob->manual_checking > 0) {
     // manually tested outputs
     if (prob->check_presentation <= 0) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "priv-submit", "ok", RUN_ACCEPTED, 
                       "  This problem is checked manually");
       run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
     } else {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "priv-submit", "ok", RUN_COMPILING, NULL);
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
         r = serve_compile_request(cs, run_text, run_size, global->contest_id, 
@@ -2933,7 +2998,7 @@ priv_submit_run(FILE *fout,
         if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0, 0) < 0) {
+                              mime_type, 0, 0, 0, 0) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto cleanup;
         }
@@ -2943,12 +3008,12 @@ priv_submit_run(FILE *fout,
     // automatically tested outputs
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "priv-submit", "ok", RUN_PENDING,
                       "  Testing disabled for this problem");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
     } else {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "priv-submit", "ok", RUN_COMPILING, NULL);
       /* FIXME: check for XML problem */
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
@@ -2972,7 +3037,7 @@ priv_submit_run(FILE *fout,
         if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0, 0) < 0) {
+                              mime_type, 0, 0, 0, 0) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto cleanup;
         }
@@ -3116,7 +3181,8 @@ priv_submit_clar(
                                  precise_time.tv_sec,
                                  precise_time.tv_usec * 1000,
                                  text3_len,
-                                 phr->ip, phr->ssl_flag,
+                                 &phr->ip,
+                                 phr->ssl_flag,
                                  0, user_id, 0, phr->user_id,
                                  hide_flag, phr->locale_id, 0, 0, 0,
                                  utf8_mode, NULL, subj2)) < 0) {
@@ -3245,7 +3311,7 @@ priv_set_run_style_error_status(
   if (run_change_status_4(cs->runlog_state, run_id, RUN_REJECTED) < 0)
     goto invalid_param;
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   "set-rejected", "ok", RUN_REJECTED, NULL);
 
   if (global->notify_status_change > 0 && !re.is_hidden) {
@@ -3317,7 +3383,8 @@ priv_submit_run_comment(
                                  precise_time.tv_sec,
                                  precise_time.tv_usec * 1000,
                                  text3_len,
-                                 phr->ip, phr->ssl_flag,
+                                 &phr->ip,
+                                 phr->ssl_flag,
                                  0, re.user_id, 0, phr->user_id,
                                  0, phr->locale_id, 0, run_id + 1, 0,
                                  utf8_mode, NULL, subj2)) < 0) {
@@ -3365,7 +3432,7 @@ priv_submit_run_comment(
     abort();
   }
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   audit_cmd, "ok", status, NULL);
 
   if (global->notify_clar_reply) {
@@ -3523,7 +3590,8 @@ priv_clar_reply(
                             precise_time.tv_sec,
                             precise_time.tv_usec * 1000,
                             msg_len,
-                            phr->ip, phr->ssl_flag,
+                            &phr->ip,
+                            phr->ssl_flag,
                             0, from_id, 0, phr->user_id, 0,
                             clar.locale_id, in_reply_to + 1, 0, 0,
                             utf8_mode, NULL,
@@ -3683,7 +3751,7 @@ priv_clear_run(FILE *fout, FILE *log_f,
   archive_remove(cs, global->full_archive_dir, run_id, 0);
   //archive_remove(cs, global->audit_log_dir, run_id, 0);
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   "clear-run", "ok", -1, NULL);
 
  cleanup:
@@ -3934,7 +4002,7 @@ priv_edit_run(FILE *fout, FILE *log_f,
   if (run_set_entry(cs->runlog_state, run_id, ne_mask, &ne) < 0)
     FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   audit_cmd, "ok", -1,
                   "  Old value: %s\n"
                   "  New value: %s\n",
@@ -3977,7 +4045,7 @@ priv_change_status(
     goto cleanup;
   }
   if (status == RUN_REJUDGE || status == RUN_FULL_REJUDGE) {
-    serve_rejudge_run(ejudge_config, cnts, cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+    serve_rejudge_run(ejudge_config, cnts, cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       (status == RUN_FULL_REJUDGE),
                       DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
     goto cleanup;
@@ -4026,7 +4094,7 @@ priv_change_status(
     goto cleanup;
   }
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   "change-status", "ok", status, NULL);
 
   if (cs->global->notify_status_change > 0) {
@@ -4103,7 +4171,7 @@ priv_simple_change_status(
     goto cleanup;
   }
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   audit_cmd, "ok", status, NULL);
 
   if (cs->global->notify_status_change > 0) {
@@ -4212,23 +4280,23 @@ priv_clear_displayed(FILE *fout,
 
   switch (phr->action) {
   case NEW_SRV_ACTION_CLEAR_DISPLAYED_2:
-    serve_clear_by_mask(cs, phr->user_id, phr->ip, phr->ssl_flag,
+    serve_clear_by_mask(cs, phr->user_id, &phr->ip, phr->ssl_flag,
                         mask_size, mask);
     break;
   case NEW_SRV_ACTION_IGNORE_DISPLAYED_2:
-    serve_ignore_by_mask(cs, phr->user_id, phr->ip, phr->ssl_flag,
+    serve_ignore_by_mask(cs, phr->user_id, &phr->ip, phr->ssl_flag,
                          mask_size, mask, RUN_IGNORED);
     break;
   case NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_2:
-    serve_ignore_by_mask(cs, phr->user_id, phr->ip, phr->ssl_flag,
+    serve_ignore_by_mask(cs, phr->user_id, &phr->ip, phr->ssl_flag,
                          mask_size, mask, RUN_DISQUALIFIED);
     break;
   case NEW_SRV_ACTION_MARK_DISPLAYED_2:
-    serve_mark_by_mask(cs, phr->user_id, phr->ip, phr->ssl_flag,
+    serve_mark_by_mask(cs, phr->user_id, &phr->ip, phr->ssl_flag,
                        mask_size, mask, 1);
     break;
   case NEW_SRV_ACTION_UNMARK_DISPLAYED_2:
-    serve_mark_by_mask(cs, phr->user_id, phr->ip, phr->ssl_flag,
+    serve_mark_by_mask(cs, phr->user_id, &phr->ip, phr->ssl_flag,
                        mask_size, mask, 0);
     break;
   default:
@@ -4259,9 +4327,13 @@ priv_rejudge_displayed(FILE *fout,
   int force_full = 0;
   int prio_adj = DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT;
   int retval = 0;
+  int background_mode = 0;
 
   if (parse_run_mask(phr, 0, 0, &mask_size, &mask) < 0) goto invalid_param;
   if (!mask_size) FAIL(NEW_SRV_ERR_NO_RUNS_TO_REJUDGE);
+  ns_cgi_param_int_opt(phr, "background_mode", &background_mode, 0);
+  if (background_mode != 1) background_mode = 0;
+
   if (opcaps_check(phr->caps, OPCAP_REJUDGE_RUN) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
@@ -4272,8 +4344,10 @@ priv_rejudge_displayed(FILE *fout,
     prio_adj = 10;
   }
 
-  serve_rejudge_by_mask(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag,
-                        mask_size, mask, force_full, prio_adj);
+  ns_add_job(serve_rejudge_by_mask(ejudge_config, cnts, cs, phr->user_id,
+                                   &phr->ip, phr->ssl_flag,
+                                   mask_size, mask, force_full, prio_adj,
+                                   background_mode));
 
  cleanup:
   xfree(mask);
@@ -4296,6 +4370,7 @@ priv_rejudge_problem(FILE *fout,
   const struct section_problem_data *prob = 0;
   const unsigned char *s;
   int prob_id, n;
+  int background_mode = 0;
 
   if (ns_cgi_param(phr, "prob_id", &s) <= 0
       || sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]
@@ -4303,12 +4378,18 @@ priv_rejudge_problem(FILE *fout,
       || !(prob = cs->probs[prob_id])
       || prob->disable_testing)
     goto invalid_param;
+  ns_cgi_param_int_opt(phr, "background_mode", &background_mode, 0);
+  if (background_mode != 1) background_mode = 0;
+
   if (opcaps_check(phr->caps, OPCAP_REJUDGE_RUN) < 0) {
     ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
     goto cleanup;
   }
 
-  serve_rejudge_problem(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, prob_id, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
+  ns_add_job(serve_rejudge_problem(ejudge_config, cnts, cs, phr->user_id,
+                                   &phr->ip, phr->ssl_flag, prob_id,
+                                   DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT,
+                                   background_mode));
 
  cleanup:
   return 0;
@@ -4326,6 +4407,10 @@ priv_rejudge_all(FILE *fout,
                  struct contest_extra *extra)
 {
   serve_state_t cs = extra->serve_state;
+  int background_mode = 0;
+
+  ns_cgi_param_int_opt(phr, "background_mode", &background_mode, 0);
+  if (background_mode != 1) background_mode = 0;
 
   if (opcaps_check(phr->caps, OPCAP_REJUDGE_RUN) < 0) {
     ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
@@ -4334,10 +4419,11 @@ priv_rejudge_all(FILE *fout,
 
   switch (phr->action) {
   case NEW_SRV_ACTION_REJUDGE_SUSPENDED_2:
-    serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
+    ns_add_job(serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, background_mode));
     break;
   case NEW_SRV_ACTION_REJUDGE_ALL_2:
-    serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
+    ns_add_job(serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, background_mode));
+    
     break;
   default:
     abort();
@@ -4547,8 +4633,8 @@ priv_new_run(FILE *fout,
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
                           run_size, shaval, NULL,
-                          phr->ip, phr->ssl_flag, phr->locale_id,
-                          user_id, prob_id, lang_id, variant,
+                          &phr->ip, phr->ssl_flag, phr->locale_id,
+                          user_id, prob_id, lang_id, 0, variant,
                           is_hidden, mime_type);
   if (run_id < 0) FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
   serve_move_files_to_insert_run(cs, run_id);
@@ -4572,7 +4658,7 @@ priv_new_run(FILE *fout,
   }
   run_set_entry(cs->runlog_state, run_id, re_flags, &re);
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   "priv-new-run", "ok", RUN_PENDING, NULL);
 
  cleanup:
@@ -4647,6 +4733,7 @@ priv_confirmation_page(FILE *fout,
   const unsigned char *s;
   int disable_ok = 0, runs_count = 0;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  int total_runs = run_get_total(cs->runlog_state);
 
   switch (phr->action) {
   case NEW_SRV_ACTION_REJUDGE_DISPLAYED_1:
@@ -4705,6 +4792,10 @@ priv_confirmation_page(FILE *fout,
     fprintf(fout, "<p>%s %s(%s)?</p>\n", _("Rejudge problem"),
             prob->short_name, ARMOR(prob->long_name));
     break;
+  case NEW_SRV_ACTION_REJUDGE_ALL_1:
+    fprintf(fout, "<p><b>Attention! %d runs will be rejudged.</b></p>\n",
+            total_runs);
+    break;
   }
 
   fprintf(fout, "<table border=\"0\"><tr><td>");
@@ -4725,6 +4816,16 @@ priv_confirmation_page(FILE *fout,
     break;
   case NEW_SRV_ACTION_REJUDGE_PROBLEM_1:
     html_hidden(fout, "prob_id", "%d", prob_id);
+    break;
+  case NEW_SRV_ACTION_REJUDGE_ALL_1:
+    fprintf(fout, "<select name=\"background_mode\">");
+    s = "";
+    if (total_runs < 5000) s = " selected=\"selected\"";
+    fprintf(fout, "<option value=\"0\"%s>Foreground Mode</option>", s);
+    s = "";
+    if (total_runs >= 5000) s = " selected=\"selected\"";
+    fprintf(fout, "<option value=\"1\"%s>Background Mode</option>", s);
+    fprintf(fout, "</select>\n");
     break;
   }
 
@@ -8092,6 +8193,15 @@ priv_submit_page(
       }
     }
     fprintf(fout, "</td></tr>\n");
+
+    if (cs->global->enable_eoln_select > 0) {
+      fprintf(fout, "<tr><td%s>%s:</td><td%s><select name=\"eoln_type\"%s>",
+              "", "EOLN Type", "", "");
+      fprintf(fout, "<option value=\"0\"></option>");
+      fprintf(fout, "<option value=\"1\"%s>LF (Unix/MacOS)</option>", "");
+      fprintf(fout, "<option value=\"2\"%s>CRLF (Windows/DOS)</option>", "");
+      fprintf(fout, "</select></td></tr>\n");
+    }
   }
 
   /* solution/answer form */
@@ -8481,6 +8591,31 @@ priv_main_page(FILE *fout,
             xml_unparse_date(cs->max_online_time));
   }
 
+  if (job_count > 0) {
+    fprintf(fout, "<p><b>%s: %d</b></p>\n", "Background jobs", job_count);
+    fprintf(fout, "<table class=\"b1\">");
+    for (struct server_framework_job *job = job_first; job; job = job->next) {
+      fprintf(fout, "<tr><td%s>%d</td><td%s>%s</td><td%s>%s</td><td%s>",
+              " class=\"b1\"", job->id,
+              " class=\"b1\"", xml_unparse_date(job->start_time),
+              " class=\"b1\"", job->title,
+              " class=\"b1\"");
+      if (job->vt->get_status) {
+        unsigned char *str = job->vt->get_status(job);
+        if (str && *str) {
+          fprintf(fout, "%s", str);
+        } else {
+          fprintf(fout, "&nbsp;");
+        }
+        xfree(str);
+      } else {
+        fprintf(fout, "&nbsp;");
+      }
+      fprintf(fout, "</td></tr>\n");
+    }
+    fprintf(fout, "</table>\n");
+  }
+
   if (phr->role == USER_ROLE_ADMIN
       && opcaps_check(phr->caps, OPCAP_CONTROL_CONTEST) >= 0) {
     html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
@@ -8811,6 +8946,15 @@ priv_main_page(FILE *fout,
                   i, cs->langs[i]->short_name, ARMOR(cs->langs[i]->long_name));
         }
         fprintf(fout, "</select></td></tr>\n");
+
+        if (global->enable_eoln_select > 0) {
+          fprintf(fout, "<tr><td%s>%s:</td><td%s><select name=\"eoln_type\"%s>",
+                  "", "EOLN Type", "", "");
+          fprintf(fout, "<option value=\"0\"></option>");
+          fprintf(fout, "<option value=\"1\"%s>LF (Unix/MacOS)</option>", "");
+          fprintf(fout, "<option value=\"2\"%s>CRLF (Windows/DOS)</option>", "");
+          fprintf(fout, "</select></td></tr>\n");
+        }
       }
 
       switch (prob->type) {
@@ -9225,7 +9369,7 @@ privileged_entry_point(
   if (ns_open_ul_connection(phr->fw_state) < 0)
     return ns_html_err_ul_server_down(fout, phr, 1, 0);
   if ((r = userlist_clnt_get_cookie(ul_conn, ULS_PRIV_GET_COOKIE,
-                                    phr->ip, phr->ssl_flag,
+                                    &phr->ip, phr->ssl_flag,
                                     phr->session_id,
                                     &phr->user_id, &phr->contest_id,
                                     &phr->locale_id, 0, &phr->role, 0, 0, 0,
@@ -9254,12 +9398,13 @@ privileged_entry_point(
   // analyze IP limitations
   if (phr->role == USER_ROLE_ADMIN) {
     // as for the master program
-    if (!contests_check_master_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+    if (!contests_check_master_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag],
+                                 xml_unparse_ipv6(&phr->ip), phr->contest_id);
   } else {
     // as for judge program
-    if (!contests_check_judge_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+    if (!contests_check_judge_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
   }
 
   // analyze permissions
@@ -9494,8 +9639,8 @@ unpriv_page_forgot_password_1(FILE *fout, struct http_request_info *phr,
                                              "contest_id is invalid");
   if (orig_locale_id < 0 && cnts->default_locale_num >= 0)
     phr->locale_id = cnts->default_locale_num;
-  if (!contests_check_team_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
   if (cnts->closed)
     return ns_html_err_service_not_available(fout, phr, 0,
                                              "contest %d is closed", cnts->id);
@@ -9578,8 +9723,8 @@ unpriv_page_forgot_password_2(FILE *fout, struct http_request_info *phr,
     return ns_html_err_service_not_available(fout, phr, 0, "contest_id is invalid");
   if (orig_locale_id < 0 && cnts->default_locale_num >= 0)
     phr->locale_id = cnts->default_locale_num;
-  if (!contests_check_team_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
   if (cnts->closed)
     return ns_html_err_service_not_available(fout, phr, 0,
                                              "contest %d is closed", cnts->id);
@@ -9607,7 +9752,7 @@ unpriv_page_forgot_password_2(FILE *fout, struct http_request_info *phr,
     goto cleanup;
   }
   r = userlist_clnt_register_new(ul_conn, ULS_RECOVER_PASSWORD_1,
-                                 phr->ip, phr->ssl_flag,
+                                 &phr->ip, phr->ssl_flag,
                                  phr->contest_id,
                                  phr->locale_id,
                                  NEW_SRV_ACTION_FORGOT_PASSWORD_3,
@@ -9684,8 +9829,8 @@ unpriv_page_forgot_password_3(FILE *fout, struct http_request_info *phr,
     return ns_html_err_service_not_available(fout, phr, 0, "contest_id is invalid");
   if (orig_locale_id < 0 || cnts->default_locale_num >= 0)
     phr->locale_id = cnts->default_locale_num;
-  if (!contests_check_team_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
   if (cnts->closed)
     return ns_html_err_service_not_available(fout, phr, 0,
                                              "contest %d is closed", cnts->id);
@@ -9706,7 +9851,7 @@ unpriv_page_forgot_password_3(FILE *fout, struct http_request_info *phr,
     goto cleanup;
   }
   r = userlist_clnt_recover_passwd_2(ul_conn, ULS_RECOVER_PASSWORD_2,
-                                     phr->ip, phr->ssl_flag,
+                                     &phr->ip, phr->ssl_flag,
                                      phr->contest_id, phr->session_id,
                                      &user_id, &regstatus, 
                                      &login, &name, &passwd);
@@ -9809,8 +9954,8 @@ unprivileged_page_login_page(FILE *fout, struct http_request_info *phr,
     return ns_html_err_service_not_available(fout, phr, 0, "contest_id is invalid");
   if (orig_locale_id < 0 && cnts->default_locale_num >= 0)
     phr->locale_id = cnts->default_locale_num;
-  if (!contests_check_team_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
   if (cnts->closed)
     return ns_html_err_service_not_available(fout, phr, 0,
                                              "contest %d is closed", cnts->id);
@@ -9964,8 +10109,8 @@ unprivileged_page_login(FILE *fout, struct http_request_info *phr,
   phr->login = xstrdup(login);
   if ((r = ns_cgi_param(phr, "password", &password)) <= 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse password");
-  if (!contests_check_team_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-    return ns_html_err_no_perm(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+    return ns_html_err_no_perm(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
   if (cnts->closed)
     return ns_html_err_service_not_available(fout, phr, 0,
                                              "contest %d is closed", cnts->id);
@@ -9978,7 +10123,7 @@ unprivileged_page_login(FILE *fout, struct http_request_info *phr,
     return ns_html_err_ul_server_down(fout, phr, 0, 0);
 
   if ((r = userlist_clnt_login(ul_conn, ULS_TEAM_CHECK_USER,
-                               phr->ip, phr->ssl_flag, phr->contest_id,
+                               &phr->ip, phr->ssl_flag, phr->contest_id,
                                phr->locale_id, login, password,
                                &phr->user_id, &phr->session_id,
                                &phr->name)) < 0) {
@@ -10167,7 +10312,7 @@ unpriv_print_run(FILE *fout,
     }
   }
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   "print", "ok", -1, "  %d pages printed\n", n);
 
  done:
@@ -10220,6 +10365,7 @@ ns_submit_run(
   char *run_file = NULL;
   ruint32_t uuid[4] = { 0, 0, 0, 0 };
   ruint32_t *uuid_ptr = NULL;
+  int eoln_type = 0;
 
   if (!prob_param_name) prob_param_name = "prob_id";
   if (ns_cgi_param(phr, prob_param_name, &s) <= 0 || !s) {
@@ -10255,6 +10401,10 @@ ns_submit_run(
       if (errno || *eptr || lang_id <= 0 || lang_id > cs->max_lang || !(lang = cs->langs[lang_id])) {
         FAIL(NEW_SRV_ERR_INV_LANG_ID);
       }
+    }
+    if (cs->global->enable_eoln_select > 0) {
+      ns_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
+      if (eoln_type < 0 || eoln_type > EOLN_CRLF) eoln_type = 0;
     }
   }
 
@@ -10638,9 +10788,10 @@ ns_submit_run(
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
                           run_size, shaval, uuid_ptr,
-                          phr->ip, phr->ssl_flag,
+                          &phr->ip, phr->ssl_flag,
                           phr->locale_id, user_id,
-                          prob_id, lang_id, db_variant, is_hidden, mime_type);
+                          prob_id, lang_id, eoln_type,
+                          db_variant, is_hidden, mime_type);
   if (run_id < 0) {
     FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
   }
@@ -10666,7 +10817,7 @@ ns_submit_run(
   if (p_run_id) *p_run_id = run_id;
 
   if (accept_immediately) {
-    serve_audit_log(cs, run_id, user_id, phr->ip, phr->ssl_flag,
+    serve_audit_log(cs, run_id, user_id, &phr->ip, phr->ssl_flag,
                     "submit", "ok", RUN_ACCEPTED, NULL);
     run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
     goto done;
@@ -10676,7 +10827,7 @@ ns_submit_run(
       || prob->disable_auto_testing > 0
       || (prob->disable_testing > 0 && prob->enable_compilation <= 0)
       || cs->testing_suspended) {
-    serve_audit_log(cs, run_id, user_id, phr->ip, phr->ssl_flag,
+    serve_audit_log(cs, run_id, user_id, &phr->ip, phr->ssl_flag,
                     "submit", "ok", RUN_PENDING,
                     "  Testing disabled for this problem");
     run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
@@ -10685,14 +10836,14 @@ ns_submit_run(
 
   if (prob->type == PROB_TYPE_STANDARD) {
     if (lang->disable_auto_testing > 0 || lang->disable_testing > 0) {
-      serve_audit_log(cs, run_id, user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, user_id, &phr->ip, phr->ssl_flag,
                       "submit", "ok", RUN_PENDING,
                       "  Testing disabled for this language");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
       goto done;
     }
 
-    serve_audit_log(cs, run_id, user_id, phr->ip, phr->ssl_flag,
+    serve_audit_log(cs, run_id, user_id, &phr->ip, phr->ssl_flag,
                     "submit", "ok", RUN_COMPILING, NULL);
     r = serve_compile_request(cs, run_text, run_size, global->contest_id,
                               run_id, user_id,
@@ -10715,7 +10866,7 @@ ns_submit_run(
   /* manually checked problems */
   if (prob->manual_checking > 0) {
     if (prob->check_presentation <= 0) {
-      serve_audit_log(cs, run_id, user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, user_id, &phr->ip, phr->ssl_flag,
                       "submit", "ok", RUN_ACCEPTED,
                       "  This problem is checked manually");
       run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
@@ -10723,7 +10874,7 @@ ns_submit_run(
     }
 
     if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-      serve_audit_log(cs, run_id, user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, user_id, &phr->ip, phr->ssl_flag,
                       "submit", "ok", RUN_COMPILING, NULL);
       r = serve_compile_request(cs, run_text, run_size, global->contest_id,
                                 run_id, user_id, 0 /* lang_id */, variant,
@@ -10745,12 +10896,12 @@ ns_submit_run(
       goto done;
     }
 
-    serve_audit_log(cs, run_id, user_id, phr->ip, phr->ssl_flag,
+    serve_audit_log(cs, run_id, user_id, &phr->ip, phr->ssl_flag,
                     "submit", "ok", RUN_RUNNING, NULL);
     r = serve_run_request(cs, cnts, log_f, run_text, run_size,
                           global->contest_id, run_id,
                           user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                          mime_type, 0, 0, 0);
+                          mime_type, 0, 0, 0, 0);
     if (r < 0) {
       serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       goto cleanup;
@@ -10768,11 +10919,11 @@ ns_submit_run(
   if (px && px->ans_num > 0) {
     struct run_entry re;
     run_get_entry(cs->runlog_state, run_id, &re);
-    serve_audit_log(cs, run_id, user_id, phr->ip, phr->ssl_flag,
+    serve_audit_log(cs, run_id, user_id, &phr->ip, phr->ssl_flag,
                     "submit", "ok", RUN_RUNNING, NULL);
     serve_judge_built_in_problem(ejudge_config, cs, cnts, run_id, 1 /* judge_id */,
                                  variant, cs->accepting_mode, &re,
-                                 prob, px, user_id, phr->ip,
+                                 prob, px, user_id, &phr->ip,
                                  phr->ssl_flag);
     goto done;
   }
@@ -10801,7 +10952,7 @@ ns_submit_run(
   r = serve_run_request(cs, cnts, log_f, run_text, run_size,
                         global->contest_id, run_id,
                         user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                        mime_type, 0, 0, 0);
+                        mime_type, 0, 0, 0, 0);
   if (r < 0) {
     serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
     goto cleanup;
@@ -10866,6 +11017,7 @@ unpriv_submit_run(FILE *fout,
   int skip_mime_type_test = 0;
   unsigned char *utf8_str = 0;
   int utf8_len = 0;
+  int eoln_type = 0;
 
   l10n_setlocale(phr->locale_id);
   log_f = open_memstream(&log_txt, &log_len);
@@ -10886,6 +11038,10 @@ unpriv_submit_run(FILE *fout,
         || !(lang = cs->langs[lang_id])) {
       ns_error(log_f, NEW_SRV_ERR_INV_LANG_ID);
       goto done;
+    }
+    if (global->enable_eoln_select > 0) {
+      ns_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
+      if (eoln_type < 0 || eoln_type > EOLN_CRLF) eoln_type = 0;
     }
   }
 
@@ -11239,9 +11395,9 @@ unpriv_submit_run(FILE *fout,
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
                           run_size, shaval, NULL,
-                          phr->ip, phr->ssl_flag,
+                          &phr->ip, phr->ssl_flag,
                           phr->locale_id, phr->user_id,
-                          prob_id, lang_id, 0, 0, mime_type);
+                          prob_id, lang_id, eoln_type, 0, 0, mime_type);
   if (run_id < 0) {
     ns_error(log_f, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
     goto done;
@@ -11272,12 +11428,12 @@ unpriv_submit_run(FILE *fout,
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)
         || lang->disable_auto_testing || lang->disable_testing
         || cs->testing_suspended) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "submit", "ok", RUN_PENDING,
                       "  Testing disabled for this problem or language");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
     } else {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "submit", "ok", RUN_COMPILING, NULL);
       if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
                                      run_id, phr->user_id,
@@ -11294,12 +11450,12 @@ unpriv_submit_run(FILE *fout,
   } else if (prob->manual_checking > 0 && !accept_immediately) {
     // manually tested outputs
     if (prob->check_presentation <= 0) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "submit", "ok", RUN_ACCEPTED,
                       "  This problem is checked manually");
       run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
     } else {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "submit", "ok", RUN_COMPILING, NULL);
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
         r = serve_compile_request(cs, run_text, run_size, global->contest_id,
@@ -11322,7 +11478,7 @@ unpriv_submit_run(FILE *fout,
         if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                              mime_type, 0, 0, 0) < 0) {
+                              mime_type, 0, 0, 0, 0) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto done;
         }
@@ -11330,12 +11486,12 @@ unpriv_submit_run(FILE *fout,
     }
   } else {
     if (accept_immediately) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "submit", "ok", RUN_ACCEPTED, NULL);
       run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
     } else if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       "submit", "ok", RUN_PENDING,
                       "  Testing disabled for this problem");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
@@ -11347,17 +11503,17 @@ unpriv_submit_run(FILE *fout,
       }
       if (px && px->ans_num > 0) {
         run_get_entry(cs->runlog_state, run_id, &re);
-        serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+        serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_RUNNING, NULL);
         serve_judge_built_in_problem(ejudge_config, cs, cnts, run_id, 1 /* judge_id */,
                                      variant, cs->accepting_mode, &re,
-                                     prob, px, phr->user_id, phr->ip,
+                                     prob, px, phr->user_id, &phr->ip,
                                      phr->ssl_flag);
         goto done;
       }
 
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+        serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_COMPILING, NULL);
 
         r = serve_compile_request(cs, run_text, run_size, global->contest_id,
@@ -11377,13 +11533,13 @@ unpriv_submit_run(FILE *fout,
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
       } else {
-        serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+        serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_RUNNING, NULL);
 
         if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                              mime_type, 0, 0, 0) < 0) {
+                              mime_type, 0, 0, 0, 0) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto done;
         }
@@ -11541,7 +11697,8 @@ unpriv_submit_clar(FILE *fout,
                                  precise_time.tv_sec,
                                  precise_time.tv_usec * 1000,
                                  text3_len,
-                                 phr->ip, phr->ssl_flag,
+                                 &phr->ip,
+                                 phr->ssl_flag,
                                  phr->user_id, 0, 0, 0, 0,
                                  phr->locale_id, 0, 0, 0,
                                  utf8_mode, NULL, subj3)) < 0) {
@@ -11682,7 +11839,8 @@ unpriv_submit_appeal(FILE *fout,
                                  precise_time.tv_sec,
                                  precise_time.tv_usec * 1000,
                                  text3_len,
-                                 phr->ip, phr->ssl_flag,
+                                 &phr->ip,
+                                 phr->ssl_flag,
                                  phr->user_id, 0, 0, 0, 0,
                                  phr->locale_id, 0, 0, 1,
                                  utf8_mode, NULL, subj3)) < 0) {
@@ -11794,7 +11952,7 @@ unpriv_command(FILE *fout,
     }
     gettimeofday(&precise_time, 0);
     run_id = run_virtual_start(cs->runlog_state, phr->user_id,
-                               precise_time.tv_sec, phr->ip, phr->ssl_flag,
+                               precise_time.tv_sec, &phr->ip, phr->ssl_flag,
                                precise_time.tv_usec * 1000);
     if (run_id < 0) {
       ns_error(log_f, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
@@ -11820,7 +11978,7 @@ unpriv_command(FILE *fout,
     }
     gettimeofday(&precise_time, 0);
     run_id = run_virtual_stop(cs->runlog_state, phr->user_id,
-                              precise_time.tv_sec, phr->ip, phr->ssl_flag,
+                              precise_time.tv_sec, &phr->ip, phr->ssl_flag,
                               precise_time.tv_usec * 1000);
     if (run_id < 0) {
       ns_error(log_f, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
@@ -12818,7 +12976,7 @@ unpriv_page_header(FILE *fout,
           shown_items++;
         } else if (top_action_list[i] == NEW_SRV_ACTION_REG_DATA_EDIT) {
           if (!cnts->allow_reg_data_edit) continue;
-          if (!contests_check_register_ip_2(cnts, phr->ip, phr->ssl_flag))
+          if (!contests_check_register_ip_2(cnts, &phr->ip, phr->ssl_flag))
             continue;
           if (cnts->reg_deadline > 0 && cs->current_time >= cnts->reg_deadline)
             continue;
@@ -13057,17 +13215,19 @@ unpriv_page_header(FILE *fout,
 }
 
 static int
-get_last_language(serve_state_t cs, int user_id)
+get_last_language(serve_state_t cs, int user_id, int *p_last_eoln_type)
 {
   int total_runs = run_get_total(cs->runlog_state), run_id;
   struct run_entry re;
 
+  if (p_last_eoln_type) *p_last_eoln_type = 0;
   for (run_id = total_runs - 1; run_id >= 0; run_id--) {
     if (run_get_entry(cs->runlog_state, run_id, &re) < 0) continue;
     if (!run_is_source_available(re.status)) continue;
     if (re.user_id != user_id) continue;
     if (re.lang_id <= 0 || re.lang_id > cs->max_lang || !cs->langs[re.lang_id])
       continue;
+    if (p_last_eoln_type) *p_last_eoln_type = re.eoln_type;
     return re.lang_id;
   }
   return 0;
@@ -13942,6 +14102,7 @@ unpriv_main_page(FILE *fout,
                 prob_id);
         fprintf(fout, "<table class=\"b0\">");
         if (!prob->type) {
+          int last_eoln_type = 0;
           for (i = 1; i <= cs->max_lang; i++) {
             if (!cs->langs[i] || cs->langs[i]->disabled
                 || (cs->langs[i]->insecure && global->secure_run)) continue;
@@ -13967,7 +14128,7 @@ unpriv_main_page(FILE *fout,
                     cs->langs[lang_id]->short_name,
                     cs->langs[lang_id]->long_name);
           } else {
-            last_lang_id = get_last_language(cs, phr->user_id);
+            last_lang_id = get_last_language(cs, phr->user_id, &last_eoln_type);
             fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Language"));
             fprintf(fout, "<select name=\"lang_id\"><option value=\"\">");
             for (i = 1; i <= cs->max_lang; i++) {
@@ -13990,6 +14151,19 @@ unpriv_main_page(FILE *fout,
                       i, cc, cs->langs[i]->short_name, cs->langs[i]->long_name);
             }
             fprintf(fout, "</select></td></tr>");
+          }
+
+          if (cs->global->enable_eoln_select > 0) {
+            fprintf(fout, "<tr><td%s>%s:</td><td%s><select name=\"eoln_type\"%s>",
+                    " class=\"b0\"", _("Desired EOLN Type"), " class=\"b0\"", "");
+            fprintf(fout, "<option value=\"0\"></option>");
+            cc = "";
+            if (last_eoln_type == 1) cc = " selected=\"selected=\"";
+            fprintf(fout, "<option value=\"1\"%s>LF (Unix/MacOS)</option>", cc);
+            cc = "";
+            if (last_eoln_type == 2) cc = " selected=\"selected=\"";
+            fprintf(fout, "<option value=\"2\"%s>CRLF (Windows/DOS)</option>", cc);
+            fprintf(fout, "</select></td></tr>\n");
           }
         }
         switch (prob->type) {
@@ -14640,9 +14814,9 @@ unpriv_xml_update_answer(
     run_id = run_add_record(cs->runlog_state, 
                             precise_time.tv_sec, precise_time.tv_usec * 1000,
                             run_size, shaval, NULL,
-                            phr->ip, phr->ssl_flag,
+                            &phr->ip, phr->ssl_flag,
                             phr->locale_id, phr->user_id,
-                            prob_id, 0, 0, 0, 0);
+                            prob_id, 0, 0, 0, 0, 0);
     if (run_id < 0) FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
     serve_move_files_to_insert_run(cs, run_id);
     new_flag = 1;
@@ -14673,7 +14847,7 @@ unpriv_xml_update_answer(
   run_set_entry(cs->runlog_state, run_id,
                 RE_SIZE | RE_SHA1 | RE_STATUS | RE_TEST | RE_SCORE, &nv);
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   "update-answer", "ok", RUN_ACCEPTED, NULL);
 
  cleanup:
@@ -14854,7 +15028,7 @@ anon_select_contest_page(FILE *fout, struct http_request_info *phr)
     cnts = 0;
     if (contests_get(i, &cnts) < 0 || !cnts) continue;
     if (cnts->closed) continue;
-    if (!contests_check_register_ip_2(cnts, phr->ip, phr->ssl_flag)) continue;
+    if (!contests_check_register_ip_2(cnts, &phr->ip, phr->ssl_flag)) continue;
     if (cnts->reg_deadline > 0 && curtime >= cnts->reg_deadline) continue;
 
     fprintf(fout, "<tr%s><td%s>%d</td>", form_row_attrs[(row++) & 1], cl, i);
@@ -14942,7 +15116,7 @@ unprivileged_entry_point(
   if (ns_open_ul_connection(phr->fw_state) < 0)
     return ns_html_err_ul_server_down(fout, phr, 0, 0);
   if ((r = userlist_clnt_get_cookie(ul_conn, ULS_TEAM_GET_COOKIE,
-                                    phr->ip, phr->ssl_flag,
+                                    &phr->ip, phr->ssl_flag,
                                     phr->session_id,
                                     &phr->user_id, &phr->contest_id,
                                     &phr->locale_id, 0, &phr->role, 0, 0, 0,
@@ -14975,8 +15149,8 @@ unprivileged_entry_point(
   extra = ns_get_contest_extra(phr->contest_id);
   ASSERT(extra);
 
-  if (!contests_check_team_ip(phr->contest_id, phr->ip, phr->ssl_flag))
-    return ns_html_err_no_perm(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ip(phr->ip), phr->contest_id);
+  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
+    return ns_html_err_no_perm(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
   if (cnts->closed)
     return ns_html_err_service_not_available(fout, phr, 0,
                                              "contest %d is closed", cnts->id);
@@ -15425,7 +15599,7 @@ ns_handle_http_request(struct server_framework_state *state,
   if (!(remote_addr = ns_getenv(phr, "REMOTE_ADDR")))
     return ns_html_err_inv_param(fout, phr, 0, "REMOTE_ADDR does not exist");
   if (!strcmp(remote_addr, "::1")) remote_addr = "127.0.0.1";
-  if (xml_parse_ip(NULL, 0, 0, 0, remote_addr, &phr->ip) < 0)
+  if (xml_parse_ipv6(NULL, 0, 0, 0, remote_addr, &phr->ip) < 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse REMOTE_ADDR");
 
   // parse the contest_id

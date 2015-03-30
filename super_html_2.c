@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_2.c 7049 2012-10-12 09:17:15Z cher $ */
+/* $Id: super_html_2.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -283,11 +283,11 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
   int v, n, memb_ind;
   struct contest_desc *cnts = sstate->edited_cnts;
   struct contest_access **p_access = 0, **p_src_access = 0;
-  unsigned int ip_addr, ip_mask;
   struct contest_ip *new_ip;
   struct opcap_list_item *cap_node;
   const struct contest_desc *src_cnts = 0;
   const unsigned char *s = 0;
+  ej_ip_t ip_addr, ip_mask;
 
   if (!cnts) {
     return -SSERV_ERR_CONTEST_NOT_EDITED;
@@ -601,10 +601,10 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
     if (!(p_access = get_contest_access_by_num(cnts, param1)))
       return -SSERV_ERR_INVALID_PARAMETER;
     if (param3 < 0 || param3 > 1) return -SSERV_ERR_INVALID_PARAMETER;
-    if (xml_parse_ip_mask(NULL, 0, -1, 0, param2, &ip_addr, &ip_mask) < 0)
+    if (xml_parse_ipv6_mask(NULL, 0, -1, 0, param2, &ip_addr, &ip_mask) < 0)
       return -SSERV_ERR_INVALID_PARAMETER;
     contests_add_ip(cnts, p_access, access_tags_map[param1],
-                    ip_addr, ip_mask, param5, param3);
+                    &ip_addr, &ip_mask, param5, param3);
     return 0;
   case SSERV_CMD_CNTS_CHANGE_RULE:
     if (!(p_access = get_contest_access_by_num(cnts, param1)))
@@ -946,19 +946,20 @@ super_html_serve_probe_run(FILE *f,
 */
 
 int
-super_html_commit_contest(FILE *f,
-                          int priv_level,
-                          int user_id,
-                          const unsigned char *login,
-                          ej_cookie_t session_id,
-                          ej_ip_t ip_address,
-                          struct ejudge_cfg *config,
-                          struct userlist_clnt *us_conn,
-                          struct sid_state *sstate,
-                          int cmd,
-                          const unsigned char *self_url,
-                          const unsigned char *hidden_vars,
-                          const unsigned char *extra_args)
+super_html_commit_contest(
+        FILE *f,
+        int priv_level,
+        int user_id,
+        const unsigned char *login,
+        ej_cookie_t session_id,
+        const ej_ip_t *ip_address,
+        struct ejudge_cfg *config,
+        struct userlist_clnt *us_conn,
+        struct sid_state *sstate,
+        int cmd,
+        const unsigned char *self_url,
+        const unsigned char *hidden_vars,
+        const unsigned char *extra_args)
 {
   struct contest_desc *cnts = sstate->edited_cnts;
   struct section_global_data *global = sstate->global;
@@ -1366,7 +1367,7 @@ super_html_commit_contest(FILE *f,
     snprintf(audit_rec, sizeof(audit_rec),
              "<!-- audit: created %s %d (%s) %s -->\n",
              xml_unparse_date(time(0)), user_id, login,
-             xml_unparse_ip(ip_address));
+             xml_unparse_ipv6(ip_address));
     vcs_add_flag = 1;
   } else if (errcode < 0) {
     fprintf(flog, "Failed to read XML file `%s': %s\n",
@@ -1376,7 +1377,7 @@ super_html_commit_contest(FILE *f,
     snprintf(audit_rec, sizeof(audit_rec),
              "<!-- audit: edited %s %d (%s) %s -->\n",
              xml_unparse_date(time(0)), user_id, login,
-             xml_unparse_ip(ip_address));
+             xml_unparse_ipv6(ip_address));
   }
   if (!xml_header) {
     snprintf(hbuf, sizeof(hbuf),
@@ -1401,7 +1402,7 @@ super_html_commit_contest(FILE *f,
       snprintf(serve_audit_rec, sizeof(serve_audit_rec),
                "# audit: created %s %d (%s) %s\n",
                xml_unparse_date(time(0)), user_id, login,
-               xml_unparse_ip(ip_address));
+               xml_unparse_ipv6(ip_address));
       serve_vcs_add_flag = 1;
     } else if (errcode < 0) {
       fprintf(flog, "failed to read serve configuration file `%s': %s\n",
@@ -1411,7 +1412,7 @@ super_html_commit_contest(FILE *f,
       snprintf(serve_audit_rec, sizeof(audit_rec),
                "# audit: edited %s %d (%s) %s\n",
                xml_unparse_date(time(0)), user_id, login,
-               xml_unparse_ip(ip_address));
+               xml_unparse_ipv6(ip_address));
     }
 
     if ((sf = super_html_serve_unparse_and_save(serve_cfg_path, serve_cfg_path_2,

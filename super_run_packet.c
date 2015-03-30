@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.c 7208 2012-12-05 15:51:42Z cher $ */
+/* $Id: super_run_packet.c 7278 2013-01-22 18:14:44Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -48,6 +48,7 @@ super_run_in_global_packet_init(struct generic_section_config *gp)
   p->notify_flag = -1;
   p->advanced_layout = -1;
   p->disable_sound = -1;
+  p->is_dos = -1;
 
   p->scoring_system_val = -1;
 }

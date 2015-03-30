@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: register_new.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: register_new.c 7364 2013-02-09 20:19:53Z cher $ */
 
-/* Copyright (C) 2002-2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 int
 userlist_clnt_register_new(struct userlist_clnt *clnt,
                            int cmd,
-                           ej_ip_t origin_ip,
+                           const ej_ip_t *origin_ip,
                            int ssl,
                            int contest_id,
                            int locale_id,
@@ -45,7 +45,9 @@ userlist_clnt_register_new(struct userlist_clnt *clnt,
   data = alloca(len);
   memset(data, 0, len);
   data->request_id = cmd;
-  data->origin_ip = origin_ip;
+  if (origin_ip) {
+    data->origin_ip = *origin_ip;
+  }
   data->ssl = ssl;
   data->contest_id = contest_id;
   data->locale_id = locale_id;
@@ -68,6 +70,5 @@ userlist_clnt_register_new(struct userlist_clnt *clnt,
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

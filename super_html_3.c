@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 7246 2012-12-14 18:44:35Z cher $ */
+/* $Id: super_html_3.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -282,6 +282,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_JUDGE_REPORT] = "Serve.cfg:global:team_show_judge_report",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_CLARS] = "Serve.cfg:global:disable_clars",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_TEAM_CLARS] = "Serve.cfg:global:disable_team_clars",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_EOLN_SELECT] = "Serve.cfg:global:enable_eoln_select",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = "Serve.cfg:global:disable_submit_after_ok",
   [SSERV_CMD_GLOB_CHANGE_IGNORE_COMPILE_ERRORS] = "Serve.cfg:global:ignore_compile_errors",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_FAILED_TEST_VIEW] = "Serve.cfg:global:disable_failed_test_view",
@@ -428,6 +429,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_LANG_CHANGE_DISABLE_AUTO_TESTING] = "Serve.cfg:language:disable_auto_testing",
   [SSERV_CMD_LANG_CHANGE_DISABLE_TESTING] = "Serve.cfg:language:disable_testing",
   [SSERV_CMD_LANG_CHANGE_BINARY] = "Serve.cfg:language:binary",
+  [SSERV_CMD_LANG_CHANGE_IS_DOS] = "Serve.cfg:language:is_dos",
   [SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE] = "Serve.cfg:language:max_vm_size",
   [SSERV_CMD_LANG_CHANGE_MAX_STACK_SIZE] = "Serve.cfg:language:max_stack_size",
   [SSERV_CMD_LANG_CHANGE_MAX_FILE_SIZE] = "Serve.cfg:language:max_file_size",
@@ -460,6 +462,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_OLYMPIAD_MODE] = "Serve.cfg:problem:olympiad_mode",
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST] = "Serve.cfg:problem:score_latest",
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED] = "Serve.cfg:problem:score_latest_or_unmarked",
+  [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_MARKED] = "Serve.cfg:problem:score_latest_marked",
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT] = "Serve.cfg:problem:time_limit",
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS] = "Serve.cfg:problem:time_limit_millis",
   [SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT] = "Serve.cfg:problem:real_time_limit",
@@ -780,6 +783,7 @@ Participant's capabilities
   GLOBAL_PARAM(ignore_compile_errors, "d"),
   GLOBAL_PARAM(disable_clars, "d"),
   GLOBAL_PARAM(disable_team_clars, "d"),
+  GLOBAL_PARAM(enable_eoln_select, "d"),
   GLOBAL_PARAM(disable_submit_after_ok, "d"),
   GLOBAL_PARAM(ignore_compile_errors, "d"),
   GLOBAL_PARAM(enable_printing, "d"),
@@ -908,17 +912,18 @@ Not settable (atleast for now):
 */
 
 int
-super_html_edit_global_parameters(FILE *f,
-                                  int priv_level,
-                                  int user_id,
-                                  const unsigned char *login,
-                                  ej_cookie_t session_id,
-                                  ej_ip_t ip_address,
-                                  struct ejudge_cfg *config,
-                                  struct sid_state *sstate,
-                                  const unsigned char *self_url,
-                                  const unsigned char *hidden_vars,
-                                  const unsigned char *extra_args)
+super_html_edit_global_parameters(
+        FILE *f,
+        int priv_level,
+        int user_id,
+        const unsigned char *login,
+        ej_cookie_t session_id,
+        const ej_ip_t *ip_address,
+        struct ejudge_cfg *config,
+        struct sid_state *sstate,
+        const unsigned char *self_url,
+        const unsigned char *hidden_vars,
+        const unsigned char *extra_args)
 {
   struct section_global_data *global = sstate->global;
   unsigned char hbuf[1024];
@@ -1227,6 +1232,16 @@ super_html_edit_global_parameters(FILE *f,
       print_help_url(f, SSERV_CMD_GLOB_CHANGE_DISABLE_TEAM_CLARS);
       fprintf(f, "</tr></form>\n");
     }
+
+    //GLOBAL_PARAM(enable_eoln_select, "d"),
+    html_start_form(f, 1, self_url, hidden_vars);
+    fprintf(f, "<tr%s><td>Participants may select desired EOLN type:</td><td>", form_row_attrs[row ^= 1]);
+    html_boolean_select(f, global->enable_eoln_select, "param", 0, 0);
+    fprintf(f, "</td><td>");
+    html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_EOLN_SELECT, "Change");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_EOLN_SELECT);
+    fprintf(f, "</tr></form>\n");
 
     //GLOBAL_PARAM(disable_submit_after_ok, "d"),
     html_start_form(f, 1, self_url, hidden_vars);
@@ -2957,6 +2972,10 @@ super_html_global_param(struct sid_state *sstate, int cmd,
     p_int = &global->disable_team_clars;
     goto handle_boolean;
 
+  case SSERV_CMD_GLOB_CHANGE_ENABLE_EOLN_SELECT:
+    p_int = &global->enable_eoln_select;
+    goto handle_boolean;
+
   case SSERV_CMD_GLOB_CHANGE_DISABLE_SUBMIT_AFTER_OK:
     p_int = &global->disable_submit_after_ok;
     goto handle_boolean;
@@ -3824,7 +3843,7 @@ super_html_edit_languages(
         int user_id,
         const unsigned char *login,
         ej_cookie_t session_id,
-        ej_ip_t ip_address,
+        const ej_ip_t *ip_address,
         const struct ejudge_cfg *config,
         struct sid_state *sstate,
         const unsigned char *self_url,
@@ -4082,6 +4101,14 @@ super_html_edit_languages(
     print_boolean_select_row(f, "Language source files are binary",
                              lang->binary,
                              SSERV_CMD_LANG_CHANGE_BINARY,
+                             session_id,
+                             form_row_attrs[row ^= 1],
+                             self_url, extra_args, lang_hidden_vars);
+
+    //LANGUAGE_PARAM(is_dos, "d"),
+    print_boolean_select_row(f, "Perform UNIX->DOS conversion",
+                             lang->is_dos,
+                             SSERV_CMD_LANG_CHANGE_IS_DOS,
                              session_id,
                              form_row_attrs[row ^= 1],
                              self_url, extra_args, lang_hidden_vars);
@@ -4500,6 +4527,11 @@ super_html_lang_cmd(struct sid_state *sstate, int cmd,
   case SSERV_CMD_LANG_CHANGE_BINARY:
     if (!pl_new) return 0;
     p_int = &pl_new->binary;
+    goto handle_boolean;
+
+  case SSERV_CMD_LANG_CHANGE_IS_DOS:
+    if (!pl_new) return 0;
+    p_int = &pl_new->is_dos;
     goto handle_boolean;
 
   case SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE:
@@ -6254,6 +6286,22 @@ super_html_print_problem(FILE *f,
                                extra_msg,
                                session_id, form_row_attrs[row ^= 1],
                                self_url, extra_args, prob_hidden_vars);
+
+    //PROBLEM_PARAM(score_latest_marked, "d"),
+    extra_msg = 0;
+    if (!prob->abstract) {
+      prepare_set_prob_value(CNTSPROB_score_latest_marked,
+                             tmp_prob, sup_prob, sstate->global);
+      snprintf(msg_buf, sizeof(msg_buf), "Default (%s)",
+               tmp_prob->score_latest_marked?"Yes":"No");
+      extra_msg = msg_buf;
+    }
+    print_boolean_3_select_row(f, "Score the latest marked submit?", prob->score_latest_marked,
+                               SSERV_CMD_PROB_CHANGE_SCORE_LATEST_MARKED,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+
   }
 
   if (sstate->global && sstate->global->score_system != SCORE_ACM) {
@@ -7406,17 +7454,18 @@ cleanup:
 }
 
 int
-super_html_edit_problems(FILE *f,
-                         int priv_level,
-                         int user_id,
-                         const unsigned char *login,
-                         ej_cookie_t session_id,
-                         ej_ip_t ip_address,
-                         const struct ejudge_cfg *config,
-                         struct sid_state *sstate,
-                         const unsigned char *self_url,
-                         const unsigned char *hidden_vars,
-                         const unsigned char *extra_args)
+super_html_edit_problems(
+        FILE *f,
+        int priv_level,
+        int user_id,
+        const unsigned char *login,
+        ej_cookie_t session_id,
+        const ej_ip_t *ip_address,
+        const struct ejudge_cfg *config,
+        struct sid_state *sstate,
+        const unsigned char *self_url,
+        const unsigned char *hidden_vars,
+        const unsigned char *extra_args)
 {
   int i;
 
@@ -7590,6 +7639,7 @@ super_html_add_abstract_problem(
   prob->olympiad_mode = 0;
   prob->score_latest = 0;
   prob->score_latest_or_unmarked = 0;
+  prob->score_latest_marked = 0;
   prob->time_limit = 1;
   prob->time_limit_millis = 0;
   prob->real_time_limit = 5;
@@ -7865,6 +7915,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED:
     p_int = &prob->score_latest_or_unmarked;
+    goto handle_boolean_1;
+
+  case SSERV_CMD_PROB_CHANGE_SCORE_LATEST_MARKED:
+    p_int = &prob->score_latest_marked;
     goto handle_boolean_1;
 
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT:
@@ -8608,17 +8662,18 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 }
 
 int
-super_html_view_new_serve_cfg(FILE *f,
-                              int priv_level,
-                              int user_id,
-                              const unsigned char *login,
-                              ej_cookie_t session_id,
-                              ej_ip_t ip_address,
-                              const struct ejudge_cfg *config,
-                              struct sid_state *sstate,
-                              const unsigned char *self_url,
-                              const unsigned char *hidden_vars,
-                              const unsigned char *extra_args)
+super_html_view_new_serve_cfg(
+        FILE *f,
+        int priv_level,
+        int user_id,
+        const unsigned char *login,
+        ej_cookie_t session_id,
+        const ej_ip_t *ip_address,
+        const struct ejudge_cfg *config,
+        struct sid_state *sstate,
+        const unsigned char *self_url,
+        const unsigned char *hidden_vars,
+        const unsigned char *extra_args)
 {
   char *out_text = 0;
   size_t out_size = 0;
@@ -9306,17 +9361,18 @@ check_test_score(FILE *flog, int ntests, int test_score, int full_score,
 }
 
 int
-super_html_check_tests(FILE *f,
-                       int priv_level,
-                       int user_id,
-                       const unsigned char *login,
-                       ej_cookie_t session_id,
-                       ej_ip_t ip_address,
-                       struct ejudge_cfg *config,
-                       struct sid_state *sstate,
-                       const unsigned char *self_url,
-                       const unsigned char *hidden_vars,
-                       const unsigned char *extra_args)
+super_html_check_tests(
+        FILE *f,
+        int priv_level,
+        int user_id,
+        const unsigned char *login,
+        ej_cookie_t session_id,
+        const ej_ip_t *ip_address,
+        struct ejudge_cfg *config,
+        struct sid_state *sstate,
+        const unsigned char *self_url,
+        const unsigned char *hidden_vars,
+        const unsigned char *extra_args)
 {
   path_t conf_path;
   path_t g_test_path;
@@ -10058,17 +10114,21 @@ super_html_update_variant_map(FILE *flog, int contest_id,
 }
 
 int
-super_html_edit_variants(FILE *f, int cmd, int priv_level, int user_id,
-                         const unsigned char *login,
-                         ej_cookie_t session_id,
-                         ej_ip_t ip_address,
-                         int ssl_flag,
-                         struct userlist_clnt *userlist_conn,
-                         const struct ejudge_cfg *config,
-                         struct sid_state *sstate,
-                         const unsigned char *self_url,
-                         const unsigned char *hidden_vars,
-                         const unsigned char *extra_args)
+super_html_edit_variants(
+        FILE *f,
+        int cmd,
+        int priv_level,
+        int user_id,
+        const unsigned char *login,
+        ej_cookie_t session_id,
+        const ej_ip_t *ip_address,
+        int ssl_flag,
+        struct userlist_clnt *userlist_conn,
+        const struct ejudge_cfg *config,
+        struct sid_state *sstate,
+        const unsigned char *self_url,
+        const unsigned char *hidden_vars,
+        const unsigned char *extra_args)
 {
   const unsigned char *s = 0;
   struct section_global_data *global = 0;

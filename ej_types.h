@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: ej_types.h 6990 2012-08-20 04:21:54Z cher $ */
+/* $Id: ej_types.h 7345 2013-02-07 20:40:28Z cher $ */
 #ifndef __EJ_TYPES_H__
 #define __EJ_TYPES_H__
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -23,16 +23,28 @@
 typedef rint32_t  ej_time_t;     /* time_t as stored in files */
 typedef long long ej_time64_t;   /* time_t for new file formats */
 typedef ruint32_t ej_size_t;     /* size_t as stored in files */
-typedef ruint32_t ej_ip_t;       /* IP address as stored in files */
+typedef ruint32_t ej_ip4_t;      /* IP address as stored in files */
 typedef unsigned long long ej_cookie_t;   /* cookie */
 typedef unsigned long long ej_tsc_t; /* timestamp counter type */
 
 /** IPv6-ready IP address structure */
-typedef struct ej_ip6_t
+typedef struct ej_ip_t
 {
-  ruint32_t v4; /// IPv4, if 0, then IPv6 is considered
-  unsigned char v6[16];
-} ej_ip6_t;
+  unsigned char ipv6_flag;
+  unsigned char pad1[3];
+  union
+  {
+    struct
+    {
+      unsigned char pad2[12];
+      ruint32_t addr;
+    } v4;
+    struct
+    {
+      unsigned char addr[16];
+    } v6;
+  } u;
+} ej_ip_t;
 
 /* types for meta-info generator */
 typedef unsigned char ejbytebool_t;
@@ -127,5 +139,15 @@ enum
 
 int test_normalization_parse(const unsigned char *);
 const unsigned char *test_normalization_unparse(int normalization);
+
+/* valid end-of-line types for input files */
+enum
+{
+  EOLN_UNDEFINED,
+  EOLN_LF,
+  EOLN_CRLF
+};
+
+const unsigned char *eoln_type_unparse_html(int value);
 
 #endif /* __EJ_TYPES_H__ */

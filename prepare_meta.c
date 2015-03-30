@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/12/14 22:42:37
+// Generated 2013/01/23 13:11:00
 
 #include "prepare_meta.h"
 #include "prepare.h"
@@ -69,6 +69,7 @@ static struct meta_info_item meta_info_section_global_data_data[] =
   [CNTSGLOB_notify_status_change] = { CNTSGLOB_notify_status_change, 'B', XSIZE(struct section_global_data, notify_status_change), "notify_status_change", XOFFSET(struct section_global_data, notify_status_change) },
   [CNTSGLOB_memoize_user_results] = { CNTSGLOB_memoize_user_results, 'B', XSIZE(struct section_global_data, memoize_user_results), "memoize_user_results", XOFFSET(struct section_global_data, memoize_user_results) },
   [CNTSGLOB_disable_auto_refresh] = { CNTSGLOB_disable_auto_refresh, 'B', XSIZE(struct section_global_data, disable_auto_refresh), "disable_auto_refresh", XOFFSET(struct section_global_data, disable_auto_refresh) },
+  [CNTSGLOB_enable_eoln_select] = { CNTSGLOB_enable_eoln_select, 'B', XSIZE(struct section_global_data, enable_eoln_select), "enable_eoln_select", XOFFSET(struct section_global_data, enable_eoln_select) },
   [CNTSGLOB_name] = { CNTSGLOB_name, 'S', XSIZE(struct section_global_data, name), "name", XOFFSET(struct section_global_data, name) },
   [CNTSGLOB_root_dir] = { CNTSGLOB_root_dir, 'S', XSIZE(struct section_global_data, root_dir), "root_dir", XOFFSET(struct section_global_data, root_dir) },
   [CNTSGLOB_serve_socket] = { CNTSGLOB_serve_socket, 'S', XSIZE(struct section_global_data, serve_socket), "serve_socket", XOFFSET(struct section_global_data, serve_socket) },
@@ -356,6 +357,7 @@ static struct meta_info_item meta_info_section_problem_data_data[] =
   [CNTSPROB_olympiad_mode] = { CNTSPROB_olympiad_mode, 'B', XSIZE(struct section_problem_data, olympiad_mode), "olympiad_mode", XOFFSET(struct section_problem_data, olympiad_mode) },
   [CNTSPROB_score_latest] = { CNTSPROB_score_latest, 'B', XSIZE(struct section_problem_data, score_latest), "score_latest", XOFFSET(struct section_problem_data, score_latest) },
   [CNTSPROB_score_latest_or_unmarked] = { CNTSPROB_score_latest_or_unmarked, 'B', XSIZE(struct section_problem_data, score_latest_or_unmarked), "score_latest_or_unmarked", XOFFSET(struct section_problem_data, score_latest_or_unmarked) },
+  [CNTSPROB_score_latest_marked] = { CNTSPROB_score_latest_marked, 'B', XSIZE(struct section_problem_data, score_latest_marked), "score_latest_marked", XOFFSET(struct section_problem_data, score_latest_marked) },
   [CNTSPROB_real_time_limit] = { CNTSPROB_real_time_limit, 'i', XSIZE(struct section_problem_data, real_time_limit), "real_time_limit", XOFFSET(struct section_problem_data, real_time_limit) },
   [CNTSPROB_time_limit] = { CNTSPROB_time_limit, 'i', XSIZE(struct section_problem_data, time_limit), "time_limit", XOFFSET(struct section_problem_data, time_limit) },
   [CNTSPROB_time_limit_millis] = { CNTSPROB_time_limit_millis, 'i', XSIZE(struct section_problem_data, time_limit_millis), "time_limit_millis", XOFFSET(struct section_problem_data, time_limit_millis) },
@@ -566,6 +568,7 @@ static struct meta_info_item meta_info_section_language_data_data[] =
   [CNTSLANG_priority_adjustment] = { CNTSLANG_priority_adjustment, 'i', XSIZE(struct section_language_data, priority_adjustment), "priority_adjustment", XOFFSET(struct section_language_data, priority_adjustment) },
   [CNTSLANG_insecure] = { CNTSLANG_insecure, 'B', XSIZE(struct section_language_data, insecure), "insecure", XOFFSET(struct section_language_data, insecure) },
   [CNTSLANG_disable_security] = { CNTSLANG_disable_security, 'B', XSIZE(struct section_language_data, disable_security), "disable_security", XOFFSET(struct section_language_data, disable_security) },
+  [CNTSLANG_is_dos] = { CNTSLANG_is_dos, 'B', XSIZE(struct section_language_data, is_dos), "is_dos", XOFFSET(struct section_language_data, is_dos) },
   [CNTSLANG_short_name] = { CNTSLANG_short_name, 'S', XSIZE(struct section_language_data, short_name), "short_name", XOFFSET(struct section_language_data, short_name) },
   [CNTSLANG_long_name] = { CNTSLANG_long_name, 'S', XSIZE(struct section_language_data, long_name), "long_name", XOFFSET(struct section_language_data, long_name) },
   [CNTSLANG_key] = { CNTSLANG_key, 'S', XSIZE(struct section_language_data, key), "key", XOFFSET(struct section_language_data, key) },

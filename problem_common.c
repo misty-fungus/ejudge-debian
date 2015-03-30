@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: problem_common.c 6619 2012-01-11 13:48:35Z cher $ */
+/* $Id: problem_common.c 7284 2013-01-23 08:45:50Z cher $ */
 
-/* Copyright (C) 2007-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -131,9 +131,17 @@ test_normalization_unparse(int value)
   return test_normalization_str[value];
 }
 
+const unsigned char *
+eoln_type_unparse_html(int value)
+{
+  if (value <= 0 || value > EOLN_CRLF) return "&nbsp;";
+  if (value == 1) return "LF";
+  if (value == 2) return "CRLF";
+  return "???";
+}
+
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: protocol.h 6116 2011-03-17 07:41:59Z cher $ */
+/* $Id: protocol.h 7361 2013-02-09 19:09:22Z cher $ */
 
 #ifndef __PROTOCOL_H__
 #define __PROTOCOL_H__
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify

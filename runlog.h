@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: runlog.h 7230 2012-12-09 08:40:44Z cher $ */
+/* $Id: runlog.h 7355 2013-02-08 15:21:50Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -93,12 +93,13 @@ int run_add_record(runlog_state_t state,
                    size_t         size,
                    const ruint32_t sha1[5],
                    const ruint32_t uuid[4],
-                   ruint32_t      ip,
+                   const ej_ip_t *pip,
                    int            ssl_flag,
                    int            locale_id,
                    int            team,
                    int            problem,
                    int            language,
+                   int            eoln_type,
                    int            variant,
                    int            is_hidden,
                    int            mime_type);
@@ -230,7 +231,8 @@ enum
     RE_SAVED_TEST    = 0x04000000,
     RE_RUN_UUID      = 0x08000000,
     RE_PASSED_MODE   = 0x10000000,
-    RE_ALL           = 0x1FFFFFFF,
+    RE_EOLN_TYPE     = 0x20000000,
+    RE_ALL           = 0x3FFFFFFF,
   };
 
 /* structure size is 128 bytes */
@@ -245,8 +247,8 @@ struct run_entry
   rint32_t       lang_id;       /* 4 */
   union
   {
-    ej_ip_t        ip;
-    unsigned char  ip6[16];
+    ej_ip4_t       ip;
+    unsigned char  ipv6[16];
   }              a;             /* 16 */
   ruint32_t      sha1[5];       /* 20 */
   rint32_t       score;         /* 4 */
@@ -266,7 +268,7 @@ struct run_entry
   unsigned char  ssl_flag;      /* 1 */
   rint16_t       mime_type;     /* 2 */
   //unsigned char  is_examinable; /* 1 */
-  unsigned char  unused1;       /* 1 */
+  unsigned char  eoln_type;     /* 1 */
   unsigned char  is_marked;     /* 1 */
   //int            examiners[3];  /* 12 */
   //int            exam_score[3]; /* 12 */
@@ -302,8 +304,8 @@ const struct run_entry *run_get_entries_ptr(runlog_state_t);
 time_t run_get_virtual_start_time(runlog_state_t, int user_id);
 time_t run_get_virtual_stop_time(runlog_state_t, int user_id, time_t cur_time);
 int run_get_virtual_status(runlog_state_t, int user_id);
-int run_virtual_start(runlog_state_t, int user_id, time_t, ej_ip_t, int, int);
-int run_virtual_stop(runlog_state_t, int user_id, time_t, ej_ip_t, int, int);
+int run_virtual_start(runlog_state_t, int user_id, time_t, const ej_ip_t *, int, int);
+int run_virtual_stop(runlog_state_t, int user_id, time_t, const ej_ip_t *, int, int);
 int run_get_virtual_info(runlog_state_t state, int user_id,
                          struct run_entry *vs, struct run_entry *ve);
 
@@ -390,5 +392,10 @@ int
 run_get_max_user_id(runlog_state_t state);
 int
 run_get_total_users(runlog_state_t state);
+
+void
+run_entry_to_ipv6(const struct run_entry *p_re, ej_ip_t *p_ip);
+void
+ipv6_to_run_entry(const ej_ip_t *p_ip, struct run_entry *p_re);
 
 #endif /* __RUNLOG_H__ */

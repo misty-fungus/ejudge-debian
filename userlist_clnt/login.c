@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: login.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: login.c 7364 2013-02-09 20:19:53Z cher $ */
 
-/* Copyright (C) 2002-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 int
 userlist_clnt_login(struct userlist_clnt *clnt,
                     int cmd,
-                    ej_ip_t origin_ip,
+                    const ej_ip_t *origin_ip,
                     int ssl,
                     int contest_id,
                     int locale_id,
@@ -47,7 +47,9 @@ userlist_clnt_login(struct userlist_clnt *clnt,
   login_ptr = out->data;
   passwd_ptr = login_ptr + login_len + 1;
   out->request_id = cmd;
-  out->origin_ip = origin_ip;
+  if (origin_ip) {
+    out->origin_ip = *origin_ip;
+  }
   out->ssl = ssl;
   out->contest_id = contest_id;
   out->locale_id = locale_id;
@@ -106,6 +108,5 @@ userlist_clnt_login(struct userlist_clnt *clnt,
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

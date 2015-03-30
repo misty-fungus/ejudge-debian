@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: prepare.c 7246 2012-12-14 18:44:35Z cher $ */
+/* $Id: prepare.c 7296 2013-01-25 11:34:56Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -118,6 +118,7 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(disable_auto_refresh, "d"),
   GLOBAL_PARAM(disable_user_database, "d"),
   GLOBAL_PARAM(enable_max_stack_size, "d"),
+  GLOBAL_PARAM(enable_eoln_select, "d"),
 
   GLOBAL_PARAM(stand_ignore_after, "t"),
   GLOBAL_PARAM(appeal_deadline, "t"),
@@ -361,6 +362,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(olympiad_mode, "d"),
   PROBLEM_PARAM(score_latest, "d"),
   PROBLEM_PARAM(score_latest_or_unmarked, "d"),
+  PROBLEM_PARAM(score_latest_marked, "d"),
   PROBLEM_PARAM(time_limit, "d"),
   PROBLEM_PARAM(time_limit_millis, "d"),
   PROBLEM_PARAM(real_time_limit, "d"),
@@ -507,6 +509,7 @@ static const struct config_parse_info section_language_params[] =
   LANGUAGE_PARAM(priority_adjustment, "d"),
   LANGUAGE_PARAM(insecure, "d"),
   LANGUAGE_PARAM(disable_security, "d"),
+  LANGUAGE_PARAM(is_dos, "d"),
   LANGUAGE_PARAM(short_name, "s"),
   LANGUAGE_PARAM(long_name, "s"),
   LANGUAGE_PARAM(key, "s"),
@@ -753,6 +756,7 @@ global_init_func(struct generic_section_config *gp)
   p->report_error_code = -1;
   p->disable_clars = -1;
   p->disable_team_clars = -1;
+  p->enable_eoln_select = -1;
   p->ignore_compile_errors = -1;
   p->disable_failed_test_view = -1;
   p->enable_printing = -1;
@@ -896,6 +900,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->olympiad_mode = -1;
   p->score_latest = -1;
   p->score_latest_or_unmarked = -1;
+  p->score_latest_marked = -1;
   p->time_limit = -1;
   p->time_limit_millis = -1;
   p->real_time_limit = -1;
@@ -2571,6 +2576,8 @@ set_defaults(
     g->disable_clars = DFLT_G_DISABLE_CLARS;
   if (g->disable_team_clars == -1)
     g->disable_team_clars = DFLT_G_DISABLE_TEAM_CLARS;
+  if (g->enable_eoln_select < 0)
+    g->enable_eoln_select = 0;
   if (g->ignore_compile_errors == -1)
     g->ignore_compile_errors = DFLT_G_IGNORE_COMPILE_ERRORS;
   if (g->disable_failed_test_view == -1)
@@ -3435,6 +3442,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_olympiad_mode, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest_or_unmarked, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_score_latest_marked, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit_millis, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_real_time_limit, prob, aprob, g);
@@ -3832,9 +3840,12 @@ set_defaults(
     for (i = 1; i <= state->max_tester; i++) {
       struct section_tester_data *tp = 0;
       struct section_tester_data *atp = 0;
+      const struct section_problem_data *tp_prob = 0;
 
       if (!state->testers[i]) continue;
       tp = state->testers[i];
+      if (state->probs && tp->problem > 0 && tp->problem <= state->max_prob)
+        tp_prob = state->probs[tp->problem];
 
       /* we hardly can do any reasonable in this case */
       if (tp->any && mode == PREPARE_RUN) {
@@ -3884,7 +3895,7 @@ set_defaults(
       if (mode == PREPARE_RUN) {
         if (!tp->check_dir[0] && atp && atp->check_dir[0]) {
           sformat_message(tp->check_dir, PATH_MAX, 0, atp->check_dir,
-                          g, state->probs[tp->problem], NULL,
+                          g, tp_prob, NULL,
                           tp, NULL, 0, 0, 0);
         }
         if (!tp->check_dir[0]) {
@@ -3901,7 +3912,7 @@ set_defaults(
       if (mode == PREPARE_SERVE) {
         if (!tp->run_dir[0] && atp && atp->run_dir[0]) {
           sformat_message(tp->run_dir, PATH_MAX, 0, atp->run_dir,
-                          g, state->probs[tp->problem], NULL,
+                          g, tp_prob, NULL,
                           tp, NULL, 0, 0, 0);
           vinfo("tester.%d.run_dir inherited from tester.%s ('%s')",
                i, sish, tp->run_dir);
@@ -4068,7 +4079,7 @@ set_defaults(
       }
       if (!tp->errorcode_file[0] && atp && atp->errorcode_file) {
         sformat_message(tp->errorcode_file, PATH_MAX, 0, atp->errorcode_file,
-                        g, state->probs[tp->problem], NULL,
+                        g, tp_prob, NULL,
                         tp, NULL, 0, 0, 0);
         vinfo("tester.%d.errorcode_file inherited from tester.%s ('%s')",
               i, sish, tp->errorcode_file);        
@@ -4091,7 +4102,7 @@ set_defaults(
       if (mode == PREPARE_RUN || mode == PREPARE_SERVE) {
         if (!tp->error_file[0] && atp && atp->error_file[0]) {
           sformat_message(tp->error_file, PATH_MAX, 0, atp->error_file,
-                          g, state->probs[tp->problem], NULL,
+                          g, tp_prob, NULL,
                           tp, NULL, 0, 0, 0);
           vinfo("tester.%d.error_file inherited from tester.%s ('%s')",
                 i, sish, tp->error_file);        
@@ -4103,7 +4114,7 @@ set_defaults(
         }
         if (!tp->start_cmd[0] && atp && atp->start_cmd[0]) {
           sformat_message(tp->start_cmd, PATH_MAX, 0, atp->start_cmd,
-                          g, state->probs[tp->problem], NULL,
+                          g, tp_prob, NULL,
                           tp, NULL, 0, 0, 0);
           vinfo("tester.%d.start_cmd inherited from tester.%s ('%s')",
                 i, sish, tp->start_cmd);        
@@ -4134,7 +4145,7 @@ set_defaults(
 
         if (!tp->prepare_cmd[0] && atp && atp->prepare_cmd[0]) {
           sformat_message(tp->prepare_cmd, PATH_MAX, 0, atp->prepare_cmd,
-                          g, state->probs[tp->problem], NULL,
+                          g, tp_prob, NULL,
                           tp, NULL, 0, 0, 0);
           vinfo("tester.%d.prepare_cmd inherited from tester.%s ('%s')",
                 i, sish, tp->prepare_cmd);        
@@ -4146,7 +4157,7 @@ set_defaults(
 
         if (!tp->nwrun_spool_dir[0] && atp && atp->nwrun_spool_dir[0]) {
           sformat_message(tp->nwrun_spool_dir, PATH_MAX, 0,atp->nwrun_spool_dir,
-                          g, state->probs[tp->problem], NULL,
+                          g, tp_prob, NULL,
                           tp, NULL, 0, 0, 0);
         }
         if (tp->nwrun_spool_dir[0]) {
@@ -5013,6 +5024,7 @@ prepare_set_global_defaults(struct section_global_data *g)
     g->team_show_judge_report = DFLT_G_TEAM_SHOW_JUDGE_REPORT;
   if (g->disable_clars < 0) g->disable_clars = DFLT_G_DISABLE_CLARS;
   if (g->disable_team_clars < 0) g->disable_team_clars = DFLT_G_DISABLE_TEAM_CLARS;
+  if (g->enable_eoln_select < 0) g->enable_eoln_select = 0;
   if (!g->max_file_length) g->max_file_length = DFLT_G_MAX_FILE_LENGTH;
   if (!g->max_line_length) g->max_line_length = DFLT_G_MAX_LINE_LENGTH;
   if (g->ignore_compile_errors < 0)
@@ -5125,6 +5137,7 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->olympiad_mode < 0) prob->olympiad_mode = 0;
   if (prob->score_latest < 0) prob->score_latest = 0;
   if (prob->score_latest_or_unmarked < 0) prob->score_latest_or_unmarked = 0;
+  if (prob->score_latest_marked < 0) prob->score_latest_marked = 0;
   if (prob->time_limit < 0) prob->time_limit = 0;
   if (prob->time_limit_millis < 0) prob->time_limit_millis = 0;
   if (prob->real_time_limit < 0) prob->real_time_limit = 0;
@@ -5256,6 +5269,7 @@ prepare_new_global_section(int contest_id, const unsigned char *root_dir,
   global->team_show_judge_report = DFLT_G_TEAM_SHOW_JUDGE_REPORT;
   global->disable_clars = DFLT_G_DISABLE_CLARS;
   global->disable_team_clars = DFLT_G_DISABLE_TEAM_CLARS;
+  global->enable_eoln_select = 0;
   global->max_file_length = DFLT_G_MAX_FILE_LENGTH;
   global->max_line_length = DFLT_G_MAX_LINE_LENGTH;
   global->tests_to_accept = DFLT_G_TESTS_TO_ACCEPT;
@@ -5701,6 +5715,11 @@ prepare_set_prob_value(
   case CNTSPROB_score_latest_or_unmarked:
     if (out->score_latest_or_unmarked == -1 && abstr) out->score_latest_or_unmarked = abstr->score_latest_or_unmarked;
     if (out->score_latest_or_unmarked == -1) out->score_latest_or_unmarked = 0;
+    break;
+
+  case CNTSPROB_score_latest_marked:
+    if (out->score_latest_marked == -1 && abstr) out->score_latest_marked = abstr->score_latest_marked;
+    if (out->score_latest_marked == -1) out->score_latest_marked = 0;
     break;
 
   case CNTSPROB_time_limit:
@@ -6464,7 +6483,7 @@ static const int prob_settable_list[] =
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
   CNTSPROB_binary_input, CNTSPROB_binary, CNTSPROB_ignore_exit_code,
   CNTSPROB_olympiad_mode,
-  CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
+  CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_score_latest_marked, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
   CNTSPROB_real_time_limit, CNTSPROB_interactor_time_limit, CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac,
   CNTSPROB_team_enable_rep_view, CNTSPROB_team_enable_ce_view,
   CNTSPROB_team_show_judge_report, CNTSPROB_ignore_compile_errors,
@@ -6538,6 +6557,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_olympiad_mode] = 1,
   [CNTSPROB_score_latest] = 1,
   [CNTSPROB_score_latest_or_unmarked] = 1,
+  [CNTSPROB_score_latest_marked] = 1,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
@@ -6676,6 +6696,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
   CNTSPROB_binary_input, CNTSPROB_binary,
   CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode, CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked,
+  CNTSPROB_score_latest_marked,
   CNTSPROB_time_limit, CNTSPROB_time_limit_millis, CNTSPROB_real_time_limit,
   CNTSPROB_interactor_time_limit,
   CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac, CNTSPROB_team_enable_rep_view,
@@ -6748,6 +6769,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_olympiad_mode] = 1,
   [CNTSPROB_score_latest] = 1,
   [CNTSPROB_score_latest_or_unmarked] = 1,
+  [CNTSPROB_score_latest_marked] = 1,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
@@ -6893,6 +6915,7 @@ static const struct section_problem_data prob_undef_values =
   .olympiad_mode = -1,
   .score_latest = -1,
   .score_latest_or_unmarked = -1,
+  .score_latest_marked = -1,
   .real_time_limit = -1,
   .time_limit = -1,
   .time_limit_millis = -1,
@@ -7042,6 +7065,7 @@ static const struct section_problem_data prob_default_values =
   .olympiad_mode = 0,
   .score_latest = 0,
   .score_latest_or_unmarked = 0,
+  .score_latest_marked = 0,
   .real_time_limit = 0,
   .time_limit = 0,
   .time_limit_millis = 0,

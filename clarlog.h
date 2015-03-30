@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: clarlog.h 6782 2012-05-01 12:39:11Z cher $ */
+/* $Id: clarlog.h 7352 2013-02-08 12:40:13Z cher $ */
 #ifndef __CLARLOG_H__
 #define __CLARLOG_H__
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -65,14 +65,14 @@ struct clar_entry_v1
   int to;                       /* 4 */
   int j_from;                   /* 4 */
   unsigned int flags;           /* 4 */
-  unsigned char ip6_flag;       /* 1 */
+  unsigned char ipv6_flag;      /* 1 */
   unsigned char hide_flag;      /* 1 */
   unsigned char ssl_flag;       /* 1 */
   unsigned char appeal_flag;    /* 1 */
   union
   {
-    ej_ip_t ip;
-    unsigned char ip6[16];
+    ej_ip4_t ip;
+    unsigned char ipv6[16];
   } a;                          /* 16 */
   unsigned short locale_id;     /* 2 */
   unsigned char _pad2[2];       /* 2 */
@@ -101,7 +101,7 @@ int clar_add_record(
         time_t          time,
         int             nsec,
         size_t          size,
-        ej_ip_t         ip,
+        const ej_ip_t   *pip,
         int             ssl_flag,
         int             from,
         int             to,
@@ -172,5 +172,10 @@ clar_modify_record(
         int clar_id,
         int mask,
         const struct clar_entry_v1 *pclar);
+
+void
+clar_entry_to_ipv6(const struct clar_entry_v1 *pe, ej_ip_t *pip);
+void
+ipv6_to_clar_entry(const ej_ip_t *pip, struct clar_entry_v1 *pe);
 
 #endif /* __CLARLOG_H__ */

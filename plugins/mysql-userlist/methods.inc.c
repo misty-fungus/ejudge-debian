@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: methods.inc.c 6408 2011-07-17 09:12:39Z cher $ */
+/* $Id: methods.inc.c 7356 2013-02-09 08:40:11Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -80,7 +80,7 @@ static int
 new_cookie_func(
         void *,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *pip,
         int ssl_flag,
         ej_cookie_t cookie,
         time_t,
@@ -491,6 +491,5 @@ get_next_user_id_func(
 /*
  * Local variables:
  *  compile-command: "make -C ../.."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "MYSQL")
  * End:
  */

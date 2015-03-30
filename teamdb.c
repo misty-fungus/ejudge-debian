@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: teamdb.c 6853 2012-05-25 08:34:35Z cher $ */
+/* $Id: teamdb.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,6 +24,7 @@
 #include "userlist_clnt.h"
 #include "userlist_proto.h"
 #include "userlist.h"
+#include "xml_utils.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -660,11 +661,16 @@ teamdb_set_archive_time(teamdb_state_t state, int uid, time_t time)
 }
 
 int
-teamdb_get_uid_by_pid(teamdb_state_t state, int system_uid, int system_gid,
-                      int system_pid,
-                      int *p_uid, int *p_priv_level,
-                      ej_cookie_t *p_cookie,
-                      ej_ip_t *p_ip, int *p_ssl)
+teamdb_get_uid_by_pid(
+        teamdb_state_t state,
+        int system_uid,
+        int system_gid,
+        int system_pid,
+        int *p_uid,
+        int *p_priv_level,
+        ej_cookie_t *p_cookie,
+        ej_ip_t *p_ip,
+        int *p_ssl)
 {
   int r;
 

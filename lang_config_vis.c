@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: lang_config_vis.c 7092 2012-10-26 05:08:07Z cher $ */
+/* $Id: lang_config_vis.c 7293 2013-01-23 20:52:50Z cher $ */
 
-/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1188,6 +1188,9 @@ lang_config_generate_compile_cfg(
     }
     if ((s = shellconfig_get(p->cfg, "binary"))) {
       fprintf(f, "binary\n");
+    }
+    if ((s = shellconfig_get(p->cfg, "is_dos"))) {
+      fprintf(f, "is_dos\n");
     }
     if (!(s = shellconfig_get(p->cfg, "cmd"))) s = p->lang;
     fprintf(f, "cmd = \"%s\"\n", s);

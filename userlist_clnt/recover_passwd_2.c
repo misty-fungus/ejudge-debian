@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: recover_passwd_2.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: recover_passwd_2.c 7364 2013-02-09 20:19:53Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -21,7 +21,7 @@ int
 userlist_clnt_recover_passwd_2(
         struct userlist_clnt *clnt,
         int cmd,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag,
         int contest_id,
         ej_cookie_t cookie,
@@ -43,7 +43,9 @@ userlist_clnt_recover_passwd_2(
   out = alloca(out_size);
   memset(out, 0, out_size);
   out->request_id = cmd;
-  out->origin_ip = ip;
+  if (ip) {
+    out->origin_ip = *ip;
+  }
   out->ssl = ssl_flag;
   out->contest_id = contest_id;
   out->cookie = cookie;
@@ -91,6 +93,5 @@ userlist_clnt_recover_passwd_2(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

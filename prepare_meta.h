@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2012/12/14 22:42:37
+// Generated 2013/01/23 13:11:00
 
 #ifndef __PREPARE_META_H__
 #define __PREPARE_META_H__
@@ -64,6 +64,7 @@ enum
   CNTSGLOB_notify_status_change,
   CNTSGLOB_memoize_user_results,
   CNTSGLOB_disable_auto_refresh,
+  CNTSGLOB_enable_eoln_select,
   CNTSGLOB_name,
   CNTSGLOB_root_dir,
   CNTSGLOB_serve_socket,
@@ -316,6 +317,7 @@ enum
   CNTSPROB_olympiad_mode,
   CNTSPROB_score_latest,
   CNTSPROB_score_latest_or_unmarked,
+  CNTSPROB_score_latest_marked,
   CNTSPROB_real_time_limit,
   CNTSPROB_time_limit,
   CNTSPROB_time_limit_millis,
@@ -491,6 +493,7 @@ enum
   CNTSLANG_priority_adjustment,
   CNTSLANG_insecure,
   CNTSLANG_disable_security,
+  CNTSLANG_is_dos,
   CNTSLANG_short_name,
   CNTSLANG_long_name,
   CNTSLANG_key,

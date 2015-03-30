@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new-client.c 6493 2011-10-21 06:48:27Z cher $ */
+/* $Id: new-client.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -99,14 +99,16 @@ check_config_exist(unsigned char const *path)
 }
 
 static int
-check_access_rules(char **rules, ej_ip_t ip, int ssl_flag)
+check_access_rules(char **rules, const ej_ip_t *ip, int ssl_flag)
 {
+  return 1;
+  /*
   int i, r, n, mode, ssl_mode;
   unsigned char *s;
   unsigned char b1[1024];
   unsigned char b2[1024];
   unsigned char b3[1024];
-  ej_ip_t cur_ip, cur_mask;
+  ej_ip4_t cur_ip, cur_mask;
 
   if (!rules) return 0;
   for (i = 0; rules[i]; i++) {
@@ -137,6 +139,7 @@ check_access_rules(char **rules, ej_ip_t ip, int ssl_flag)
  failed:
   client_not_configured(client_charset, "invalid access rules", 0, 0);
   return -1;
+  */
 }
 
 static void
@@ -153,7 +156,8 @@ initialize(int argc, char *argv[])
   if (getenv("SSL_PROTOCOL") || getenv("HTTPS")) {
     ssl_flag = 1;
   }
-  client_ip = parse_client_ip();
+
+  parse_client_ip(&client_ip);
 
   s = getenv("SCRIPT_FILENAME");
   if (!s) s = argv[0];
@@ -209,7 +213,7 @@ initialize(int argc, char *argv[])
     global->connect_attempts = MAX_ATTEMPT;
 
   if (global->access) {
-    if (check_access_rules(global->access, client_ip, ssl_flag) < 0)
+    if (check_access_rules(global->access, &client_ip, ssl_flag) < 0)
       client_access_denied(client_charset, 0);
   }
 
@@ -271,6 +275,5 @@ main(int argc, char *argv[])
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */
