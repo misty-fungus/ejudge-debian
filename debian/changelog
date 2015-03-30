@@ -1,11 +1,9 @@
-ejudge (2.3.28-1~1.gbpbeaa75) UNRELEASED; urgency=medium
+ejudge (2.3.28-1) unstable; urgency=medium
 
-  ** SNAPSHOT build @beaa757b5a02394bb88c1d3cd212c815bfc8e871 **
-
-  * [266cbd9] New upstream version 2.3.27
   * [2d41ab2] New upstream version 2.3.28
+  * [d3c8da1] new debian snapshot debian/2.3.28-1
 
- -- Yaroslav Leonov <alximik43@gmail.com>  Mon, 30 Mar 2015 23:42:42 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Mon, 30 Mar 2015 23:49:17 +0300
 
 ejudge (2.3.27-1) unstable; urgency=medium
 
