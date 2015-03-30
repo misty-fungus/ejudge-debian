@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 7124 2012-11-03 18:03:52Z cher $ */
+/* $Id: rldb_mysql.c 7354 2013-02-08 15:18:43Z cher $ */
 
-/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -169,7 +169,7 @@ do_create(struct rldb_mysql_state *state)
   if (mi->simple_fquery(md, create_runs_query, md->table_prefix) < 0)
     db_error_fail(md);
   if (mi->simple_fquery(md,
-                        "INSERT INTO %sconfig VALUES ('run_version', '4') ;",
+                        "INSERT INTO %sconfig VALUES ('run_version', '5') ;",
                         md->table_prefix) < 0)
     db_error_fail(md);
   return 0;
@@ -234,7 +234,14 @@ do_open(struct rldb_mysql_state *state)
       return -1;
     run_version = 4;
   }
-  if (run_version != 4) {
+  if (run_version == 4) {
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN eoln_type TINYINT NOT NULL DEFAULT 0 AFTER passed_mode", md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '5' WHERE config_key = 'run_version' ;", md->table_prefix) < 0)
+      return -1;
+    run_version = 5;
+  }
+  if (run_version != 5) {
     err("run_version == %d is not supported", run_version);
     return -1;
   }
@@ -413,7 +420,7 @@ load_runs(struct rldb_mysql_cnts *cs)
       uuid_parse(ri.run_uuid, (void*) run_uuid);
 #endif
     }
-    if (ri.ip_version != 4) db_error_inv_value_fail(md, "ip_version");
+    //if (ri.ip_version != 4) db_error_inv_value_fail(md, "ip_version");
     if (ri.mime_type && (mime_type = mime_type_parse(ri.mime_type)) < 0)
       db_error_inv_value_fail(md, "mime_type");
     xfree(ri.hash); ri.hash = 0;
@@ -429,8 +436,7 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->user_id = ri.user_id;
     re->prob_id = ri.prob_id;
     re->lang_id = ri.lang_id;
-    re->a.ip = ri.ip;
-    re->ipv6_flag = 0;
+    ipv6_to_run_entry(&ri.ip, re);
     memcpy(re->sha1, sha1, sizeof(re->sha1));
     memcpy(re->run_uuid, run_uuid, sizeof(re->run_uuid));
     re->score = ri.score;
@@ -461,6 +467,7 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->saved_score = ri.saved_score;
     re->saved_test = ri.saved_test;
     re->passed_mode = ri.passed_mode;
+    re->eoln_type = ri.eoln_type;
   }
   return 1;
 
@@ -846,9 +853,13 @@ generate_update_entry_clause(
     sep = comma;
   }
   if ((flags & RE_IP)) {
-    fprintf(f, "%sip_version = 4", sep);
+    int ip_version = 4;
+    if (re->ipv6_flag) ip_version = 6;
+    fprintf(f, "%sip_version = %d", sep, ip_version);
     sep = comma;
-    fprintf(f, "%sip = '%s'", sep, xml_unparse_ip(re->a.ip));
+    ej_ip_t ipv6;
+    run_entry_to_ipv6(re, &ipv6);
+    fprintf(f, "%sip = '%s'", sep, xml_unparse_ipv6(&ipv6));
   }
   if ((flags & RE_SHA1)) {
     if (!re->sha1[0] && !re->sha1[1] && !re->sha1[2]
@@ -965,6 +976,10 @@ generate_update_entry_clause(
     fprintf(f, "%spassed_mode = %d", sep, !!re->passed_mode);
     sep = comma;
   }
+  if ((flags & RE_EOLN_TYPE)) {
+    fprintf(f, "%seoln_type = %d", sep, re->eoln_type);
+    sep = comma;
+  }
 
   gettimeofday(&curtime, 0);
   fprintf(f, "%slast_change_time = ", sep);
@@ -1066,6 +1081,9 @@ update_entry(
   }
   if ((flags & RE_PASSED_MODE)) {
     dst->passed_mode = src->passed_mode;
+  }
+  if ((flags & RE_EOLN_TYPE)) {
+    dst->eoln_type = src->eoln_type;
   }
 }
 
@@ -1514,8 +1532,9 @@ put_entry_func(
   ri.prob_id = re->prob_id;
   ri.lang_id = re->lang_id;
   ri.status = re->status;
-  ri.ip = re->a.ip;
   ri.ip_version = 4;
+  if (re->ipv6_flag) ri.ip_version = 6;
+  run_entry_to_ipv6(re, &ri.ip);
   ri.ssl_flag = re->ssl_flag;
   if (re->sha1[0] || re->sha1[1] || re->sha1[2] || re->sha1[3]
       || re->sha1[4]) {
@@ -1560,6 +1579,7 @@ put_entry_func(
   ri.saved_score = re->saved_score;
   ri.saved_test = re->saved_test;
   ri.passed_mode = re->passed_mode;
+  ri.eoln_type = re->eoln_type;
 
   cmd_f = open_memstream(&cmd_t, &cmd_z);
   fprintf(cmd_f, "INSERT INTO %sruns VALUES ( ", state->md->table_prefix);
@@ -1698,6 +1718,5 @@ change_status_4_func(
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "MYSQL")
  * End:
  */

@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: edit-userlist.c 6634 2012-02-07 14:54:16Z cher $ */
+/* $Id: edit-userlist.c 7356 2013-02-09 08:40:11Z cher $ */
 
-/* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1266,23 +1266,12 @@ static const struct user_field_desc member_descs[] =
   [USERLIST_NM_LAST_CHANGE_TIME] { "Change time", 1, 1 },
 };
 
-static unsigned char *
-unparse_ip(ej_ip_t ip)
-{
-  static char buf[64];
-
-  snprintf(buf, sizeof(buf), "%u.%u.%u.%u",
-           ip >> 24, (ip >> 16) & 0xff,
-           (ip >> 8) & 0xff, ip & 0xff);
-  return buf;
-}
-
 static int
 get_cookie_str(unsigned char *buf, size_t len,
                const struct userlist_cookie *cookie)
 {
   return snprintf(buf, len, "%016llx %16s %s %4d %4d",
-                  cookie->cookie, unparse_ip(cookie->ip),
+                  cookie->cookie, xml_unparse_ipv6(&cookie->ip),
                   userlist_unparse_date(cookie->expire, 1),
                   cookie->locale_id,
                   cookie->contest_id);
@@ -5362,6 +5351,5 @@ main(int argc, char **argv)
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "WINDOW" "ITEM" "PANEL" "MENU")
  * End:
  */

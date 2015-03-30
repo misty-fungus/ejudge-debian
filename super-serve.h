@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: super-serve.h 6877 2012-06-04 14:22:01Z cher $ */
+/* $Id: super-serve.h 7361 2013-02-09 19:09:22Z cher $ */
 #ifndef __SUPER_SERVE_H__
 #define __SUPER_SERVE_H__
 
-/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify

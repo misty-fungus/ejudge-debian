@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: runlog.c 7147 2012-11-06 12:20:11Z cher $ */
+/* $Id: runlog.c 7355 2013-02-08 15:21:50Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -75,7 +75,7 @@ struct run_entry_v1
   rint32_t       submission;
   ej_time_t      timestamp;
   ej_size_t      size;
-  ej_ip_t        ip;
+  ej_ip4_t       ip;
   ruint32_t      sha1[5];
   rint32_t       team;
   rint32_t       problem;
@@ -293,12 +293,13 @@ run_add_record(
         size_t         size,
         const ruint32_t sha1[5],
         const ruint32_t uuid[4],
-        ruint32_t      ip,
+        const ej_ip_t *pip,
         int            ssl_flag,
         int            locale_id,
         int            team,
         int            problem,
         int            language,
+        int            eoln_type,
         int            variant,
         int            is_hidden,
         int            mime_type)
@@ -399,17 +400,17 @@ run_add_record(
   re.locale_id = locale_id;
   re.user_id = team;
   re.lang_id = language;
+  re.eoln_type = eoln_type;
   re.prob_id = problem;
   re.status = 99;
   re.test = 0;
   re.score = -1;
-  re.a.ip = ip;
-  re.ipv6_flag = 0;
+  ipv6_to_run_entry(pip, &re);
   re.ssl_flag = ssl_flag;
   re.variant = variant;
   re.is_hidden = is_hidden;
   re.mime_type = mime_type;
-  flags = RE_SIZE | RE_LOCALE_ID | RE_USER_ID | RE_LANG_ID | RE_PROB_ID | RE_STATUS | RE_TEST | RE_SCORE | RE_IP | RE_SSL_FLAG | RE_VARIANT | RE_IS_HIDDEN | RE_MIME_TYPE;
+  flags = RE_SIZE | RE_LOCALE_ID | RE_USER_ID | RE_LANG_ID | RE_PROB_ID | RE_STATUS | RE_TEST | RE_SCORE | RE_IP | RE_SSL_FLAG | RE_VARIANT | RE_IS_HIDDEN | RE_MIME_TYPE | RE_EOLN_TYPE;
   if (sha1) {
     memcpy(re.sha1, sha1, sizeof(state->runs[i].sha1));
     flags |= RE_SHA1;
@@ -1160,6 +1161,10 @@ run_set_entry(
     te.passed_mode = in->passed_mode;
     f = 1;
   }
+  if ((mask & RE_EOLN_TYPE) && te.eoln_type != in->eoln_type) {
+    te.eoln_type = in->eoln_type;
+    f = 1;
+  }
 
   /* check consistency of a new record */
   if (te.status == RUN_VIRTUAL_START || te.status == RUN_VIRTUAL_STOP
@@ -1325,7 +1330,7 @@ run_virtual_start(
         runlog_state_t state,
         int user_id,
         time_t t,
-        ej_ip_t ip,
+        const ej_ip_t *pip,
         int ssl_flag,
         int nsec)
 {
@@ -1359,8 +1364,7 @@ run_virtual_start(
 
   memset(&re, 0, sizeof(re));
   re.user_id = user_id;
-  re.a.ip = ip;
-  re.ipv6_flag = 0;
+  ipv6_to_run_entry(pip, &re);
   re.ssl_flag = ssl_flag;
   re.status = RUN_VIRTUAL_START;
   pvt->start_time = t;
@@ -1379,7 +1383,7 @@ run_virtual_stop(
         runlog_state_t state,
         int user_id,
         time_t t,
-        ej_ip_t ip,
+        const ej_ip_t *pip,
         int ssl_flag,
         int nsec)
 {
@@ -1416,8 +1420,7 @@ run_virtual_stop(
     return -1;
   memset(&re, 0, sizeof(re));
   re.user_id = user_id;
-  re.a.ip = ip;
-  re.ipv6_flag = 0;
+  ipv6_to_run_entry(pip, &re);
   re.ssl_flag = ssl_flag;
   re.status = RUN_VIRTUAL_STOP;
   pvt->stop_time = t;

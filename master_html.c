@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: master_html.c 7224 2012-12-09 07:20:07Z cher $ */
+/* $Id: master_html.c 7268 2013-01-08 06:44:35Z cher $ */
 
 /* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -781,6 +781,7 @@ write_xml_testing_report(
   fprintf(f, "<pre>");
   for (i = 0; i < r->run_tests; i++) {
     if (!(t = r->tests[i])) continue;
+    if (t->status == RUN_SKIPPED) continue;
     if (!t->args && !t->args_too_long && !t->input
         && !t->output && !t->error && !t->correct && !t->checker) continue;
 

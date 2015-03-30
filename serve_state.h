@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 7259 2012-12-20 13:11:33Z cher $ */
+/* $Id: serve_state.h 7361 2013-02-09 19:09:22Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -314,6 +314,7 @@ struct compile_run_extra
   int accepting_mode;
   int priority_adjustment;
   int notify_flag;
+  int is_dos;
 };
 
 serve_state_t serve_state_init(int contest_id);
@@ -390,7 +391,7 @@ serve_audit_log(
         serve_state_t state,
         int run_id,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag,
         const unsigned char *command,
         const unsigned char *status,
@@ -448,6 +449,7 @@ serve_run_request(
         int accepting_mode,
         int notify_flag,
         int mime_type,
+        int eoln_type,
         const unsigned char *compile_report_dir,
         const struct compile_reply_packet *comp_pkt,
         int no_db_flag);
@@ -475,63 +477,69 @@ serve_rejudge_run(
         serve_state_t state,
         int run_id,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag,
         int force_full_rejudge,
         int priority_adjustment);
-void
+
+struct server_framework_job;
+struct server_framework_job *
 serve_rejudge_by_mask(
         const struct ejudge_cfg *config,
         const struct contest_desc *,
         serve_state_t state,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag,
         int mask_size,
         unsigned long *mask,
         int force_flag,
-        int priority_adjustment);
+        int priority_adjustment,
+        int create_job_flag);
 
 void
 serve_mark_by_mask(
         serve_state_t state,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag,
         int mask_size,
         unsigned long *mask,
         int mark_value);
 
-void
+struct server_framework_job *
 serve_rejudge_problem(
         const struct ejudge_cfg *config,
         const struct contest_desc *cnst,
         serve_state_t state,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag,
         int prob_id,
-        int priority_adjustment);
+        int priority_adjustment,
+        int create_job_flag);
 
-void
+struct server_framework_job *
 serve_judge_suspended(
         const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         serve_state_t state,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag,
-        int priority_adjustment);
+        int priority_adjustment,
+        int create_job_flag);
 
-void
+struct server_framework_job *
 serve_rejudge_all(
         const struct ejudge_cfg *config,
         const struct contest_desc *cnts,
         serve_state_t state,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag,
-        int priority_adjustment);
+        int priority_adjustment,
+        int create_job_flag);
 
 int
 serve_read_compile_packet(
@@ -566,7 +574,7 @@ serve_judge_built_in_problem(
         const struct section_problem_data *prob,
         struct problem_desc *px,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag);
 
 void serve_invoke_start_script(serve_state_t state);
@@ -597,10 +605,10 @@ void serve_judge_virtual_olympiad(
         int priority_adjustment);
 
 void serve_clear_by_mask(serve_state_t state,
-                         int user_id, ej_ip_t ip, int ssl_flag,
+                         int user_id, const ej_ip_t *ip, int ssl_flag,
                          int mask_size, unsigned long *mask);
 void serve_ignore_by_mask(serve_state_t state,
-                          int user_id, ej_ip_t ip, int ssl_flag,
+                          int user_id, const ej_ip_t *ip, int ssl_flag,
                           int mask_size, unsigned long *mask,
                           int new_status);
 void

@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: prepare.h 7246 2012-12-14 18:44:35Z cher $ */
+/* $Id: prepare.h 7286 2013-01-23 09:10:53Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -239,6 +239,8 @@ struct section_global_data
   ejintbool_t memoize_user_results;
   /** disable standings auto-refresh */
   ejintbool_t disable_auto_refresh;
+  /** participants may select wanted EOLN type for tests */
+  ejintbool_t enable_eoln_select;
 
   /** @deprecated the name of the contest */
   unsigned char name[256];
@@ -734,7 +736,7 @@ struct section_global_data
   +unsigned char *solution_cmd;
  */
 
-/* sizeof(struct section_problem_data) == 65120/? */
+/* sizeof(struct section_problem_data) == ?/? */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -780,6 +782,8 @@ struct section_problem_data
   ejintbool_t score_latest;
   /** for KIROV contests: score the latest submit or the best unmarked */
   ejintbool_t score_latest_or_unmarked;
+  /** for KIROV contests: score the latest marked submit */
+  ejintbool_t score_latest_marked;
   /** maximum astronomical time for a problem (seconds) */
   int real_time_limit;
   /** time limit in seconds */
@@ -1104,6 +1108,8 @@ struct section_language_data
   ejintbool_t insecure;
   /** disable security restrictions for this language */
   ejintbool_t disable_security;
+  /** perform unix->dos conversion */
+  ejintbool_t is_dos;
   /** language short name */
   unsigned char short_name[32];
   /** language long name */

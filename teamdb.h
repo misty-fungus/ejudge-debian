@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: teamdb.h 6853 2012-05-25 08:34:35Z cher $ */
+/* $Id: teamdb.h 7361 2013-02-09 19:09:22Z cher $ */
 #ifndef __TEAMDB_H__
 #define __TEAMDB_H__
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify

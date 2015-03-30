@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: lookup_cookie.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: lookup_cookie.c 7364 2013-02-09 20:19:53Z cher $ */
 
-/* Copyright (C) 2002-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 
 int
 userlist_clnt_lookup_cookie(struct userlist_clnt *clnt,
-                            ej_ip_t origin_ip,
+                            const ej_ip_t *origin_ip,
                             int ssl,
                             ej_cookie_t cookie,
                             int *p_user_id,
@@ -40,7 +40,9 @@ userlist_clnt_lookup_cookie(struct userlist_clnt *clnt,
   data = alloca(len);
   memset(data, 0, len);
   data->request_id = ULS_CHECK_COOKIE;
-  data->origin_ip = origin_ip;
+  if (origin_ip) {
+    data->origin_ip = *origin_ip;
+  }
   data->ssl = ssl;
   //  data->contest_id = contest_id;
   data->cookie = cookie;
@@ -64,6 +66,5 @@ userlist_clnt_lookup_cookie(struct userlist_clnt *clnt,
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

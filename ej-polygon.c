@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: ej-polygon.c 7252 2012-12-16 20:58:03Z cher $ */
+/* $Id: ej-polygon.c 7347 2013-02-08 09:54:53Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -533,7 +533,7 @@ zip_open_func(FILE *log_f, const unsigned char *path)
     char errbuf[1024];
     struct ZipData *zdata = NULL;
 
-    if (!(zzz = zip_open(path, ZIP_CHECKCONS, &zip_err))) {
+    if (!(zzz = zip_open(path, 0, &zip_err))) {
         zip_error_to_str(errbuf, sizeof(errbuf), zip_err, errno);
         fprintf(log_f, "%s: failed to open ZIP '%s': %s\n", __FUNCTION__, path, errbuf);
     } else {

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: contests.c 7184 2012-11-20 16:17:27Z cher $ */
+/* $Id: contests.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -501,7 +501,7 @@ parse_access(struct contest_access *acc, char const *path)
     }
     if (ip->allow == -1) ip->allow = 0;
 
-    if (xml_parse_ip_mask(NULL, path, ip->b.line, ip->b.column,
+    if (xml_parse_ipv6_mask(NULL, path, ip->b.line, ip->b.column,
                           ip->b.text, &ip->addr, &ip->mask) < 0) return -1;
     xfree(t->text); t->text = 0;
   }
@@ -1270,24 +1270,24 @@ contests_new_node(int tag)
 }
 
 static int
-do_check_ip(struct contest_access *acc, ej_ip_t ip, int ssl)
+do_check_ip(struct contest_access *acc, const ej_ip_t *pip, int ssl)
 {
   struct contest_ip *p;
 
   if (!acc) return 0;
-  if (!ip && acc->default_is_allow) return 1;
-  if (!ip) return 0;
+  //if (!ip && acc->default_is_allow) return 1;
+  //if (!ip) return 0;
 
   for (p = (struct contest_ip*) acc->b.first_down;
        p; p = (struct contest_ip*) p->b.right) {
-    if ((ip & p->mask) == p->addr && (p->ssl == -1 || p->ssl == ssl))
+    if (ipv6_match_mask(&p->addr, &p->mask, pip) && (p->ssl == -1 || p->ssl == ssl))
       return p->allow;
   }
   return acc->default_is_allow;
 }
 
 int
-contests_check_ip(int num, int field, ej_ip_t ip, int ssl)
+contests_check_ip(int num, int field, const ej_ip_t *pip, int ssl)
 {
   const struct contest_desc *d = 0;
   struct contest_access *acc = 0;
@@ -1308,68 +1308,68 @@ contests_check_ip(int num, int field, ej_ip_t ip, int ssl)
     err("contests_check_ip: %d: invalid field %d", num, field);
     return 0;
   }
-  return do_check_ip(acc, ip, ssl);
+  return do_check_ip(acc, pip, ssl);
 }
 
 int
-contests_check_register_ip(int num, ej_ip_t ip, int ssl)
+contests_check_register_ip(int num, const ej_ip_t *pip, int ssl)
 {
-  return contests_check_ip(num, CONTEST_REGISTER_ACCESS, ip, ssl);
+  return contests_check_ip(num, CONTEST_REGISTER_ACCESS, pip, ssl);
 }
 int
-contests_check_register_ip_2(const struct contest_desc *cnts, ej_ip_t ip, int ssl)
+contests_check_register_ip_2(const struct contest_desc *cnts, const ej_ip_t *pip, int ssl)
 {
-  return do_check_ip(cnts->register_access, ip, ssl);
+  return do_check_ip(cnts->register_access, pip, ssl);
 }
 int
-contests_check_users_ip(int num, ej_ip_t ip, int ssl)
+contests_check_users_ip(int num, const ej_ip_t *pip, int ssl)
 {
-  return contests_check_ip(num, CONTEST_USERS_ACCESS, ip, ssl);
+  return contests_check_ip(num, CONTEST_USERS_ACCESS, pip, ssl);
 }
 int
-contests_check_users_ip_2(const struct contest_desc *cnts, ej_ip_t ip, int ssl)
+contests_check_users_ip_2(const struct contest_desc *cnts, const ej_ip_t *pip, int ssl)
 {
-  return do_check_ip(cnts->users_access, ip, ssl);
+  return do_check_ip(cnts->users_access, pip, ssl);
 }
 int
-contests_check_master_ip(int num, ej_ip_t ip, int ssl)
+contests_check_master_ip(int num, const ej_ip_t *pip, int ssl)
 {
-  return contests_check_ip(num, CONTEST_MASTER_ACCESS, ip, ssl);
+  return contests_check_ip(num, CONTEST_MASTER_ACCESS, pip, ssl);
 }
 int
-contests_check_master_ip_2(const struct contest_desc *cnts, ej_ip_t ip, int ssl)
+contests_check_master_ip_2(const struct contest_desc *cnts, const ej_ip_t *pip, int ssl)
 {
-  return do_check_ip(cnts->master_access, ip, ssl);
+  return do_check_ip(cnts->master_access, pip, ssl);
 }
 int
-contests_check_judge_ip(int num, ej_ip_t ip, int ssl)
+contests_check_judge_ip(int num, const ej_ip_t *pip, int ssl)
 {
-  return contests_check_ip(num, CONTEST_JUDGE_ACCESS, ip, ssl);
+  return contests_check_ip(num, CONTEST_JUDGE_ACCESS, pip, ssl);
 }
 int
-contests_check_judge_ip_2(const struct contest_desc *cnts, ej_ip_t ip, int ssl)
+contests_check_judge_ip_2(const struct contest_desc *cnts, const ej_ip_t *pip, int ssl)
 {
-  return do_check_ip(cnts->judge_access, ip, ssl);
+  return do_check_ip(cnts->judge_access, pip, ssl);
 }
 int
-contests_check_team_ip(int num, ej_ip_t ip, int ssl)
+contests_check_team_ip(int num, const ej_ip_t *pip, int ssl)
 {
-  return contests_check_ip(num, CONTEST_TEAM_ACCESS, ip, ssl);
+  return contests_check_ip(num, CONTEST_TEAM_ACCESS, pip, ssl);
 }
 int
-contests_check_team_ip_2(const struct contest_desc *cnts, ej_ip_t ip, int ssl)
+contests_check_team_ip_2(const struct contest_desc *cnts, const ej_ip_t *pip, int ssl)
 {
-  return do_check_ip(cnts->team_access, ip, ssl);
+  return do_check_ip(cnts->team_access, pip, ssl);
 }
 int
-contests_check_serve_control_ip(int num, ej_ip_t ip, int ssl)
+contests_check_serve_control_ip(int num, const ej_ip_t *pip, int ssl)
 {
-  return contests_check_ip(num, CONTEST_SERVE_CONTROL_ACCESS, ip, ssl);
+  return contests_check_ip(num, CONTEST_SERVE_CONTROL_ACCESS, pip, ssl);
 }
 int
-contests_check_serve_control_ip_2(const struct contest_desc *cnts, ej_ip_t ip, int ssl)
+contests_check_serve_control_ip_2(const struct contest_desc *cnts, const ej_ip_t *pip, int ssl)
 {
-  return do_check_ip(cnts->serve_control_access, ip, ssl);
+  return do_check_ip(cnts->serve_control_access, pip, ssl);
 }
 
 struct callback_list_item

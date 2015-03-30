@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: serve-control.c 7246 2012-12-14 18:44:35Z cher $ */
+/* $Id: serve-control.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -94,8 +94,8 @@ struct ip_node
   struct xml_tree b;
   int allow;
   int ssl;
-  unsigned int addr;
-  unsigned int mask;
+  ej_ip_t addr;
+  ej_ip_t mask;
 };
 struct access_node
 {
@@ -250,7 +250,7 @@ parse_config(const unsigned char *path, const unsigned char *default_config)
             if (xml_attr_bool(attr, &pip->allow) < 0) goto failed;
           }
         }
-        if (xml_elem_ip_mask(t2, &pip->addr, &pip->mask) < 0) goto failed;
+        if (xml_elem_ipv6_mask(t2, &pip->addr, &pip->mask) < 0) goto failed;
       }
       break;
       
@@ -399,7 +399,7 @@ initialize(int argc, char *argv[])
   logger_set_level(-1, LOG_WARNING);
 
   cgi_read(0);
-  user_ip = parse_client_ip();
+  parse_client_ip(&user_ip);
 
   make_self_url();
   client_make_form_headers(self_url);
@@ -412,11 +412,11 @@ check_source_ip(void)
 
   if (!config) return 0;
   if (!config->access) return 0;
-  if (!user_ip) return config->access->default_is_allow;
+  //if (!user_ip) return config->access->default_is_allow;
 
   for (p = (struct ip_node*) config->access->b.first_down;
        p; p = (struct ip_node*) p->b.right) {
-    if ((user_ip & p->mask) == p->addr
+    if (ipv6_match_mask(&p->addr, &p->mask, &user_ip)
         && (p->ssl == -1 || p->ssl == ssl_flag)) return p->allow;
   }
   return config->access->default_is_allow;
@@ -710,7 +710,7 @@ authentificate(void)
 
   if (get_session_id("SID", &session_id)) {
     open_userlist_server();
-    r = userlist_clnt_priv_cookie(userlist_conn, user_ip, ssl_flag,
+    r = userlist_clnt_priv_cookie(userlist_conn, &user_ip, ssl_flag,
                                   0, /* contest_id */
                                   session_id,
                                   -1,
@@ -736,7 +736,7 @@ authentificate(void)
   if (!user_login || !user_password) display_login_page();
 
   open_userlist_server();
-  r = userlist_clnt_priv_login(userlist_conn, ULS_PRIV_LOGIN, user_ip, ssl_flag,
+  r = userlist_clnt_priv_login(userlist_conn, ULS_PRIV_LOGIN, &user_ip, ssl_flag,
                                0, /* contest_id */
                                0, /* locale_id */
                                USER_ROLE_ADMIN,
@@ -1719,6 +1719,7 @@ static const int next_action_map[SSERV_CMD_LAST] =
   [SSERV_CMD_LANG_CHANGE_DISABLE_SECURITY] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CHANGE_DISABLE_TESTING] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CHANGE_BINARY] = SSERV_CMD_EDIT_CURRENT_LANG,
+  [SSERV_CMD_LANG_CHANGE_IS_DOS] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CHANGE_MAX_STACK_SIZE] = SSERV_CMD_EDIT_CURRENT_LANG,
   [SSERV_CMD_LANG_CHANGE_MAX_FILE_SIZE] = SSERV_CMD_EDIT_CURRENT_LANG,
@@ -1766,6 +1767,7 @@ static const int next_action_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_OLYMPIAD_MODE] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED] = SSERV_CMD_EDIT_CURRENT_PROB,
+  [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_MARKED] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS] = SSERV_CMD_EDIT_CURRENT_PROB,
   [SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT] = SSERV_CMD_EDIT_CURRENT_PROB,
@@ -1943,6 +1945,7 @@ static const int next_action_map[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_JUDGE_REPORT] = SSERV_CMD_EDIT_CURRENT_GLOBAL,
   [SSERV_CMD_GLOB_CHANGE_DISABLE_CLARS] = SSERV_CMD_EDIT_CURRENT_GLOBAL,
   [SSERV_CMD_GLOB_CHANGE_DISABLE_TEAM_CLARS] = SSERV_CMD_EDIT_CURRENT_GLOBAL,
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_EOLN_SELECT] = SSERV_CMD_EDIT_CURRENT_GLOBAL,
   [SSERV_CMD_GLOB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = SSERV_CMD_EDIT_CURRENT_GLOBAL,
   [SSERV_CMD_GLOB_CHANGE_IGNORE_COMPILE_ERRORS] = SSERV_CMD_EDIT_CURRENT_GLOBAL,
   [SSERV_CMD_GLOB_CHANGE_DISABLE_FAILED_TEST_VIEW] = SSERV_CMD_EDIT_CURRENT_GLOBAL,
@@ -2559,6 +2562,7 @@ main(int argc, char *argv[])
   case SSERV_CMD_LANG_CHANGE_DISABLE_AUTO_TESTING:
   case SSERV_CMD_LANG_CHANGE_DISABLE_TESTING:
   case SSERV_CMD_LANG_CHANGE_BINARY:
+  case SSERV_CMD_LANG_CHANGE_IS_DOS:
   case SSERV_CMD_LANG_CHANGE_MAX_VM_SIZE:
   case SSERV_CMD_LANG_CHANGE_MAX_STACK_SIZE:
   case SSERV_CMD_LANG_CHANGE_MAX_FILE_SIZE:
@@ -2615,6 +2619,7 @@ main(int argc, char *argv[])
   case SSERV_CMD_PROB_CHANGE_OLYMPIAD_MODE:
   case SSERV_CMD_PROB_CHANGE_SCORE_LATEST:
   case SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED:
+  case SSERV_CMD_PROB_CHANGE_SCORE_LATEST_MARKED:
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT:
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS:
   case SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT:
@@ -2791,6 +2796,7 @@ main(int argc, char *argv[])
   case SSERV_CMD_GLOB_CHANGE_JUDGE_REPORT:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_CLARS:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_TEAM_CLARS:
+  case SSERV_CMD_GLOB_CHANGE_ENABLE_EOLN_SELECT:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_SUBMIT_AFTER_OK:
   case SSERV_CMD_GLOB_CHANGE_IGNORE_COMPILE_ERRORS:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_FAILED_TEST_VIEW:

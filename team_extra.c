@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: team_extra.c 6766 2012-04-26 16:49:24Z cher $ */
+/* $Id: team_extra.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -318,11 +318,14 @@ team_extra_flush(team_extra_state_t state)
 }
 
 int
-team_extra_append_warning(team_extra_state_t state, int user_id,
-                          int issuer_id, ej_ip_t issuer_ip,
-                          time_t issue_date,
-                          const unsigned char *txt,
-                          const unsigned char *cmt)
+team_extra_append_warning(
+        team_extra_state_t state,
+        int user_id,
+        int issuer_id,
+        const ej_ip_t *issuer_ip,
+        time_t issue_date,
+        const unsigned char *txt,
+        const unsigned char *cmt)
 {
   struct team_extra *te;
   struct team_warning *cur_warn;
@@ -344,7 +347,7 @@ team_extra_append_warning(team_extra_state_t state, int user_id,
 
   cur_warn->date = issue_date;
   cur_warn->issuer_id = issuer_id;
-  cur_warn->issuer_ip = issuer_ip;
+  cur_warn->issuer_ip = *issuer_ip;
   cur_warn->text = xstrdup(txt);
   cur_warn->comment = xstrdup(cmt);
 

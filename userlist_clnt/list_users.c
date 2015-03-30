@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: list_users.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: list_users.c 7364 2013-02-09 20:19:53Z cher $ */
 
-/* Copyright (C) 2002-2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 
 int
 userlist_clnt_list_users(struct userlist_clnt *clnt,
-                         ej_ip_t origin_ip,
+                         const ej_ip_t *origin_ip,
                          int ssl,
                          int contest_id,
                          int locale_id,
@@ -60,7 +60,9 @@ userlist_clnt_list_users(struct userlist_clnt *clnt,
   url_ptr = out->data;
   srch_ptr = url_ptr + url_len + 1;
   out->request_id = ULS_LIST_USERS;
-  out->origin_ip = origin_ip;
+  if (origin_ip) {
+    out->origin_ip = *origin_ip;
+  }
   out->ssl = ssl;
   out->contest_id = contest_id;
   out->locale_id = locale_id;
@@ -93,6 +95,5 @@ userlist_clnt_list_users(struct userlist_clnt *clnt,
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

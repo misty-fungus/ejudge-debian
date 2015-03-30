@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 7248 2012-12-14 18:54:05Z cher $ */
+/* $Id: new_server_html_2.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -419,6 +419,9 @@ ns_write_priv_all_runs(
     if (run_fields & (1 << RUN_VIEW_LANG_NAME)) {
       fprintf(f, "<th%s>%s</th>", cl, "Language");
     }
+    if (run_fields & (1 << RUN_VIEW_EOLN_TYPE)) {
+      fprintf(f, "<th%s>%s</th>", cl, "EOLN Type");
+    }
     if (run_fields & (1 << RUN_VIEW_STATUS)) {
       fprintf(f, "<th%s>%s</th>", cl, "Result");
     }
@@ -535,6 +538,9 @@ ns_write_priv_all_runs(
         if (run_fields & (1 << RUN_VIEW_PROB_NAME)) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
+        if (run_fields & (1 << RUN_VIEW_EOLN_TYPE)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
         if (run_fields & (1 << RUN_VIEW_VARIANT)) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
@@ -640,6 +646,9 @@ ns_write_priv_all_runs(
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
         if (run_fields & (1 << RUN_VIEW_LANG_NAME)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_EOLN_TYPE)) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
         if (run_fields & (1 << RUN_VIEW_STATUS)) {
@@ -822,6 +831,9 @@ ns_write_priv_all_runs(
         } else {
           fprintf(f, "<td%s>??? - %d</td>", cl, pe->lang_id);
         }
+      }
+      if (run_fields & (1 << RUN_VIEW_EOLN_TYPE)) {
+        fprintf(f, "<td%s>%s</td>", cl, eoln_type_unparse_html(pe->eoln_type));
       }
 
       run_status_str(pe->status, statstr, sizeof(statstr), prob_type, 0);
@@ -1530,6 +1542,12 @@ ns_write_priv_source(const serve_state_t state,
     fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Language"), "N/A");
   } else {
     fprintf(f, "<tr><td>%s:</td><td>#%d</td></tr>\n", _("Language"), info.lang_id);
+  }
+
+  // EOLN type
+  if (info.eoln_type) {
+    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("EOLN Type"),
+            eoln_type_unparse_html(info.eoln_type));
   }
 
   // status
@@ -2272,6 +2290,7 @@ ns_priv_edit_clar_page(
   fprintf(f, "<tr><td%s>%s:</td><td%s><select name=\"flags\" value=\"%d\">", cl, "Flags", cl, clar.flags);
   static const unsigned char * const clar_flags[] = { "New", "Viewed", "Answered", NULL };
   for (int i = 0; clar_flags[i]; ++i) {
+    s = "";
     if (i == clar.flags) s = " selected=\"selected\"";
     fprintf(f, "<option value=\"%d\"%s>%s</option>", i, s, ARMOR(clar_flags[i]));
   }
@@ -2406,7 +2425,7 @@ ns_priv_edit_clar_action(
   int new_hide_flag = 0, new_appeal_flag = 0, new_ssl_flag = 0;
   int new_locale_id = 0, new_in_reply_to = -1, new_run_id = -1;
   int new_size = 0;
-  ej_ip_t new_ip = 0;
+  ej_ip_t new_ip;
   unsigned char *new_charset = NULL;
   unsigned char *new_subject = NULL;
   unsigned char *new_text = NULL;
@@ -2457,7 +2476,7 @@ ns_priv_edit_clar_action(
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
   if (!r || !s || !*s) s = "127.0.0.1";
-  if (xml_parse_ip(NULL, 0, 0, 0, s, &new_ip) < 0) {
+  if (xml_parse_ipv6(NULL, 0, 0, 0, s, &new_ip) < 0) {
     fprintf(log_f, "invalid 'ip' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
@@ -2553,9 +2572,10 @@ ns_priv_edit_clar_action(
     mask |= 1 << CLAR_FIELD_APPEAL_FLAG;
   }
   // FIXME: do better
-  if (clar.a.ip != new_ip) {
-    new_clar.a.ip = new_ip;
-    new_clar.ip6_flag = 0;
+  ej_ip_t ipv6;
+  clar_entry_to_ipv6(&clar, &ipv6);
+  if (ipv6cmp(&ipv6, &new_ip) != 0) {
+    ipv6_to_clar_entry(&new_ip, &new_clar);
     mask |= 1 << CLAR_FIELD_IP;
   }
   if (clar.ssl_flag != new_ssl_flag) {
@@ -2735,6 +2755,17 @@ ns_priv_edit_run_page(
   }
   fprintf(f, "</select></td></tr>\n");
 
+  fprintf(f, "<tr><td%s>%s:</td><td%s><select name=\"eoln_type\"%s>",
+          cl, "EOLN Type", cl, dis);
+  fprintf(f, "<option value=\"0\"></option>");
+  s = "";
+  if (info.eoln_type == 1) s = " selected=\"selected\"";
+  fprintf(f, "<option value=\"1\"%s>LF (Unix/MacOS)</option>", s);
+  s = "";
+  if (info.eoln_type == 2) s = " selected=\"selected\"";
+  fprintf(f, "<option value=\"2\"%s>CRLF (Windows/DOS)</option>", s);
+  fprintf(f, "</select></td></tr>\n");
+
   fprintf(f, "<tr><td%s>%s:</td>", cl, "Status");
   write_change_status_dialog(cs, f, NULL, info.is_imported, "b0", info.status, info.is_readonly);
   fprintf(f, "</tr>\n");
@@ -2788,9 +2819,7 @@ ns_priv_edit_run_page(
     fprintf(f, "</tr>\n");
     buf[0] = 0;
     if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
-      if (info.saved_test > 0) {
-        snprintf(buf, sizeof(buf), "%d", info.saved_test - 1);
-      }
+      snprintf(buf, sizeof(buf), "%d", info.saved_test);
       s = "Saved tests passed";
     } else if (global->score_system == SCORE_MOSCOW || global->score_system == SCORE_ACM) {
       if (info.saved_test > 0) {
@@ -2879,7 +2908,7 @@ ns_priv_edit_run_action(
   const unsigned char *s = NULL;
   int mask = 0;
   int new_is_readonly = 0, value = 0;
-  ej_ip_t new_ip = 0;
+  ej_ip_t new_ip;
   ruint32_t new_sha1[5];
   time_t start_time = 0;
   int need_rejudge = 0;
@@ -3002,6 +3031,19 @@ ns_priv_edit_run_action(
     mask |= RE_LANG_ID;
   } else {
     new_info.lang_id = info.lang_id;
+  }
+
+  value = -1;
+  if (ns_cgi_param_int(phr, "eoln_type", &value) < 0
+      || value < 0 || value > EOLN_CRLF) {
+    fprintf(log_f, "invalid 'eoln_type' field value\n");
+    FAIL(NEW_SRV_ERR_INV_PARAM);    
+  }
+  if (info.eoln_type != value) {
+    new_info.eoln_type = value;
+    mask |= RE_EOLN_TYPE;
+  } else {
+    new_info.eoln_type = info.eoln_type;
   }
 
   const struct section_language_data *lang = NULL;
@@ -3312,13 +3354,14 @@ ns_priv_edit_run_action(
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
   if (!r || !s || !*s) s = "127.0.0.1";
-  if (xml_parse_ip(NULL, 0, 0, 0, s, &new_ip) < 0) {
+  if (xml_parse_ipv6(NULL, 0, 0, 0, s, &new_ip) < 0) {
     fprintf(log_f, "invalid 'ip' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
-  if (new_ip != info.a.ip) {
-    new_info.a.ip = new_ip;
-    new_info.ipv6_flag = 0;
+  ej_ip_t ipv6;
+  run_entry_to_ipv6(&info, &ipv6);
+  if (!ipv6cmp(&new_ip, &ipv6) != 0) {
+    ipv6_to_run_entry(&new_ip, &new_info);
     mask |= RE_IP;
   }
   value = 0;
@@ -3455,12 +3498,12 @@ ns_priv_edit_run_action(
   if (run_set_entry(cs->runlog_state, run_id, mask, &new_info) < 0)
     FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   "edit-run", "ok", -1,
                   "  mask: 0x%08x", mask);
 
   if (need_rejudge > 0) {
-    serve_rejudge_run(ejudge_config, cnts, cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+    serve_rejudge_run(ejudge_config, cnts, cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                       (need_rejudge == RUN_FULL_REJUDGE),
                       DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
   }
@@ -3831,7 +3874,7 @@ ns_write_online_users(
       fprintf(fout, "<td%s><i>%s</i></td>", cl, _("Not set"));
     }
     fprintf(fout, "<td%s><tt>%s%s</tt></td>",
-            cl, xml_unparse_ip(ai->ip), ai->ssl?"/ssl":"");
+            cl, xml_unparse_ipv6(&ai->ip), ai->ssl?"/ssl":"");
     fprintf(fout, "</tr>\n");
   }
   fprintf(fout, "</table>\n");
@@ -3907,16 +3950,19 @@ ns_write_user_ips(
       XCALLOC(uu[re.user_id], 1);
     }
     ui = uu[re.user_id];
-    for (i = 0; i < ui->ip_u; ++i)
-      if (ui->ips[i] == re.a.ip)
+    for (i = 0; i < ui->ip_u; ++i) {
+      ej_ip_t ipv6;
+      run_entry_to_ipv6(&re, &ipv6);
+      if (!ipv6cmp(&ui->ips[i], &ipv6))
         break;
+    }
     if (i < ui->ip_u) continue;
     if (ui->ip_u >= ui->ip_a) {
       if (!ui->ip_a) ui->ip_a = 8;
       ui->ip_a *= 2;
       XREALLOC(ui->ips, ui->ip_a);
     }
-    ui->ips[ui->ip_u++] = re.a.ip;
+    run_entry_to_ipv6(&re, &ui->ips[ui->ip_u++]);
   }
 
   if (cs->global->disable_user_database > 0) {
@@ -3939,7 +3985,7 @@ ns_write_user_ips(
     fprintf(fout, "<td%s>", cl);
     for (j = 0; j < ui->ip_u; ++j) {
       if (j > 0) fprintf(fout, " ");
-      fprintf(fout, "%s", xml_unparse_ip(ui->ips[j]));
+      fprintf(fout, "%s", xml_unparse_ipv6(&ui->ips[j]));
     }
     fprintf(fout, "</td></tr>\n");
   }
@@ -3986,7 +4032,9 @@ ns_write_ip_users(
     if (re.user_id <= 0 || re.user_id > EJ_MAX_USER_ID) continue;
     if (!re.a.ip) continue;
     for (i = 0; i < ip_u; ++i) {
-      if (ips[i].ip == re.a.ip)
+      ej_ip_t ipv6;
+      run_entry_to_ipv6(&re, &ipv6);
+      if (!ipv6cmp(&ips[i].ip, &ipv6))
         break;
     }
     if (i == ip_u) {
@@ -3996,7 +4044,7 @@ ns_write_ip_users(
         XREALLOC(ips, ip_a);
       }
       memset(&ips[i], 0, sizeof(ips[i]));
-      ips[i].ip = re.a.ip;
+      run_entry_to_ipv6(&re, &ips[i].ip);
       ip_u++;
     }
     for (j = 0; j < ips[i].uid_u; ++j)
@@ -4027,7 +4075,7 @@ ns_write_ip_users(
           cl, _("Users"));
   for (i = 0; i < ip_u; ++i) {
     fprintf(fout, "<tr><td%s>%d</td><td%s>%s</td><td%s>",
-            cl, serial++, cl, xml_unparse_ip(ips[i].ip), cl);
+            cl, serial++, cl, xml_unparse_ipv6(&ips[i].ip), cl);
     for (j = 0; j < ips[i].uid_u; ++j) {
       if (!teamdb_lookup(cs->teamdb_state, ips[i].uids[j]))
         continue;
@@ -4450,7 +4498,8 @@ ns_user_info_page(FILE *fout, FILE *log_f,
     fprintf(fout, "<h2>%s</h2>\n", _("Warnings"));
     for (i = 0; i < u_extra->warn_u; i++) {
       if (!(cur_warn = u_extra->warns[i])) continue;
-      fprintf(fout, _("<h3>Warning %d: issued: %s, issued by: %s (%d), issued from: %s</h3>"), i + 1, xml_unparse_date(cur_warn->date), teamdb_get_login(cs->teamdb_state, cur_warn->issuer_id), cur_warn->issuer_id, xml_unparse_ip(cur_warn->issuer_ip));
+      fprintf(fout, _("<h3>Warning %d: issued: %s, issued by: %s (%d), issued from: %s</h3>"), i + 1, xml_unparse_date(cur_warn->date), teamdb_get_login(cs->teamdb_state, cur_warn->issuer_id), cur_warn->issuer_id,
+              xml_unparse_ipv6(&cur_warn->issuer_ip));
       fprintf(fout, "<p>%s:\n<pre>%s</pre>\n", _("Warning text for the user"),
               ARMOR(cur_warn->text));
       fprintf(fout, "<p>%s:\n<pre>%s</pre>\n", _("Judge's comment"),
@@ -5209,8 +5258,8 @@ do_add_row(
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
                           run_size, re->sha1, NULL,
-                          phr->ip, phr->ssl_flag, phr->locale_id,
-                          re->user_id, re->prob_id, re->lang_id,
+                          &phr->ip, phr->ssl_flag, phr->locale_id,
+                          re->user_id, re->prob_id, re->lang_id, re->eoln_type,
                           re->variant, re->is_hidden, re->mime_type);
   if (run_id < 0) {
     fprintf(log_f, _("Failed to add row %d to runlog\n"), row);
@@ -5237,7 +5286,7 @@ do_add_row(
   }
   run_set_entry(cs->runlog_state, run_id, RE_STATUS | RE_TEST | RE_SCORE, re);
 
-  serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                   "priv-new-run", "ok", re->status, NULL);
   return run_id;
 }
@@ -5683,7 +5732,7 @@ ns_upload_csv_results(
           pe->run_id = -1;
           pe->size = run_size;
           memcpy(pe->sha1, sha1, sizeof(pe->sha1));
-          pe->a.ip = phr->ip;
+          ipv6_to_run_entry(&phr->ip, pe);
           pe->ssl_flag = phr->ssl_flag;
           pe->locale_id = phr->locale_id;
           pe->lang_id = 0;
@@ -5719,7 +5768,7 @@ ns_upload_csv_results(
           pe->run_id = -1;
           pe->size = run_size;
           memcpy(pe->sha1, sha1, sizeof(pe->sha1));
-          pe->a.ip = phr->ip;
+          ipv6_to_run_entry(&phr->ip, pe);
           pe->ssl_flag = phr->ssl_flag;
           pe->locale_id = phr->locale_id;
           pe->lang_id = 0;
@@ -5754,7 +5803,7 @@ ns_upload_csv_results(
           pe->run_id = -1;
           pe->size = run_size;
           memcpy(pe->sha1, sha1, sizeof(pe->sha1));
-          pe->a.ip = phr->ip;
+          ipv6_to_run_entry(&phr->ip, pe);
           pe->ssl_flag = phr->ssl_flag;
           pe->locale_id = phr->locale_id;
           pe->lang_id = 0;
@@ -5791,7 +5840,7 @@ ns_upload_csv_results(
           pe->run_id = -1;
           pe->size = run_size;
           memcpy(pe->sha1, sha1, sizeof(pe->sha1));
-          pe->a.ip = phr->ip;
+          ipv6_to_run_entry(&phr->ip, pe);
           pe->ssl_flag = phr->ssl_flag;
           pe->locale_id = phr->locale_id;
           pe->lang_id = 0;
@@ -8000,7 +8049,7 @@ ns_write_admin_contest_settings(
     if (cs->online_view_judge_score > 0) s = " selected=\"selected\"";
     fprintf(fout, "<option value=\"%d\"%s>%s</option>", 1, s, _("Yes"));
     fprintf(fout, "</select>%s",
-            BUTTON(NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT));
+            BUTTON(NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE));
     fprintf(fout, "</form>");
     fprintf(fout, "</td>");
     fprintf(fout, "</tr>\n");

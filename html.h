@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: html.h 6922 2012-06-28 11:55:34Z cher $ */
+/* $Id: html.h 7284 2013-01-23 08:45:50Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -278,6 +278,7 @@ enum
   RUN_VIEW_SAVED_TEST,
   RUN_VIEW_SAVED_STATUS,
   RUN_VIEW_RUN_UUID,
+  RUN_VIEW_EOLN_TYPE,
 
   RUN_VIEW_LAST,
 

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_mysql.c 6795 2012-05-04 10:38:48Z cher $ */
+/* $Id: uldb_mysql.c 7356 2013-02-09 08:40:11Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1207,7 +1207,7 @@ static int
 new_cookie_func(
         void *data,
         int user_id,
-        ej_ip_t ip,
+        const ej_ip_t *pip,
         int ssl_flag,
         ej_cookie_t cookie,
         time_t expire,
@@ -1240,7 +1240,7 @@ new_cookie_func(
   ASSERT(cookie != 0);
   memset(&newc, 0, sizeof(newc));
   newc.user_id = user_id;
-  newc.ip = ip;
+  newc.ip = *pip;
   newc.ssl = ssl_flag;
   newc.cookie = cookie;
   newc.expire = expire;
@@ -5317,6 +5317,5 @@ fail:
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "MYSQL")
  * End:
  */

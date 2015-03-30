@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: get_cookie.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: get_cookie.c 7364 2013-02-09 20:19:53Z cher $ */
 
-/* Copyright (C) 2006-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 int
 userlist_clnt_get_cookie(struct userlist_clnt *clnt,
                          int cmd,
-                         ej_ip_t origin_ip,
+                         const ej_ip_t *origin_ip,
                          int ssl,
                          ej_cookie_t cookie,
                          int *p_user_id,
@@ -48,7 +48,9 @@ userlist_clnt_get_cookie(struct userlist_clnt *clnt,
   out = alloca(out_size);
   memset(out, 0, out_size);
   out->request_id = cmd;
-  out->origin_ip = origin_ip;
+  if (origin_ip) {
+    out->origin_ip = *origin_ip;
+  }
   out->ssl = ssl;
   out->contest_id = 0;
   out->cookie = cookie;
@@ -101,6 +103,5 @@ userlist_clnt_get_cookie(struct userlist_clnt *clnt,
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

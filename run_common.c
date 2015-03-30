@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_common.c 7241 2012-12-11 09:27:33Z cher $ */
+/* $Id: run_common.c 7327 2013-01-31 18:19:29Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1110,7 +1110,6 @@ invoke_nwrun(
   struct nwrun_out_packet *out_packet = 0;
   long file_size;
   int timeout;
-  int wait_time;
 
   const struct super_run_in_global_packet *srgp = srp->global;
   const struct super_run_in_problem_packet *srpp = srp->problem;
@@ -1286,7 +1285,10 @@ invoke_nwrun(
   timeout = 0;
   if (srpp->real_time_limit_ms > 0) timeout = 3 * srpp->real_time_limit_ms;
   if (timeout <= 0) timeout = 3 * time_limit_millis;
-  wait_time = 0;
+
+  long long wait_end_time = get_current_time_ms();
+  wait_end_time += timeout;
+  //fprintf(stderr, "end time: %lld\n", wait_end_time);
 
   while (1) {
     r = scan_dir(result_path, result_pkt_name, sizeof(result_pkt_name));
@@ -1297,7 +1299,10 @@ invoke_nwrun(
 
     if (r > 0) break;
 
-    if (wait_time >= timeout) {
+    long long cur_time_ms = get_current_time_ms();
+    //fprintf(stderr, "time: %lld\n", cur_time_ms);
+
+    if (cur_time_ms >= wait_end_time) {
       chk_printf(result, "invoke_nwrun: timeout!\n");
       goto fail;
     }
@@ -1307,9 +1312,6 @@ invoke_nwrun(
     os_Sleep(100);
     interrupt_disable();
     //cr_serialize_lock(state);
-
-    // more appropriate interval?
-    wait_time += 100;
   }
 
   snprintf(dir_entry_packet, sizeof(dir_entry_packet), "%s/dir/%s",
@@ -2106,7 +2108,9 @@ run_one_test(
     }
   }
 
-  if (tst && tst->is_dos > 0 && srpp->binary_input <= 0) copy_flag = CONVERT;
+  int is_dos = srgp->is_dos;
+  if (tst && tst->is_dos > 0) is_dos = tst->is_dos;
+  if (is_dos > 0 && srpp->binary_input <= 0) copy_flag = CONVERT;
 
   /* copy the test */
   if (generic_copy_file(0, NULL, test_src, "", copy_flag, check_dir, srpp->input_file, "") < 0) {
@@ -2489,6 +2493,9 @@ run_one_test(
   }
 
   if (tsk_int) {
+    info("interactor CPU time = %ld, real time = %ld, used_vm_size = %ld",
+         (long) task_GetRunningTime(tsk_int), (long) task_GetRealTime(tsk_int),
+         (long) task_GetMemoryUsed(tsk_int));
     if (task_IsTimeout(tsk_int)) {
       append_msg_to_log(check_out_path, "interactor timeout");
       err("interactor timeout");
@@ -2510,6 +2517,13 @@ run_one_test(
       append_msg_to_log(check_out_path, "interactor exited with code %d", exitcode);
       goto check_failed;
     }
+  }
+
+  // debug
+  if (cur_info->times > 1000000 || cur_info->times < 0) {
+    append_msg_to_log(check_out_path, "bogus running time %ld",
+                      cur_info->times);
+    goto check_failed;
   }
 
   if (task_IsRealTimeout(tsk)) {

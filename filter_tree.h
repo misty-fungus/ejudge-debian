@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: filter_tree.h 5948 2010-07-15 09:47:25Z cher $ */
+/* $Id: filter_tree.h 7361 2013-02-09 19:09:22Z cher $ */
 
 #ifndef __FILTER_TREE_H__
 #define __FILTER_TREE_H__
 
-/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -114,7 +114,7 @@ struct filter_tree *filter_tree_new_result(struct filter_tree_mem *,
 struct filter_tree *filter_tree_new_hash(struct filter_tree_mem *,
                                          ruint32_t *);
 struct filter_tree *filter_tree_new_ip(struct filter_tree_mem *,
-                                       ej_ip_t);
+                                       const ej_ip_t *);
 struct filter_tree *filter_tree_dup(struct filter_tree_mem *,
                                     struct filter_tree*);
 
@@ -142,7 +142,7 @@ int filter_tree_dur_str(unsigned char *, size_t, time_t);
 int filter_tree_size_str(unsigned char *, size_t, size_t);
 int filter_tree_result_str(unsigned char *, size_t, int);
 int filter_tree_hash_str(unsigned char *, size_t, ruint32_t *);
-int filter_tree_ip_str(unsigned char *, size_t, ej_ip_t);
+int filter_tree_ip_str(unsigned char *, size_t, const ej_ip_t *);
 
 int filter_tree_is_value_node(struct filter_tree *p);
 

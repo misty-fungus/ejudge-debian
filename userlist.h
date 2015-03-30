@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: userlist.h 6420 2011-09-11 14:40:31Z cher $ */
+/* $Id: userlist.h 7356 2013-02-09 08:40:11Z cher $ */
 
 #ifndef __USERLIST_H__
 #define __USERLIST_H__
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify

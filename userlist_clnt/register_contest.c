@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: register_contest.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: register_contest.c 7364 2013-02-09 20:19:53Z cher $ */
 
-/* Copyright (C) 2002-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@ userlist_clnt_register_contest(
         int cmd,
         int user_id,
         int contest_id,
-        ej_ip_t ip,
+        const ej_ip_t *ip,
         int ssl_flag)
 {
   struct userlist_pk_register_contest *out;
@@ -43,7 +43,9 @@ userlist_clnt_register_contest(
   out->request_id = cmd;
   out->user_id = user_id;
   out->contest_id = contest_id;
-  out->ip = ip;
+  if (ip) {
+    out->ip = *ip;
+  }
   out->ssl_flag = ssl_flag;
   if ((r = userlist_clnt_send_packet(clnt, out_size, out)) < 0) return r;
   if ((r = userlist_clnt_read_and_notify(clnt, &in_size, (void*) &in)) < 0)

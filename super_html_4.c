@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 7208 2012-12-05 15:51:42Z cher $ */
+/* $Id: super_html_4.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1120,6 +1120,7 @@ static const struct cnts_edit_info cnts_global_info[] =
   { NS_GLOBAL, CNTSGLOB_report_error_code, 'Y', 1, 0, 0, 0, 0, "Contestants may view process exit codes", 0, "SidState.show_global_1 Global.team_enable_rep_view && Global.team_show_judge_report &&" },
   { NS_GLOBAL, CNTSGLOB_disable_clars, 'Y', 1, 0, 0, 0, 0, "Clarification requests and messages from judges are disabled", 0, "SidState.show_global_1" },
   { NS_GLOBAL, CNTSGLOB_disable_team_clars, 'Y', 1, 0, 0, 0, 0, "Clarification requests from contestants are disabled", 0, "SidState.show_global_1 Global.disable_clars ! &&" },
+  { NS_GLOBAL, CNTSGLOB_enable_eoln_select, 'Y', 1, 0, 0, 0, 0, "Participants may select desired EOLN type", 0, "SidState.show_global_1" },
   { NS_GLOBAL, CNTSGLOB_disable_submit_after_ok, 'Y', 1, 0, 0, 0, 0, "Disable submits to already solved problems", 0, "SidState.show_global_1" },
   { NS_GLOBAL, CNTSGLOB_ignore_compile_errors, 'Y', 1, 0, 0, 0, 0, "Do not penalize compilation errors", 0, "SidState.show_global_1" },
   { NS_GLOBAL, CNTSGLOB_ignore_duplicated_runs, 'Y', 1, 0, 0, 0, 0, "Do not allow duplicate submissions", 0, "SidState.show_global_1" },
@@ -1364,6 +1365,7 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_olympiad_mode, 'Y', 1, 0, 0, 0, 0, "Use Olympiad mode", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == &&" },
   { NS_PROBLEM, CNTSPROB_score_latest, 'Y', 1, 0, 0, 0, 0, "Score the latest submit", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == &&" },
   { NS_PROBLEM, CNTSPROB_score_latest_or_unmarked, 'Y', 1, 0, 0, 0, 0, "Score the latest submit or the best unmarked", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == &&" },
+  { NS_PROBLEM, CNTSPROB_score_latest_marked, 'Y', 1, 0, 0, 0, 0, "Score the latest marked submit", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == &&" },
   { NS_PROBLEM, CNTSPROB_full_score, 'd', 1, 1, 1, 1, 0, "Full problem score", 0, "Global.score_system SCORE_ACM !=" },
   { NS_PROBLEM, CNTSPROB_variable_full_score, 'Y', 1, 0, 0, 0, 0, "Allow variable full score", 0, "SidState.prob_show_adv Global.score_system SCORE_KIROV == Global.score_system SCORE_OLYMPIAD == || &&" },
   { NS_PROBLEM, CNTSPROB_test_score, 'd', 1, 1, 1, 1, 0, "Score for one passed test", 0, "Global.score_system SCORE_KIROV == Global.score_system SCORE_OLYMPIAD == ||" },
@@ -2568,7 +2570,7 @@ cmd_edit_contest_page(
              phr->session_id);
     super_html_edited_cnts_dialog(out_f,
                                   phr->priv_level, phr->user_id, phr->login,
-                                  phr->session_id, phr->ip, phr->config,
+                                  phr->session_id, &phr->ip, phr->config,
                                   phr->ss, phr->self_url, buf,
                                   "", cnts, 1);
 
@@ -2588,7 +2590,7 @@ cmd_edit_contest_page(
              phr->session_id);
     super_html_locked_cnts_dialog(out_f,
                                   phr->priv_level, phr->user_id, phr->login,
-                                  phr->session_id, phr->ip, phr->config,
+                                  phr->session_id, &phr->ip, phr->config,
                                   phr->ss, phr->self_url, buf,
                                   "", contest_id, other_ss, 1);
 
@@ -3397,7 +3399,7 @@ cmd_contest_xml_access_edit_page(
               SSERV_OP_SET_RULE_IP, f_id, i,
               SSERV_OP_CONTEST_XML_FIELD_EDIT_PAGE,
               "IP address");
-      fprintf(out_f, "%s", xml_unparse_ip_mask(p->addr, p->mask));
+      fprintf(out_f, "%s", xml_unparse_ipv6_mask(&p->addr, &p->mask));
       fprintf(out_f, "</div></td>");
 
       fprintf(out_f, "<td class=\"cnts_edit_legend\" width=\"100px\">");
@@ -4197,7 +4199,7 @@ cmd_op_check_ip_mask(
 
   if (ss_cgi_param(phr, "value", &value) <= 0 || !value)
     FAIL(S_ERR_INV_VALUE);
-  if (xml_parse_ip_mask(NULL, 0, 0, 0, value, &addr, &mask) < 0)
+  if (xml_parse_ipv6_mask(NULL, 0, 0, 0, value, &addr, &mask) < 0)
     FAIL(S_ERR_INV_VALUE);
   retval = 0;
 
@@ -4231,7 +4233,7 @@ cmd_op_add_ip(
   p_acc = (struct contest_access**) contest_desc_get_ptr(ecnts, f_id);
   if (ss_cgi_param(phr, "ip_mask", &mask_str) <= 0)
     FAIL(S_ERR_INV_VALUE);
-  if (xml_parse_ip_mask(NULL, 0, 0, 0, mask_str, &addr, &mask) < 0)
+  if (xml_parse_ipv6_mask(NULL, 0, 0, 0, mask_str, &addr, &mask) < 0)
     FAIL(S_ERR_INV_VALUE);
   if (ss_cgi_param_int(phr, "ssl_flag", &ssl_flag) < 0
       || ssl_flag < -1 || ssl_flag > 1)
@@ -4240,7 +4242,7 @@ cmd_op_add_ip(
       || default_allow < 0 || default_allow > 1)
     FAIL(S_ERR_INV_VALUE);
   contests_add_ip(ecnts, p_acc, access_field_tag[f_id],
-                  addr, mask, ssl_flag, default_allow);
+                  &addr, &mask, ssl_flag, default_allow);
   retval = 1;
 
  cleanup:
@@ -4329,7 +4331,7 @@ cmd_op_set_rule_ip(
   struct contest_ip *p;
   int f_id, subf_id;
   const unsigned char *mask_str = 0;
-  ej_ip_t addr = 0, mask = 0;
+  ej_ip_t addr, mask;
 
   phr->json_reply = 1;
 
@@ -4344,7 +4346,7 @@ cmd_op_set_rule_ip(
     FAIL(S_ERR_INV_FIELD_ID);
   if (ss_cgi_param(phr, "value", &mask_str) <= 0)
     FAIL(S_ERR_INV_VALUE);
-  if (xml_parse_ip_mask(NULL, 0, 0, 0, mask_str, &addr, &mask) < 0)
+  if (xml_parse_ipv6_mask(NULL, 0, 0, 0, mask_str, &addr, &mask) < 0)
     FAIL(S_ERR_INV_VALUE);
   if (!(p = contests_get_ip_rule_nc(acc, subf_id)))
     FAIL(S_ERR_INV_FIELD_ID);
@@ -4567,7 +4569,7 @@ cmd_op_create_new_contest_page(
              phr->session_id);
     super_html_edited_cnts_dialog(out_f,
                                   phr->priv_level, phr->user_id, phr->login,
-                                  phr->session_id, phr->ip, phr->config,
+                                  phr->session_id, &phr->ip, phr->config,
                                   phr->ss, phr->self_url, buf,
                                   "", NULL, 1);
 
@@ -4671,7 +4673,7 @@ cmd_op_create_new_contest(
   }
 
   if (!templ_cnts) {
-    phr->ss->edited_cnts = contest_tmpl_new(contest_id, phr->login, phr->self_url, phr->system_login, phr->ip, phr->ssl_flag, phr->config);
+    phr->ss->edited_cnts = contest_tmpl_new(contest_id, phr->login, phr->self_url, phr->system_login, &phr->ip, phr->ssl_flag, phr->config);
     phr->ss->global = prepare_new_global_section(contest_id, phr->ss->edited_cnts->root_dir, phr->config);
   } else {
     super_html_load_serve_cfg(templ_cnts, phr->config, phr->ss);
@@ -4722,6 +4724,7 @@ global_bool_fields_return_val[CNTSGLOB_LAST_FIELD] =
   [CNTSGLOB_secure_run] = 1,
   [CNTSGLOB_team_enable_rep_view] = 1,
   [CNTSGLOB_disable_clars] = 1,
+  [CNTSGLOB_enable_eoln_select] = 1,
   [CNTSGLOB_problem_navigation] = 1,
   [CNTSGLOB_stand_fancy_style] = 1,
   [CNTSGLOB_stand_show_ok_time] = 1,
@@ -5975,6 +5978,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_olympiad_mode] = 1,
   [CNTSPROB_score_latest] = 0,
   [CNTSPROB_score_latest_or_unmarked] = 0,
+  [CNTSPROB_score_latest_marked] = 0,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,

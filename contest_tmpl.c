@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: contest_tmpl.c 6725 2012-04-04 11:23:15Z cher $ */
+/* $Id: contest_tmpl.c 7356 2013-02-09 08:40:11Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -42,8 +42,8 @@ new_contest_access(int tag)
   p = (struct contest_access*) contests_new_node(tag);
   q = (struct contest_ip*) contests_new_node(CONTEST_IP);
   q->allow = 1;
-  q->addr = 127U << 24 | 1U;
-  q->mask = 0xffffffff;
+  q->addr.u.v4.addr = 127U << 24 | 1U;
+  q->mask.u.v4.addr = 0xffffffff;
   xml_link_node_last(&p->b, &q->b);
   return p;
 }
@@ -53,7 +53,7 @@ contest_tmpl_new(int contest_id,
                  const unsigned char *login,
                  const unsigned char *self_url,
                  const unsigned char *ss_login,
-                 ej_ip_t ip,
+                 const ej_ip_t *pip,
                  int ssl_flag,
                  const struct ejudge_cfg *ejudge_config)
 {
@@ -113,12 +113,21 @@ contest_tmpl_new(int contest_id,
   cnts->serve_control_access = acc = new_contest_access(CONTEST_SERVE_CONTROL_ACCESS);
   xml_link_node_last(&cnts->b, &acc->b);
 
-  contests_add_ip(cnts, &cnts->register_access, CONTEST_REGISTER_ACCESS, ip, 0xffffffff, ssl_flag, 1);
-  contests_add_ip(cnts, &cnts->users_access, CONTEST_USERS_ACCESS, ip, 0xffffffff, ssl_flag, 1);
-  contests_add_ip(cnts, &cnts->master_access, CONTEST_MASTER_ACCESS, ip, 0xffffffff, ssl_flag, 1);
-  contests_add_ip(cnts, &cnts->judge_access, CONTEST_JUDGE_ACCESS, ip, 0xffffffff, ssl_flag, 1);
-  contests_add_ip(cnts, &cnts->team_access, CONTEST_TEAM_ACCESS, ip, 0xffffffff, ssl_flag, 1);
-  contests_add_ip(cnts, &cnts->serve_control_access, CONTEST_SERVE_CONTROL_ACCESS, ip, 0xffffffff, ssl_flag, 1);
+  ej_ip_t mask;
+  memset(&mask, 0, sizeof(mask));
+  if (pip->ipv6_flag) {
+    mask.ipv6_flag = 1;
+    memset(mask.u.v6.addr, 0xff, 16);
+  } else {
+    mask.u.v4.addr = 0xffffffff;
+  }
+
+  contests_add_ip(cnts, &cnts->register_access, CONTEST_REGISTER_ACCESS, pip, &mask, ssl_flag, 1);
+  contests_add_ip(cnts, &cnts->users_access, CONTEST_USERS_ACCESS, pip, &mask, ssl_flag, 1);
+  contests_add_ip(cnts, &cnts->master_access, CONTEST_MASTER_ACCESS, pip, &mask, ssl_flag, 1);
+  contests_add_ip(cnts, &cnts->judge_access, CONTEST_JUDGE_ACCESS, pip, &mask, ssl_flag, 1);
+  contests_add_ip(cnts, &cnts->team_access, CONTEST_TEAM_ACCESS, pip, &mask, ssl_flag, 1);
+  contests_add_ip(cnts, &cnts->serve_control_access, CONTEST_SERVE_CONTROL_ACCESS, pip, &mask, ssl_flag, 1);
 
   t = contests_new_node(CONTEST_CAPS);
   xml_link_node_last(&cnts->b, t);

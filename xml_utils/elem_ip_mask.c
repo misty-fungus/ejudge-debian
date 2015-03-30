@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: elem_ip_mask.c 7032 2012-09-21 09:24:07Z cher $ */
+/* $Id: elem_ip_mask.c 7364 2013-02-09 20:19:53Z cher $ */
 
-/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 #include <string.h>
 
 int
-xml_elem_ip_mask(struct xml_tree *tree,
+_xml_elem_ip_mask(struct xml_tree *tree,
                  unsigned int *addr_ptr, unsigned int *mask_ptr)
 {
   unsigned int b1, b2, b3, b4;
@@ -61,9 +61,18 @@ xml_elem_ip_mask(struct xml_tree *tree,
   return -1;
 }
 
-/**
+int
+xml_elem_ipv6_mask(
+        struct xml_tree *tree,
+        ej_ip_t *addr_ptr,
+        ej_ip_t *mask_ptr)
+{
+  return xml_parse_ipv6_mask(NULL, NULL, tree->line, tree->column,
+                             tree->text, addr_ptr, mask_ptr);
+}
+
+/*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

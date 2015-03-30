@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 7246 2012-12-14 18:44:35Z cher $ */
+/* $Id: problem_config.h 7274 2013-01-20 05:11:18Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -52,6 +52,7 @@ struct problem_config_section
   ejintbool_t olympiad_mode;
   ejintbool_t score_latest;
   ejintbool_t score_latest_or_unmarked;
+  ejintbool_t score_latest_marked;
   ejintbool_t use_ac_not_ok;
   ejintbool_t ignore_prev_ac;
   ejintbool_t team_enable_rep_view;

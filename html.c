@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 7230 2012-12-09 08:40:44Z cher $ */
+/* $Id: html.c 7275 2013-01-20 05:32:20Z cher $ */
 
 /* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1792,6 +1792,9 @@ do_write_kirov_standings(
     } else {
       // KIROV system with variations
       if (run_score == -1) run_score = 0;
+
+
+      /////
       if (prob->score_latest_or_unmarked > 0) {
         if (run_status == RUN_OK) {
           score = calc_kirov_score(0, 0, start_time,
@@ -1946,6 +1949,7 @@ do_write_kirov_standings(
           /* something strange... */
         }
       }
+      /////
     }
   }
 
@@ -5119,6 +5123,7 @@ write_xml_team_testing_report(
     fprintf(f, "<pre>");
     for (i = 0; i < r->run_tests; i++) {
       if (!(t = r->tests[i])) continue;
+      if (t->status == RUN_SKIPPED) continue;
       visibility = cntsprob_get_test_visibility(prob, i + 1, state->online_final_visibility);
       if (visibility == TV_FULLIFMARKED) {
         visibility = TV_HIDDEN;

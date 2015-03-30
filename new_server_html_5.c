@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_5.c 6829 2012-05-18 07:15:49Z cher $ */
+/* $Id: new_server_html_5.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2007-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -155,7 +155,7 @@ anon_select_contest_page(FILE *fout, struct http_request_info *phr)
     cnts = 0;
     if (contests_get(i, &cnts) < 0 || !cnts) continue;
     if (cnts->closed) continue;
-    if (!contests_check_register_ip_2(cnts, phr->ip, phr->ssl_flag)) continue;
+    if (!contests_check_register_ip_2(cnts, &phr->ip, phr->ssl_flag)) continue;
     if (cnts->reg_deadline > 0 && curtime >= cnts->reg_deadline) continue;
 
     fprintf(fout, "<tr%s><td%s>%d</td>", form_row_attrs[(row++) & 1], cl, i);
@@ -713,7 +713,7 @@ create_account(
   next_action = NEW_SRV_ACTION_REG_ACCOUNT_CREATED_PAGE;
 
   if (cnts->simple_registration) {
-    ul_error = userlist_clnt_register_new_2(ul_conn, phr->ip, phr->ssl_flag,
+    ul_error = userlist_clnt_register_new_2(ul_conn, &phr->ip, phr->ssl_flag,
                                             phr->contest_id, phr->locale_id,
                                             next_action,
                                             login, email, phr->self_url,
@@ -722,7 +722,7 @@ create_account(
 
   } else {
     ul_error = userlist_clnt_register_new(ul_conn, ULS_REGISTER_NEW,
-                                          phr->ip, phr->ssl_flag,
+                                          &phr->ip, phr->ssl_flag,
                                           phr->contest_id, phr->locale_id,
                                           next_action,
                                           login, email, phr->self_url);
@@ -796,7 +796,7 @@ cmd_login(
     return ns_html_err_ul_server_down(fout, phr, 0, 0);
 
   if ((r = userlist_clnt_login(ul_conn, ULS_CHECK_USER,
-                               phr->ip, phr->ssl_flag, phr->contest_id,
+                               &phr->ip, phr->ssl_flag, phr->contest_id,
                                phr->locale_id, phr->login, password,
                                &phr->user_id, &phr->session_id,
                                &phr->name)) < 0) {
@@ -834,7 +834,7 @@ cmd_login(
   if (cnts->force_registration && cnts->autoregister && !need_regform) {
     r = userlist_clnt_register_contest(ul_conn, ULS_REGISTER_CONTEST_2,
                                        phr->user_id, phr->contest_id,
-                                       phr->ip, phr->ssl_flag);
+                                       &phr->ip, phr->ssl_flag);
     if (r < 0)
       return ns_html_err_no_perm(fout, phr, 0, "user_login failed: %s",
                                  userlist_strerror(-r));
@@ -851,7 +851,7 @@ cmd_login(
     // is complete, we may relax registration procedure
     r = userlist_clnt_register_contest(ul_conn, ULS_REGISTER_CONTEST_2,
                                        phr->user_id, phr->contest_id,
-                                       phr->ip, phr->ssl_flag);
+                                       &phr->ip, phr->ssl_flag);
     if (r < 0)
       return ns_html_err_no_perm(fout, phr, 0, "user_login failed: %s",
                                  userlist_strerror(-r));
@@ -896,7 +896,7 @@ anon_register_pages(FILE *fout, struct http_request_info *phr)
 
   // check permissions
   if (cnts->closed ||
-      !contests_check_register_ip_2(cnts, phr->ip, phr->ssl_flag)) {
+      !contests_check_register_ip_2(cnts, &phr->ip, phr->ssl_flag)) {
     return ns_html_err_no_perm(fout, phr, 0, "registration is not available");
   }
 
@@ -1715,7 +1715,7 @@ main_page(
   shown_items++;
   if (phr->reg_status == USERLIST_REG_OK
       && !(phr->reg_flags &~USERLIST_UC_INVISIBLE)
-      && contests_check_team_ip_2(cnts, phr->ip, phr->ssl_flag)
+      && contests_check_team_ip_2(cnts, &phr->ip, phr->ssl_flag)
       && !cnts->closed) {
     // "participate" link
     get_client_url(bb, sizeof(bb), cnts, phr->self_url);
@@ -3225,7 +3225,7 @@ register_for_contest(
   }
   r = userlist_clnt_register_contest(ul_conn, ULS_REGISTER_CONTEST_2,
                                      phr->user_id, phr->contest_id,
-                                     phr->ip, phr->ssl_flag);
+                                     &phr->ip, phr->ssl_flag);
   if (r < 0) {
     fprintf(log_f, "%s: %s.\n", _("Registration for contest failed"),
             userlist_strerror(-r));
@@ -3278,7 +3278,7 @@ ns_register_pages(FILE *fout, struct http_request_info *phr)
   if (ns_open_ul_connection(phr->fw_state) < 0)
     return ns_html_err_ul_server_down(fout, phr, 0, 0);
   if ((r = userlist_clnt_get_cookie(ul_conn, ULS_GET_COOKIE,
-                                    phr->ip, phr->ssl_flag,
+                                    &phr->ip, phr->ssl_flag,
                                     phr->session_id,
                                     &phr->user_id, &phr->contest_id,
                                     &phr->locale_id, 0, &phr->role, &is_team,
@@ -3312,7 +3312,7 @@ ns_register_pages(FILE *fout, struct http_request_info *phr)
 
   // check permissions
   if (cnts->closed ||
-      !contests_check_register_ip_2(cnts, phr->ip, phr->ssl_flag)) {
+      !contests_check_register_ip_2(cnts, &phr->ip, phr->ssl_flag)) {
     return ns_html_err_no_perm(fout, phr, 0, "registration is not available");
   }
 

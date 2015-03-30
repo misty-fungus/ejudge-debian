@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 7259 2012-12-20 13:11:33Z cher $ */
+/* $Id: new_server_html_4.c 7361 2013-02-09 19:09:22Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -102,7 +102,7 @@ cmd_login(
   case USER_ROLE_CONTESTANT:
     if (cnts->closed) 
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-    if (!contests_check_team_ip(phr->contest_id, phr->ip, phr->ssl_flag))
+    if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
     break;
   case USER_ROLE_OBSERVER:
@@ -110,11 +110,11 @@ cmd_login(
   case USER_ROLE_CHIEF_EXAMINER:
   case USER_ROLE_COORDINATOR:
   case USER_ROLE_JUDGE:
-    if (!contests_check_judge_ip(phr->contest_id, phr->ip, phr->ssl_flag))
+    if (!contests_check_judge_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
     break;
   case USER_ROLE_ADMIN:
-    if (!contests_check_master_ip(phr->contest_id, phr->ip, phr->ssl_flag))
+    if (!contests_check_master_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
     break;
   default:
@@ -126,13 +126,13 @@ cmd_login(
 
   if (phr->role == USER_ROLE_CONTESTANT) {
     r = userlist_clnt_login(ul_conn, ULS_TEAM_CHECK_USER,
-                            phr->ip, phr->ssl_flag, phr->contest_id,
+                            &phr->ip, phr->ssl_flag, phr->contest_id,
                             phr->locale_id, login, password,
                             &phr->user_id, &phr->session_id,
                             &phr->name);
   } else {
     r = userlist_clnt_priv_login(ul_conn, ULS_PRIV_CHECK_USER,
-                                 phr->ip, phr->ssl_flag, phr->contest_id,
+                                 &phr->ip, phr->ssl_flag, phr->contest_id,
                                  phr->locale_id, phr->role, login,
                                  password, &phr->user_id, &phr->session_id,
                                  0, &phr->name);
@@ -326,7 +326,7 @@ cmd_operation(
     serve_update_status_file(cs, 1);
     break;
   case NEW_SRV_ACTION_REJUDGE_SUSPENDED_2:
-    serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
+    serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, 0);
     break;
   case NEW_SRV_ACTION_HAS_TRANSIENT_RUNS:
     if (serve_count_transient_runs(cs) > 0)
@@ -406,7 +406,7 @@ cmd_operation(
     serve_update_status_file(cs, 1);
     break;
   case NEW_SRV_ACTION_REJUDGE_ALL_2:
-    serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT);
+    ns_add_job(serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, 1));
     break;
   case NEW_SRV_ACTION_SCHEDULE:
     return do_schedule(phr, cs, cnts);
@@ -774,6 +774,7 @@ cmd_submit_run(
   path_t run_path;
   unsigned char *utf8_str = NULL;
   int utf8_len = 0;
+  int eoln_type = 0;
 
   // initial permission check
   switch (phr->role) {
@@ -858,6 +859,11 @@ cmd_submit_run(
       FAIL(NEW_SRV_ERR_INV_LANG_ID);
     lang_id = i;
     lang = cs->langs[i];
+
+    if (cs->global->enable_eoln_select > 0) {
+      ns_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
+      if (eoln_type < 0 || eoln_type > EOLN_CRLF) eoln_type = 0;
+    }
   }
 
   /* get the source */
@@ -1047,13 +1053,13 @@ cmd_submit_run(
   }
 
   gettimeofday(&precise_time, 0);
-
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
                           run_size, shaval, NULL,
-                          phr->ip, phr->ssl_flag,
+                          &phr->ip, phr->ssl_flag,
                           phr->locale_id, phr->user_id,
-                          prob->id, lang_id, variant, hidden_flag, mime_type);
+                          prob->id, lang_id, eoln_type,
+                          variant, hidden_flag, mime_type);
   if (run_id < 0)
     FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
   serve_move_files_to_insert_run(cs, run_id);
@@ -1078,12 +1084,12 @@ cmd_submit_run(
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)
         || lang->disable_auto_testing || lang->disable_testing) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_PENDING,
                         "  Testing disabled for this problem or language");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
     } else {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_COMPILING, NULL);
       if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
                                      run_id, phr->user_id,
@@ -1100,12 +1106,12 @@ cmd_submit_run(
   } else if (prob->manual_checking > 0) {
     // manually tested outputs
     if (prob->check_presentation <= 0) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_ACCEPTED,
                         "  This problem is checked manually");
       run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
     } else {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_COMPILING, NULL);
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
         if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
@@ -1127,14 +1133,14 @@ cmd_submit_run(
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0, 0) < 0)
+                              mime_type, 0, 0, 0, 0) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }
   } else {
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)) {
-      serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_PENDING,
                         "  Testing disabled for this problem");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
@@ -1148,14 +1154,14 @@ cmd_submit_run(
       if (px && px->ans_num > 0) {
         struct run_entry re;
         run_get_entry(cs->runlog_state, run_id, &re);
-        serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+        serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_RUNNING, NULL);
         serve_judge_built_in_problem(ejudge_config, cs, cnts, run_id, 1 /* judge_id */,
                                      variant, cs->accepting_mode, &re,
-                                     prob, px, phr->user_id, phr->ip,
+                                     prob, px, phr->user_id, &phr->ip,
                                      phr->ssl_flag);
       } else if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+        serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_COMPILING, NULL);
         if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
                                        run_id, phr->user_id, 0 /* lang_id */, variant,
@@ -1173,12 +1179,12 @@ cmd_submit_run(
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
       } else {
-        serve_audit_log(cs, run_id, phr->user_id, phr->ip, phr->ssl_flag,
+        serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_RUNNING, NULL);
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, 0, 0) < 0)
+                              mime_type, 0, 0, 0, 0) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }
@@ -1895,7 +1901,7 @@ cmd_reload_server_2(
       FAIL(NEW_SRV_ERR_USERLIST_SERVER_DOWN);
 
     r = userlist_clnt_priv_login(ul_conn, ULS_PRIV_CHECK_PASSWORD,
-                                 phr->ip, phr->ssl_flag, 0,
+                                 &phr->ip, phr->ssl_flag, 0,
                                  0, 0, login,
                                  password, &phr->user_id, &phr->session_id,
                                  0, &phr->name);
@@ -2016,7 +2022,7 @@ new_server_cmd_handler(FILE *fout, struct http_request_info *phr)
     return -NEW_SRV_ERR_USERLIST_SERVER_DOWN;
 
   if ((r = userlist_clnt_get_cookie(ul_conn, ULS_FETCH_COOKIE,
-                                    phr->ip, phr->ssl_flag,
+                                    &phr->ip, phr->ssl_flag,
                                     phr->session_id,
                                     &phr->user_id, &phr->contest_id,
                                     &phr->locale_id, 0, &phr->role, 0, 0, 0,
@@ -2043,13 +2049,13 @@ new_server_cmd_handler(FILE *fout, struct http_request_info *phr)
 
   // analyze IP limitations
   if (phr->role == USER_ROLE_ADMIN) {
-    if (!contests_check_master_ip(phr->contest_id, phr->ip, phr->ssl_flag))
+    if (!contests_check_master_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
       return -NEW_SRV_ERR_PERMISSION_DENIED;
   } else if (phr->role == USER_ROLE_CONTESTANT) {
-    if (!contests_check_team_ip(phr->contest_id, phr->ip, phr->ssl_flag))
+    if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
       return -NEW_SRV_ERR_PERMISSION_DENIED;
   } else {
-    if (!contests_check_judge_ip(phr->contest_id, phr->ip, phr->ssl_flag))
+    if (!contests_check_judge_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
       return -NEW_SRV_ERR_PERMISSION_DENIED;
   }
 

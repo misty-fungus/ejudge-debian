@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: get_uid_by_pid.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: get_uid_by_pid.c 7359 2013-02-09 10:01:32Z cher $ */
 
-/* Copyright (C) 2002-2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -70,6 +70,5 @@ userlist_clnt_get_uid_by_pid(struct userlist_clnt *clnt,
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

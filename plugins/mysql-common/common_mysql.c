@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: common_mysql.c 6799 2012-05-05 06:37:22Z cher $ */
+/* $Id: common_mysql.c 7349 2013-02-08 12:32:48Z cher $ */
 
-/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -611,6 +611,8 @@ error_inv_value_func(struct common_mysql_state *state, const char *field)
   return -1;
 }
 
+#define DEFAULT_IP "127.0.0.127"
+
 static int
 parse_spec_func(
         struct common_mysql_state *state,
@@ -632,7 +634,8 @@ parse_spec_func(
   char *eptr;
   unsigned long long uq;
   unsigned long long *p_uq;
-  ej_ip_t *p_ip;
+  ej_ip4_t *p_ip;
+  ej_ip_t *p_ipv6;
 
   if (field_count != spec_num) {
     err("wrong field_count (%d instead of %d). invalid table format?",
@@ -783,11 +786,19 @@ parse_spec_func(
       *p_time = t;
       break;
     case 'i':
-      p_ip = XPDEREF(ej_ip_t, data, specs[i].offset);
+      p_ip = XPDEREF(ej_ip4_t, data, specs[i].offset);
       if (!row[i]) {
-        xml_parse_ip(NULL, 0, 0, 0, "127.0.0.127", p_ip);
+        xml_parse_ip(NULL, 0, 0, 0, DEFAULT_IP, p_ip);
       } else if (xml_parse_ip(NULL, 0, 0, 0, row[i], p_ip) < 0) {
-        xml_parse_ip(NULL, 0, 0, 0, "127.0.0.127", p_ip);
+        xml_parse_ip(NULL, 0, 0, 0, DEFAULT_IP, p_ip);
+      }
+      break;
+    case 'I':
+      p_ipv6 = XPDEREF(ej_ip_t, data, specs[i].offset);
+      if (!row[i]) {
+        xml_parse_ipv6_2(DEFAULT_IP, p_ipv6);
+      } else if (xml_parse_ipv6_2(row[i], p_ipv6) < 0) {
+        xml_parse_ipv6_2(DEFAULT_IP, p_ipv6);
       }
       break;
 
@@ -823,7 +834,8 @@ unparse_spec_func(
   const int *p_int;
   const unsigned long long *p_uq;
   unsigned long long uq;
-  ej_ip_t *p_ip;
+  ej_ip4_t *p_ip;
+  ej_ip_t *p_ipv6;
 
   va_start(args, data);
   for (i = 0; i < spec_num; ++i) {
@@ -890,8 +902,13 @@ unparse_spec_func(
       break;
 
     case 'i':
-      p_ip = XPDEREF(ej_ip_t, data, specs[i].offset);
+      p_ip = XPDEREF(ej_ip4_t, data, specs[i].offset);
       fprintf(fout, "%s'%s'", sep, xml_unparse_ip(*p_ip));
+      break;
+
+    case 'I':
+      p_ipv6 = XPDEREF(ej_ip_t, data, specs[i].offset);
+      fprintf(fout, "%s'%s'", sep, xml_unparse_ipv6(p_ipv6));
       break;
 
     default:
@@ -987,6 +1004,5 @@ parse_int_func(
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "MYSQL")
  * End:
  */

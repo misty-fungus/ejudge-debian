@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: new-server.h 7147 2012-11-06 12:20:11Z cher $ */
+/* $Id: new-server.h 7361 2013-02-09 19:09:22Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -536,7 +536,7 @@ void ns_remove_session(ej_cookie_t session_id);
 
 void ns_unload_contests(void);
 
-void ns_loop_callback(struct server_framework_state *state);
+int  ns_loop_callback(struct server_framework_state *state);
 void ns_post_select_callback(struct server_framework_state *state);
 
 unsigned char *
@@ -999,5 +999,9 @@ ns_submit_run(
 
 extern int utf8_mode;
 extern time_t server_start_time;
+
+struct server_framework_job;
+void ns_add_job(struct server_framework_job *job);
+void ns_remove_job(struct server_framework_job *job);
 
 #endif /* __NEW_SERVER_H__ */

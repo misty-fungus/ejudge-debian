@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: userlist-server.c 7098 2012-10-27 06:30:16Z cher $ */
+/* $Id: userlist-server.c 7358 2013-02-09 10:01:05Z cher $ */
 
-/* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1718,7 +1718,7 @@ cmd_register_new_2(struct client_state *p,
   }
 
   snprintf(logbuf, sizeof(logbuf), "NEW_USER_2: %s, %s, %s, %d",
-           xml_unparse_ip(data->origin_ip), login, email, data->contest_id);
+           xml_unparse_ipv6(&data->origin_ip), login, email, data->contest_id);
 
   if (data->contest_id <= 0) {
     err("%s -> contest_id unspecified", logbuf);
@@ -1745,7 +1745,7 @@ cmd_register_new_2(struct client_state *p,
     send_reply(p, -ULS_ERR_DEADLINE);
     return;
   }
-  if (!contests_check_register_ip_2(cnts, data->origin_ip, data->ssl)) {
+  if (!contests_check_register_ip_2(cnts, &data->origin_ip, data->ssl)) {
     err("%s -> rejected IP", logbuf);
     send_reply(p, -ULS_ERR_IP_NOT_ALLOWED);
     return;
@@ -2020,7 +2020,7 @@ cmd_register_new(struct client_state *p,
   }
 
   snprintf(logbuf, sizeof(logbuf), "NEW_USER: %s, %s, %s, %d",
-           xml_unparse_ip(data->origin_ip), login, email, data->contest_id);
+           xml_unparse_ipv6(&data->origin_ip), login, email, data->contest_id);
 
   if (data->contest_id != 0) {
     if ((errcode = contests_get(data->contest_id, &cnts)) < 0) {
@@ -2258,7 +2258,7 @@ cmd_recover_password_1(struct client_state *p,
   }
 
   snprintf(logbuf, sizeof(logbuf), "RECOVER_1: %s, %s, %s, %d",
-           xml_unparse_ip(data->origin_ip), login, email, data->contest_id);
+           xml_unparse_ipv6(&data->origin_ip), login, email, data->contest_id);
 
   if ((errcode = contests_get(data->contest_id, &cnts)) < 0) {
     err("%s -> invalid contest: %s", logbuf, contests_strerror(-errcode));
@@ -2325,7 +2325,7 @@ cmd_recover_password_1(struct client_state *p,
   }
 
   // generate new cookie for password recovery
-  if (default_new_cookie(u->id, data->origin_ip, data->ssl, 0, 0,
+  if (default_new_cookie(u->id, &data->origin_ip, data->ssl, 0, 0,
                          data->contest_id, data->locale_id,
                          PRIV_LEVEL_USER, 0, 1, 0, &cookie) < 0) {
     err("%s -> cookie creation failed", logbuf);
@@ -2376,7 +2376,8 @@ cmd_recover_password_1(struct client_state *p,
               "\n"
               "User `%s' (email %s) has initiated password regeneration\n"
               "in contest %d from IP %s\n\n"),
-            login, email, data->contest_id, xml_unparse_ip(data->origin_ip));
+            login, email, data->contest_id,
+            xml_unparse_ipv6(&data->origin_ip));
     fprintf(msg_f,
             _("Regards,\n"
               "The ejudge contest administration system (www.ejudge.ru)\n"));
@@ -2553,7 +2554,7 @@ cmd_recover_password_2(struct client_state *p,
               "User `%s' (email %s) completed password regeneration\n"
               "in contest %d from IP %s\n\n"),
             login, email, data->contest_id,
-            xml_unparse_ip(data->origin_ip));
+            xml_unparse_ipv6(&data->origin_ip));
     fprintf(msg_f,
             _("Regards,\n"
               "The ejudge contest administration system (www.ejudge.ru)\n"));
@@ -2653,7 +2654,7 @@ cmd_login(struct client_state *p,
   }
 
   snprintf(logbuf, sizeof(logbuf), "LOGIN: %s, %d, %s",
-           xml_unparse_ip(data->origin_ip), data->ssl, login);
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, login);
 
   if (p->user_id > 0) {
     err("%s -> already authentificated", logbuf);
@@ -2669,7 +2670,7 @@ cmd_login(struct client_state *p,
       send_reply(p, -ULS_ERR_NO_PERMS);
       return;
     }
-    if (!contests_check_register_ip(orig_contest_id, data->origin_ip, data->ssl)) {
+    if (!contests_check_register_ip(orig_contest_id, &data->origin_ip, data->ssl)) {
       err("%s -> IP is not allowed", logbuf);
       send_reply(p, -ULS_ERR_IP_NOT_ALLOWED);
       return;
@@ -2720,7 +2721,7 @@ cmd_login(struct client_state *p,
   answer = alloca(ans_len);
   memset(answer, 0, ans_len);
 
-  if (default_new_cookie(u->id, data->origin_ip, data->ssl, 0, 0,
+  if (default_new_cookie(u->id, &data->origin_ip, data->ssl, 0, 0,
                          orig_contest_id, data->locale_id, PRIV_LEVEL_USER,
                          0, 0, 0, &cookie) < 0) {
     err("%s -> cookie creation failed", logbuf);
@@ -2790,7 +2791,7 @@ cmd_check_user(
   }
 
   snprintf(logbuf, sizeof(logbuf), "CHECK_USER: %s, %d, %s",
-           xml_unparse_ip(data->origin_ip), data->ssl, login);
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, login);
 
   if (is_admin(p, logbuf) < 0) return;
   if (is_db_capable(p, OPCAP_LIST_USERS, logbuf) < 0) return;
@@ -2829,7 +2830,7 @@ cmd_check_user(
     send_reply(p, -ULS_ERR_NO_PERMS);
     return;
   }
-  if (!contests_check_register_ip(orig_contest_id, data->origin_ip, data->ssl)) {
+  if (!contests_check_register_ip(orig_contest_id, &data->origin_ip, data->ssl)) {
     err("%s -> IP is not allowed", logbuf);
     send_reply(p, -ULS_ERR_IP_NOT_ALLOWED);
     return;
@@ -2857,7 +2858,7 @@ cmd_check_user(
   answer = alloca(ans_len);
   memset(answer, 0, ans_len);
 
-  if (default_new_cookie(u->id, data->origin_ip, data->ssl, 0, 0,
+  if (default_new_cookie(u->id, &data->origin_ip, data->ssl, 0, 0,
                          orig_contest_id, data->locale_id, PRIV_LEVEL_USER, 0,
                          0, 0, &cookie) < 0) {
     err("%s -> cookie creation failed", logbuf);
@@ -2920,7 +2921,7 @@ cmd_team_login(struct client_state *p, int pkt_len,
 
   snprintf(logbuf, sizeof(logbuf),
            "TEAM_LOGIN: %s, %d, %s, %d, %d",
-           xml_unparse_ip(data->origin_ip), data->ssl, login_ptr,
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, login_ptr,
            data->contest_id, data->locale_id);
 
   if (p->user_id > 0) {
@@ -2935,7 +2936,7 @@ cmd_team_login(struct client_state *p, int pkt_len,
   }
   orig_contest_id = data->contest_id;
   if (full_get_contest(p, logbuf, &data->contest_id, &cnts) < 0) return;
-  if (!contests_check_team_ip(orig_contest_id, data->origin_ip, data->ssl)) {
+  if (!contests_check_team_ip(orig_contest_id, &data->origin_ip, data->ssl)) {
     err("%s -> IP is not allowed", logbuf);
     send_reply(p, -ULS_ERR_IP_NOT_ALLOWED);
     return;
@@ -3018,7 +3019,7 @@ cmd_team_login(struct client_state *p, int pkt_len,
   if (data->locale_id == -1) {
     data->locale_id = 0;
   }
-  if (default_new_cookie(u->id, data->origin_ip, data->ssl, 0, 0,
+  if (default_new_cookie(u->id, &data->origin_ip, data->ssl, 0, 0,
                          orig_contest_id, data->locale_id,
                          PRIV_LEVEL_USER, 0, 0, 1, &cookie) < 0) {
     err("%s -> cookie creation failed", logbuf);
@@ -3091,7 +3092,7 @@ cmd_team_check_user(struct client_state *p, int pkt_len,
 
   snprintf(logbuf, sizeof(logbuf),
            "TEAM_CHECK_USER: %s, %d, %s, %d, %d",
-           xml_unparse_ip(data->origin_ip), data->ssl, login_ptr,
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, login_ptr,
            data->contest_id, data->locale_id);
 
   if (is_admin(p, logbuf) < 0) return;
@@ -3106,7 +3107,7 @@ cmd_team_check_user(struct client_state *p, int pkt_len,
     return;
   }
 
-  if (!contests_check_team_ip(orig_contest_id, data->origin_ip, data->ssl)) {
+  if (!contests_check_team_ip(orig_contest_id, &data->origin_ip, data->ssl)) {
     err("%s -> IP is not allowed", logbuf);
     send_reply(p, -ULS_ERR_IP_NOT_ALLOWED);
     return;
@@ -3189,7 +3190,7 @@ cmd_team_check_user(struct client_state *p, int pkt_len,
   if (data->locale_id == -1) {
     data->locale_id = 0;
   }
-  if (default_new_cookie(u->id, data->origin_ip, data->ssl, 0, 0,
+  if (default_new_cookie(u->id, &data->origin_ip, data->ssl, 0, 0,
                          orig_contest_id, data->locale_id,
                          PRIV_LEVEL_USER, 0, 0, 1, &cookie) < 0) {
     err("%s -> cookie creation failed", logbuf);
@@ -3258,7 +3259,7 @@ cmd_priv_login(struct client_state *p, int pkt_len,
 
   snprintf(logbuf, sizeof(logbuf),
            "PRIV_LOGIN: %s, %d, %s, %d, %d",
-           xml_unparse_ip(data->origin_ip), data->ssl, login_ptr,
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, login_ptr,
            data->contest_id, data->locale_id);
 
   if (p->user_id > 0) {
@@ -3294,9 +3295,9 @@ cmd_priv_login(struct client_state *p, int pkt_len,
 
   r = -1;
   if (data->contest_id > 0 && priv_level == PRIV_LEVEL_ADMIN) {
-    r = contests_check_master_ip(orig_contest_id, data->origin_ip, data->ssl);
+    r = contests_check_master_ip(orig_contest_id, &data->origin_ip, data->ssl);
   } else if (data->contest_id > 0 && priv_level == PRIV_LEVEL_JUDGE) {
-    r = contests_check_judge_ip(orig_contest_id, data->origin_ip, data->ssl);
+    r = contests_check_judge_ip(orig_contest_id, &data->origin_ip, data->ssl);
   }
   if (!r) {
     err("%s -> IP is not allowed", logbuf);
@@ -3402,7 +3403,7 @@ cmd_priv_login(struct client_state *p, int pkt_len,
     data->locale_id = 0;
   }
 
-  if (default_new_cookie(u->id, data->origin_ip, data->ssl, 0, 0,
+  if (default_new_cookie(u->id, &data->origin_ip, data->ssl, 0, 0,
                          orig_contest_id, data->locale_id,
                          priv_level, data->role, 0, 0, &cookie) < 0) {
     err("%s -> cookie creation failed", logbuf);
@@ -3476,7 +3477,7 @@ cmd_priv_check_user(struct client_state *p, int pkt_len,
 
   snprintf(logbuf, sizeof(logbuf),
            "PRIV_CHECK_USER: %s, %d, %s, %d, %d, %d",
-           xml_unparse_ip(data->origin_ip), data->ssl, login_ptr,
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, login_ptr,
            data->contest_id, data->locale_id, data->role);
 
   if (p->user_id <= 0) {
@@ -3499,11 +3500,13 @@ cmd_priv_check_user(struct client_state *p, int pkt_len,
     priv_level = PRIV_LEVEL_ADMIN;
 
   if (is_db_capable(p, OPCAP_LIST_USERS, logbuf)) return;
+  /*
   if (!data->origin_ip) {
     err("%s -> origin_ip is not set", logbuf);
     send_reply(p, -ULS_ERR_NO_COOKIE);
     return;
   }
+  */
 
   if (passwd_convert_to_internal(passwd_ptr, &pwdint) < 0) {
     err("%s -> invalid password", logbuf);
@@ -3516,9 +3519,9 @@ cmd_priv_check_user(struct client_state *p, int pkt_len,
 
   r = -1;
   if (data->contest_id > 0 && priv_level == PRIV_LEVEL_ADMIN) {
-    r = contests_check_master_ip(orig_contest_id, data->origin_ip, data->ssl);
+    r = contests_check_master_ip(orig_contest_id, &data->origin_ip, data->ssl);
   } else if (data->contest_id > 0 && priv_level == PRIV_LEVEL_JUDGE) {
-    r = contests_check_judge_ip(orig_contest_id, data->origin_ip, data->ssl);
+    r = contests_check_judge_ip(orig_contest_id, &data->origin_ip, data->ssl);
   }
   if (!r) {
     err("%s -> IP is not allowed", logbuf);
@@ -3581,7 +3584,7 @@ cmd_priv_check_user(struct client_state *p, int pkt_len,
     data->locale_id = 0;
   }
 
-  if (default_new_cookie(u->id, data->origin_ip, data->ssl, 0, 0,
+  if (default_new_cookie(u->id, &data->origin_ip, data->ssl, 0, 0,
                          orig_contest_id, data->locale_id,
                          priv_level, data->role, 0, 0, &cookie) < 0) {
     err("%s -> cookie creation failed", logbuf);
@@ -3749,7 +3752,7 @@ cmd_check_cookie(struct client_state *p,
 
   snprintf(logbuf, sizeof(logbuf),
            "COOKIE: ip = %s, %d, cookie = %llx",
-           xml_unparse_ip(data->origin_ip), data->ssl, data->cookie);
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, data->cookie);
 
   // cannot login twice
   if (p->user_id > 0) {
@@ -3776,7 +3779,7 @@ cmd_check_cookie(struct client_state *p,
   if (full_get_contest(p, logbuf, &data->contest_id, &cnts) < 0) return;
 
   if (config->disable_cookie_ip_check <= 0) {
-    if (cookie->ip != data->origin_ip || cookie->ssl != data->ssl) {
+    if (ipv6cmp(&cookie->ip, &data->origin_ip) != 0 || cookie->ssl != data->ssl) {
       err("%s -> IP address mismatch", logbuf);
       send_reply(p, -ULS_ERR_NO_COOKIE);
       return;
@@ -3815,7 +3818,7 @@ cmd_check_cookie(struct client_state *p,
       send_reply(p, -ULS_ERR_NO_PERMS);
       return;
     }
-    if (!contests_check_register_ip(orig_contest_id, data->origin_ip, data->ssl)) {
+    if (!contests_check_register_ip(orig_contest_id, &data->origin_ip, data->ssl)) {
       err("%s -> IP is not allowed", logbuf);
       send_reply(p, -ULS_ERR_IP_NOT_ALLOWED);
       return;
@@ -3888,7 +3891,7 @@ cmd_team_check_cookie(
 
   snprintf(logbuf, sizeof(logbuf),
            "TEAM_COOKIE: %s, %d, %d, %llx",
-           xml_unparse_ip(data->origin_ip), data->ssl, data->contest_id,
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, data->contest_id,
            data->cookie);
 
   if (p->user_id > 0) {
@@ -3933,7 +3936,7 @@ cmd_team_check_cookie(
   if (!name) name = "";
 
   if (config->disable_cookie_ip_check <= 0) {
-    if (cookie->ip != data->origin_ip || cookie->ssl != data->ssl) {
+    if (ipv6cmp(&cookie->ip, &data->origin_ip) != 0 || cookie->ssl != data->ssl) {
       err("%s -> IP address mismatch", logbuf);
       send_reply(p, -ULS_ERR_NO_COOKIE);
       return;
@@ -3960,7 +3963,7 @@ cmd_team_check_cookie(
     send_reply(p, -ULS_ERR_NO_PERMS);
     return;
   }
-  if (!contests_check_team_ip(orig_contest_id, data->origin_ip, data->ssl)) {
+  if (!contests_check_team_ip(orig_contest_id, &data->origin_ip, data->ssl)) {
     err("%s -> IP is not allowed", logbuf);
     send_reply(p, -ULS_ERR_IP_NOT_ALLOWED);
     return;
@@ -4051,7 +4054,7 @@ cmd_priv_check_cookie(struct client_state *p,
 
   snprintf(logbuf, sizeof(logbuf),
            "PRIV_COOKIE: %s, %d, %d, %llx",
-           xml_unparse_ip(data->origin_ip), data->ssl, data->contest_id,
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, data->contest_id,
            data->cookie);
 
   if (p->user_id > 0) {
@@ -4064,11 +4067,13 @@ cmd_priv_check_cookie(struct client_state *p,
     send_reply(p, -ULS_ERR_NO_COOKIE);
     return;
   }
+  /*
   if (!data->origin_ip) {
     err("%s -> origin_ip is not set", logbuf);
     send_reply(p, -ULS_ERR_NO_COOKIE);
     return;
   }
+  */
 
   rdtscll(tsc1);
   if (default_get_cookie(data->cookie, &cookie) < 0 || !cookie) {
@@ -4116,7 +4121,7 @@ cmd_priv_check_cookie(struct client_state *p,
   }
 
   if (config->disable_cookie_ip_check <= 0) {
-    if (cookie->ip != data->origin_ip || cookie->ssl != data->ssl) {
+    if (ipv6cmp(&cookie->ip, &data->origin_ip) != 0 || cookie->ssl != data->ssl) {
       err("%s -> IP address mismatch", logbuf);
       send_reply(p, -ULS_ERR_NO_COOKIE);
       return;
@@ -4231,7 +4236,7 @@ cmd_priv_cookie_login(struct client_state *p,
 
   snprintf(logbuf, sizeof(logbuf),
            "PRIV_COOKIE_LOGIN: %s, %d, %d, %llx",
-           xml_unparse_ip(data->origin_ip), data->ssl, data->contest_id,
+           xml_unparse_ipv6(&data->origin_ip), data->ssl, data->contest_id,
            data->cookie);
 
   if (is_judge(p, logbuf) < 0) return;
@@ -4244,11 +4249,13 @@ cmd_priv_cookie_login(struct client_state *p,
     send_reply(p, -ULS_ERR_NO_COOKIE);
     return;
   }
+  /*
   if (!data->origin_ip) {
     err("%s -> origin_ip is not set", logbuf);
     send_reply(p, -ULS_ERR_NO_COOKIE);
     return;
   }
+  */
   
   if (data->role <= 0 || data->role >= USER_ROLE_LAST) {
     err("%s -> invalid privilege level", logbuf);
@@ -4279,7 +4286,7 @@ cmd_priv_cookie_login(struct client_state *p,
   }
 
   if (config->disable_cookie_ip_check <= 0) {
-    if (cookie->ip != data->origin_ip || cookie->ssl != data->ssl) {
+    if (ipv6cmp(&cookie->ip, &data->origin_ip) != 0 || cookie->ssl != data->ssl) {
       err("%s -> IP address or SSL flag mismatch", logbuf);
       send_reply(p, -ULS_ERR_NO_COOKIE);
       return;
@@ -4339,10 +4346,10 @@ cmd_priv_cookie_login(struct client_state *p,
   r = -1;
   switch (priv_level) {
   case PRIV_LEVEL_JUDGE:
-    r = contests_check_judge_ip(orig_contest_id, data->origin_ip, data->ssl);
+    r = contests_check_judge_ip(orig_contest_id, &data->origin_ip, data->ssl);
     break;
   case PRIV_LEVEL_ADMIN:
-    r = contests_check_master_ip(orig_contest_id, data->origin_ip, data->ssl);
+    r = contests_check_master_ip(orig_contest_id, &data->origin_ip, data->ssl);
     break;
   default:
     abort();
@@ -4366,7 +4373,7 @@ cmd_priv_cookie_login(struct client_state *p,
   login_ptr = out->data;
   name_ptr = login_ptr + login_len + 1;
 
-  if (default_new_cookie(u->id, data->origin_ip, data->ssl, 0, 0,
+  if (default_new_cookie(u->id, &data->origin_ip, data->ssl, 0, 0,
                          orig_contest_id, data->locale_id,
                          priv_level, data->role, 0, 0, &new_cookie) < 0) {
     err("%s -> cookie creation failed", logbuf);
@@ -4419,7 +4426,7 @@ cmd_do_logout(struct client_state *p,
 
   snprintf(logbuf, sizeof(logbuf),
            "LOGOUT: %s, %016llx",
-           xml_unparse_ip(data->origin_ip), data->cookie);
+           xml_unparse_ipv6(&data->origin_ip), data->cookie);
 
   if (p->user_id <= 0) {
     err("%s -> not authentificated", logbuf);
@@ -4431,11 +4438,13 @@ cmd_do_logout(struct client_state *p,
     send_reply(p, ULS_OK);
     return;
   }
+  /*
   if (!data->origin_ip) {
     err("%s -> origin_ip is empty", logbuf);
     send_reply(p, ULS_OK);
     return;
   }
+  */
 
   if (default_get_cookie(data->cookie, &cookie) < 0 || !cookie) {
     err("%s -> cookie not found", logbuf);
@@ -4448,7 +4457,7 @@ cmd_do_logout(struct client_state *p,
     return;
   }
   if (config->disable_cookie_ip_check <= 0) {
-    if (cookie->ip != data->origin_ip || cookie->ssl != data->ssl) {
+    if (ipv6cmp(&cookie->ip, &data->origin_ip) != 0 || cookie->ssl != data->ssl) {
       err("%s -> IP address does not match", logbuf);
       send_reply(p, -ULS_ERR_NO_COOKIE);
       return;
@@ -5099,7 +5108,7 @@ cmd_register_contest(
     send_reply(p, -ULS_ERR_NO_PERMS);
     return;
   }
-  if (!contests_check_register_ip(orig_contest_id, data->ip, data->ssl_flag)){
+  if (!contests_check_register_ip(orig_contest_id, &data->ip, data->ssl_flag)){
     err("%s -> this IP is not allowed", logbuf);
     send_reply(p, -ULS_ERR_NO_PERMS);
     return;
@@ -5173,7 +5182,7 @@ cmd_register_contest_2(
     return;
   }
 
-  if (contests_check_register_ip(data->contest_id,data->ip,data->ssl_flag)<=0){
+  if (contests_check_register_ip(data->contest_id,&data->ip,data->ssl_flag)<=0){
     err("%s -> this IP is not allowed", logbuf);
     send_reply(p, -ULS_ERR_NO_PERMS);
     return;
@@ -7843,8 +7852,10 @@ cmd_get_cookie(struct client_state *p,
   if (is_admin(p, logbuf) < 0) return;
   if (is_db_capable(p, OPCAP_LIST_USERS, logbuf)) return;
 
+  /*
   if (!data->origin_ip)
     FAIL(ULS_ERR_NO_COOKIE, "origin_ip is not set");
+  */
 
   rdtscll(tsc1);
   if (default_get_cookie(data->cookie, &cookie) < 0 || !cookie)
@@ -7874,7 +7885,7 @@ cmd_get_cookie(struct client_state *p,
   user_id = cookie->user_id;
 
   if (config->disable_cookie_ip_check <= 0) {
-    if (cookie->ip != data->origin_ip || cookie->ssl != data->ssl)
+    if (ipv6cmp(&cookie->ip, &data->origin_ip) != 0 || cookie->ssl != data->ssl)
       FAIL(ULS_ERR_NO_COOKIE, "IP address mismatch");
   }
   if (current_time > cookie->expire)
@@ -7964,7 +7975,7 @@ cmd_get_cookie(struct client_state *p,
  fail:
   if (!errmsg) errmsg = "unspecified error";
   err("GET_COOKIE: %s, %d, %llx -> %s",
-      xml_unparse_ip(data->origin_ip), data->ssl, data->cookie, errmsg);
+      xml_unparse_ipv6(&data->origin_ip), data->ssl, data->cookie, errmsg);
   if (errcode >= 0) errcode = -ULS_ERR_NO_COOKIE;
   send_reply(p, errcode);
 }
@@ -11166,6 +11177,5 @@ main(int argc, char *argv[])
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "XML_Parser" "XML_Char" "XML_Encoding" "va_list" "gzFile")
  * End:
  */

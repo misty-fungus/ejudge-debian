@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: server_framework.h 6981 2012-08-13 14:11:30Z cher $ */
+/* $Id: server_framework.h 7319 2013-01-27 14:14:03Z cher $ */
 
 #ifndef __SERVER_FRAMEWORK_H__
 #define __SERVER_FRAMEWORK_H__
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -19,6 +19,7 @@
  */
 
 #include <unistd.h>
+#include <time.h>
 
 enum
 {
@@ -83,7 +84,7 @@ struct server_framework_params
   void (*cleanup_client)(struct server_framework_state *,
                          struct client_state *);
   void (*free_memory)(struct server_framework_state *, void *);
-  void (*loop_start)(struct server_framework_state *);
+  int  (*loop_start)(struct server_framework_state *);
   void (*post_select)(struct server_framework_state *);
 };
 
@@ -131,5 +132,27 @@ void nsf_err_packet_too_small(struct server_framework_state *,
                               struct client_state *, size_t, size_t);
 void nsf_err_protocol_error(struct server_framework_state *,
                             struct client_state *);
+
+struct server_framework_job;
+struct server_framework_job_funcs
+{
+  void (*destroy)(struct server_framework_job *);
+  int  (*run)(struct server_framework_job *, int *p_tick_value, int max_value);
+  unsigned char * (*get_status)(struct server_framework_job *);
+};
+
+struct server_framework_job
+{
+  const struct server_framework_job_funcs *vt;
+  struct server_framework_job *prev, *next;
+  int id;
+  int prio;
+  int contest_id;
+  time_t start_time;
+  unsigned char *title;
+};
+
+void ns_add_job(struct server_framework_job *job);
+void ns_remove_job(struct server_framework_job *job);
 
 #endif /* __SERVER_FRAMEWORK_H__ */

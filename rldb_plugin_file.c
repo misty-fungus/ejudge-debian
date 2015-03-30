@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 7117 2012-11-01 19:50:16Z cher $ */
+/* $Id: rldb_plugin_file.c 7339 2013-02-05 21:46:39Z cher $ */
 
-/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -359,7 +359,7 @@ run_read_entry_v0(struct rldb_file_cnts *cs, int n)
   char buf[RUN_RECORD_SIZE + 16];
   char tip[RUN_RECORD_SIZE + 16];
   int  k, r;
-  ej_ip_t ip;
+  ej_ip4_t ip;
 
   memset(buf, 0, sizeof(buf));
   if (run_read_record_v0(cs, buf, RUN_RECORD_SIZE) < 0) return -1;
@@ -547,7 +547,7 @@ struct run_entry_v1
   rint32_t       submission;
   ej_time_t      timestamp;
   ej_size_t      size;
-  ej_ip_t        ip;
+  ej_ip4_t       ip;
   ruint32_t      sha1[5];
   rint32_t       team;
   rint32_t       problem;
@@ -1154,6 +1154,9 @@ add_entry_func(
   if ((flags & RE_SHA1)) {
     memcpy(de->sha1, re->sha1, sizeof(de->sha1));
   }
+  if ((flags & RE_RUN_UUID)) {
+    memcpy(de->run_uuid, re->run_uuid, sizeof(de->run_uuid));
+  }
   if ((flags & RE_USER_ID)) {
     de->user_id = re->user_id;
   }
@@ -1228,6 +1231,9 @@ add_entry_func(
   }
   if ((flags & RE_PASSED_MODE)) {
     de->passed_mode = re->passed_mode;
+  }
+  if ((flags & RE_EOLN_TYPE)) {
+    de->eoln_type = re->eoln_type;
   }
 
   return do_flush_entry(cs, run_id);
