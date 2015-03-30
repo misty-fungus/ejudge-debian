@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: super_html.c 7377 2013-03-27 07:51:42Z cher $ */
 
 /* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -3358,7 +3358,7 @@ super_html_edit_access_rules(
 
   return 0;
 }
-static const char * contest_cap_descs[] =
+static const char * contest_cap_descs[OPCAP_LAST] =
 {
   [OPCAP_MASTER_LOGIN] = "Use the `master' CGI-program",
   [OPCAP_JUDGE_LOGIN] = "Use the `judge' CGI-program",

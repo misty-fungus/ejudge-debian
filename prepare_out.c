@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 7286 2013-01-23 09:10:53Z cher $ */
+/* $Id: prepare_out.c 7501 2013-10-25 09:52:01Z cher $ */
 
 /* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -182,6 +182,9 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     fprintf(f, "board_unfog_time = %d\n", global->board_unfog_time);
   if (global->standings_locale[0])
     fprintf(f, "standings_locale = \"%s\"\n", CARMOR(global->standings_locale));
+  if (global->checker_locale && global->checker_locale[0]) {
+    do_str(f, &ab, "checker_locale", global->checker_locale);
+  }
   fprintf(f, "\n");
 
   // if the `compile_dir' and the `var_dir' has the common prefix,
@@ -498,6 +501,10 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     unparse_bool(f, "disable_user_database", global->disable_user_database);
   if (global->enable_max_stack_size > 0)
     unparse_bool(f, "enable_max_stack_size", global->enable_max_stack_size);
+  if (global->time_limit_retry_count > 1)
+    fprintf(f, "time_limit_retry_count = %d\n", global->time_limit_retry_count);
+  if (global->score_n_best_problems > 0)
+    fprintf(f, "score_n_best_problems = %d\n", global->score_n_best_problems);
 
   //???
   unparse_bool(f, "enable_l10n", global->enable_l10n);
@@ -840,6 +847,9 @@ prepare_unparse_lang(
     fprintf(f, "long_name = \"%s\"\n", CARMOR(lang->long_name));
   if (lang->extid && lang->extid[0]) {
     fprintf(f, "extid = \"%s\"\n", CARMOR(lang->extid));
+  }
+  if (lang->super_run_dir && lang->super_run_dir[0]) {
+    fprintf(f, "super_run_dir = \"%s\"\n", CARMOR(lang->super_run_dir));
   }
   if (lang->arch[0])
     fprintf(f, "arch = \"%s\"\n", CARMOR(lang->arch));
@@ -1290,6 +1300,8 @@ prepare_unparse_prob(
   do_xstr(f, &ab, "start_env", prob->start_env);
   do_xstr(f, &ab, "lang_time_adj", prob->lang_time_adj);
   do_xstr(f, &ab, "lang_time_adj_millis", prob->lang_time_adj_millis);
+  do_xstr(f, &ab, "lang_max_vm_size", prob->lang_max_vm_size);
+  do_xstr(f, &ab, "lang_max_stack_size", prob->lang_max_stack_size);
   do_xstr(f, &ab, "test_sets", prob->test_sets);
   do_xstr(f, &ab, "disable_language", prob->disable_language);
   do_xstr(f, &ab, "enable_language", prob->enable_language);
@@ -1313,6 +1325,8 @@ prepare_unparse_prob(
     unparse_bool(f, "team_enable_ce_view", prob->team_enable_ce_view);
   if (prob->team_show_judge_report >= 0)
     unparse_bool(f, "team_show_judge_report", prob->team_show_judge_report);
+  if (prob->show_checker_comment >= 0)
+    unparse_bool(f, "show_checker_comment", prob->show_checker_comment);
   if (prob->ignore_compile_errors >= 0)
     unparse_bool(f, "ignore_compile_errors", prob->ignore_compile_errors);
   if (prob->disable_auto_testing >= 0)
@@ -1622,6 +1636,8 @@ prepare_unparse_actual_prob(
   do_xstr(f, &ab, "start_env", prob->start_env);
   do_xstr(f, &ab, "lang_time_adj", prob->lang_time_adj);
   do_xstr(f, &ab, "lang_time_adj_millis", prob->lang_time_adj_millis);
+  do_xstr(f, &ab, "lang_max_vm_size", prob->lang_max_vm_size);
+  do_xstr(f, &ab, "lang_max_stack_size", prob->lang_max_stack_size);
   do_xstr(f, &ab, "test_sets", prob->test_sets);
   do_xstr(f, &ab, "disable_language", prob->disable_language);
   do_xstr(f, &ab, "enable_language", prob->enable_language);
@@ -1647,6 +1663,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "team_enable_ce_view", prob->team_enable_ce_view);
   if (prob->team_show_judge_report > 0)
     unparse_bool(f, "team_show_judge_report", prob->team_show_judge_report);
+  if (prob->show_checker_comment > 0)
+    unparse_bool(f, "show_checker_comment", prob->show_checker_comment);
   if (prob->ignore_compile_errors > 0)
     unparse_bool(f, "ignore_compile_errors", prob->ignore_compile_errors);
   if (prob->disable_auto_testing > 0)

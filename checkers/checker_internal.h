@@ -1,9 +1,9 @@
 #ifndef __CHECKER_INTERNAL_H__
 #define __CHECKER_INTERNAL_H__
 
-/* $Id: checker_internal.h 7229 2012-12-09 08:38:40Z cher $ */
+/* $Id: checker_internal.h 7460 2013-10-21 21:35:57Z cher $ */
 
-/* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -382,6 +382,8 @@ void
 valuer_parse_input(
         int *p_test_count,
         struct valuer_test_info **p_infos);
+
+void checker_l10n_prepare(void);
 
 #ifdef __cplusplus
 }

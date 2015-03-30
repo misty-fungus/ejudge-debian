@@ -1,6 +1,6 @@
 #!/bin/sh
-# $Id: fbc-version.in 6530 2011-11-26 21:00:58Z cher $
-# Copyright (c) 2011 Alexander Chernov <cher@ejudge.ru>
+# $Id: fbc-version.in 7419 2013-10-11 08:49:55Z cher $
+# Copyright (c) 2011-2013 Alexander Chernov <cher@ejudge.ru>
 
 # compiler script interface is as follows
 # <comp>-version [OPTION]
@@ -22,6 +22,7 @@ LANG_CONFIG_DIR="@lang_config_dir@"
 common_config() {
   echo 'long_name="Free Basic"'
   echo 'src_sfx=".bas"'
+  echo 'arch="linux-shared-32"'
 }
 
 failure() {

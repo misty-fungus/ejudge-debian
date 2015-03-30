@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run_common.c 7327 2013-01-31 18:19:29Z cher $ */
+/* $Id: run_common.c 7467 2013-10-22 08:16:07Z cher $ */
 
 /* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -54,6 +54,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <utime.h>
 #ifndef __MINGW32__
 #include <sys/vfs.h>
 #endif
@@ -904,6 +905,9 @@ invoke_valuer(
     task_SetEnv(tsk, "EJUDGE_INTERACTIVE", "1");
   }
   task_SetEnv(tsk, "EJUDGE", "1");
+  if (srgp->checker_locale && srgp->checker_locale[0]) {
+    task_SetEnv(tsk, "EJUDGE_LOCALE", srgp->checker_locale);
+  }
   task_EnableAllSignals(tsk);
 
   task_PrintArgs(tsk);
@@ -1002,6 +1006,9 @@ start_interactive_valuer(
     task_SetEnv(tsk, "EJUDGE_INTERACTIVE", "1");
   }
   task_SetEnv(tsk, "EJUDGE", "1");
+  if (srgp->checker_locale && srgp->checker_locale[0]) {
+    task_SetEnv(tsk, "EJUDGE_LOCALE", srgp->checker_locale);
+  }
   task_EnableAllSignals(tsk);
 
   task_PrintArgs(tsk);
@@ -1064,6 +1071,73 @@ get_num_prefix(int num)
   if (num < 100000) return '4';
   if (num < 1000000) return '5';
   return '6';
+}
+
+static int
+copy_mirrored_file(unsigned char *buf, int size, const unsigned char *mirror_path, const struct stat *psrcstat)
+{
+  unsigned char dirname[PATH_MAX];
+  os_rDirName(mirror_path, dirname, sizeof(dirname));
+
+  struct stat dbuf;
+  if (stat(dirname, &dbuf) < 0) {
+    // create directory
+    if (os_MakeDirPath(dirname, 0700) < 0) {
+      err("cannot create mirror directory '%s'", dirname);
+      return -1;
+    }
+  }
+  if (stat(dirname, &dbuf) < 0) {
+    err("mirror directory '%s' does not exist", dirname);
+    return -1;
+  }
+  if (!S_ISDIR(dbuf.st_mode)) {
+    err("mirror directory '%s' is not a directory", dirname);
+    return -1;
+  }
+  if (generic_copy_file(0, NULL, buf, NULL, 0, NULL, mirror_path, NULL) < 0) {
+    return -1;
+  }
+  // update mtime
+  struct utimbuf ub = {};
+  ub.actime = psrcstat->st_atime;
+  ub.modtime = psrcstat->st_mtime;
+  if (utime(mirror_path, &ub) < 0) {
+    err("failed to change modification time of '%s': %s", mirror_path, os_ErrorMsg());
+    // ignore this error
+  }
+  if (chmod(mirror_path, psrcstat->st_mode & 0777) < 0) {
+    err("failed to change permissions of '%s': %s", mirror_path, os_ErrorMsg());
+    // ignore this error
+  }
+
+  info("using mirrored file '%s'", mirror_path);
+  snprintf(buf, size, "%s", mirror_path);
+  return 0;
+}
+
+static void
+mirror_file(unsigned char *buf, int size, const unsigned char *mirror_dir)
+{
+  if (!mirror_dir || !*mirror_dir) return;
+
+  // handle only existing regular files
+  struct stat src_stbuf;
+  if (stat(buf, &src_stbuf) < 0) return;
+  if (!S_ISREG(src_stbuf.st_mode)) return;
+
+  unsigned char mirror_path[PATH_MAX];
+  const unsigned char *sep = "/";
+  if (mirror_dir[strlen(mirror_dir) - 1] == '/' || buf[0] == '/') sep = "";
+  snprintf(mirror_path, sizeof(mirror_path), "%s%s%s", mirror_dir, sep, buf);
+
+  struct stat dst_stbuf;
+  if (stat(mirror_path, &dst_stbuf) < 0 || dst_stbuf.st_size != src_stbuf.st_size || dst_stbuf.st_mtime < src_stbuf.st_mtime) {
+    copy_mirrored_file(buf, size, mirror_path, &src_stbuf);
+    return;
+  }
+  info("using mirrored copy of '%s' in '%s'", buf, mirror_path);
+  snprintf(buf, size, "%s", mirror_path);
 }
 
 static const unsigned char b32_digits[]=
@@ -1611,6 +1685,7 @@ invoke_interactor(
         const unsigned char *working_dir,
         const unsigned char *check_out_path,
         char **interactor_env,
+        const unsigned char *checker_locale,
         int stdin_fd,
         int stdout_fd,
         long time_limit_ms)
@@ -1631,6 +1706,9 @@ invoke_interactor(
   task_SetRedir(tsk_int, 0, TSR_DUP, stdin_fd);
   task_SetRedir(tsk_int, 1, TSR_DUP, stdout_fd);
   task_SetRedir(tsk_int, 2, TSR_FILE, check_out_path, TSK_APPEND, TSK_FULL_RW);
+  if (checker_locale && checker_locale[0]) {
+    task_SetEnv(tsk_int, "EJUDGE_LOCALE", checker_locale);
+  }
   task_EnableAllSignals(tsk_int);
   task_IgnoreSIGPIPE(tsk_int);
   if (time_limit_ms > 0) {
@@ -1775,6 +1853,9 @@ invoke_checker(
     task_SetEnv(tsk, "EJUDGE_SCORING_CHECKER", "1");
   }
   task_SetEnv(tsk, "EJUDGE", "1");
+  if (srgp->checker_locale && srgp->checker_locale[0]) {
+    task_SetEnv(tsk, "EJUDGE_LOCALE", srgp->checker_locale);
+  }
   task_EnableAllSignals(tsk);
 
   task_PrintArgs(tsk);
@@ -1860,6 +1941,32 @@ cleanup:
 }
 
 static int
+is_java_memory_limit(const unsigned char *text, ssize_t size)
+{
+  static const char AT_STR[] = "at ";
+  static const char EX_STR_1[] = "Exception in thread \"";
+  static const char EX_STR_2[] = "\" java.lang.OutOfMemoryError: Java heap space";
+  static const char EX_STR_3[] = "\" java.lang.StackOverflowError";
+
+  if (size <= 0 || !text || strlen(text) != size) return 0;
+
+  char **lines = NULL;
+  split_to_lines(text, &lines, 2);
+  int i = 0;
+  for (; lines[i]; ++i) {}
+  --i;
+  for (; i >= 0 && !strncmp(AT_STR, lines[i], sizeof(AT_STR) - 1); --i) {}
+  if (i < 0) return 0;
+  int len = strlen(lines[i]);
+  if (len <= sizeof(EX_STR_1) - 1) return 0;
+  if (strncmp(lines[i], EX_STR_1, sizeof(EX_STR_1) - 1)) return 0;
+  if (len > sizeof(EX_STR_2) && !strcmp(lines[i] + len - sizeof(EX_STR_2) + 1, EX_STR_2)) return 1;
+  if (len > sizeof(EX_STR_3) && !strcmp(lines[i] + len - sizeof(EX_STR_3) + 1, EX_STR_3)) return 1;
+
+  return 0;
+}
+
+static int
 run_one_test(
         const struct ejudge_cfg *config,
         serve_state_t state,
@@ -1871,6 +1978,7 @@ run_one_test(
         const unsigned char *exe_name,
         const unsigned char *report_path,
         const unsigned char *check_cmd,
+        const unsigned char *interactor_cmd,
         char **start_env,
         int open_tests_count,
         const int *open_tests_val,
@@ -1880,7 +1988,8 @@ run_one_test(
         int *p_has_real_time,
         int *p_has_max_memory_used,
         long *p_report_time_limit_ms,
-        long *p_report_real_time_limit_ms)
+        long *p_report_real_time_limit_ms,
+        const unsigned char *mirror_dir)
 {
   const struct section_global_data *global = state->global;
 
@@ -2113,6 +2222,7 @@ run_one_test(
   if (is_dos > 0 && srpp->binary_input <= 0) copy_flag = CONVERT;
 
   /* copy the test */
+  mirror_file(test_src, sizeof(test_src), mirror_dir);
   if (generic_copy_file(0, NULL, test_src, "", copy_flag, check_dir, srpp->input_file, "") < 0) {
     append_msg_to_log(check_out_path, "failed to copy test file %s -> %s/%s",
                       test_src, check_dir, srpp->input_file);
@@ -2129,7 +2239,7 @@ run_one_test(
   snprintf(output_path, sizeof(output_path), "%s/%s", check_dir, srpp->output_file);
   snprintf(error_path, sizeof(error_path), "%s/%s", check_dir, error_file);
 
-  if (srpp->interactor_cmd && srpp->interactor_cmd[0]) {
+  if (interactor_cmd) {
     snprintf(output_path, sizeof(output_path), "%s/%s", global->run_work_dir, srpp->output_file);
   }
 
@@ -2146,7 +2256,7 @@ run_one_test(
   }
 
 #ifndef __WIN32__
-  if (srpp->interactor_cmd && srpp->interactor_cmd[0]) {
+  if (interactor_cmd) {
     if (pipe(pfd1) < 0) {
       append_msg_to_log(check_out_path, "pipe() failed: %s", os_ErrorMsg());
       goto check_failed;
@@ -2160,8 +2270,8 @@ run_one_test(
     fcntl(pfd2[0], F_SETFD, FD_CLOEXEC);
     fcntl(pfd2[1], F_SETFD, FD_CLOEXEC);
 
-    tsk_int = invoke_interactor(srpp->interactor_cmd, test_src, output_path, corr_src,
-                                working_dir, check_out_path, srpp->interactor_env,
+    tsk_int = invoke_interactor(interactor_cmd, test_src, output_path, corr_src,
+                                working_dir, check_out_path, srpp->interactor_env, srgp->checker_locale,
                                 pfd1[0], pfd2[1], srpp->interactor_time_limit_ms);
     if (!tsk_int) {
       append_msg_to_log(check_out_path, "interactor failed to start");
@@ -2192,7 +2302,7 @@ run_one_test(
   task_SetWorkingDir(tsk, working_dir);
   if (srpp->enable_process_group > 0) task_EnableProcessGroup(tsk);
 
-  if (srpp->interactor_cmd && srpp->interactor_cmd[0]) {
+  if (interactor_cmd) {
     task_SetRedir(tsk, 0, TSR_DUP, pfd2[0]);
     task_SetRedir(tsk, 1, TSR_DUP, pfd1[1]);
     if (tst->ignore_stderr > 0) {
@@ -2545,6 +2655,12 @@ run_one_test(
     goto cleanup;
   }
 
+  if (tst && tst->memory_limit_type_val == MEMLIMIT_TYPE_JAVA && srgp->enable_memory_limit_error > 0
+      && task_IsAbnormal(tsk) && is_java_memory_limit(cur_info->error, cur_info->error_size)) {
+    status = RUN_MEM_LIMIT_ERR;
+    goto cleanup;
+  }
+
   if (tst && tst->enable_memory_limit_error > 0 && srgp->detect_violations > 0
       && srgp->secure_run > 0 && task_IsSecurityViolation(tsk)) {
     status = RUN_SECURITY_ERR;
@@ -2616,6 +2732,9 @@ run_checker:;
 
   file_size = -1;
   if (srpp->use_corr > 0) {
+    if (corr_src[0]) {
+      mirror_file(corr_src, sizeof(corr_src), mirror_dir);
+    }
     if (srgp->enable_full_archive > 0) {
       filehash_get(corr_src, cur_info->correct_digest);
       cur_info->has_correct_digest = 1;
@@ -2634,7 +2753,7 @@ run_checker:;
 
   if (!output_path_to_check) {
     output_path_to_check = srpp->output_file;
-    if (srpp->interactor_cmd && srpp->interactor_cmd[0]) {
+    if (interactor_cmd) {
       output_path_to_check = output_path;
     }
   }
@@ -3139,6 +3258,7 @@ run_tests(
         char *full_report_path,           /* path to the full output dir */
         const unsigned char *user_spelling,
         const unsigned char *problem_spelling,
+        const unsigned char *mirror_dir,
         int utf8_mode)
 {
   const struct section_global_data *global = state->global;
@@ -3168,6 +3288,8 @@ run_tests(
   unsigned char messages_path[PATH_MAX];
   unsigned char check_dir[PATH_MAX];
   unsigned char check_cmd[PATH_MAX];
+  unsigned char b_interactor_cmd[PATH_MAX];
+  const unsigned char *interactor_cmd = NULL;
 
   int *open_tests_val = NULL;
   int open_tests_count = 0;
@@ -3268,11 +3390,19 @@ run_tests(
   } else {
     snprintf(check_cmd, sizeof(check_cmd), "%s", srpp->check_cmd);
   }
+  mirror_file(check_cmd, sizeof(check_cmd), mirror_dir);
 
   if ((!srpp->standard_checker || !srpp->standard_checker[0])
       && (!srpp->check_cmd || !srpp->check_cmd[0])) {
     append_msg_to_log(messages_path, "neither 'check_cmd' nor 'standard_checker' is defined");
     goto check_failed;
+  }
+
+  if (srpp->interactor_cmd && srpp->interactor_cmd[0]) {
+    snprintf(b_interactor_cmd, sizeof(b_interactor_cmd), "%s",
+             srpp->interactor_cmd);
+    interactor_cmd = b_interactor_cmd;
+    mirror_file(b_interactor_cmd, sizeof(b_interactor_cmd), mirror_dir);
   }
 
   if (srpp->type_val) {
@@ -3357,13 +3487,27 @@ run_tests(
         && accept_testing
         && cur_test > srpp->tests_to_accept) break;
 
-    status = run_one_test(config, state, srp, tst, cur_test, &tests,
-                          far, exe_name, report_path, check_cmd, start_env,
-                          open_tests_count, open_tests_val,
-                          test_score_count, test_score_val,
-                          expected_free_space,
-                          &has_real_time, &has_max_memory_used,
-                          &report_time_limit_ms, &report_real_time_limit_ms);
+    int tl_retry = 0;
+    int tl_retry_count = srgp->time_limit_retry_count;
+    if (tl_retry_count <= 0) tl_retry_count = 1;
+
+    while (1) {
+      status = run_one_test(config, state, srp, tst, cur_test, &tests,
+                            far, exe_name, report_path, check_cmd,
+                            interactor_cmd, start_env,
+                            open_tests_count, open_tests_val,
+                            test_score_count, test_score_val,
+                            expected_free_space,
+                            &has_real_time, &has_max_memory_used,
+                            &report_time_limit_ms, &report_real_time_limit_ms,
+                            mirror_dir);
+      if (status != RUN_TIME_LIMIT_ERR && status != RUN_WALL_TIME_LIMIT_ERR)
+        break;
+      if (++tl_retry >= tl_retry_count) break;
+      info("test failed due to TL, do it again");
+      --tests.size;
+    }
+
     if (status < 0) {
       status = RUN_OK;
       break;

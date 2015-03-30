@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2013/01/23 13:11:00
+// Generated 2013/10/25 13:52:05
 
 #ifndef __PREPARE_META_H__
 #define __PREPARE_META_H__
@@ -32,6 +32,8 @@ enum
   CNTSGLOB_ignore_bom,
   CNTSGLOB_disable_user_database,
   CNTSGLOB_enable_max_stack_size,
+  CNTSGLOB_time_limit_retry_count,
+  CNTSGLOB_score_n_best_problems,
   CNTSGLOB_stand_ignore_after,
   CNTSGLOB_contest_finish_time,
   CNTSGLOB_appeal_deadline,
@@ -72,6 +74,7 @@ enum
   CNTSGLOB_l10n_dir,
   CNTSGLOB_standings_locale,
   CNTSGLOB_standings_locale_id,
+  CNTSGLOB_checker_locale,
   CNTSGLOB_contest_id,
   CNTSGLOB_socket_path,
   CNTSGLOB_contests_dir,
@@ -326,6 +329,7 @@ enum
   CNTSPROB_team_enable_rep_view,
   CNTSPROB_team_enable_ce_view,
   CNTSPROB_team_show_judge_report,
+  CNTSPROB_show_checker_comment,
   CNTSPROB_ignore_compile_errors,
   CNTSPROB_full_score,
   CNTSPROB_full_user_score,
@@ -441,6 +445,8 @@ enum
   CNTSPROB_lang_time_adj,
   CNTSPROB_lang_time_adj_millis,
   CNTSPROB_super_run_dir,
+  CNTSPROB_lang_max_vm_size,
+  CNTSPROB_lang_max_stack_size,
   CNTSPROB_alternative,
   CNTSPROB_personal_deadline,
   CNTSPROB_pd_total,
@@ -505,6 +511,7 @@ enum
   CNTSLANG_style_checker_cmd,
   CNTSLANG_style_checker_env,
   CNTSLANG_extid,
+  CNTSLANG_super_run_dir,
   CNTSLANG_disable_auto_testing,
   CNTSLANG_disable_testing,
   CNTSLANG_max_vm_size,

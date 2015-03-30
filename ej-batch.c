@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-batch.c 7284 2013-01-23 08:45:50Z cher $ */
+/* $Id: ej-batch.c 7467 2013-10-22 08:16:07Z cher $ */
 
 /* Copyright (C) 2010-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -685,6 +685,7 @@ process_compile_packet(
                         0 /* notify_flag */,
                         0 /* mime_type */,
                         0, /* eoln_type */
+                        0, /* locale_id */
                         0 /* compile_report_dir */,
                         0 /* comp_pkt */,
                         1 /* no_db_flag */);

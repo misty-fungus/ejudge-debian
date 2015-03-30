@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: watched_file.c 6135 2011-03-26 09:30:42Z cher $ */
+/* $Id: watched_file.c 7377 2013-03-27 07:51:42Z cher $ */
 
 /* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
 
@@ -78,7 +78,7 @@ watched_file_clear(struct watched_file *pw)
 
   xfree(pw->text);
   xfree(pw->path);
-  memset(pw, 0, sizeof(pw));
+  memset(pw, 0, sizeof(*pw));
 }
 
 /*

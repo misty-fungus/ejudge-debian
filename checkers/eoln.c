@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: eoln.c 5912 2010-06-26 08:52:45Z cher $ */
+/* $Id: eoln.c 7460 2013-10-21 21:35:57Z cher $ */
 
-/* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,6 +17,8 @@
 
 #include "checker_internal.h"
 
+#include "l10n_impl.h"
+
 void
 checker_eoln(
         FILE *f,
@@ -31,16 +33,16 @@ checker_eoln(
   if (c != EOF && c != '\n') {
     if (c < ' ') {
       if (lineno > 0) {
-        error_func("%s: %d: invalid control character with code %d",
+        error_func(_("%s: %d: invalid control character with code %d"),
                    name, lineno, c);
       } else {
-        error_func("%s: invalid control character with code %d", name, c);
+        error_func(_("%s: invalid control character with code %d"), name, c);
       }
     }
     if (lineno > 0) {
-      error_func("%s: %d: end-of-line expected", name, lineno);
+      error_func(_("%s: %d: end-of-line expected"), name, lineno);
     } else {
-      error_func("%s: end-of-line expected", name);
+      error_func(_("%s: end-of-line expected"), name);
     }
   }
 }

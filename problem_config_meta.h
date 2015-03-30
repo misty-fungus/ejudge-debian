@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2013/01/20 09:12:00
+// Generated 2013/10/20 23:14:36
 
 #ifndef __PROBLEM_CONFIG_META_H__
 #define __PROBLEM_CONFIG_META_H__
@@ -30,6 +30,7 @@ enum
   META_PROBLEM_CONFIG_SECTION_team_enable_rep_view,
   META_PROBLEM_CONFIG_SECTION_team_enable_ce_view,
   META_PROBLEM_CONFIG_SECTION_team_show_judge_report,
+  META_PROBLEM_CONFIG_SECTION_show_checker_comment,
   META_PROBLEM_CONFIG_SECTION_ignore_compile_errors,
   META_PROBLEM_CONFIG_SECTION_variable_full_score,
   META_PROBLEM_CONFIG_SECTION_ignore_penalty,
@@ -135,6 +136,8 @@ enum
   META_PROBLEM_CONFIG_SECTION_require,
   META_PROBLEM_CONFIG_SECTION_lang_time_adj,
   META_PROBLEM_CONFIG_SECTION_lang_time_adj_millis,
+  META_PROBLEM_CONFIG_SECTION_lang_max_vm_size,
+  META_PROBLEM_CONFIG_SECTION_lang_max_stack_size,
   META_PROBLEM_CONFIG_SECTION_personal_deadline,
   META_PROBLEM_CONFIG_SECTION_score_view,
   META_PROBLEM_CONFIG_SECTION_score_view_text,

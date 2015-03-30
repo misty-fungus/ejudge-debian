@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: run.h 7230 2012-12-09 08:40:44Z cher $ */
+/* $Id: run.h 7406 2013-10-05 10:45:38Z cher $ */
 #ifndef __RUN_H__
 #define __RUN_H__
 
-/* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -97,6 +97,7 @@ run_tests(
         char *full_report_path,           /* path to the full output dir */
         const unsigned char *user_spelling,
         const unsigned char *problem_spelling,
+        const unsigned char *mirror_dir,
         int utf8_mode);
 
 #endif /* __RUN_H__ */

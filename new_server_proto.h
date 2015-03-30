@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: new_server_proto.h 6573 2011-12-18 07:09:09Z cher $ */
+/* $Id: new_server_proto.h 7505 2013-10-26 19:47:17Z cher $ */
 
 #ifndef __NEW_SERVER_PROTO_H__
 #define __NEW_SERVER_PROTO_H__
 
-/* Copyright (C) 2006-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -199,6 +199,7 @@ enum
   NEW_SRV_ERR_INV_CHAR,
   NEW_SRV_ERR_DATABASE_FAILED,
   NEW_SRV_ERR_PROB_CONFIG,
+  NEW_SRV_ERR_PROB_TOO_MANY_ATTEMPTS,
 
   NEW_SRV_ERR_LAST,
 };

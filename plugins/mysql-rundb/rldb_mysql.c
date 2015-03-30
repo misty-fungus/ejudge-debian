@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 7354 2013-02-08 15:18:43Z cher $ */
+/* $Id: rldb_mysql.c 7379 2013-03-30 13:07:30Z cher $ */
 
 /* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -381,10 +381,10 @@ load_runs(struct rldb_mysql_cnts *cs)
     return 0;
   }
   for (i = 0; i < md->row_count; i++) {
-    if (mi->next_row(md) < 0) goto fail;
     memset(&ri, 0, sizeof(ri));
     memset(sha1, 0, sizeof(sha1));
     memset(run_uuid, 0, sizeof(run_uuid));
+    if (mi->next_row(md) < 0) goto fail;
     mime_type = 0;
     if (mi->parse_spec(md, md->field_count, md->row, md->lengths,
                        RUNS_ROW_WIDTH, runs_spec, &ri) < 0)
@@ -525,9 +525,9 @@ static struct rldb_plugin_cnts *
 close_func(struct rldb_plugin_cnts *cdata)
 {
   struct rldb_mysql_cnts *cs = (struct rldb_mysql_cnts*) cdata;
+  if (!cs) return 0;
   struct runlog_state *rls = cs->rl_state;
 
-  if (!cs) return 0;
   rls = cs->rl_state;
   if (rls) {
     xfree(rls->runs); rls->runs = 0;

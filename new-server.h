@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: new-server.h 7499 2013-10-24 19:21:03Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -876,8 +876,7 @@ ns_write_user_problems_summary(
         int *best_run,                /* the number of the best run */
         int *attempts,                /* the number of previous attempts */
         int *disqualified,            /* the number of prev. disq. attempts */
-        int *best_score,              /* the best score for the problem */
-        int *prev_successes);         /* the number of prev. successes */
+        int *best_score);             /* the best score for the problem */
 
 int ns_insert_variant_num(unsigned char *buf, size_t size,
                           const unsigned char *file, int variant);

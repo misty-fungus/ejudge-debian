@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: super_html_4.c 7467 2013-10-22 08:16:07Z cher $ */
 
 /* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1110,6 +1110,7 @@ static const struct cnts_edit_info cnts_global_info[] =
   { NS_GLOBAL, CNTSGLOB_detect_violations, 'Y', 1, 0, 0, 0, 0, "Detect security violations", "Detect security violations (needs kernel patch)", 0 },
   { NS_GLOBAL, CNTSGLOB_enable_max_stack_size, 'Y', 1, 0, 0, 0, 0, "Assume max_stack_size == max_vm_size", 0, 0 },
   { NS_GLOBAL, CNTSGLOB_standings_locale, 134, 1, 1, 0, 1, 0, "Standings locale", 0, 0 },
+  { NS_GLOBAL, CNTSGLOB_checker_locale, 's', 1, 1, 1, 1, 0, "Checker locale", 0, 0 },
 
   { NS_SID_STATE, SSSS_show_global_1, '-', 1, 0, 0, 0, 0, "Contestant's capabilities", 0, 0 },
   { NS_GLOBAL, CNTSGLOB_team_enable_src_view, 'Y', 1, 0, 0, 0, 0, "Contestants may view their source code", 0, "SidState.show_global_1" },
@@ -1352,6 +1353,7 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_team_enable_rep_view, 'Y', 1, 0, 0, 0, 0, "Contestants may view testing protocols", 0, 0 },
   { NS_PROBLEM, CNTSPROB_team_enable_ce_view, 'Y', 1, 0, 0, 0, 0, "Contestants may view compilation errors", 0, "Problem.team_enable_rep_view !" },
   { NS_PROBLEM, CNTSPROB_team_show_judge_report, 'Y', 1, 0, 0, 0, 0, "Contestants may view FULL testing protocols", 0, "Problem.team_enable_rep_view 0 >" },
+  { NS_PROBLEM, CNTSPROB_show_checker_comment, 'Y', 1, 0, 0, 0, 0, "Contestants may view checker comment", 0, "Problem.team_enable_rep_view 0 >" },
   { NS_PROBLEM, CNTSPROB_ignore_compile_errors, 'Y', 1, 0, 0, 0, 0, "Ignore compile errors", 0, 0 },
   { NS_PROBLEM, CNTSPROB_disable_user_submit, 'Y', 1, 0, 0, 0, 0, "Disable user submissions", 0, 0 },
   { NS_PROBLEM, CNTSPROB_disable_tab, 'Y', 1, 0, 0, 0, 0, "Disable navigation tab", 0, "Global.problem_navigation SidState.prob_show_adv &&" },
@@ -1417,6 +1419,8 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_stand_last_column, 'Y', 1, 0, 0, 0, 0, "Show as the last column", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_lang_time_adj, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Language time-limit adjustments (s)", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_lang_time_adj_millis, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Language time-limit adjustments (ms)", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_lang_max_vm_size, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Language-specific memory limit", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_lang_max_stack_size, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Language-specific stack limit", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_disable_language, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Disabled languages", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_enable_language, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Enabled languages", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_require, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Required problems", 0, "SidState.prob_show_adv" },
@@ -5987,6 +5991,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_team_enable_rep_view] = 1,
   [CNTSPROB_team_enable_ce_view] = 1,
   [CNTSPROB_team_show_judge_report] = 1,
+  [CNTSPROB_show_checker_comment] = 0,
   [CNTSPROB_ignore_compile_errors] = 0,
   [CNTSPROB_full_score] = 0,
   [CNTSPROB_test_score] = 0,
@@ -6075,6 +6080,8 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_start_env] = 0,
   [CNTSPROB_lang_time_adj] = 0,
   [CNTSPROB_lang_time_adj_millis] = 0,
+  [CNTSPROB_lang_max_vm_size] = 0,
+  [CNTSPROB_lang_max_stack_size] = 0,
   [CNTSPROB_check_cmd] = 0,
   [CNTSPROB_valuer_cmd] = 0,
   [CNTSPROB_interactor_cmd] = 0,
@@ -6350,6 +6357,8 @@ const unsigned char prob_editable_details[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_score_view] = 1,
   [CNTSPROB_lang_time_adj] = 1,
   [CNTSPROB_lang_time_adj_millis] = 1,
+  [CNTSPROB_lang_max_vm_size] = 1,
+  [CNTSPROB_lang_max_stack_size] = 1,
   [CNTSPROB_disable_language] = 1,
   [CNTSPROB_enable_language] = 1,
   [CNTSPROB_require] = 1,
@@ -6505,6 +6514,8 @@ cmd_op_edit_serve_prob_field_detail(
   case CNTSPROB_score_view:
   case CNTSPROB_lang_time_adj:
   case CNTSPROB_lang_time_adj_millis:
+  case CNTSPROB_lang_max_vm_size:
+  case CNTSPROB_lang_max_stack_size:
   case CNTSPROB_disable_language:
   case CNTSPROB_enable_language:
   case CNTSPROB_require:

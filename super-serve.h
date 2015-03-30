@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super-serve.h 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: super-serve.h 7399 2013-10-03 21:46:54Z cher $ */
 #ifndef __SUPER_SERVE_H__
 #define __SUPER_SERVE_H__
 
@@ -79,6 +79,7 @@ struct update_state
 {
   time_t start_time;
   int create_mode;
+  int contest_mode;
   int contest_id;
   unsigned char *working_dir;
   unsigned char *conf_file;

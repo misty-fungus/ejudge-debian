@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.h 7278 2013-01-22 18:14:44Z cher $ */
+/* $Id: super_run_packet.h 7464 2013-10-22 06:17:01Z cher $ */
 #ifndef __SUPER_RUN_PACKET_H__
 #define __SUPER_RUN_PACKET_H__
 
@@ -77,6 +77,8 @@ struct super_run_in_global_packet
   ejintbool_t restart;
   ejintbool_t disable_sound;
   ejintbool_t is_dos;
+  int time_limit_retry_count;
+  unsigned char *checker_locale;
 
   int scoring_system_val META_ATTRIB((meta_hidden));
 };

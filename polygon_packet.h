@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: polygon_packet.h 7079 2012-10-23 04:27:13Z cher $ */
+/* $Id: polygon_packet.h 7395 2013-10-02 07:57:38Z cher $ */
 #ifndef __POLYGON_PACKET_H__
 #define __POLYGON_PACKET_H__
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -38,6 +38,7 @@ struct polygon_packet
     int sleep_interval;
     ejintbool_t enable_max_stack_size;
     ejintbool_t create_mode;
+    int retry_count;
 
     unsigned char *polygon_url;
     unsigned char *login;
@@ -57,6 +58,7 @@ struct polygon_packet
     unsigned char *problem_xml_name;
     unsigned char *testset;
     unsigned char *language_priority;
+    unsigned char *polygon_contest_id;
 
     char **id;
     char **ejudge_id;

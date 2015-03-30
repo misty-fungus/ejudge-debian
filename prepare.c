@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.c 7296 2013-01-25 11:34:56Z cher $ */
+/* $Id: prepare.c 7503 2013-10-25 10:10:36Z cher $ */
 
 /* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -119,6 +119,8 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(disable_user_database, "d"),
   GLOBAL_PARAM(enable_max_stack_size, "d"),
   GLOBAL_PARAM(enable_eoln_select, "d"),
+  GLOBAL_PARAM(time_limit_retry_count, "d"),
+  GLOBAL_PARAM(score_n_best_problems, "d"),
 
   GLOBAL_PARAM(stand_ignore_after, "t"),
   GLOBAL_PARAM(appeal_deadline, "t"),
@@ -273,6 +275,7 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(enable_l10n, "d"),
   GLOBAL_PARAM(l10n_dir, "s"),
   GLOBAL_PARAM(standings_locale, "s"),
+  GLOBAL_PARAM(checker_locale, "S"),
 
   GLOBAL_PARAM(team_download_time, "d"),
 
@@ -371,6 +374,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(team_enable_rep_view, "d"),
   PROBLEM_PARAM(team_enable_ce_view, "d"),
   PROBLEM_PARAM(team_show_judge_report, "d"),
+  PROBLEM_PARAM(show_checker_comment, "d"),
   PROBLEM_PARAM(ignore_compile_errors, "d"),
   PROBLEM_PARAM(full_score, "d"),
   PROBLEM_PARAM(full_user_score, "d"),
@@ -464,6 +468,8 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(start_env, "x"),
   PROBLEM_PARAM(lang_time_adj, "x"),
   PROBLEM_PARAM(lang_time_adj_millis, "x"),
+  PROBLEM_PARAM(lang_max_vm_size, "x"),
+  PROBLEM_PARAM(lang_max_stack_size, "x"),
   PROBLEM_PARAM(check_cmd, "s"),
   PROBLEM_PARAM(valuer_cmd, "s"),
   PROBLEM_PARAM(interactor_cmd, "s"),
@@ -532,6 +538,7 @@ static const struct config_parse_info section_language_params[] =
   LANGUAGE_PARAM(compile_real_time_limit, "d"),
   LANGUAGE_PARAM(compiler_env, "x"),
   LANGUAGE_PARAM(extid, "S"),
+  LANGUAGE_PARAM(super_run_dir, "S"),
 
   { 0, 0, 0, 0 }
 };
@@ -874,6 +881,8 @@ prepare_language_free_func(struct generic_section_config *gp)
   p->compiler_env = sarray_free(p->compiler_env);
   p->style_checker_env = sarray_free(p->style_checker_env);
   xfree(p->unhandled_vars);
+  xfree(p->extid);
+  xfree(p->super_run_dir);
   memset(p, 0xab, sizeof(*p));
   xfree(p);
 }
@@ -909,6 +918,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->team_enable_rep_view = -1;
   p->team_enable_ce_view = -1;
   p->team_show_judge_report = -1;
+  p->show_checker_comment = -1;
   p->ignore_compile_errors = -1;
   p->use_corr = -1;
   p->use_info = -1;
@@ -1004,6 +1014,8 @@ prepare_problem_free_func(struct generic_section_config *gp)
   sarray_free(p->start_env);
   sarray_free(p->lang_time_adj);
   sarray_free(p->lang_time_adj_millis);
+  sarray_free(p->lang_max_vm_size);
+  sarray_free(p->lang_max_stack_size);
   sarray_free(p->personal_deadline);
   sarray_free(p->alternative);
   xfree(p->score_bonus_val);
@@ -2407,7 +2419,7 @@ prepare_parse_memory_limit_type(const unsigned char *str)
 const unsigned char *
 prepare_unparse_memory_limit_type(int value)
 {
-  if (value < 0 || value >= MEMLIMIT_TYPE_JAVA) value = 0;
+  if (value < 0 || value >= MEMLIMIT_TYPE_LAST) value = 0;
   return memory_limit_type_str[value];
 }
 
@@ -3391,6 +3403,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_team_enable_rep_view, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_team_enable_ce_view, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_team_show_judge_report, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_show_checker_comment, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_ignore_compile_errors, prob, aprob, g);
 
     prepare_set_prob_value(CNTSPROB_tests_to_accept, prob, aprob, g);
@@ -5590,6 +5603,8 @@ prepare_copy_problem(const struct section_problem_data *in)
   }
   out->lang_time_adj = 0;
   out->lang_time_adj_millis = 0;
+  out->lang_max_vm_size = 0;
+  out->lang_max_stack_size = 0;
   out->alternative = 0;
   out->personal_deadline = 0;
   out->pd_total = 0;
@@ -5786,6 +5801,13 @@ prepare_set_prob_value(
       out->team_show_judge_report = global->team_show_judge_report;
     if (out->team_show_judge_report == -1)
       out->team_show_judge_report = 0;
+    break;
+
+  case CNTSPROB_show_checker_comment:
+    if (out->show_checker_comment == -1 && abstr)
+      out->show_checker_comment = abstr->show_checker_comment;
+    if (out->show_checker_comment == -1)
+      out->show_checker_comment = 0;
     break;
 
   case CNTSPROB_ignore_compile_errors:
@@ -6486,7 +6508,7 @@ static const int prob_settable_list[] =
   CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_score_latest_marked, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
   CNTSPROB_real_time_limit, CNTSPROB_interactor_time_limit, CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac,
   CNTSPROB_team_enable_rep_view, CNTSPROB_team_enable_ce_view,
-  CNTSPROB_team_show_judge_report, CNTSPROB_ignore_compile_errors,
+  CNTSPROB_team_show_judge_report, CNTSPROB_show_checker_comment, CNTSPROB_ignore_compile_errors,
   CNTSPROB_full_score, CNTSPROB_full_user_score, CNTSPROB_test_score, CNTSPROB_run_penalty,
   CNTSPROB_acm_run_penalty, CNTSPROB_disqualified_penalty,
   CNTSPROB_ignore_penalty, CNTSPROB_use_corr, CNTSPROB_use_info,
@@ -6530,7 +6552,7 @@ static const int prob_settable_list[] =
   CNTSPROB_alternative, CNTSPROB_stand_attr, CNTSPROB_source_header,
   CNTSPROB_source_footer, CNTSPROB_score_view,
   CNTSPROB_open_tests, CNTSPROB_final_open_tests,
-  CNTSPROB_normalization, CNTSPROB_super_run_dir,
+  CNTSPROB_normalization, CNTSPROB_super_run_dir, CNTSPROB_lang_max_vm_size, CNTSPROB_lang_max_stack_size,
 
   0
 };
@@ -6567,6 +6589,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_team_enable_rep_view] = 1,
   [CNTSPROB_team_enable_ce_view] = 1,
   [CNTSPROB_team_show_judge_report] = 1,
+  [CNTSPROB_show_checker_comment] = 1,
   [CNTSPROB_ignore_compile_errors] = 1,
   [CNTSPROB_full_score] = 1,
   [CNTSPROB_full_user_score] = 1,
@@ -6656,6 +6679,8 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_start_env] = 1,
   [CNTSPROB_lang_time_adj] = 1,
   [CNTSPROB_lang_time_adj_millis] = 1,
+  [CNTSPROB_lang_max_vm_size] = 1,
+  [CNTSPROB_lang_max_stack_size] = 1,
   [CNTSPROB_check_cmd] = 1,
   [CNTSPROB_valuer_cmd] = 1,
   [CNTSPROB_interactor_cmd] = 1,
@@ -6700,7 +6725,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_time_limit, CNTSPROB_time_limit_millis, CNTSPROB_real_time_limit,
   CNTSPROB_interactor_time_limit,
   CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac, CNTSPROB_team_enable_rep_view,
-  CNTSPROB_team_enable_ce_view, CNTSPROB_team_show_judge_report,
+  CNTSPROB_team_enable_ce_view, CNTSPROB_team_show_judge_report, CNTSPROB_show_checker_comment,
   CNTSPROB_ignore_compile_errors, CNTSPROB_full_score, CNTSPROB_full_user_score, CNTSPROB_test_score,
   CNTSPROB_run_penalty, CNTSPROB_acm_run_penalty, 
   CNTSPROB_disqualified_penalty, CNTSPROB_ignore_penalty,
@@ -6745,7 +6770,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_plugin_file, CNTSPROB_xml_file, CNTSPROB_type,
   CNTSPROB_alternative, CNTSPROB_stand_attr, CNTSPROB_source_header,
   CNTSPROB_source_footer, CNTSPROB_score_view,
-  CNTSPROB_normalization, CNTSPROB_super_run_dir,
+  CNTSPROB_normalization, CNTSPROB_super_run_dir, CNTSPROB_lang_max_vm_size, CNTSPROB_lang_max_stack_size,
 
   0,
 };
@@ -6779,6 +6804,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_team_enable_rep_view] = 1,
   [CNTSPROB_team_enable_ce_view] = 1,
   [CNTSPROB_team_show_judge_report] = 1,
+  [CNTSPROB_show_checker_comment] = 1,
   [CNTSPROB_ignore_compile_errors] = 1,
   [CNTSPROB_full_score] = 1,
   [CNTSPROB_full_user_score] = 1,
@@ -6861,6 +6887,8 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_start_env] = 1,
   [CNTSPROB_lang_time_adj] = 1,
   [CNTSPROB_lang_time_adj_millis] = 1,
+  [CNTSPROB_lang_max_vm_size] = 1,
+  [CNTSPROB_lang_max_stack_size] = 1,
   [CNTSPROB_check_cmd] = 1,
   [CNTSPROB_valuer_cmd] = 1,
   [CNTSPROB_interactor_cmd] = 1,
@@ -6925,6 +6953,7 @@ static const struct section_problem_data prob_undef_values =
   .team_enable_rep_view = -1,
   .team_enable_ce_view = -1,
   .team_show_judge_report = -1,
+  .show_checker_comment = -1,
   .ignore_compile_errors = -1,
   .full_score = -1,
   .full_user_score = -1,
@@ -7028,6 +7057,8 @@ static const struct section_problem_data prob_undef_values =
   .solution_cmd = 0,
   .lang_time_adj = 0,
   .lang_time_adj_millis = 0,
+  .lang_max_vm_size = 0,
+  .lang_max_stack_size = 0,
   .alternative = 0,
   .personal_deadline = 0,
   .score_bonus = { 1, 0 },
@@ -7075,6 +7106,7 @@ static const struct section_problem_data prob_default_values =
   .team_enable_rep_view = 0,
   .team_enable_ce_view = 0,
   .team_show_judge_report = 0,
+  .show_checker_comment = 0,
   .ignore_compile_errors = 0,
   .full_score = 50,
   .full_user_score = -1,

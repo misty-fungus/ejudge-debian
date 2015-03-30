@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-polygon.c 7347 2013-02-08 09:54:53Z cher $ */
+/* $Id: ej-polygon.c 7450 2013-10-19 20:58:14Z cher $ */
 
 /* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -23,6 +23,8 @@
 #include "expat_iface.h"
 #include "xml_utils.h"
 #include "problem_config.h"
+#include "list_ops.h"
+#include "misctext.h"
 
 #include "reuse_osdeps.h"
 #include "reuse_xalloc.h"
@@ -50,11 +52,12 @@
 #include <zip.h>
 #endif
 
-#define DEFAULT_POLYGON_URL "http://codecenter.sgu.ru/polygon"
+#define DEFAULT_POLYGON_URL "https://polygon.codeforces.com"
 #define DEFAULT_ARCH        "$linux"
 #define DEFAULT_SLEEP_INTERVAL 10
 #define DEFAULT_PROBLEM_XML_NAME "problem.xml"
 #define DEFAULT_TESTSET     "tests"
+#define DEFAULT_RETRY_COUNT 10
 
 enum UpdateState
 {
@@ -67,9 +70,37 @@ enum UpdateState
     STATE_DOWNLOADED,
     STATE_UPDATED,
     STATE_ACTUAL,
+    STATE_UNCOMMITTED,
+    STATE_TIMEOUT,
 
     STATE_LAST,
 };
+
+struct HtmlAttribute
+{
+    struct HtmlAttribute *prev;
+    struct HtmlAttribute *next;
+    unsigned char *name;
+    unsigned char *value;
+};
+
+struct HtmlElement
+{
+    unsigned char *name;
+    struct HtmlAttribute *first_attr;
+    struct HtmlAttribute *last_attr;
+    int no_body; // 1, if <elem /> case
+};
+
+static struct HtmlElement *
+html_element_parse_start(
+        const unsigned char *text,
+        int start_pos,
+        int *p_end_pos);
+static struct HtmlAttribute *
+html_element_find_attribute(struct HtmlElement *elem, const unsigned char *name);
+static struct HtmlElement *
+html_element_free(struct HtmlElement *elem);
 
 struct ProblemInfo
 {
@@ -106,6 +137,7 @@ struct ProblemInfo
     unsigned char *check_cmd;
     unsigned char *test_checker_cmd;
     unsigned char *solution_cmd;
+    unsigned char *interactor_cmd;
 };
 
 struct RevisionInfo
@@ -118,6 +150,18 @@ struct RevisionInfo
     unsigned char *standard_url;
     unsigned char *windows_url;
     unsigned char *linux_url;
+};
+
+struct PolygonState
+{
+    unsigned char *ccid; // may be NULL for older versions of Polygon
+    unsigned char *ccid_amp; // "&ccid=CCID" or ""
+};
+
+struct ProblemSet
+{
+    int count;
+    struct ProblemInfo *infos;
 };
 
 enum
@@ -204,18 +248,24 @@ report_version(void)
 struct DownloadData;
 struct DownloadInterface
 {
-    struct DownloadData *(*create)(FILE *log_f, const struct DownloadInterface *iface, const struct polygon_packet *);
+    struct DownloadData *(*create)(FILE *log_f, const struct DownloadInterface *iface, struct polygon_packet *);
     struct DownloadData *(*cleanup)(struct DownloadData *data);
     unsigned char *(*get_page_text)(struct DownloadData *data);
     ssize_t (*get_page_size)(struct DownloadData *data);
     int (*login_page)(struct DownloadData *data);
-    int (*login_action)(struct DownloadData *data);
-    int (*problems_page)(struct DownloadData *data);
-    int (*problem_info_page)(struct DownloadData *data, struct ProblemInfo *info);
-    int (*package_page)(struct DownloadData *data, const unsigned char *edit_session);
-    int (*create_full_package)(struct DownloadData *data, const unsigned char *edit_session);
-    int (*download_zip)(struct DownloadData *data, const unsigned char *zip_url, const unsigned char *edit_session);
+    int (*login_action)(struct DownloadData *data, struct PolygonState *ps);
+    int (*problems_page)(struct DownloadData *data, struct PolygonState *ps, int page);
+    int (*problem_info_page)(struct DownloadData *data, struct PolygonState *ps, struct ProblemInfo *info);
+    int (*package_page)(struct DownloadData *data, struct PolygonState *ps, const unsigned char *edit_session);
+    int (*create_full_package)(struct DownloadData *data, struct PolygonState *ps, const unsigned char *edit_session);
+    int (*download_zip)(struct DownloadData *data, struct PolygonState *ps, const unsigned char *zip_url, const unsigned char *edit_session);
+    int (*contests_page)(struct DownloadData *data, struct PolygonState *ps);
+    int (*contest_page)(struct DownloadData *data, struct PolygonState *ps, int contest_id);
+    int (*problems_multi_page)(FILE *log_f, struct DownloadData *data, struct PolygonState *ps);
 };
+
+static int
+ends_with(const unsigned char *str, const unsigned char *suffix);
 
 #if CONF_HAS_LIBCURL - 0 == 1
 struct DownloadData
@@ -223,16 +273,17 @@ struct DownloadData
     size_t size;
     FILE *log_f;
     const struct DownloadInterface *iface;
-    const struct polygon_packet *pkt;
+    struct polygon_packet *pkt;
     CURL *curl;
 
     char *page_text;
     size_t page_size;
     char *effective_url;
+    char *clean_url;
 };
 
 static struct DownloadData *
-curl_iface_create_func(FILE *log_f, const struct DownloadInterface *iface, const struct polygon_packet *pkt)
+curl_iface_create_func(FILE *log_f, const struct DownloadInterface *iface, struct polygon_packet *pkt)
 {
     struct DownloadData *data = NULL;
     XCALLOC(data, 1);
@@ -298,6 +349,12 @@ curl_iface_get_func(struct DownloadData *data, const unsigned char *url)
         return res;
     }
     curl_easy_getinfo(data->curl, CURLINFO_EFFECTIVE_URL, &data->effective_url);
+    xfree(data->clean_url); data->clean_url = NULL;
+    if (data->effective_url) {
+        data->clean_url = xstrdup(data->effective_url);
+        char *p = strchr(data->clean_url, '?');
+        if (p) *p = 0;
+    }
     if (data->effective_url && strcmp(url, data->effective_url)) {
         fprintf(data->log_f, "Redirect: %s\n", data->effective_url);
     }
@@ -315,18 +372,7 @@ curl_iface_login_page_func(struct DownloadData *data)
 }
 
 static int
-ends_with(const unsigned char *str, const unsigned char *suffix)
-{
-    if (!str) str = "";
-    if (!suffix) suffix = "";
-
-    int slen = strlen(str);
-    int flen = strlen(suffix);
-    return slen >= flen && !strcmp(str + slen - flen, suffix);
-}
-
-static int
-curl_iface_login_action_func(struct DownloadData *data)
+curl_iface_login_action_func(struct DownloadData *data, struct PolygonState *ps)
 {
     unsigned char url_buf[1024];
     unsigned char param_buf[1024];
@@ -354,7 +400,7 @@ curl_iface_login_action_func(struct DownloadData *data)
         goto cleanup;
     }
     password_esc = curl_easy_escape(data->curl, data->pkt->password, 0);
-    snprintf(param_buf, sizeof(param_buf), "submitted=true&login=%s&password=%s", login_esc, password_esc);
+    snprintf(param_buf, sizeof(param_buf), "submitted=true&login=%s&password=%s&submit=Login%s", login_esc, password_esc, ps->ccid_amp);
 
     curl_easy_setopt(data->curl, CURLOPT_AUTOREFERER, 1);
     curl_easy_setopt(data->curl, CURLOPT_FOLLOWLOCATION, 1);
@@ -373,7 +419,13 @@ curl_iface_login_action_func(struct DownloadData *data)
         retval = 1;
         goto cleanup;
     }
-    if (!effective_url || !ends_with(effective_url, "/problems")) {
+    xfree(data->clean_url); data->clean_url = NULL;
+    if (effective_url) {
+        data->clean_url = xstrdup(effective_url);
+        char *p = strchr(data->clean_url, '?');
+        if (p) *p = 0;
+    }
+    if (!data->clean_url || !ends_with(data->clean_url, "/problems")) {
         fprintf(data->log_f, "polygon login action failed: invalid login or password?\n");
         retval = 1;
         goto cleanup;
@@ -389,13 +441,18 @@ cleanup:
 }
 
 static int
-curl_iface_problems_page_func(struct DownloadData *data)
+curl_iface_problems_page_func(struct DownloadData *data, struct PolygonState *ps, int page)
 {
     unsigned char url_buf[1024];
+    unsigned char page_buf[64];
 
-    snprintf(url_buf, sizeof(url_buf), "%s/problems", data->pkt->polygon_url);
+    page_buf[0] = 0;
+    if (page > 0) {
+        snprintf(page_buf, sizeof(page_buf), "&page=%d", page);
+    }
+    snprintf(url_buf, sizeof(url_buf), "%s/problems?dummy=1%s%s", data->pkt->polygon_url, ps->ccid_amp, page_buf);
     if (curl_iface_get_func(data, url_buf) != CURLE_OK) return 1;
-    if (!data->effective_url || !ends_with(data->effective_url, "/problems")) {
+    if (!data->clean_url || !ends_with(data->clean_url, "/problems")) {
         fprintf(data->log_f, "failed to retrieve problems page: redirected to %s\n", data->effective_url);
         return 1;
     }
@@ -404,21 +461,102 @@ curl_iface_problems_page_func(struct DownloadData *data)
 }
 
 static int
-curl_iface_problem_info_page_func(struct DownloadData *data, struct ProblemInfo *info)
+count_problem_pages(const unsigned char *text)
+{
+    const unsigned char *cur;
+    int pos = 0;
+    struct HtmlElement *elem = NULL;
+    struct HtmlElement *elem2 = NULL;
+    struct HtmlAttribute *attr;
+    int max_page_num = -1;
+
+    while ((cur = strstr(text + pos, "<div "))) {
+        pos = (int)(cur - text);
+        elem = html_element_parse_start(text, pos, &pos);
+        if (elem && (attr = html_element_find_attribute(elem, "class")) && attr->value && !strcasecmp(attr->value, "pagination")) {
+            if (!(cur = strstr(text + pos, "</div>"))) goto fail;
+            int endpos = (int)(cur - text);
+
+            while ((cur = strstr(text + pos, "<a "))) {
+                pos = (int)(cur - text);
+                if (pos > endpos) break;
+
+                elem2 = html_element_parse_start(text, pos, &pos);
+                if (elem2 && (attr = html_element_find_attribute(elem2, "href")) && attr->value) {
+                    const unsigned char *p = strstr(attr->value, "?page=");
+                    if (p) {
+                        int n, x;
+                        if (sscanf(p + 6, "%d%n", &x, &n) == 1 && (p[n + 6] == '&' || p[n + 6] == 0)) {
+                            if (x >= 1 && x < 100000 && x > max_page_num) {
+                                max_page_num = x;
+                            }
+                        }
+                    }
+                }
+                elem2 = html_element_free(elem2);
+            }
+
+            pos = endpos;
+        }
+        elem = html_element_free(elem);
+    }
+    return max_page_num;
+
+fail:
+    elem = html_element_free(elem);
+    elem2 = html_element_free(elem2);
+    return 0;
+}
+
+static int
+curl_iface_problems_multi_page_func(FILE *log_f, struct DownloadData *data, struct PolygonState *ps)
+{
+    int retval = 0;
+    unsigned char *merged_pages = NULL;
+
+    if ((retval = curl_iface_problems_page_func(data, ps, 0))) {
+        goto done;
+    }
+
+    int page_count = count_problem_pages(data->iface->get_page_text(data));
+    if (page_count <= 1) return 0;
+
+    fprintf(log_f, "Problems listing has %d pages\n", page_count);
+
+    // just concatenate pages
+    merged_pages = data->page_text; data->page_text = NULL;
+    for (int page = 2; page <= page_count; ++page) {
+        if ((retval = curl_iface_problems_page_func(data, ps, page))) {
+            goto done;
+        }
+        merged_pages = xstrmerge1(merged_pages, data->page_text);
+    }
+
+    xfree(data->page_text);
+    data->page_text = merged_pages;
+    merged_pages = NULL;
+
+done:
+    xfree(merged_pages);
+    return retval;
+}
+
+static int
+curl_iface_problem_info_page_func(struct DownloadData *data, struct PolygonState *ps, struct ProblemInfo *info)
 {
     unsigned char url_buf[1024];
 
     if (info->has_start) {
-        snprintf(url_buf, sizeof(url_buf), "%s/edit-start?problemId=%d&session=",
-                 data->pkt->polygon_url, info->problem_id);
+        snprintf(url_buf, sizeof(url_buf), "%s/edit-start?problemId=%d%s",
+                 data->pkt->polygon_url, info->problem_id, ps->ccid_amp);
     } else if (info->continue_id) {
-        snprintf(url_buf, sizeof(url_buf), "%s/edit-continue?id=%d&session=",
-                 data->pkt->polygon_url, info->continue_id);
+        snprintf(url_buf, sizeof(url_buf), "%s/edit-continue?id=%d%s",
+                 data->pkt->polygon_url, info->continue_id, ps->ccid_amp);
     } else {
         abort();
     }
     if (curl_iface_get_func(data, url_buf) != CURLE_OK) return 1;
-    if (!data->effective_url || !strstr(data->effective_url, "/generalInfo?")) {
+    if (!data->clean_url || !strstr(data->clean_url, "/generalInfo")) {
         fprintf(data->log_f, "failed to retrieve problems page: redirected to %s\n", data->effective_url);
         return 1;
     }
@@ -441,13 +579,13 @@ curl_iface_problem_info_page_func(struct DownloadData *data, struct ProblemInfo 
 }
 
 static int
-curl_iface_package_page_func(struct DownloadData *data, const unsigned char *edit_session)
+curl_iface_package_page_func(struct DownloadData *data, struct PolygonState *ps, const unsigned char *edit_session)
 {
     unsigned char url_buf[1024];
 
-    snprintf(url_buf, sizeof(url_buf), "%s/package?session=%s", data->pkt->polygon_url, edit_session);
+    snprintf(url_buf, sizeof(url_buf), "%s/package?session=%s%s", data->pkt->polygon_url, edit_session, ps->ccid_amp);
     if (curl_iface_get_func(data, url_buf) != CURLE_OK) return 1;
-    if (!data->effective_url || !strstr(data->effective_url, "/package?")) {
+    if (!data->clean_url || !strstr(data->clean_url, "/package")) {
         fprintf(data->log_f, "failed to retrieve problems page: redirected to %s\n", data->effective_url);
         return 1;
     }
@@ -455,26 +593,58 @@ curl_iface_package_page_func(struct DownloadData *data, const unsigned char *edi
 }
 
 static int
-curl_iface_create_full_package_func(struct DownloadData *data, const unsigned char *edit_session)
+curl_iface_create_full_package_func(struct DownloadData *data, struct PolygonState *ps, const unsigned char *edit_session)
 {
     unsigned char url_buf[1024];
 
-    snprintf(url_buf, sizeof(url_buf), "%s/package?action=create&createFull=true&session=%s", data->pkt->polygon_url, edit_session);
+    snprintf(url_buf, sizeof(url_buf), "%s/package?action=create&createFull=true&session=%s%s", data->pkt->polygon_url, edit_session,
+             ps->ccid_amp);
     if (curl_iface_get_func(data, url_buf) != CURLE_OK) return 1;
     // FIXME: check redirect URL
     return 0;
 }
 
 static int
-curl_iface_download_zip_func(struct DownloadData *data, const unsigned char *zip_url, const unsigned char *edit_session)
+curl_iface_download_zip_func(struct DownloadData *data, struct PolygonState *ps, const unsigned char *zip_url, const unsigned char *edit_session)
 {
     unsigned char url_buf[1024];
+    int sep_char = '?';
 
-    snprintf(url_buf, sizeof(url_buf), "%s/%s?session=%s", data->pkt->polygon_url, zip_url, edit_session);
+    if (strchr(zip_url, '?')) sep_char = '&';
+    snprintf(url_buf, sizeof(url_buf), "%s/%s%csession=%s", data->pkt->polygon_url, zip_url, sep_char, edit_session);
     if (curl_iface_get_func(data, url_buf) != CURLE_OK) return 1;
     return 0;
 }
 
+static int
+curl_iface_contests_page_func(struct DownloadData *data, struct PolygonState *ps)
+{
+    unsigned char url_buf[1024];
+
+    snprintf(url_buf, sizeof(url_buf), "%s/contests?dummy=1%s", data->pkt->polygon_url, ps->ccid_amp);
+    if (curl_iface_get_func(data, url_buf) != CURLE_OK) return 1;
+    if (!data->clean_url || !ends_with(data->clean_url, "/contests")) {
+        fprintf(data->log_f, "failed to retrieve contests page: redirected to %s\n", data->effective_url);
+        return 1;
+    }
+
+    return 0;
+}
+
+static int
+curl_iface_contest_page_func(struct DownloadData *data, struct PolygonState *ps, int contest_id)
+{
+    unsigned char url_buf[1024];
+
+    snprintf(url_buf, sizeof(url_buf), "%s/contest?dummy=1&contestId=%d%s", data->pkt->polygon_url, contest_id, ps->ccid_amp);
+    if (curl_iface_get_func(data, url_buf) != CURLE_OK) return 1;
+    if (!data->clean_url || !ends_with(data->clean_url, "/contest")) {
+        fprintf(data->log_f, "failed to retrieve contests page: redirected to %s\n", data->effective_url);
+        return 1;
+    }
+
+    return 0;
+}
 
 static const struct DownloadInterface curl_download_interface =
 {
@@ -489,6 +659,9 @@ static const struct DownloadInterface curl_download_interface =
     curl_iface_package_page_func,
     curl_iface_create_full_package_func,
     curl_iface_download_zip_func,
+    curl_iface_contests_page_func,
+    curl_iface_contest_page_func,
+    curl_iface_problems_multi_page_func,
 };
 
 static const struct DownloadInterface *
@@ -498,6 +671,21 @@ get_curl_download_interface(FILE *log_f, const struct polygon_packet *pkt)
 }
 #else
 /* no curl library was available during compilation */
+struct DownloadData
+{
+    size_t size;
+    FILE *log_f;
+    const struct DownloadInterface *iface;
+    struct polygon_packet *pkt;
+
+    char *page_text;
+    size_t page_size;
+    char *effective_url;
+    char *clean_url;
+};
+static const struct DownloadInterface *
+get_curl_download_interface(FILE *log_f, const struct polygon_packet *pkt)
+    __attribute__((unused));
 static const struct DownloadInterface *
 get_curl_download_interface(FILE *log_f, const struct polygon_packet *pkt)
 {
@@ -505,6 +693,17 @@ get_curl_download_interface(FILE *log_f, const struct polygon_packet *pkt)
     return NULL;
 }
 #endif
+
+static int
+ends_with(const unsigned char *str, const unsigned char *suffix)
+{
+    if (!str) str = "";
+    if (!suffix) suffix = "";
+
+    int slen = strlen(str);
+    int flen = strlen(suffix);
+    return slen >= flen && !strcmp(str + slen - flen, suffix);
+}
 
 struct ZipData;
 struct ZipInterface
@@ -638,11 +837,32 @@ get_zip_interface(FILE *log_f, const struct polygon_packet *pkt)
 #else
 static const struct ZipInterface *
 get_zip_interface(FILE *log_f, const struct polygon_packet *pkt)
+    __attribute__((unused));
+static const struct ZipInterface *
+get_zip_interface(FILE *log_f, const struct polygon_packet *pkt)
 {
     fprintf(log_f, "libzip library was missing during the compilation\n");
     return NULL;
 }
 #endif
+
+struct PolygonState *
+polygon_state_create(void)
+{
+    struct PolygonState *ps = NULL;
+    XCALLOC(ps, 1);
+    return ps;
+}
+
+struct PolygonState *
+polygon_state_free(struct PolygonState *ps)
+{
+    if (!ps) return NULL;
+    xfree(ps->ccid);
+    xfree(ps->ccid_amp);
+    xfree(ps);
+    return NULL;
+}
 
 const unsigned char * update_statuses[] =
 {
@@ -655,6 +875,8 @@ const unsigned char * update_statuses[] =
     [STATE_DOWNLOADED] = "DOWNLOADED",
     [STATE_UPDATED] = "UPDATED",
     [STATE_ACTUAL] = "ACTUAL",
+    [STATE_UNCOMMITTED] = "UNCOMMITTED",
+    [STATE_TIMEOUT] = "TIMEOUT",
 
     [STATE_LAST] = NULL,
 };
@@ -676,30 +898,34 @@ free_taga(struct TagA *tags, int count)
 }
 
 static void
-free_problem_infos(struct ProblemInfo *infos, int count)
+free_problem_infos(struct ProblemSet *probset)
 {
-    if (!infos || count <= 0) return;
-    for (int i = 0; i < count; ++i) {
-        xfree(infos[i].key_name);
-        xfree(infos[i].ejudge_short_name);
-        xfree(infos[i].problem_name);
-        xfree(infos[i].author);
-        xfree(infos[i].edit_session);
-        xfree(infos[i].long_name_en);
-        xfree(infos[i].long_name_ru);
-        xfree(infos[i].input_file);
-        xfree(infos[i].output_file);
-        xfree(infos[i].input_path_pattern);
-        xfree(infos[i].answer_path_pattern);
-        xfree(infos[i].test_pat);
-        xfree(infos[i].corr_pat);
-        xfree(infos[i].standard_checker);
-        xfree(infos[i].checker_env);
-        xfree(infos[i].check_cmd);
-        xfree(infos[i].test_checker_cmd);
-        xfree(infos[i].solution_cmd);
+    if (!probset->infos || probset->count <= 0) return;
+    for (int i = 0; i < probset->count; ++i) {
+        struct ProblemInfo *pi = &probset->infos[i];
+        xfree(pi->key_name);
+        xfree(pi->ejudge_short_name);
+        xfree(pi->problem_name);
+        xfree(pi->author);
+        xfree(pi->edit_session);
+        xfree(pi->long_name_en);
+        xfree(pi->long_name_ru);
+        xfree(pi->input_file);
+        xfree(pi->output_file);
+        xfree(pi->input_path_pattern);
+        xfree(pi->answer_path_pattern);
+        xfree(pi->test_pat);
+        xfree(pi->corr_pat);
+        xfree(pi->standard_checker);
+        xfree(pi->checker_env);
+        xfree(pi->check_cmd);
+        xfree(pi->test_checker_cmd);
+        xfree(pi->solution_cmd);
+        xfree(pi->interactor_cmd);
     }
-    xfree(infos);
+    xfree(probset->infos);
+    probset->count = 0;
+    probset->infos = 0;
 }
 
 static void
@@ -713,6 +939,305 @@ free_revision_info(struct RevisionInfo *info)
         xfree(info->linux_url);
     }
     memset(info, 0, sizeof(*info));
+}
+
+static struct HtmlAttribute *
+html_attribute_create(
+        const unsigned char *ptr,
+        int len,
+        unsigned char *value)
+{
+    struct HtmlAttribute *attr = NULL;
+    XCALLOC(attr, 1);
+    if (len > 0) {
+        attr->name = xmemdup(ptr, len);
+    } else {
+        attr->name = xstrdup(ptr);
+    }
+    // note, the pre-allocated memory for value is used
+    attr->value = value;
+    for (unsigned char *s = attr->name; *s; ++s) {
+        *s = tolower(*s);
+    }
+    return attr;
+}
+
+static struct HtmlAttribute *
+html_attribute_free(struct HtmlAttribute *attr)
+{
+    if (!attr) return NULL;
+    xfree(attr->name);
+    xfree(attr->value);
+    xfree(attr);
+    return NULL;
+}
+
+static struct HtmlAttribute *
+html_element_find_attribute(struct HtmlElement *elem, const unsigned char *name)
+{
+    if (!elem) return NULL;
+    for (struct HtmlAttribute *p = elem->first_attr; p; p = p->next) {
+        if (!strcmp(p->name, name))
+            return p;
+    }
+    return NULL;
+}
+
+static struct HtmlElement *
+html_element_create(const unsigned char *ptr, int len)
+{
+    struct HtmlElement *elem = NULL;
+    XCALLOC(elem, 1);
+    if (len <= 0) {
+        elem->name = xstrdup(ptr);
+    } else {
+        elem->name = xmemdup(ptr, len);
+    }
+    for (unsigned char *s = elem->name; *s; ++s) {
+        *s = tolower(*s);
+    }
+    return elem;
+}
+
+static struct HtmlElement *
+html_element_free(struct HtmlElement *elem)
+{
+    if (!elem) return NULL;
+    xfree(elem->name);
+    struct HtmlAttribute *p, *q;
+    for (p = elem->first_attr; p; p = q) {
+        q = p->next;
+        html_attribute_free(p);
+    }
+    xfree(elem);
+    return NULL;
+}
+
+static void
+html_element_print(struct HtmlElement *elem, FILE *out)
+    __attribute__((unused));
+static void
+html_element_print(struct HtmlElement *elem, FILE *out)
+{
+    if (!elem) return;
+    fprintf(out, "<%s", elem->name);
+    for (struct HtmlAttribute *p = elem->first_attr; p; p = p->next) {
+        // FIXME: do escaping
+        fprintf(out, " %s=\"%s\"", p->name, p->value);
+    }
+    if (elem->no_body) putc('/', out);
+    putc('>', out);
+}
+
+static int
+is_xml_element_name_start_char(int c)
+{
+    return isalpha(c) || c == ':' || c == '_';
+}
+static int
+is_xml_element_name_char(int c)
+{
+    return isalnum(c) || c == ':' || c == '_' || c == '-' || c == '.';
+}
+
+struct EntityTableEntry
+{
+    const unsigned char *name;
+    int value;
+};
+static struct EntityTableEntry html_entities[] =
+{
+    { "amp", '&' },
+
+    { NULL, 0 },
+};
+
+static int
+find_html_entity(const unsigned char *beg, const unsigned char *end)
+{
+    int len = (int) (end - beg);
+    unsigned char buf[128], *s = buf;
+    const unsigned char *p = beg;
+
+    if (len <= 0 || len > 127) return -1;
+    while (p != end) *s++ = tolower(*p++);
+    *s = 0;
+    for (int i = 0; html_entities[i].name; ++i) {
+        if (!strcmp(html_entities[i].name, buf)) {
+            return html_entities[i].value;
+        }
+    }
+    return -1;
+}
+
+static int
+convert_html_entity(const unsigned char *beg, const unsigned char *end, int base)
+{
+    int len = (int) (end - beg);
+    unsigned char buf[32];
+    if (len <= 0 || len > 31) return -1;
+    memcpy(buf, beg, len);
+    buf[len] = 0;
+    errno = 0;
+    int value = strtol(buf, NULL, base);
+    if (errno || value < 0 || value >= 0x10000) return -1;
+    return value;
+}
+
+static void
+parse_html_decode(
+        unsigned char *buf,
+        const unsigned char *start,
+        const unsigned char *end)
+{
+    const unsigned char *p = start;
+    unsigned char *out = buf;
+    while (*p && p != end) {
+        if (*p != '&') {
+            *out++ = *p++;
+            continue;
+        }
+        ++p;
+        if (!*p || p == end) {
+            *out++ = '&';
+            continue;
+        }
+        if (*p == '#' && p[1] == 'x') {
+            const unsigned char *q = p;
+            p += 2;
+            while (isxdigit(*p)) ++p;
+            int e = convert_html_entity(q + 2, p, 16);
+            if (e >= 0) {
+                out = ucs4_to_utf8_char(out, e);
+                if (*p == ';') ++p;
+            } else {
+                *out++ = '&';
+                p = q;
+            }
+        } else if (*p == '#') {
+            const unsigned char *q = p;
+            ++p;
+            while (isdigit(*p)) ++p;
+            int e = convert_html_entity(q + 1, p, 10);
+            if (e >= 0) {
+                out = ucs4_to_utf8_char(out, e);
+                if (*p == ';') ++p;
+            } else {
+                *out++ = '&';
+                p = q;
+            }
+        } else if (isalpha(*p)) {
+            // entity expansion is not performed...
+            const unsigned char *q = p;
+            while (isalnum(*p)) ++p;
+            int e = find_html_entity(q, p);
+            if (e >= 0) {
+                out = ucs4_to_utf8_char(out, e);
+                if (*p == ';') ++p;
+            } else {
+                *out++ = '&';
+                p = q;
+            }
+        } else {
+            *out++ = '&';
+            continue;
+        }
+    }
+    *out = 0;
+}
+
+static struct HtmlElement *
+html_element_parse_start(
+        const unsigned char *text,
+        int start_pos,
+        int *p_end_pos)
+{
+    const unsigned char *p = text + start_pos, *q, *r;
+    const unsigned char *value_start, *value_end;
+    struct HtmlElement *elem = NULL;
+    struct HtmlAttribute *attr = NULL;
+    unsigned char *value_buf = NULL;
+
+    while (isspace(*p)) ++p;
+    if (!*p) goto fail;
+    if (*p != '<') goto fail;
+    ++p;
+    while (isspace(*p)) ++p;
+    if (!is_xml_element_name_start_char(*p)) goto fail;
+    q = p;
+    while (is_xml_element_name_char(*p)) ++p;
+    if (!isspace(*p)) goto fail;
+    elem = html_element_create(q, (int) (p - q));
+    while (1) {
+        while (isspace(*p)) ++p;
+        if (*p == '>') {
+            ++p;
+            break;
+        }
+        if (*p == '/' && p[1] == '>') {
+            elem->no_body = 1;
+            p += 2;
+            break;
+        }
+        if (!is_xml_element_name_start_char(*p)) goto fail;
+        q = p;
+        while (is_xml_element_name_char(*p)) ++p;
+        r = p;
+        while (isspace(*p)) ++p;
+        if (*p != '=') {
+            // create an empty value attribute
+            // FIXME: check attribute uniqueness
+            attr = html_attribute_create(q, (int) (r - q), NULL);
+            LINK_LAST(attr, elem->first_attr, elem->last_attr, prev, next);
+            attr = NULL;
+            continue;
+        }
+        ++p;
+        while (isspace(*p)) ++p;
+        if (*p == '\'') {
+            ++p;
+            value_start = p;
+            while (*p && *p != '\'') ++p;
+            if (!*p) goto fail;
+            value_end = p;
+            ++p;
+        } else if (*p == '\"') {
+            ++p;
+            value_start = p;
+            while (*p && *p != '\"') ++p;
+            if (!*p) goto fail;
+            value_end = p;
+            ++p;
+        } else if (is_xml_element_name_start_char(*p)) {
+            value_start = p;
+            while (*p && !isspace(*p)) ++p;
+            if (!*p) goto fail;
+            value_end = p;
+        } else {
+            // create an empty value attribute
+            // FIXME: check attribute uniqueness
+            attr = html_attribute_create(q, (int) (r - q), NULL);
+            LINK_LAST(attr, elem->first_attr, elem->last_attr, prev, next);
+            attr = NULL;
+            continue;
+        }
+
+        // value is in [value_start; value_end), not entity-decoded...
+        value_buf = malloc(((int) (value_end - value_start) + 1) * sizeof(*value_buf));
+        if (!value_buf) goto fail;
+        parse_html_decode(value_buf, value_start, value_end);
+        attr = html_attribute_create(q, (int) (r - q), value_buf);
+        LINK_LAST(attr, elem->first_attr, elem->last_attr, prev, next);
+        attr = NULL; value_buf = NULL;
+    }
+    if (p_end_pos) *p_end_pos = (int)(p - text);
+    return elem;
+
+fail:
+    xfree(value_buf);
+    html_element_free(elem);
+    if (p_end_pos) *p_end_pos = (int)(p - text);
+    return NULL;
 }
 
 static int
@@ -906,12 +1431,50 @@ extract_raw_td_content(const unsigned char *s, unsigned char *out, const unsigne
 static time_t
 parse_time(FILE *log_f, const unsigned char *param_name, const unsigned char *buf);
 
+static int
+process_login_page(
+        FILE *log_f,
+        struct PolygonState *ps,
+        struct DownloadData *ddata)
+{
+    int pos = 0;
+    const unsigned char *text = ddata->iface->get_page_text(ddata);
+    const unsigned char *cur;
+    struct HtmlElement *elem = NULL;
+    struct HtmlAttribute *attr;
+
+    while ((cur = strstr(text + pos, "<input"))) {
+        pos = (int)(cur - text);
+        elem = html_element_parse_start(text, pos, &pos);
+        if (elem) {
+            if ((attr = html_element_find_attribute(elem, "type")) && attr->value && !strcasecmp(attr->value, "hidden")
+                && (attr = html_element_find_attribute(elem, "name")) && attr->value && !strcasecmp(attr->value, "ccid")
+                && (attr = html_element_find_attribute(elem, "value")) && attr->value) {
+                ps->ccid = xstrdup(attr->value);
+                //fprintf(stderr, "ccid: %s\n", ps->ccid);
+                elem = html_element_free(elem);
+                break;
+            }
+            elem = html_element_free(elem);
+        }
+    }
+
+    if (ps->ccid) {
+        char buf[1024];
+        snprintf(buf, sizeof(buf), "&ccid=%s", ps->ccid);
+        ps->ccid_amp = xstrdup(buf);
+    } else {
+        ps->ccid_amp = xstrdup("");
+    }
+
+    return 0;
+}
+
 static void
 process_problem_row(
         FILE *log_f,
         const unsigned char *text,
-        struct ProblemInfo *infos,
-        int info_count)
+        struct ProblemSet *probset)
 {
     unsigned char *buf = NULL;
     struct TagA *a_tags = NULL;
@@ -937,16 +1500,16 @@ process_problem_row(
 
     // find by id or name
     int num;
-    for (num = 0; num < info_count; ++num) {
-        if (infos[num].key_id > 0 && infos[num].key_id == id) {
+    for (num = 0; num < probset->count; ++num) {
+        if (probset->infos[num].key_id > 0 && probset->infos[num].key_id == id) {
             break;
-        } else if (infos[num].key_name && !strcmp(infos[num].key_name, buf)) {
+        } else if (probset->infos[num].key_name && !strcmp(probset->infos[num].key_name, buf)) {
             break;
         }
     }
-    if (num >= info_count) goto cleanup;
+    if (num >= probset->count) goto cleanup;
 
-    struct ProblemInfo *pi = &infos[num];
+    struct ProblemInfo *pi = &probset->infos[num];
     if (pi->state == STATE_UPDATED || pi->state == STATE_ACTUAL) goto cleanup;
 
     pi->state = STATE_FAILED;
@@ -1007,8 +1570,12 @@ process_problem_row(
     int lr = -1, pr = -1;
     n = -1;
     if (sscanf(buf, "%d / %d%n", &lr, &pr, &n) != 2 || buf[n]) {
-        fprintf(log_f, "failed to parse revision column: %s\n", buf);
-        goto cleanup;
+        if (sscanf(buf, "%d%n", &lr, &n) != 1 || buf[n]) {
+            fprintf(log_f, "failed to parse revision column: %s\n", buf);
+            goto cleanup;
+        } else {
+            pr = lr;
+        }
     }
     if (lr <= 0) {
         fprintf(log_f, "invalid latest revision %d\n", lr);
@@ -1055,6 +1622,11 @@ process_problem_row(
                 if (p) {
                     sscanf(p + 3, "%d", &pi->continue_id);
                 }
+            } else if (strstr(a_tags[i].text, "Continue ")) {
+                unsigned char *p = strstr(a_tags[i].url, "id=");
+                if (p) {
+                    sscanf(p + 3, "%d", &pi->continue_id);
+                }
             } else if (!strcmp(a_tags[i].text, "Discard")) {
                 unsigned char *p = strstr(a_tags[i].url, "id=");
                 if (p) {
@@ -1076,9 +1648,9 @@ cleanup:
 static void
 process_problems_page(
         FILE *log_f,
+        struct PolygonState *ps,
         const unsigned char *text,
-        struct ProblemInfo *infos,
-        int info_count)
+        struct ProblemSet *probset)
 {
     const unsigned char *s, *q;
     int row_len;
@@ -1098,16 +1670,111 @@ process_problems_page(
         memcpy(row, s, row_len);
         row[row_len] = 0;
 
-        process_problem_row(log_f, row, infos, info_count);
+        process_problem_row(log_f, row, probset);
 
         xfree(row); row = NULL;
         s = q + 5;
     }
 
-    for (int i = 0; i < info_count; ++i) {
-        if (infos[i].state == STATE_NOT_STARTED)
-            infos[i].state = STATE_NOT_FOUND;
+    for (int i = 0; i < probset->count; ++i) {
+        if (probset->infos[i].state == STATE_NOT_STARTED)
+            probset->infos[i].state = STATE_NOT_FOUND;
     }
+}
+
+static int
+process_contests_page(
+        FILE *log_f,
+        struct PolygonState *ps,
+        struct DownloadData *ddata,
+        const unsigned char *polygon_contest_id,
+        int *p_id)
+{
+    const unsigned char *text = ddata->iface->get_page_text(ddata);
+    const unsigned char *cur;
+    int pos = 0;
+    struct HtmlElement *elem = NULL;
+    struct HtmlAttribute *attr;
+    int id = 0;
+
+    while ((cur = strstr(text + pos, "<tr"))) {
+        pos = (int)(cur - text);
+        elem = html_element_parse_start(text, pos, &pos);
+        if (elem) {
+            const unsigned char *contest_id = NULL;
+            const unsigned char *contest_name = NULL;
+
+            if ((attr = html_element_find_attribute(elem, "contestid")) && attr->value) {
+                contest_id = attr->value;
+            }
+            if ((attr = html_element_find_attribute(elem, "contestname")) && attr->value) {
+                contest_name = attr->value;
+            }
+
+            if (contest_id && contest_name && (!strcmp(contest_id, polygon_contest_id) || !strcmp(contest_name, polygon_contest_id))) {
+                if (sscanf(contest_id, "%d", &id) == 0 || id <= 0) {
+                    fprintf(log_f, "invalid contest id '%s'\n", contest_id);
+                }
+            }
+
+            elem = html_element_free(elem);
+        }
+    }
+
+    if (p_id) *p_id = id;
+
+    return 0;
+}
+
+static int
+process_contest_page(
+        FILE *log_f,
+        struct PolygonState *ps,
+        struct DownloadData *ddata,
+        struct ProblemSet *probset)
+{
+    const unsigned char *text = ddata->iface->get_page_text(ddata);
+    const unsigned char *cur;
+    int pos = 0;
+    struct HtmlElement *elem = NULL;
+    struct HtmlAttribute *attr;
+    int count = 0;
+
+    while ((cur = strstr(text + pos, "<tr"))) {
+        pos = (int)(cur - text);
+        elem = html_element_parse_start(text, pos, &pos);
+        if (elem) {
+            if ((attr = html_element_find_attribute(elem, "problemid")) && attr->value) {
+                ++count;
+            }
+            elem = html_element_free(elem);
+        }
+    }
+
+    if (count <= 0) return 0;
+
+    probset->count = count;
+    XCALLOC(probset->infos, probset->count);
+
+    pos = 0;
+    count = 0;
+    while ((cur = strstr(text + pos, "<tr"))) {
+        pos = (int)(cur - text);
+        elem = html_element_parse_start(text, pos, &pos);
+        if (elem) {
+            if ((attr = html_element_find_attribute(elem, "problemid")) && attr->value) {
+                int id = 0;
+                sscanf(attr->value, "%d", &id);
+                if (id > 0) {
+                    probset->infos[count++].key_id = id;
+                }
+            }
+            elem = html_element_free(elem);
+        }
+    }
+    probset->count = count;
+
+    return 0;
 }
 
 static time_t
@@ -1859,6 +2526,36 @@ process_polygon_zip(
                             *q = 0;
                         }
                     }
+                } else if (!strcmp(t2->name[0], "interactor")) {
+
+                    const unsigned char *src_path = NULL;
+                    for (struct xml_tree *t3 = t2->first_down; t3; t3 = t3->right) {
+                        if (!strcmp(t3->name[0], "source")) {
+                            for (a = t3->first; a; a = a->next) {
+                                if (!strcmp(a->name[0], "path")) {
+                                    src_path = a->text;
+                                }
+                            }
+                        }
+                    }
+                    if (!src_path) {
+                        fprintf(log_f, "source path is undefined for the checker\n");
+                        goto zip_error;
+                    }
+
+                    if (!(s = strrchr(src_path, '/'))) {
+                        s = src_path;
+                    } else {
+                        ++s;
+                    }
+                    unsigned char dst_path[PATH_MAX];
+                    snprintf(dst_path, sizeof(dst_path), "%s/%s", problem_path, s);
+                    if (copy_from_zip(log_f, pkt, zif, zid, zip_path, src_path, dst_path)) goto zip_error;
+                    pi->interactor_cmd = xstrdup(s);
+                    unsigned char *q;
+                    if ((q = strrchr(pi->interactor_cmd, '.'))) {
+                        *q = 0;
+                    }
                 } else if (!strcmp(t2->name[0], "validator")) {
                     struct xml_tree *t3 = get_elem_by_name(t2, "source");
                     if (t3) {
@@ -1918,6 +2615,7 @@ process_polygon_zip(
     fprintf(log_f, "    check_cmd: %s\n", pi->check_cmd);
     fprintf(log_f, "    test_checker_cmd: %s\n", pi->test_checker_cmd);
     fprintf(log_f, "    solution_cmd: %s\n", pi->solution_cmd);
+    fprintf(log_f, "    interactor_cmd: %s\n", pi->interactor_cmd);
 
     unsigned char buf[1024];
 
@@ -1989,6 +2687,9 @@ process_polygon_zip(
     if (pi->test_checker_cmd) {
         prob_cfg->test_checker_cmd = xstrdup(pi->test_checker_cmd);
     }
+    if (pi->interactor_cmd) {
+        prob_cfg->interactor_cmd = xstrdup(pi->interactor_cmd);
+    }
     if (pi->solution_cmd) {
         prob_cfg->solution_cmd = xstrdup(pi->solution_cmd);
     }
@@ -2017,11 +2718,34 @@ zip_error:
 }
 
 static int
+has_uncommitted_changes(const unsigned char *text)
+{
+    const unsigned char *cur = text;
+    int pos = 0;
+    struct HtmlElement *elem = NULL;
+    int result = 0;
+
+    while ((cur = strstr(text + pos, "<a"))) {
+        pos = (int)(cur - text);
+        elem = html_element_parse_start(text, pos, &pos);
+        if (elem) {
+            struct HtmlAttribute *attr = html_element_find_attribute(elem, "href");
+            if (attr && attr->value && !strncmp(attr->value, "/changes/", 9)) {
+                result = 1;
+            }
+        }
+        elem = html_element_free(elem);
+    }
+    return result;
+}
+
+static int
 check_problem_status(
         FILE *log_f,
         const struct polygon_packet *pkt,
         const struct DownloadInterface *dif,
         struct DownloadData *ddata,
+        struct PolygonState *ps,
         const struct ZipInterface *zif,
         struct ProblemInfo *pi)
 {
@@ -2056,7 +2780,7 @@ check_problem_status(
         }
     }
 
-    if (dif->problem_info_page(ddata, pi)) {
+    if (dif->problem_info_page(ddata, ps, pi)) {
         fprintf(log_f, "failed to access problemInfo page\n");
         pi->state = STATE_FAILED;
         goto cleanup;
@@ -2066,9 +2790,14 @@ check_problem_status(
         pi->state = STATE_FAILED;
         goto cleanup;
     }
-    if (dif->package_page(ddata, pi->edit_session)) {
+    if (dif->package_page(ddata, ps, pi->edit_session)) {
         fprintf(log_f, "failed to access packages page\n");
         pi->state = STATE_FAILED;
+        goto cleanup;
+    }
+    if (has_uncommitted_changes(dif->get_page_text(ddata))) {
+        fprintf(log_f, "problem has uncommitted changes\n");
+        pi->state = STATE_UNCOMMITTED;
         goto cleanup;
     }
     int r = find_revision(log_f, dif->get_page_text(ddata), pi->latest_rev, &rinfo);
@@ -2078,7 +2807,7 @@ check_problem_status(
         goto cleanup;
     }
     if (!r) {
-        if (dif->create_full_package(ddata, pi->edit_session)) {
+        if (dif->create_full_package(ddata, ps, pi->edit_session)) {
             fprintf(log_f, "failed to start full package creation\n");
             pi->state = STATE_FAILED;
             goto cleanup;
@@ -2114,7 +2843,7 @@ check_problem_status(
     }
     if (strcasecmp(rinfo.state, "READY")) {
         fprintf(log_f, "unknown state '%s', restarting package creation\n", rinfo.state);
-        if (dif->create_full_package(ddata, pi->edit_session)) {
+        if (dif->create_full_package(ddata, ps, pi->edit_session)) {
             fprintf(log_f, "failed to start full package creation\n");
             pi->state = STATE_FAILED;
             goto cleanup;
@@ -2124,7 +2853,7 @@ check_problem_status(
     }
     if (!rinfo.linux_url) {
         fprintf(log_f, "Linux download link is missing, restarting package creation\n");
-        if (dif->create_full_package(ddata, pi->edit_session)) {
+        if (dif->create_full_package(ddata, ps, pi->edit_session)) {
             fprintf(log_f, "failed to start full package creation\n");
             pi->state = STATE_FAILED;
             goto cleanup;
@@ -2133,7 +2862,7 @@ check_problem_status(
         goto cleanup;
     }
 
-    if (dif->download_zip(ddata, rinfo.linux_url, pi->edit_session)) {
+    if (dif->download_zip(ddata, ps, rinfo.linux_url, pi->edit_session)) {
         fprintf(log_f, "download failed\n");
         pi->state = STATE_FAILED;
         goto cleanup;
@@ -2166,13 +2895,13 @@ check_problem_statuses(
         const struct polygon_packet *pkt,
         const struct DownloadInterface *dif,
         struct DownloadData *ddata,
+        struct PolygonState *ps,
         const struct ZipInterface *zif,
-        struct ProblemInfo *infos,
-        int info_count)
+        struct ProblemSet *probset)
 {
     int running_count = 0;
-    for (int num = 0; num < info_count; ++num) {
-        running_count += check_problem_status(log_f, pkt, dif, ddata, zif, &infos[num]);
+    for (int num = 0; num < probset->count; ++num) {
+        running_count += check_problem_status(log_f, pkt, dif, ddata, ps, zif, &probset->infos[num]);
     }
     return running_count;
 }
@@ -2180,19 +2909,15 @@ check_problem_statuses(
 static int
 do_work(
         FILE *log_f,
-        const struct polygon_packet *pkt,
-        struct ProblemInfo *infos,
-        int info_count)
+        struct polygon_packet *pkt,
+        struct ProblemSet *probset)
 {
     const struct DownloadInterface *dif = NULL;
     const struct ZipInterface *zif = NULL;
     struct DownloadData *ddata = NULL;
     int retval = 0;
-
-    if (info_count <= 0) {
-        fprintf(log_f, "no problems to update\n");
-        goto done;
-    }
+    struct PolygonState *ps = NULL;
+    int retry_count = 0;
 
     if ((retval = check_directories(log_f, pkt))) goto done;
 
@@ -2227,11 +2952,51 @@ do_work(
         goto done;
     }
 
+    if (!(ps = polygon_state_create())) {
+        fprintf(log_f, "failed to create PolygonState object\n");
+        retval = 1;
+        goto done;
+    }
+
     if ((retval = dif->login_page(ddata)))
         goto done;
 
-    if ((retval = dif->login_action(ddata)))
+    if (!ends_with(ddata->clean_url, "/login")) {
+        // fix polygon url
+        xfree(ddata->pkt->polygon_url);
+        ddata->pkt->polygon_url = xstrdup(ddata->clean_url);
+        if ((retval = dif->login_page(ddata)))
+            goto done;
+    }
+
+    if ((retval = process_login_page(log_f, ps, ddata)))
         goto done;
+
+    if ((retval = dif->login_action(ddata, ps)))
+        goto done;
+
+    if (pkt->polygon_contest_id && *pkt->polygon_contest_id) {
+        int id = 0;
+        if ((retval = dif->contests_page(ddata, ps)))
+            goto done;
+
+        if ((retval = process_contests_page(log_f, ps, ddata, pkt->polygon_contest_id, &id)))
+            goto done;
+
+        if ((retval = dif->contest_page(ddata, ps, id)))
+            goto done;
+
+        if ((retval = process_contest_page(log_f, ps, ddata, probset)))
+            goto done;
+    }
+
+    if ((retval = dif->problems_multi_page(log_f, ddata, ps)))
+        goto done;
+
+    if (probset->count <= 0) {
+        fprintf(log_f, "no problems to update\n");
+        goto done;
+    }
 
     while (1) {
         if (sigint_caught) {
@@ -2239,21 +3004,33 @@ do_work(
             break;
         }
 
-        process_problems_page(log_f, dif->get_page_text(ddata), infos, info_count);
+        process_problems_page(log_f, ps, dif->get_page_text(ddata), probset);
 
-        if (!check_problem_statuses(log_f, pkt, dif, ddata, zif, infos, info_count)) {
+        if (!check_problem_statuses(log_f, pkt, dif, ddata, ps, zif, probset)) {
             // no problems in RUNNING state
             break;
         }
 
+        if (retry_count > pkt->retry_count) {
+            fprintf(log_f, "number of retries exceeded the limit %d\n",
+                    pkt->retry_count);
+            for (int i = 0; i < probset->count; ++i) {
+                if (probset->infos[i].state == STATE_RUNNING) {
+                    probset->infos[i].state = STATE_TIMEOUT;
+                }
+            }
+            break;
+        }
+
         fprintf(log_f, "sleeping for %d seconds\n", pkt->sleep_interval);
+        ++retry_count;
         sleep(pkt->sleep_interval);
         if (sigint_caught) {
             fprintf(log_f, "exiting due to signal caught\n");
             break;
         }
 
-        if ((retval = dif->problems_page(ddata)))
+        if ((retval = dif->problems_multi_page(log_f, ddata, ps)))
             goto done;
     }
 
@@ -2261,6 +3038,7 @@ done:;
     if (ddata) {
         if (dif) ddata = dif->cleanup(ddata);
     }
+    ps = polygon_state_free(ps);
     return retval;
 }
 
@@ -2340,18 +3118,22 @@ main(int argc, char **argv)
         if (ferror(f)) fatal("'pid_file' path '%s' write error", pkt->pid_file);
         fclose(f); f = NULL;
     }
+    if (pkt->retry_count <= 0) {
+        pkt->retry_count = DEFAULT_RETRY_COUNT;
+    }
 
-    int info_count = 0;
-    struct ProblemInfo *infos = NULL;
+    struct ProblemSet problem_set;
+    memset(&problem_set, 0, sizeof(problem_set));
+
     if (pkt->id) {
-        for (; pkt->id[info_count]; ++info_count) {}
-        if (info_count > 0) {
-            XCALLOC(infos, info_count);
+        for (; pkt->id[problem_set.count]; ++problem_set.count) {}
+        if (problem_set.count > 0) {
+            XCALLOC(problem_set.infos, problem_set.count);
         }
         int ej_id_len = sarray_len(pkt->ejudge_id);
         int ej_name_len = sarray_len(pkt->ejudge_short_name);
         for (int i = 0; pkt->id[i]; ++i) {
-            infos[i].key_id = -1;
+            problem_set.infos[i].key_id = -1;
             unsigned char *id_str = pkt->id[i];
             if (!strncmp(id_str, "polygon:", 8)) {
                 id_str += 8;
@@ -2360,20 +3142,20 @@ main(int argc, char **argv)
             errno = 0;
             int val = strtol(id_str, &eptr, 10);
             if (!errno && !*eptr && val > 0) {
-                infos[i].key_id = val;
+                problem_set.infos[i].key_id = val;
             } else {
-                infos[i].key_name = xstrdup(id_str);
+                problem_set.infos[i].key_name = xstrdup(id_str);
             }
             if (i < ej_id_len) {
                 eptr = NULL;
                 errno = 0;
                 val = strtol(pkt->ejudge_id[i], &eptr, 10);
                 if (!errno && !*eptr && val > 0) {
-                    infos[i].ejudge_id = val;
+                    problem_set.infos[i].ejudge_id = val;
                 }
             }
             if (i < ej_name_len) {
-                infos[i].ejudge_short_name = xstrdup(pkt->ejudge_short_name[i]);
+                problem_set.infos[i].ejudge_short_name = xstrdup(pkt->ejudge_short_name[i]);
             }
         }
     }
@@ -2388,7 +3170,7 @@ main(int argc, char **argv)
     } else {
         log_f = stderr;
     }
-    retval = do_work(log_f, pkt, infos, info_count);
+    retval = do_work(log_f, pkt, &problem_set);
 
     FILE *st_f = NULL;
     if (pkt->status_file) {
@@ -2401,19 +3183,19 @@ main(int argc, char **argv)
         st_f = stdout;
     }
     fprintf(st_f, "%d\n", retval);
-    fprintf(st_f, "%d\n", info_count);
-    for (int i = 0; i < info_count; ++i) {
-        if (infos[i].key_id > 0) {
-            fprintf(st_f, "%d;", infos[i].key_id);
-        } else if (infos[i].key_name) {
-            fprintf(st_f, "%s;", infos[i].key_name);
+    fprintf(st_f, "%d\n", problem_set.count);
+    for (int i = 0; i < problem_set.count; ++i) {
+        if (problem_set.infos[i].key_id > 0) {
+            fprintf(st_f, "%d;", problem_set.infos[i].key_id);
+        } else if (problem_set.infos[i].key_name) {
+            fprintf(st_f, "%s;", problem_set.infos[i].key_name);
         } else {
             fprintf(st_f, ";");
         }
-        fprintf(st_f, "%s;", update_statuses[infos[i].state]);
-        fprintf(st_f, "%d;", infos[i].problem_id);
-        if (infos[i].problem_name) {
-            fprintf(st_f, "%s;", infos[i].problem_name);
+        fprintf(st_f, "%s;", update_statuses[problem_set.infos[i].state]);
+        fprintf(st_f, "%d;", problem_set.infos[i].problem_id);
+        if (problem_set.infos[i].problem_name) {
+            fprintf(st_f, "%s;", problem_set.infos[i].problem_name);
         } else {
             fprintf(st_f, ";");
         }
@@ -2428,8 +3210,7 @@ main(int argc, char **argv)
     }
     log_f = NULL;
 
-    free_problem_infos(infos, info_count);
-    infos = NULL; info_count = 0;
+    free_problem_infos(&problem_set);
 
     if (pkt->pid_file) {
         unlink(pkt->pid_file);

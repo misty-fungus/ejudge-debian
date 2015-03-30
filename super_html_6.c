@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_6.c 7356 2013-02-09 08:40:11Z cher $ */
+/* $Id: super_html_6.c 7514 2013-10-30 17:21:04Z cher $ */
 
 /* Copyright (C) 2011-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -5878,7 +5878,7 @@ super_serve_op_USER_CREATE_FROM_CSV_ACTION(
   if (params.charset && *params.charset) {
     int charset_id = charset_get_id(params.charset);
     if (charset_id < 0) FAIL(S_ERR_INV_CHARSET);
-    if (charset_id > 0) {
+    if (charset_id >= 0) {
       recoded_csv_text = charset_decode_to_heap(charset_id, csv_text);
       if (!recoded_csv_text) FAIL(S_ERR_INV_CHARSET);
       csv_text = recoded_csv_text;
@@ -5989,14 +5989,15 @@ super_serve_op_USER_CREATE_FROM_CSV_ACTION(
     unsigned char *txt = fix_string(csv_parsed->v[row].v[login_idx]);
     int user_id = 0, r = 0;
     r = userlist_clnt_lookup_user(phr->userlist_clnt, txt, 0, &user_id, NULL);
-    xfree(txt); txt = 0;
     if (r < 0 && r != -ULS_ERR_INVALID_LOGIN) {
+      xfree(txt); txt = 0;
       FAIL(S_ERR_DB_ERROR);
     }
     if (r >= 0 && user_id > 0) {
       fprintf(log_f, "row %d: login '%s' already exists\n", row + 1, txt);
       failed = 1;
     }
+    xfree(txt); txt = 0;
     if (email_idx >= 0) {
       txt = fix_string(csv_parsed->v[row].v[email_idx]);
       if (txt && *txt && !is_valid_email_address(txt)) {
@@ -7588,9 +7589,11 @@ super_serve_op_USER_IMPORT_CSV_ACTION(
     int fid = -1;
     if (!txt || !*txt) {
       fprintf(log_f, "empty column %d is ignored\n", col + 1);
+      fprintf(stderr, "empty column %d is ignored\n", col + 1);
       // nothing
     } else if ((fid = userlist_lookup_csv_field_name(txt)) <= 0) {
       fprintf(log_f, "unknown column '%s' (%d) is ignored\n", txt, col + 1);
+      fprintf(stderr, "unknown column '%s' (%d) is ignored\n", txt, col + 1);
     } else if (field_idx[fid] >= 0) {
       fprintf(log_f, "duplicated column '%s' (%d)\n", userlist_get_csv_field_name(fid), col + 1);
       failed = 1;
@@ -9809,6 +9812,8 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
   const struct contest_desc *cnts = ss->edited_cnts;
   struct update_state *us = NULL;
   FILE *f = NULL;
+  int contest_mode = 0;
+  unsigned char *polygon_contest_id = NULL;
 
   if (!ss->edited_cnts || !ss->global) {
     FAIL(S_ERR_NO_EDITED_CNTS);
@@ -9832,34 +9837,39 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
     FAIL(S_ERR_INV_OPER);
   }
 
-  ss_cgi_param_int_opt(phr, "ejudge_id", &ej_prob_id, 0);
-  if (ej_prob_id < 0) {
-    fprintf(log_f, "ejudge problem id (%d) is invalid\n", ej_prob_id);
-    FAIL(S_ERR_INV_OPER);
-  }
-  if (ej_prob_id > EJ_MAX_PROB_ID) {
-    fprintf(log_f, "ejudge problem id (%d) is too big\n", ej_prob_id);
-    FAIL(S_ERR_INV_OPER);
-  }
-  if (ej_prob_id < ss->prob_a && ss->probs[ej_prob_id]) {
-    fprintf(log_f, "ejudge problem id (%d) is already used\n", ej_prob_id);
-    FAIL(S_ERR_INV_OPER);
-  }
+  ss_cgi_param_int_opt(phr, "contest_mode", &contest_mode, 0);
+  contest_mode = !!contest_mode;
 
-  if ((r = ss_cgi_param(phr, "ejudge_short_name", &s)) < 0) {
-    fprintf(log_f, "ejudge problem short name is invalid\n");
-    FAIL(S_ERR_INV_OPER);
-  }
-  if (!r) {
-    fprintf(log_f, "ejudge problem short name is undefined\n");
-    FAIL(S_ERR_INV_OPER);
-  }
-  ej_short_name = fix_string_2(s);
-  if (!ej_short_name) {
-    fprintf(log_f, "ejudge problem short name is undefined\n");
-    FAIL(S_ERR_INV_OPER);
-  }
+  if (!contest_mode) {
+    ss_cgi_param_int_opt(phr, "ejudge_id", &ej_prob_id, 0);
+    if (ej_prob_id < 0) {
+      fprintf(log_f, "ejudge problem id (%d) is invalid\n", ej_prob_id);
+      FAIL(S_ERR_INV_OPER);
+    }
+    if (ej_prob_id > EJ_MAX_PROB_ID) {
+      fprintf(log_f, "ejudge problem id (%d) is too big\n", ej_prob_id);
+      FAIL(S_ERR_INV_OPER);
+    }
+    if (ej_prob_id < ss->prob_a && ss->probs[ej_prob_id]) {
+      fprintf(log_f, "ejudge problem id (%d) is already used\n", ej_prob_id);
+      FAIL(S_ERR_INV_OPER);
+    }
+
+    if ((r = ss_cgi_param(phr, "ejudge_short_name", &s)) < 0) {
+      fprintf(log_f, "ejudge problem short name is invalid\n");
+      FAIL(S_ERR_INV_OPER);
+    }
+    if (!r) {
+      fprintf(log_f, "ejudge problem short name is undefined\n");
+      FAIL(S_ERR_INV_OPER);
+    }
+    ej_short_name = fix_string_2(s);
+    if (!ej_short_name) {
+      fprintf(log_f, "ejudge problem short name is undefined\n");
+      FAIL(S_ERR_INV_OPER);
+    }
   // FIXME: check for valid characters
+  }
 
   if ((r = ss_cgi_param(phr, "polygon_login", &s)) < 0) {
     fprintf(log_f, "polygon login is invalid\n");
@@ -9883,18 +9893,34 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
 
   if (ss_cgi_param(phr, "save_auth", &s) > 0) save_auth_flag = 1;
 
-  if ((r = ss_cgi_param(phr, "polygon_id", &s)) < 0) {
-    fprintf(log_f, "polygon problem id/name is invalid\n");
-    FAIL(S_ERR_INV_OPER);
-  }
-  if (!r) {
-    fprintf(log_f, "polygon problem id/name is undefined\n");
-    FAIL(S_ERR_INV_OPER);
-  }
-  polygon_id = fix_string_2(s);
-  if (!polygon_id) {
-    fprintf(log_f, "polygon problem id/name is undefined\n");
-    FAIL(S_ERR_INV_OPER);
+  if (contest_mode) {
+    if ((r = ss_cgi_param(phr, "polygon_contest_id", &s)) < 0) {
+      fprintf(log_f, "polygon contest id/name is invalid\n");
+      FAIL(S_ERR_INV_OPER);
+    }
+    if (!r) {
+      fprintf(log_f, "polygon contest id/name is undefined\n");
+      FAIL(S_ERR_INV_OPER);
+    }
+    polygon_contest_id = fix_string_2(s);
+    if (!polygon_contest_id) {
+      fprintf(log_f, "polygon contest id/name is undefined\n");
+      FAIL(S_ERR_INV_OPER);
+    }
+  } else {
+    if ((r = ss_cgi_param(phr, "polygon_id", &s)) < 0) {
+      fprintf(log_f, "polygon problem id/name is invalid\n");
+      FAIL(S_ERR_INV_OPER);
+    }
+    if (!r) {
+      fprintf(log_f, "polygon problem id/name is undefined\n");
+      FAIL(S_ERR_INV_OPER);
+    }
+    polygon_id = fix_string_2(s);
+    if (!polygon_id) {
+      fprintf(log_f, "polygon problem id/name is undefined\n");
+      FAIL(S_ERR_INV_OPER);
+    }
   }
 
   if ((r = ss_cgi_param(phr, "polygon_url", &s)) < 0) {
@@ -9983,17 +10009,21 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
   pp->dir_group = xstrdup2(cnts->dir_group);
   pp->file_mode = xstrdup2(cnts->file_mode);
   pp->file_group = xstrdup2(cnts->file_group);
-  XCALLOC(pp->id, 2);
-  pp->id[0] = polygon_id; polygon_id = NULL;
-  if (ej_prob_id > 0) {
-    unsigned char buf[64];
-    snprintf(buf, sizeof(buf), "%d", ej_prob_id);
-    XCALLOC(pp->ejudge_id, 2);
-    pp->ejudge_id[0] = xstrdup(buf);
-  }
-  if (ej_short_name) {
-    XCALLOC(pp->ejudge_short_name, 2);
-    pp->ejudge_short_name[0] = ej_short_name; ej_short_name = NULL;
+  if (contest_mode) {
+    pp->polygon_contest_id = xstrdup2(polygon_contest_id);
+  } else {
+    XCALLOC(pp->id, 2);
+    pp->id[0] = polygon_id; polygon_id = NULL;
+    if (ej_prob_id > 0) {
+      unsigned char buf[64];
+      snprintf(buf, sizeof(buf), "%d", ej_prob_id);
+      XCALLOC(pp->ejudge_id, 2);
+      pp->ejudge_id[0] = xstrdup(buf);
+    }
+    if (ej_short_name) {
+      XCALLOC(pp->ejudge_short_name, 2);
+      pp->ejudge_short_name[0] = ej_short_name; ej_short_name = NULL;
+    }
   }
 
   if (!(f = fopen(conf_path, "w"))) {
@@ -10007,6 +10037,7 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
   us->start_time = cur_time;
   us->contest_id = cnts->id;
   us->create_mode = 1;
+  us->contest_mode = contest_mode;
   us->working_dir = xstrdup(working_dir);
   us->conf_file = xstrdup(conf_path);
   us->log_file = xstrdup(log_path);
@@ -10023,6 +10054,7 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
   ss_redirect(out_f, phr, SSERV_OP_DOWNLOAD_PROGRESS_PAGE, NULL);
 
 cleanup:
+  xfree(polygon_contest_id);
   xfree(ej_short_name);
   xfree(polygon_login);
   xfree(polygon_password);
@@ -10242,7 +10274,7 @@ super_serve_op_DOWNLOAD_PROGRESS_PAGE(
             cl, "Key", cl, "Status", cl, "Polygon Id", cl, "Polygon Name");
     for (int i = 0; i < count; ++i) {
       if (statuses[i].status &&
-          (!strcmp(statuses[i].status, "ACTUAL") || !strcmp(statuses[i].status, "UPDATED"))) {
+          (!strcmp(statuses[i].status, "ACTUAL") || !strcmp(statuses[i].status, "UPDATED") || !strcmp(statuses[i].status, "ALREADY_EXISTS"))) {
         s = " bgcolor=\"#ddffdd\"";
         ++successes;
       } else {
@@ -10593,6 +10625,9 @@ do_import_problem(
   if (cfg->solution_cmd && cfg->solution_cmd[0]) {
     prob->solution_cmd = xstrdup(cfg->solution_cmd);
   }
+  if (cfg->interactor_cmd && cfg->interactor_cmd[0]) {
+    snprintf(prob->interactor_cmd, sizeof(prob->interactor_cmd), "%s", cfg->interactor_cmd);
+  }
 
 cleanup:
   if (f) fclose(f);
@@ -10640,7 +10675,7 @@ super_serve_op_DOWNLOAD_CLEANUP_AND_IMPORT_ACTION(
   }
   for (int i = 0; i < count; ++i) {
     if (statuses[i].status &&
-        (!strcmp(statuses[i].status, "ACTUAL") || !strcmp(statuses[i].status, "UPDATED"))) {
+        (!strcmp(statuses[i].status, "ACTUAL") || !strcmp(statuses[i].status, "UPDATED") || !strcmp(statuses[i].status, "ALREADY_EXISTS"))) {
       ++successes;
     } else {
       ++failures;
@@ -11152,4 +11187,135 @@ cleanup:
   xfree(out_text);
   xfree(cfg_file_text);
   return 0;
+}
+
+int
+super_serve_op_IMPORT_CONTEST_FROM_POLYGON_PAGE(
+        FILE *log_f,
+        FILE *out_f,
+        struct super_http_request_info *phr)
+{
+  int retval = 0;
+  opcap_t caps = 0, lcaps = 0;
+  struct sid_state *ss = phr->ss;
+  unsigned char buf[1024];
+  unsigned char hbuf[1024];
+  unsigned char prob_buf[64];
+  const unsigned char *cl;
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  unsigned char *saved_login = NULL;
+  unsigned char *saved_password = NULL;
+  unsigned char *saved_url = NULL;
+
+  if (!ss->edited_cnts || !ss->global) {
+    FAIL(S_ERR_NO_EDITED_CNTS);
+  }
+
+  get_global_caps(phr, &caps);
+  get_contest_caps(phr, ss->edited_cnts, &lcaps);
+  caps |= lcaps;
+
+  if (opcaps_check(lcaps, OPCAP_EDIT_CONTEST) < 0) {
+    FAIL(S_ERR_PERM_DENIED);
+  }
+
+  if (ss->global->advanced_layout <= 0) {
+    fprintf(log_f, "advanced_layout must be set\n");
+    FAIL(S_ERR_INV_OPER);
+  }
+
+  if (ss->update_state) {
+    ss_redirect(out_f, phr, SSERV_OP_DOWNLOAD_PROGRESS_PAGE, NULL);
+    goto cleanup;
+  }
+
+  int prob_id = find_free_prob_id(ss);
+  problem_id_to_short_name(prob_id - 1, prob_buf);
+
+  get_saved_auth(phr->login, &saved_login, &saved_password, &saved_url);
+  if (!saved_login) saved_login = xstrdup("");
+  if (!saved_password) saved_password = xstrdup("");
+  if (!saved_url) saved_url = xstrdup("");
+
+  snprintf(buf, sizeof(buf), "serve-control: %s, importing contest from polygon", phr->html_name);
+  ss_write_html_header(out_f, phr, buf, 0, NULL);
+
+  fprintf(out_f, "<h1>%s</h1>\n", buf);
+
+  fprintf(out_f, "<ul>");
+  fprintf(out_f, "<li>%s%s</a></li>",
+          html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
+                        NULL, NULL),
+          "Main page");
+  fprintf(out_f, "<li>%s%s</a></li>",
+          html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
+                        NULL, "action=%d",
+                        SSERV_CMD_EDIT_CURRENT_CONTEST),
+          "General settings (contest.xml)");
+  fprintf(out_f, "<li>%s%s</a></li>",
+          html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
+                        NULL, "action=%d",
+                        SSERV_CMD_EDIT_CURRENT_GLOBAL),
+          "Global settings (serve.cfg)");
+  fprintf(out_f, "<li>%s%s</a></li>",
+          html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
+                        NULL, "action=%d",
+                        SSERV_CMD_EDIT_CURRENT_LANG),
+          "Language settings (serve.cfg)");
+  fprintf(out_f, "<li>%s%s</a></li>",
+          html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
+                        NULL, "action=%d",
+                        SSERV_CMD_EDIT_CURRENT_PROB),
+          "Problems (serve.cfg)");
+  fprintf(out_f, "<li>%s%s</a></li>",
+          html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
+                        NULL, "action=%d",
+                        SSERV_CMD_PROB_EDIT_VARIANTS),
+          "Variants (variant.map)");
+  fprintf(out_f, "</ul>");
+
+  html_start_form(out_f, 1, phr->self_url, "");
+  html_hidden(out_f, "SID", "%016llx", phr->session_id);
+  html_hidden(out_f, "action", "%d", SSERV_CMD_HTTP_REQUEST);
+  html_hidden(out_f, "contest_mode", "%d", 1);
+  cl = " class=\"b0\"";
+  fprintf(out_f, "<table%s>\n", cl);
+
+  fprintf(out_f, "<tr><td%s><b>%s</b>:</td><td%s>"
+          "<select name=\"language_priority\">"
+          "<option></option"
+          "<option>ru,en</option>"
+          "<option>en,ru</option>"
+          "</select>"
+          "</td></tr>\n",
+          cl, "Language priority", cl);
+
+  fprintf(out_f, "<tr><td colspan=\"2\" align=\"center\"%s><b>Polygon information</b></td></tr>\n", cl);
+  fprintf(out_f, "<tr><td%s><b>%s</b> *:</td><td%s><input type=\"text\" size=\"40\" name=\"polygon_login\" value=\"%s\" /></td></tr>\n",
+          cl, "Login", cl, ARMOR(saved_login));
+  fprintf(out_f, "<tr><td%s><b>%s</b> *:</td><td%s><input type=\"password\" size=\"40\" name=\"polygon_password\" value=\"%s\"  /></td></tr>\n",
+          cl, "Password", cl, ARMOR(saved_password));
+
+  fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" checked=\"checked\" /></td></tr>\n",
+          cl, "Save auth info", cl, "save_auth");
+  fprintf(out_f, "<tr><td%s><b>%s</b> *:</td><td%s><input type=\"text\" size=\"60\" name=\"polygon_contest_id\" /></td></tr>\n",
+          cl, "Contest id/name", cl);
+  fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"text\" size=\"60\" name=\"polygon_url\" value=\"%s\" /></td></tr>\n",
+          cl, "Polygon URL", cl, ARMOR(saved_url));
+  fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" checked=\"checked\" /></td></tr>\n",
+          cl, "Assume max_vm_size == max_stack_size", cl, "max_stack_size");
+  
+  fprintf(out_f, "<tr><td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></tr></td>\n",
+          cl, SSERV_OP_IMPORT_FROM_POLYGON_ACTION, "Import");
+  fprintf(out_f, "</table>\n");
+  fprintf(out_f, "</form>\n");
+
+  ss_write_html_footer(out_f);
+
+cleanup:
+  html_armor_free(&ab);
+  xfree(saved_login);
+  xfree(saved_password);
+  xfree(saved_url);
+  return retval;
 }

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: new_server_html_2.c 7499 2013-10-24 19:21:03Z cher $ */
 
 /* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -6342,9 +6342,9 @@ ns_write_olympiads_user_runs(
     fprintf(fout, "<th%s>%s</th>", cl, _("Print sources"));
   fprintf(fout, "</tr>\n");
 
-  for (shown = 0, i = run_get_total(cs->runlog_state) - 1;
+  for (shown = 0, i = run_get_user_last_run_id(cs->runlog_state, phr->user_id);
        i >= 0 && shown < runs_to_show;
-       i--) {
+       i = run_get_user_prev_run_id(cs->runlog_state, i)) {
     if (run_get_entry(cs->runlog_state, i, &re) < 0) continue;
     if (re.status > RUN_LAST) continue;
     if (re.status > RUN_MAX_STATUS && re.status <= RUN_TRANSIENT_FIRST)
@@ -6474,6 +6474,7 @@ ns_write_olympiads_user_runs(
       case RUN_OK:
         if (prob && prob->type != PROB_TYPE_STANDARD) {
           snprintf(tests_buf, sizeof(tests_buf), "&nbsp;");
+          report_allowed = 1;
         } else {
           if (re.passed_mode > 0) {
             snprintf(tests_buf, sizeof(tests_buf), "%d", re.test);
@@ -6653,6 +6654,15 @@ ns_get_user_problems_summary(
   int status, score;
   int separate_user_score = 0;
   time_t start_time;
+  int need_prev_succ = 0; // 1, if we need to compute 'prev_successes' array
+
+  /* if 'score_bonus' is set for atleast one problem, we have to scan all runs */
+  for (int prob_id = 0; prob_id <= cs->max_prob; ++prob_id) {
+    struct section_problem_data *prob = cs->probs[prob_id];
+    if (prob && prob->score_bonus_total > 0) {
+      need_prev_succ = 1;
+    }
+  }
 
   total_runs = run_get_total(cs->runlog_state);
   if (global->disable_user_database > 0) {
@@ -6676,7 +6686,9 @@ ns_get_user_problems_summary(
   XCALLOC(user_flag, (cs->max_prob + 1) * total_teams);
   XALLOCAZ(marked_flag, cs->max_prob + 1);
 
-  for (run_id = 0; run_id < total_runs; run_id++) {
+  for (run_id = need_prev_succ?0:run_get_user_first_run_id(cs->runlog_state, user_id);
+       run_id >= 0 && run_id < total_runs;
+       run_id = need_prev_succ?(run_id + 1):run_get_user_next_run_id(cs->runlog_state, run_id)) {
     if (run_get_entry(cs->runlog_state, run_id, &re) < 0) continue;
 
     if (separate_user_score > 0 && re.is_saved) {
@@ -7148,8 +7160,7 @@ ns_write_user_problems_summary(
         int *best_run,                /* the number of the best run */
         int *attempts,                /* the number of previous attempts */
         int *disqualified,            /* the number of prev. disq. attempts */
-        int *best_score,              /* the best score for the problem */
-        int *prev_successes)          /* the number of prev. successes */
+        int *best_score)              /* the best score for the problem */
 {
   const struct section_global_data *global = cs->global;
   int prob_id, total_score = 0;
@@ -7395,6 +7406,28 @@ ns_write_user_problems_summary(
   }
 
   fprintf(fout, "</table>\n");
+
+  if (global->score_n_best_problems > 0 && cs->max_prob > 0) {
+    total_score = 0;
+    unsigned char *used_flag = NULL;
+    XALLOCAZ(used_flag, cs->max_prob + 1);
+    for (int i = 0; i < global->score_n_best_problems; ++i) {
+      int max_ind = -1;
+      int max_score = -1;
+      for (prob_id = 1; prob_id <= cs->max_prob; prob_id++) {
+        if (!(cur_prob = cs->probs[prob_id])) continue;
+        if (used_flag[prob_id]) continue;
+        if (best_score[prob_id] <= 0) continue;
+        if (max_ind < 0 || best_score[prob_id] > max_score) {
+          max_ind = prob_id;
+          max_score = best_score[prob_id];
+        }
+      }
+      if (max_ind < 0) break;
+      total_score += max_score;
+      used_flag[max_ind] = 1;
+    }
+  }
 
   if ((global->score_system == SCORE_OLYMPIAD && !accepting_mode)
       || global->score_system == SCORE_KIROV

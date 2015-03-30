@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: unparse_run_status.c 7228 2012-12-09 08:38:21Z cher $ */
+/* $Id: unparse_run_status.c 7377 2013-03-27 07:51:42Z cher $ */
 
 /* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -56,5 +56,5 @@ run_status_to_str_short(unsigned char *buf, size_t size, int val)
   if (val >= 0 && val <= RUN_LAST && tree_result_strs[val]) {
     return snprintf(buf, size, "%s", tree_result_strs[val]);
   }
-  return snprintf(buf, sizeof(buf), "result_%d", val);
+  return snprintf(buf, size, "result_%d", val);
 }
