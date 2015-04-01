@@ -12,6 +12,7 @@ export DH_VERBOSE=1
 %:
 	dh --with quilt --without python2,pypy,python-support,python3 $@ --parallel 
 
+.PHONY: override_dh_auto_configure
 override_dh_auto_configure:
 	[ -f ejudge.ru_RU.KOI8-R.po.bak ] || cp -a ejudge.ru_RU.KOI8-R.po ejudge.ru_RU.KOI8-R.po.bak
 	./configure --build=x86_64-linux-gnu \
@@ -45,6 +46,7 @@ override_dh_auto_configure:
 override_dh_strip:
 	dh_strip --dbg-package=ejudge-dbg
 
+.PHONY: override_dh_auto_install
 override_dh_auto_install:
 	dh_auto_install --destdir=debian/ejudge
 	mkdir -p $(CURDIR)/debian/ejudge/usr/sbin/
@@ -71,6 +73,7 @@ override_dh_auto_install:
 	mkdir $(CURDIR)/debian/ejudge/usr/lib/ejudge/cgi-data
 
 
+.PHONY: override_dh_auto_clean
 override_dh_auto_clean:
 	dh_auto_clean
 	[ ! -f ejudge.ru_RU.KOI8-R.po.bak ] || mv ejudge.ru_RU.KOI8-R.po.bak ejudge.ru_RU.KOI8-R.po
@@ -84,6 +87,7 @@ override_dh_auto_clean:
 	rm -f checkers/ejudgecheckers.po
 	rm -rf checkers/locale/
 
+.PHONY: override_dh_installman
 override_dh_installman:
 	echo debian/manpages/* | sed 's/[[:space:]]/\n/g' > debian/ejudge.manpages
 	dh_installman
