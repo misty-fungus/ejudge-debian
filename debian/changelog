@@ -1,10 +1,12 @@
-ejudge (2.3.28-2~1.gbpf5466b) UNRELEASED; urgency=medium
+ejudge (2.3.28-2) unstable; urgency=medium
 
-  ** SNAPSHOT build @f5466b97fd5b8b68a72fe2a3c7bbd16f1df671ac **
+  * [c72f82e] new debian snapshot
+  * [a6982fc] add patch patches/08_fix_perl_interpreter_in_scripts
+  * [884a035] updated clean target in rules
+  * [6da3cb9] added ejudge-dbg package
+  * [9023dc8] added .phony desctiption to rules
 
-  * UNRELEASED
-
- -- Yaroslav Leonov <alximik@aeon.btty.su>  Tue, 31 Mar 2015 00:43:37 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Wed, 01 Apr 2015 23:07:12 +0300
 
 ejudge (2.3.28-1) unstable; urgency=medium
 
