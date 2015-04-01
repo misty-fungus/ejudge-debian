@@ -1,3 +1,9 @@
+ejudge (2.3.28-3) unstable; urgency=medium
+
+  * [ce90f57] fixed typos in debian/control
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Wed, 01 Apr 2015 23:15:13 +0300
+
 ejudge (2.3.28-2) unstable; urgency=medium
 
   * [c72f82e] new debian snapshot
