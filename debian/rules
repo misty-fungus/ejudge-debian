@@ -41,8 +41,12 @@ override_dh_auto_configure:
 # note: dont change /var/... to \$${localstatedir}. configure will write it to config.h as is
 #       same for $${prefix}
 
+.PHONY: override_dh_strip
+override_dh_strip:
+	dh_strip --dbg-package=ejudge-dbg
+
 override_dh_auto_install:
-	dh_auto_install
+	dh_auto_install --destdir=debian/ejudge
 	mkdir -p $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-control $(CURDIR)/debian/ejudge/usr/sbin/
 	mv $(CURDIR)/debian/ejudge/usr/bin/ejudge-config $(CURDIR)/debian/ejudge/usr/sbin/
