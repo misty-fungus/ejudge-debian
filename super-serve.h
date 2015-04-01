@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super-serve.h 7399 2013-10-03 21:46:54Z cher $ */
+/* $Id: super-serve.h 7633 2013-11-25 10:41:27Z cher $ */
 #ifndef __SUPER_SERVE_H__
 #define __SUPER_SERVE_H__
 
@@ -272,6 +272,7 @@ struct super_http_request_info
   const unsigned char *system_login;
 
   unsigned long long session_id;
+  ej_cookie_t client_key;
 
   // authentification info
   int user_id;

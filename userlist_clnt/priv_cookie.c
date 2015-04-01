@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: priv_cookie.c 7364 2013-02-09 20:19:53Z cher $ */
+/* $Id: priv_cookie.c 7598 2013-11-18 04:37:31Z cher $ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -24,6 +24,7 @@ userlist_clnt_priv_cookie(
         int ssl,
         int contest_id,
         ej_cookie_t cookie,
+        ej_cookie_t client_key,
         int priv_level,
         int *p_user_id,
         int *p_contest_id,
@@ -53,6 +54,7 @@ userlist_clnt_priv_cookie(
   out->ssl = ssl;
   out->contest_id = contest_id;
   out->cookie = cookie;
+  out->client_key = client_key;
   out->priv_level = priv_level;
   if ((r = userlist_clnt_send_packet(clnt, out_size, out)) < 0) return r;
   if ((r = userlist_clnt_read_and_notify(clnt, &in_size, &void_in)) < 0)

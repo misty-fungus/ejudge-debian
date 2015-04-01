@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: clntutil.h 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: clntutil.h 7619 2013-11-23 11:38:42Z cher $ */
 #ifndef __CLNTUTIL_H__
 #define __CLNTUTIL_H__
 
@@ -65,12 +65,17 @@ int   client_print_server_status(int, char const *, char const *);
 
 void  client_make_form_headers(unsigned char const *);
 
-void  client_put_header(FILE *out, unsigned char const *template,
-                        unsigned char const *content_type,
-                        unsigned char const *charset,
-                        int http_flag, int locale_id, 
-                        char const *format, ...)
-  __attribute__((format(printf, 7, 8)));
+void  client_put_header(
+        FILE *out,
+        unsigned char const *template,
+        unsigned char const *content_type,
+        unsigned char const *charset,
+        int http_flag,
+        int locale_id, 
+        ej_cookie_t client_key,
+        char const *format,
+        ...)
+  __attribute__((format(printf, 8, 9)));
 void  client_put_footer(FILE *out, unsigned char const *template);
 
 void parse_client_ip(ej_ip_t *p_ip);

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 7464 2013-10-22 06:17:01Z cher $ */
+/* $Id: super-serve.c 7615 2013-11-22 20:37:54Z cher $ */
 
 /* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1013,7 +1013,10 @@ get_peer_local_user(struct client_state *p)
 
   r = userlist_clnt_get_uid_by_pid_2(userlist_clnt, p->peer_uid,
                                      p->peer_gid, p->peer_pid, 0,
-                                     &uid, &priv_level, &cookie, &ip, &ssl,
+                                     &uid, &priv_level,
+                                     &cookie,
+                                     NULL /* FIXME: p_client_key */,
+                                     &ip, &ssl,
                                      &login, &name);
   if (r < 0) {
     err("get_peer_local_user: %s", userlist_strerror(-r));
@@ -2561,6 +2564,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_ENABLE_LANGUAGE:
   case SSERV_CMD_PROB_CHANGE_REQUIRE:
   case SSERV_CMD_PROB_CLEAR_REQUIRE:
+  case SSERV_CMD_PROB_CHANGE_PROVIDE_OK:
+  case SSERV_CMD_PROB_CLEAR_PROVIDE_OK:
   case SSERV_CMD_PROB_CHANGE_TEST_SETS:
   case SSERV_CMD_PROB_CLEAR_TEST_SETS:
   case SSERV_CMD_PROB_CHANGE_SCORE_VIEW:
@@ -2621,6 +2626,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS:
   case SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE:
   case SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT:
+  case SSERV_CMD_GLOB_CHANGE_UUID_RUN_STORE:
+  case SSERV_CMD_GLOB_CHANGE_ENABLE_32BIT_CHECKERS:
   case SSERV_CMD_GLOB_CHANGE_IGNORE_BOM:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_USER_DATABASE:
   case SSERV_CMD_GLOB_CHANGE_ENABLE_MAX_STACK_SIZE:
@@ -3629,6 +3636,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_ENABLE_LANGUAGE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_REQUIRE] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_REQUIRE] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_PROVIDE_OK] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_PROVIDE_OK] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEST_SETS] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_TEST_SETS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SCORE_VIEW] = { cmd_set_value },
@@ -3685,6 +3694,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_UUID_RUN_STORE] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_32BIT_CHECKERS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_IGNORE_BOM] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_DATABASE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ENABLE_MAX_STACK_SIZE] = { cmd_set_value },

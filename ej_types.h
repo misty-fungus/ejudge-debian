@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_types.h 7345 2013-02-07 20:40:28Z cher $ */
+/* $Id: ej_types.h 7619 2013-11-23 11:38:42Z cher $ */
 #ifndef __EJ_TYPES_H__
 #define __EJ_TYPES_H__
 
@@ -26,6 +26,8 @@ typedef ruint32_t ej_size_t;     /* size_t as stored in files */
 typedef ruint32_t ej_ip4_t;      /* IP address as stored in files */
 typedef unsigned long long ej_cookie_t;   /* cookie */
 typedef unsigned long long ej_tsc_t; /* timestamp counter type */
+
+#define NULL_CLIENT_KEY (0ULL)
 
 /** IPv6-ready IP address structure */
 typedef struct ej_ip_t

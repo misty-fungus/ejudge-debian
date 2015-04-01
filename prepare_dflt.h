@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: prepare_dflt.h 7123 2012-11-03 17:55:23Z cher $ */
+/* $Id: prepare_dflt.h 7585 2013-11-10 21:14:15Z cher $ */
 #ifndef __PREPARE_DFLT_H__
 #define __PREPARE_DFLT_H__
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -81,6 +81,7 @@
 #define DFLT_G_RUN_REPORT_DIR     "report"
 #define DFLT_G_RUN_TEAM_REPORT_DIR "teamreport"
 #define DFLT_G_RUN_FULL_ARCHIVE_DIR "output"
+#define DFLT_G_RUN_UUID_ARCHIVE_DIR "uuid"
 #define DFLT_G_RUN_WORK_DIR       "runwork"
 #define DFLT_G_RUN_CHECK_DIR      "runcheck"
 #define DFLT_G_PROBLEMS_DIR       "problems"
@@ -167,5 +168,11 @@
 #define DFLT_T_WORK_DIR           "work"
 #define DFLT_T_TMP_DIR            "tmp"
 #define DFLT_T_ERROR_FILE         "error"
+
+#define DFLT_R_UUID_SOURCE        "source"
+#define DFLT_R_UUID_XML_REPORT    "report"
+#define DFLT_R_UUID_REPORT        "warnings"
+#define DFLT_R_UUID_AUDIT         "audit"
+#define DFLT_R_UUID_FULL_ARCHIVE  "outputs"
 
 #endif /* __PREPARE_DFLT_H__ */

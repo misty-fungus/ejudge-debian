@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: compile_packet_1.c 6211 2011-03-31 22:56:14Z cher $ */
+/* $Id: compile_packet_1.c 7537 2013-11-06 11:49:33Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -87,6 +87,12 @@ compile_request_packet_read(
   pout->max_vm_size = (size_t) cvt_bin_to_host_64(pin->max_vm_size);
   pout->max_stack_size = (size_t) cvt_bin_to_host_64(pin->max_stack_size);
   pout->max_file_size = (size_t) cvt_bin_to_host_64(pin->max_file_size);
+
+  pout->use_uuid = cvt_bin_to_host_32(pin->use_uuid);
+  pout->uuid[0] = cvt_bin_to_host_32(pin->uuid[0]);
+  pout->uuid[1] = cvt_bin_to_host_32(pin->uuid[1]);
+  pout->uuid[2] = cvt_bin_to_host_32(pin->uuid[2]);
+  pout->uuid[3] = cvt_bin_to_host_32(pin->uuid[3]);
 
   /* extract the additional data */
   // set up the additional data pointer
@@ -199,14 +205,8 @@ compile_request_packet_read(
 
  failed:
   /* even the contest id is not available */
-  err("compile_request_packet_read: error %s, %d", "$Revision: 6211 $", errcode);
+  err("compile_request_packet_read: error %s, %d", "$Revision: 7537 $", errcode);
   compile_request_packet_free(pout);
   return -1;
 }
 
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

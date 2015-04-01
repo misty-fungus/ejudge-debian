@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 7501 2013-10-25 09:52:01Z cher $ */
+/* $Id: prepare.h 7578 2013-11-09 19:52:01Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -116,7 +116,7 @@ struct user_adjustment_info
 };
 struct user_adjustment_map;
 
-/* sizeof(struct section_global_data) == 350120/350264 */
+/* sizeof(struct section_global_data) == 350132/350296 */
 struct section_global_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -164,6 +164,10 @@ struct section_global_data
   ejintbool_t enable_memory_limit_error;
   /** enable advanced problem layout */
   ejintbool_t advanced_layout;
+  /** use UUID instead of run_id for runs */
+  ejintbool_t uuid_run_store;
+  /** compile all checkers, interactors, etc in 32-bit mode on 64-bit platforms */
+  ejintbool_t enable_32bit_checkers;
   /** ignore BOM in submitted text files */
   ejintbool_t ignore_bom;
   /** disable loading of the user database */
@@ -370,6 +374,8 @@ struct section_global_data
   path_t full_archive_dir;
   /** directory for audit logs */
   path_t audit_log_dir;
+  /** directory for new UUID-based archives */
+  path_t uuid_archive_dir;
   /** team extra information directory */
   path_t team_extra_dir;
 
@@ -741,7 +747,7 @@ struct section_global_data
   +unsigned char *solution_cmd;
  */
 
-/* sizeof(struct section_problem_data) == ?/? */
+/* sizeof(struct section_problem_data) == 65140/65392 */
 struct section_problem_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));
@@ -998,6 +1004,7 @@ struct section_problem_data
   char **disable_language;
   char **enable_language;
   char **require;
+  char **provide_ok;
   /** environment variables for compilation */
   ejenvlist_t lang_compiler_env;
   /** environment variables for the problem checker */
@@ -1098,7 +1105,7 @@ struct section_problem_data
   } xml META_ATTRIB((meta_hidden));
 };
 
-/* sizeof(struct section_language_data) == 33680/33720 */
+/* sizeof(struct section_language_data) == 33688/33736 */
 struct section_language_data
 {
   struct generic_section_config g META_ATTRIB((meta_hidden));

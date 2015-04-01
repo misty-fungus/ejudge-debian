@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_5.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: new_server_html_5.c 7641 2013-11-27 13:59:45Z cher $ */
 
 /* Copyright (C) 2007-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -30,6 +30,7 @@
 #include "xml_utils.h"
 #include "l10n.h"
 #include "compat.h"
+#include "ejudge_cfg.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -122,6 +123,7 @@ anon_select_contest_page(FILE *fout, struct http_request_info *phr)
   // even don't know about the contest specific settings
   l10n_setlocale(phr->locale_id);
   ns_header(fout, ns_fancy_header, 0, 0, 0, 0, phr->locale_id, NULL,
+            NULL_CLIENT_KEY,
             _("Contest selection"));
 
   html_start_form(fout, 1, phr->self_url, "");
@@ -232,6 +234,7 @@ login_page(
     break;
   }
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
+            phr->client_key,
             "%s [%s]", s, extra->contest_arm);
 
   html_start_form(fout, 1, phr->self_url, "");
@@ -264,8 +267,10 @@ login_page(
     s = _("Create another account");
   else
     s = _("Create account");
-  fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\"><a class=\"menu\" href=\"%s?contest_id=%d&amp;locale_id=%d&amp;action=%d\">%s</a></div></td>", phr->self_url, phr->contest_id, phr->locale_id, NEW_SRV_ACTION_REG_CREATE_ACCOUNT_PAGE, s);
-  item_cnt++;
+  if (ejudge_config->disable_new_users <= 0) {
+    fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\"><a class=\"menu\" href=\"%s?contest_id=%d&amp;locale_id=%d&amp;action=%d\">%s</a></div></td>", phr->self_url, phr->contest_id, phr->locale_id, NEW_SRV_ACTION_REG_CREATE_ACCOUNT_PAGE, s);
+    item_cnt++;
+  }
 
   if (cnts->enable_password_recovery && cnts->disable_team_password
       && !cnts->simple_registration && !created_mode) {
@@ -366,6 +371,10 @@ create_autoassigned_account_page(
   int i, j;
   int reg_error = 0, reg_ul_error = 0, regular_flag = 0;
 
+  if (ejudge_config->disable_new_users > 0) {
+    return ns_html_err_no_perm(fout, phr, 0, "registration is not available");
+  }
+
   if (!cnts->assign_logins)
     return create_account_page(fout, phr, cnts, extra, cur_time);
 
@@ -398,6 +407,7 @@ create_autoassigned_account_page(
 
   l10n_setlocale(phr->locale_id);
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
+            NULL_CLIENT_KEY,
             "%s [%s]", _("Create user account"),
             extra->contest_arm);
 
@@ -412,7 +422,9 @@ create_autoassigned_account_page(
   fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">e-mail: %s</div></td>",
           html_input_text(bb, sizeof(bb), "email", 20, 0, "%s", ARMOR(email)));
 
-  fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s</div></td>", ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_REG_CREATE_ACCOUNT, _("Create account")));
+  if (ejudge_config->disable_new_users <= 0) {
+    fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s</div></td>", ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_REG_CREATE_ACCOUNT, _("Create account")));
+  }
 
   if (!cnts->disable_locale_change) {
     fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s: ",
@@ -524,6 +536,10 @@ create_account_page(
   unsigned char bb[1024];
   int item_cnt = 0, regular_flag = 0;
 
+  if (ejudge_config->disable_new_users > 0) {
+    return ns_html_err_no_perm(fout, phr, 0, "registration is not available");
+  }
+
   if (cnts->assign_logins)
     return create_autoassigned_account_page(fout, phr, cnts, extra, cur_time);
 
@@ -546,6 +562,7 @@ create_account_page(
 
   l10n_setlocale(phr->locale_id);
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
+            NULL_CLIENT_KEY,
             "%s [%s]", _("Create user account"),
             extra->contest_arm);
 
@@ -568,7 +585,9 @@ create_account_page(
     l10n_html_locale_select(fout, phr->locale_id);
     fprintf(fout, "</div></td>\n");
   }
-  fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s</div></td>", ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_REG_CREATE_ACCOUNT, _("Create account")));
+  if (ejudge_config->disable_new_users <= 0) {
+    fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s</div></td>", ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_REG_CREATE_ACCOUNT, _("Create account")));
+  }
 
   fprintf(fout, "</tr></table></div></form>\n");
 
@@ -675,6 +694,10 @@ create_account(
   unsigned char *new_login = 0;
   unsigned char *new_password = 0;
 
+  if (ejudge_config->disable_new_users > 0) {
+    return ns_html_err_no_perm(fout, phr, 0, "registration is not available");
+  }
+
   if (!cnts->assign_logins) {
     r = ns_cgi_param(phr, "login", &login);
     if (r < 0) FAIL2(NEW_SRV_ERR_LOGIN_BINARY);
@@ -698,7 +721,7 @@ create_account(
     snprintf(urlbuf, sizeof(urlbuf), "%s?contest_id=%d&locale_id=%d&action=%d",
              phr->self_url, phr->contest_id, phr->locale_id,
              NEW_SRV_ACTION_REG_CREATE_ACCOUNT_PAGE);
-    ns_refresh_page_2(fout, urlbuf);
+    ns_refresh_page_2(fout, phr->client_key, urlbuf);
     return;
   }
 
@@ -729,8 +752,6 @@ create_account(
   }
 
   if (ul_error < 0) goto failed;
-  //fprintf(fout, "Content-Type: text/html; charset=%s\nCache-Control: no-cache\nPragma: no-cache\nLocation: %s?contest_id=%d&action=%d",
-  //        EJUDGE_CHARSET, phr->self_url, phr->contest_id, next_action);
   fprintf(fout, "Location: %s?contest_id=%d&action=%d", phr->self_url, phr->contest_id, next_action);
   if (phr->locale_id > 0) fprintf(fout, "&locale_id=%d", phr->locale_id);
   if (cnts->simple_registration) {
@@ -745,9 +766,6 @@ create_account(
   goto cleanup;
 
  failed:
-  //fprintf(fout, "Content-Type: text/html; charset=%s\nCache-Control: no-cache\nPragma: no-cache\nLocation: %s?contest_id=%d&action=%d",
-  //        EJUDGE_CHARSET, phr->self_url, phr->contest_id,
-  //        NEW_SRV_ACTION_REG_CREATE_ACCOUNT_PAGE);
   fprintf(fout, "Location: %s?contest_id=%d&action=%d", phr->self_url, phr->contest_id, NEW_SRV_ACTION_REG_CREATE_ACCOUNT_PAGE);
   if (phr->locale_id > 0) fprintf(fout, "&locale_id=%d", phr->locale_id);
   if (login && *login) fprintf(fout, "&login=%s", URLARMOR(login));
@@ -787,7 +805,7 @@ cmd_login(
     snprintf(urlbuf, sizeof(urlbuf), "%s?contest_id=%d&locale_id=%d&action=%d",
              phr->self_url, phr->contest_id, phr->locale_id,
              NEW_SRV_ACTION_REG_LOGIN_PAGE);
-    ns_refresh_page_2(fout, urlbuf);
+    ns_refresh_page_2(fout, phr->client_key, urlbuf);
     return;
   }
 
@@ -796,9 +814,12 @@ cmd_login(
     return ns_html_err_ul_server_down(fout, phr, 0, 0);
 
   if ((r = userlist_clnt_login(ul_conn, ULS_CHECK_USER,
-                               &phr->ip, phr->ssl_flag, phr->contest_id,
+                               &phr->ip, phr->client_key,
+                               phr->ssl_flag, phr->contest_id,
                                phr->locale_id, phr->login, password,
-                               &phr->user_id, &phr->session_id,
+                               &phr->user_id,
+                               &phr->session_id,
+                               &phr->client_key,
                                &phr->name)) < 0) {
     switch (-r) {
     case ULS_ERR_INVALID_LOGIN:
@@ -843,8 +864,8 @@ cmd_login(
              get_client_url(bb, sizeof(bb), cnts, phr->self_url),
              phr->session_id);
 
-    ns_get_session(phr->session_id, 0);
-    ns_refresh_page_2(fout, urlbuf);
+    ns_get_session(phr->session_id, phr->client_key, 0);
+    ns_refresh_page_2(fout, phr->client_key, urlbuf);
   } else if (cnts->force_registration) {
     // register for the contest anyway, but do not redirect to new-client
     // since we're not allowed to login unless the registration form
@@ -859,7 +880,7 @@ cmd_login(
 
   snprintf(urlbuf, sizeof(urlbuf), "%s?SID=%llx", phr->self_url,
            phr->session_id);
-  ns_refresh_page_2(fout, urlbuf);
+  ns_refresh_page_2(fout, phr->client_key, urlbuf);
 }
 
 typedef void (*reg_action_handler_func_t)(FILE *fout,
@@ -957,18 +978,21 @@ change_locale(FILE *fout, struct http_request_info *phr)
     // FIXME: report errors?
     if (ns_open_ul_connection(phr->fw_state) >= 0) {
       userlist_clnt_set_cookie(ul_conn, ULS_SET_COOKIE_LOCALE,
-                               phr->session_id, phr->locale_id);
+                               phr->session_id,
+                               phr->client_key,
+                               phr->locale_id);
     }
 
-    //fprintf(fout, "Content-Type: text/html; charset=%s\nCache-Control: no-cache\nPragma: no-cache\nLocation: %s?SID=%016llx", EJUDGE_CHARSET, phr->self_url,
-    //        phr->session_id);
     fprintf(fout, "Location: %s?SID=%016llx", phr->self_url, phr->session_id);
     if (next_action > 0) fprintf(fout, "&action=%d", next_action);
-    fprintf(fout, "\n\n");
+    fprintf(fout, "\n");
+    if (phr->client_key) {
+      fprintf(fout, "Set-Cookie: EJSID=%016llx; Path=/\n", phr->client_key);
+    }
+    fprintf(fout, "\n");
     return;
   }
 
-  //fprintf(fout, "Content-Type: text/html; charset=%s\nCache-Control: no-cache\nPragma: no-cache\nLocation: %s", EJUDGE_CHARSET, phr->self_url);
   fprintf(fout, "Location: %s", phr->self_url);
   if (phr->contest_id > 0) {
     fprintf(fout, "%scontest_id=%d", sep, phr->contest_id);
@@ -1685,6 +1709,7 @@ main_page(
   if (!n || !*n) n = phr->login;
 
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
+            phr->client_key,
             "%s [%s, %s]", title, ARMOR(n), extra->contest_arm);
 
   shown_items = 0;
@@ -2317,6 +2342,7 @@ edit_page(
   if (!n || !*n) n = phr->login;
 
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
+            phr->client_key,
             "%s [%s, %s]", s, ARMOR(n), extra->contest_arm);
 
   fprintf(fout, "<div class=\"user_actions\"><table class=\"menu\"><tr>");
@@ -2416,6 +2442,7 @@ action_error_page(
   n = phr->name;
   if (!n || !*n) n = phr->login;
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
+            NULL_CLIENT_KEY,
             "%s [%s, %s]", s, ARMOR(n), extra->contest_arm);
 
   fprintf(fout, "<div class=\"user_actions\"><table class=\"menu\"><tr>");
@@ -3124,12 +3151,13 @@ logout(
   if (ns_open_ul_connection(phr->fw_state) < 0)
     return ns_html_err_ul_server_down(fout, phr, 0, 0);
   userlist_clnt_delete_cookie(ul_conn, phr->user_id, phr->contest_id,
-                              phr->session_id);
+                              phr->session_id,
+                              phr->client_key);
   ns_remove_session(phr->session_id);
   snprintf(urlbuf, sizeof(urlbuf),
            "%s?contest_id=%d&locale_id=%d",
            phr->self_url, phr->contest_id, phr->locale_id);
-  ns_refresh_page_2(fout, urlbuf);
+  ns_refresh_page_2(fout, phr->client_key, urlbuf);
 }
 
 static void
@@ -3197,7 +3225,7 @@ change_password(
              "%s?contest_id=%d&login=%s&locale_id=%d&action=%d",
              phr->self_url, phr->contest_id, URLARMOR(phr->login),
              phr->locale_id, NEW_SRV_ACTION_REG_LOGIN_PAGE);
-    ns_refresh_page_2(fout, url);
+    ns_refresh_page_2(fout, phr->client_key, url);
   }
 
   xfree(log_t);
@@ -3280,6 +3308,7 @@ ns_register_pages(FILE *fout, struct http_request_info *phr)
   if ((r = userlist_clnt_get_cookie(ul_conn, ULS_GET_COOKIE,
                                     &phr->ip, phr->ssl_flag,
                                     phr->session_id,
+                                    phr->client_key,
                                     &phr->user_id, &phr->contest_id,
                                     &phr->locale_id, 0, &phr->role, &is_team,
                                     &phr->reg_status, &phr->reg_flags,
@@ -3318,7 +3347,7 @@ ns_register_pages(FILE *fout, struct http_request_info *phr)
 
   // check for local userlist_user structure and fetch it from the
   // server
-  phr->session_extra = ns_get_session(phr->session_id, cur_time);
+  phr->session_extra = ns_get_session(phr->session_id, phr->client_key, cur_time);
 
   if (!phr->session_extra->user_info) {
     if (userlist_clnt_get_info(ul_conn, ULS_PRIV_GET_USER_INFO,
@@ -3369,6 +3398,5 @@ ns_register_pages(FILE *fout, struct http_request_info *phr)
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

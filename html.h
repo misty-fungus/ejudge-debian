@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: html.h 7284 2013-01-23 08:45:50Z cher $ */
+/* $Id: html.h 7581 2013-11-10 14:11:16Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
@@ -279,6 +279,7 @@ enum
   RUN_VIEW_SAVED_STATUS,
   RUN_VIEW_RUN_UUID,
   RUN_VIEW_EOLN_TYPE,
+  RUN_VIEW_STORE_FLAGS,
 
   RUN_VIEW_LAST,
 

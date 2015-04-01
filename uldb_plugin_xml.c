@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_plugin_xml.c 7356 2013-02-09 08:40:11Z cher $ */
+/* $Id: uldb_plugin_xml.c 7611 2013-11-21 23:28:08Z cher $ */
 
 /* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -70,7 +70,7 @@ static int new_user_func(void *, const unsigned char *login,
                          int never_clean,
                          int simple_registration);
 static int remove_user_func(void *, int);
-static int get_cookie_func(void *, ej_cookie_t,
+static int get_cookie_func(void *, ej_cookie_t, ej_cookie_t,
                            const struct userlist_cookie **);
 static int new_cookie_func(void *, int, const ej_ip_t *,
                            int, ej_cookie_t, time_t,
@@ -227,6 +227,27 @@ get_next_user_id_func(
         int user_id,
         const unsigned char *filter,
         int *p_user_id);
+static int
+new_cookie_2_func(
+        void *,
+        int,
+        const ej_ip_t *,
+        int,
+        ej_cookie_t,
+        ej_cookie_t,
+        time_t,
+        int,
+        int,
+        int,
+        int,
+        int,
+        int,
+        const struct userlist_cookie **);
+static int
+get_client_key_func(
+        void *data,
+        ej_cookie_t client_key,
+        const struct userlist_cookie **p_c);
 
 struct uldb_plugin_iface uldb_plugin_xml =
 {
@@ -334,6 +355,8 @@ struct uldb_plugin_iface uldb_plugin_xml =
   get_group_count_func,
   get_prev_user_id_func,
   get_next_user_id_func,
+  new_cookie_2_func,
+  get_client_key_func,
 };
 
 struct uldb_xml_state
@@ -836,9 +859,11 @@ remove_user_func(void *data, int user_id)
 }
 
 static int
-get_cookie_func(void *data,
-                ej_cookie_t value,
-                const struct userlist_cookie **p_cookie)
+get_cookie_func(
+        void *data,
+        ej_cookie_t value,
+        ej_cookie_t client_key,
+        const struct userlist_cookie **p_cookie)
 {
   struct uldb_xml_state *state = (struct uldb_xml_state*) data;
   struct userlist_list *ul = state->userlist;
@@ -866,6 +891,10 @@ get_cookie_func(void *data,
     }
   }
 
+  if (c && client_key && c->client_key != client_key) {
+    c = NULL;
+  }
+
   if (c) {
     if (p_cookie) *p_cookie = c;
     return 0;
@@ -876,18 +905,20 @@ get_cookie_func(void *data,
 }
 
 static int
-new_cookie_func(void *data,
-                int user_id,
-                const ej_ip_t *pip,
-                int ssl_flag,
-                ej_cookie_t value, time_t expire,
-                int contest_id,
-                int locale_id,
-                int priv_level,
-                int role,
-                int recovery,
-                int team_login,
-                const struct userlist_cookie **p_cookie)
+new_cookie_func(
+        void *data,
+        int user_id,
+        const ej_ip_t *pip,
+        int ssl_flag,
+        ej_cookie_t value,
+        time_t expire,
+        int contest_id,
+        int locale_id,
+        int priv_level,
+        int role,
+        int recovery,
+        int team_login,
+        const struct userlist_cookie **p_cookie)
 {
   struct uldb_xml_state *state = (struct uldb_xml_state*) data;
   struct userlist_list *ul = state->userlist;
@@ -901,12 +932,12 @@ new_cookie_func(void *data,
 
   if (value) {
     // check that the value is unique
-    if (get_cookie_func(data, value, 0) >= 0) return -1;
+    if (get_cookie_func(data, value, 0LL, 0) >= 0) return -1;
   } else {
     // generate a random unique value
     while (1) {
       if (!(value = random_u64())) continue;
-      if (get_cookie_func(data, value, 0) < 0) break;
+      if (get_cookie_func(data, value, 0LL, 0) < 0) break;
     }
   }
 
@@ -922,6 +953,78 @@ new_cookie_func(void *data,
   c->ip = *pip;
   c->ssl = ssl_flag;
   c->cookie = value;
+  c->expire = expire;
+  c->contest_id = contest_id;
+  c->locale_id = locale_id;
+  c->priv_level = priv_level;
+  c->role = role;
+  c->recovery = recovery;
+  c->team_login = team_login;
+  xml_link_node_last(cs, &c->b);
+  userlist_cookie_hash_add(ul, c);
+
+  if (p_cookie) *p_cookie = c;
+
+  state->dirty = 1;
+  return 0;
+}
+
+static int
+new_cookie_2_func(
+        void *data,
+        int user_id,
+        const ej_ip_t *pip,
+        int ssl_flag,
+        ej_cookie_t value,
+        ej_cookie_t client_key,
+        time_t expire,
+        int contest_id,
+        int locale_id,
+        int priv_level,
+        int role,
+        int recovery,
+        int team_login,
+        const struct userlist_cookie **p_cookie)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct userlist_list *ul = state->userlist;
+  struct userlist_user *u;
+  struct userlist_cookie *c;
+  struct xml_tree *cs;
+
+  if (user_id <= 0 || user_id >= ul->user_map_size
+      || !(u = ul->user_map[user_id]))
+    return -1;
+
+  if (value) {
+    // check that the value is unique
+    if (get_cookie_func(data, value, 0LL, 0) >= 0) return -1;
+  } else {
+    // generate a random unique value
+    while (1) {
+      if (!(value = random_u64())) continue;
+      if (get_cookie_func(data, value, 0LL, 0) < 0) break;
+    }
+  }
+
+  if (!client_key) {
+    client_key = random_u64();
+    // FIXME: check for uniqueness
+  }
+
+  if (!expire) expire = time(0) + 24 * 60 * 60;
+
+  if (!(cs = u->cookies)) {
+    u->cookies = cs = userlist_node_alloc(USERLIST_T_COOKIES);
+    xml_link_node_last(&u->b, cs);
+  }
+
+  c = (struct userlist_cookie*) userlist_node_alloc(USERLIST_T_COOKIE);
+  c->user_id = user_id;
+  c->ip = *pip;
+  c->ssl = ssl_flag;
+  c->cookie = value;
+  c->client_key = client_key;
   c->expire = expire;
   c->contest_id = contest_id;
   c->locale_id = locale_id;
@@ -4185,6 +4288,31 @@ get_next_user_id_func(
 
   if (p_user_id) *p_user_id = user_id;
   return 0;
+}
+
+static int
+get_client_key_func(
+        void *data,
+        ej_cookie_t client_key,
+        const struct userlist_cookie **p_cookie)
+{
+  struct uldb_xml_state *state = (struct uldb_xml_state*) data;
+  struct userlist_list *ul = state->userlist;
+  const struct userlist_cookie *c = 0;
+
+  if (!ul->client_key_hash_table) return -1;
+  int i = client_key % ul->client_key_hash_size;
+  while ((c = ul->client_key_hash_table[i]) && c->client_key != client_key) {
+    i = (i + ul->client_key_hash_step) % ul->client_key_hash_size;
+  }
+
+  if (c) {
+    if (p_cookie) *p_cookie = c;
+    return 0;
+  } else {
+    if (p_cookie) *p_cookie = 0;
+    return -1;
+  }
 }
 
 /*

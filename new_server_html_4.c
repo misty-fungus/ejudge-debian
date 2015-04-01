@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 7467 2013-10-22 08:16:07Z cher $ */
+/* $Id: new_server_html_4.c 7623 2013-11-23 19:25:40Z cher $ */
 
 /* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -43,6 +43,7 @@
 #include "ejudge_cfg.h"
 #include "errlog.h"
 #include "prepare_dflt.h"
+#include "ej_uuid.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -126,15 +127,21 @@ cmd_login(
 
   if (phr->role == USER_ROLE_CONTESTANT) {
     r = userlist_clnt_login(ul_conn, ULS_TEAM_CHECK_USER,
-                            &phr->ip, phr->ssl_flag, phr->contest_id,
+                            &phr->ip, phr->client_key,
+                            phr->ssl_flag, phr->contest_id,
                             phr->locale_id, login, password,
-                            &phr->user_id, &phr->session_id,
+                            &phr->user_id,
+                            &phr->session_id,
+                            &phr->client_key,
                             &phr->name);
   } else {
     r = userlist_clnt_priv_login(ul_conn, ULS_PRIV_CHECK_USER,
-                                 &phr->ip, phr->ssl_flag, phr->contest_id,
+                                 &phr->ip, phr->client_key,
+                                 phr->ssl_flag, phr->contest_id,
                                  phr->locale_id, phr->role, login,
-                                 password, &phr->user_id, &phr->session_id,
+                                 password, &phr->user_id,
+                                 &phr->session_id,
+                                 &phr->client_key,
                                  0, &phr->name);
   }
 
@@ -172,7 +179,7 @@ cmd_login(
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
   }
 
-  ns_get_session(phr->session_id, 0);
+  ns_get_session(phr->session_id, phr->client_key, 0);
   fprintf(fout, "%016llx\n", phr->session_id);
 
  cleanup:
@@ -189,7 +196,8 @@ cmd_logout(
   if (ns_open_ul_connection(phr->fw_state) < 0)
     return -NEW_SRV_ERR_USERLIST_SERVER_DOWN;
   userlist_clnt_delete_cookie(ul_conn, phr->user_id, phr->contest_id,
-                              phr->session_id);
+                              phr->session_id,
+                              phr->client_key);
   ns_remove_session(phr->session_id);
   return 0;
 }
@@ -635,9 +643,7 @@ cmd_run_operation(
     retval = ns_write_user_run_status(cs, fout, run_id);
     break;
   case NEW_SRV_ACTION_DUMP_SOURCE:
-    src_flags = archive_make_read_path(cs, src_path, sizeof(src_path),
-                                       global->run_archive_dir, run_id,
-                                       0, 1);
+    src_flags = serve_make_source_read_path(cs, src_path, sizeof(src_path), &re);
     if (src_flags < 0) FAIL(NEW_SRV_ERR_SOURCE_NONEXISTANT);
     if (generic_read_file(&src_text, 0, &src_len, src_flags,0,src_path, "") < 0)
       FAIL(NEW_SRV_ERR_DISK_READ_ERROR);
@@ -647,9 +653,7 @@ cmd_run_operation(
   case NEW_SRV_ACTION_DUMP_REPORT:
     if (!run_is_report_available(re.status))
       FAIL(NEW_SRV_ERR_REPORT_UNAVAILABLE);
-    src_flags = archive_make_read_path(cs, src_path, sizeof(src_path),
-                                       global->xml_report_archive_dir,
-                                       run_id, 0, 1);
+    src_flags = serve_make_xml_report_read_path(cs, src_path, sizeof(src_path), &re);
     if (src_flags < 0) {
       src_flags = archive_make_read_path(cs, src_path, sizeof(src_path),
                                          global->report_archive_dir,
@@ -1053,28 +1057,36 @@ cmd_submit_run(
   }
 
   gettimeofday(&precise_time, 0);
+  ruint32_t run_uuid[4];
+  int store_flags = 0;
+  ej_uuid_generate(run_uuid);
+  if (global->uuid_run_store > 0 && run_get_uuid_hash_state(cs->runlog_state) >= 0 && ej_uuid_is_nonempty(run_uuid)) {
+    store_flags = 1;
+  }
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
-                          run_size, shaval, NULL,
+                          run_size, shaval, run_uuid,
                           &phr->ip, phr->ssl_flag,
                           phr->locale_id, phr->user_id,
                           prob->id, lang_id, eoln_type,
-                          variant, hidden_flag, mime_type);
+                          variant, hidden_flag, mime_type, store_flags);
   if (run_id < 0)
     FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
   serve_move_files_to_insert_run(cs, run_id);
-                          
-  arch_flags = archive_make_write_path(cs, run_path, sizeof(run_path),
-                                       global->run_archive_dir, run_id,
-                                       run_size, 0, 0);
+
+  if (store_flags == 1) {
+    arch_flags = uuid_archive_prepare_write_path(cs, run_path, sizeof(run_path),
+                                                 run_uuid, run_size, DFLT_R_UUID_SOURCE, 0, 0);
+  } else {
+    arch_flags = archive_prepare_write_path(cs, run_path, sizeof(run_path),
+                                            global->run_archive_dir, run_id,
+                                            run_size, NULL, 0, 0);
+  }
   if (arch_flags < 0) {
     run_undo_add_record(cs->runlog_state, run_id);
     FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
   }
-  if (archive_dir_prepare(cs, global->run_archive_dir, run_id, 0, 0) < 0) {
-    run_undo_add_record(cs->runlog_state, run_id);
-    FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
-  }
+
   if (generic_write_file(run_text, run_size, arch_flags, 0, run_path, "") < 0) {
     run_undo_add_record(cs->runlog_state, run_id);
     FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
@@ -1084,12 +1096,12 @@ cmd_submit_run(
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)
         || lang->disable_auto_testing || lang->disable_testing) {
-      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_PENDING,
                         "  Testing disabled for this problem or language");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
     } else {
-      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_COMPILING, NULL);
       if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
                                      run_id, phr->user_id,
@@ -1099,19 +1111,19 @@ cmd_submit_run(
                                      lang->compiler_env,
                                      0, prob->style_checker_cmd,
                                      prob->style_checker_env,
-                                     -1, 0, 0, prob, lang, 0)) < 0) {
+                                     -1, 0, 0, prob, lang, 0, run_uuid, store_flags)) < 0) {
         serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       }
     }
   } else if (prob->manual_checking > 0) {
     // manually tested outputs
     if (prob->check_presentation <= 0) {
-      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_ACCEPTED,
                         "  This problem is checked manually");
       run_change_status_4(cs->runlog_state, run_id, RUN_ACCEPTED);
     } else {
-      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_COMPILING, NULL);
       if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
         if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
@@ -1126,21 +1138,21 @@ cmd_submit_run(
                                        0 /* priority_adjustment */,
                                        0 /* notify flag */,
                                        prob, NULL /* lang */,
-                                       0 /* no_db_flag */)) < 0) {
+                                       0 /* no_db_flag */, run_uuid, store_flags)) < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
       } else {
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0) < 0)
+                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }
   } else {
     if (prob->disable_auto_testing > 0
         || (prob->disable_testing > 0 && prob->enable_compilation <= 0)) {
-      serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+      serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_PENDING,
                         "  Testing disabled for this problem");
       run_change_status_4(cs->runlog_state, run_id, RUN_PENDING);
@@ -1154,14 +1166,14 @@ cmd_submit_run(
       if (px && px->ans_num > 0) {
         struct run_entry re;
         run_get_entry(cs->runlog_state, run_id, &re);
-        serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+        serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_RUNNING, NULL);
         serve_judge_built_in_problem(ejudge_config, cs, cnts, run_id, 1 /* judge_id */,
                                      variant, cs->accepting_mode, &re,
                                      prob, px, phr->user_id, &phr->ip,
                                      phr->ssl_flag);
       } else if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-        serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+        serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_COMPILING, NULL);
         if ((r = serve_compile_request(cs, run_text, run_size, global->contest_id,
                                        run_id, phr->user_id, 0 /* lang_id */, variant,
@@ -1175,16 +1187,16 @@ cmd_submit_run(
                                        0 /* priority_adjustment */,
                                        0 /* notify flag */,
                                        prob, NULL /* lang */,
-                                       0 /* no_db_flag */)) < 0) {
+                                       0 /* no_db_flag */, run_uuid, store_flags)) < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
       } else {
-        serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+        serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_RUNNING, NULL);
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0) < 0)
+                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }
@@ -1901,9 +1913,12 @@ cmd_reload_server_2(
       FAIL(NEW_SRV_ERR_USERLIST_SERVER_DOWN);
 
     r = userlist_clnt_priv_login(ul_conn, ULS_PRIV_CHECK_PASSWORD,
-                                 &phr->ip, phr->ssl_flag, 0,
+                                 &phr->ip, phr->client_key,
+                                 phr->ssl_flag, 0,
                                  0, 0, login,
-                                 password, &phr->user_id, &phr->session_id,
+                                 password, &phr->user_id,
+                                 &phr->session_id,
+                                 &phr->client_key,
                                  0, &phr->name);
     if (r < 0) {
       switch (-r) {
@@ -2024,6 +2039,7 @@ new_server_cmd_handler(FILE *fout, struct http_request_info *phr)
   if ((r = userlist_clnt_get_cookie(ul_conn, ULS_FETCH_COOKIE,
                                     &phr->ip, phr->ssl_flag,
                                     phr->session_id,
+                                    phr->client_key,
                                     &phr->user_id, &phr->contest_id,
                                     &phr->locale_id, 0, &phr->role, 0, 0, 0,
                                     &phr->login, &phr->name)) < 0) {

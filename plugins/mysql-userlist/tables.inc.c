@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: tables.inc.c 7356 2013-02-09 08:40:11Z cher $ */
+/* $Id: tables.inc.c 7590 2013-11-13 17:28:39Z cher $ */
 
 /* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -22,7 +22,7 @@ enum { COOKIE_WIDTH = 12 };
 static struct common_mysql_parse_spec cookie_spec[COOKIE_WIDTH] =
 {
   //[0]       cookie BIGINT UNSIGNED NOT NULL PRIMARY KEY,
-  { 0, 'q', "cookie", COOKIE_OFFSET(cookie), 0 },
+  { 0, 'u', "cookie", COOKIE_OFFSET(cookie), 0 },
   //[1]       user_id INT NOT NULL,
   { 0, 'd', "user_id", COOKIE_OFFSET(user_id), 0 },
   //[2]       contest_id INT UNSIGNED NOT NULL,

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: uldb_plugin.h 7356 2013-02-09 08:40:11Z cher $ */
+/* $Id: uldb_plugin.h 7619 2013-11-23 11:38:42Z cher $ */
 
 #ifndef __ULDB_PLUGIN_H__
 #define __ULDB_PLUGIN_H__
@@ -36,7 +36,7 @@ struct contest_desc;
 struct userlist_members;
 
 /* version of the plugin interface structure */
-#define ULDB_PLUGIN_IFACE_VERSION 1
+#define ULDB_PLUGIN_IFACE_VERSION 2
 
 struct uldb_plugin_iface
 {
@@ -91,11 +91,15 @@ struct uldb_plugin_iface
   // remove a user
   int (*remove_user)(void *, int);
   // find a cookie
-  int (*get_cookie)(void *, ej_cookie_t, const struct userlist_cookie **);
+  int (*get_cookie)(void *,
+                    ej_cookie_t,
+                    ej_cookie_t,
+                    const struct userlist_cookie **);
   // create a new cookie
   int (*new_cookie)(void *, int user_id,
                     const ej_ip_t *pip, int ssl_flag,
-                    ej_cookie_t cookie, time_t,
+                    ej_cookie_t cookie,
+                    time_t,
                     int contest_id,
                     int locale_id,
                     int priv_level,
@@ -248,6 +252,26 @@ struct uldb_plugin_iface
   int (*get_prev_user_id)(void *, int contest_id, int group_id, int user_id, const unsigned char *filter, int *p_user_id);
   // get the next user
   int (*get_next_user_id)(void *, int contest_id, int group_id, int user_id, const unsigned char *filter, int *p_user_id);
+  // create a new 128-bit cookie
+  int (*new_cookie_2)(
+        void *,
+        int user_id,
+        const ej_ip_t *pip,
+        int ssl_flag,
+        ej_cookie_t cookie,
+        ej_cookie_t client_key,
+        time_t,
+        int contest_id,
+        int locale_id,
+        int priv_level,
+        int role,
+        int recovery,
+        int team_login,
+        const struct userlist_cookie **);
+  // find a client key, returns any cookie which matches the given client_key
+  int (*get_client_key)(void *,
+                        ej_cookie_t,
+                        const struct userlist_cookie **);
 };
 
 /* default plugin: compiled into userlist-server */

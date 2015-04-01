@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: userlist.h 7356 2013-02-09 08:40:11Z cher $ */
+/* $Id: userlist.h 7598 2013-11-18 04:37:31Z cher $ */
 
 #ifndef __USERLIST_H__
 #define __USERLIST_H__
@@ -203,6 +203,7 @@ enum
     USERLIST_A_GROUP_NAME,
     USERLIST_A_DESCRIPTION,
     USERLIST_A_USER_ID,
+    USERLIST_A_CLIENT_KEY,
 
     USERLIST_LAST_ATTN,
   };
@@ -399,11 +400,12 @@ struct userlist_cookie
 {
   struct xml_tree b;
 
-  int user_id;
   ej_ip_t ip;
-  int ssl;
-  ej_cookie_t cookie;
+  ej_cookie_t cookie;           /* cookie + client_key are 128-bit */
+  ej_cookie_t client_key;
   time_t expire;
+  int user_id;
+  int ssl;
   int contest_id;
   int locale_id;
   int priv_level;
@@ -594,6 +596,13 @@ struct userlist_list
   size_t cookie_thresh;
   size_t cookie_cur_fill;
   struct userlist_cookie **cookie_hash_table;
+
+  /* client_key information */
+  size_t client_key_hash_size;
+  size_t client_key_hash_step;
+  size_t client_key_thresh;
+  size_t client_key_cur_fill;
+  struct userlist_cookie **client_key_hash_table;
 
   /* user group information */
   struct xml_tree *groups_node;

@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-setup.c 7090 2012-10-25 19:58:21Z cher $ */
+/* $Id: ejudge-setup.c 7658 2013-12-07 18:02:11Z cher $ */
 
-/* Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -65,6 +65,8 @@ static int utf8_mode;
 #endif
 
 #define DEFAULT_SERIALIZATION_KEY 22723
+#define MYSQL_PASSWORD_FILE_NAME "mysql_password"
+#define CAPABILITIES_FILE_NAME   "capabilities.xml"
 
 static unsigned char config_socket_path[PATH_MAX];
 static int config_socket_path_modified;
@@ -131,8 +133,13 @@ static unsigned char config_server_main_url[256];
 static unsigned char config_serialization_key[64];
 static unsigned char config_system_uid[256];
 static unsigned char config_system_gid[256];
-static unsigned char config_default_clardb_plugin[256];
-static unsigned char config_default_rundb_plugin[256];
+
+static unsigned char config_mysql_password_path[PATH_MAX];
+static int config_mysql_enable_for_users;
+static int config_mysql_enable_for_contests;
+static unsigned char config_mysql_database[256];
+static unsigned char config_mysql_user[256];
+static unsigned char config_mysql_password[256];
 
 static int system_uid;
 static int system_gid;
@@ -214,8 +221,6 @@ enum
   SET_LINE_SER_KEY,
   SET_LINE_SYSTEM_UID,
   SET_LINE_SYSTEM_GID,
-  SET_LINE_DEFAULT_CLARDB_PLUGIN,
-  SET_LINE_DEFAULT_RUNDB_PLUGIN,
   SET_LINE_WORKDISK_FLAG,
   SET_LINE_WORKDISK_SIZE,
   SET_LINE_INSTALL_FLAG,
@@ -423,6 +428,12 @@ static const struct path_edit_item path_edit_items[] =
 #endif /* EJUDGE_RUN_PATH */
   },
 };
+
+static const unsigned char *
+unparse_bool(int value)
+{
+  return value?"yes":"no";
+}
 
 static void
 initialize_config_var(int idx)
@@ -1398,6 +1409,263 @@ do_identity_menu(int *p_cur_item)
   return ret_val;
 }
 
+enum
+{
+  MYSQL_LINE_RETURN,
+  MYSQL_LINE_SETTINGS,
+  MYSQL_LINE_ENABLE_FOR_USERS,
+  MYSQL_LINE_ENABLE_FOR_CONTESTS,
+  MYSQL_LINE_DATABASE,
+  MYSQL_LINE_USER,
+  MYSQL_LINE_PASSWORD,
+
+  MYSQL_LINE_LAST,
+};
+
+static void
+initialize_mysql_vars(
+        const unsigned char *mysql_database,
+        const unsigned char *mysql_user,
+        const unsigned char *mysql_password)
+{
+#if CONF_HAS_MYSQL - 0 == 0
+  return 0;
+#endif
+
+  config_mysql_enable_for_users = 1;
+  config_mysql_enable_for_contests = 1;
+  if (!mysql_database || !*mysql_database) mysql_database = "ejudge";
+  snprintf(config_mysql_database, sizeof(config_mysql_database), "%s", mysql_database);
+  if (!mysql_user || !*mysql_user) mysql_user = "ejudge";
+  snprintf(config_mysql_user, sizeof(config_mysql_user), "%s", mysql_user);
+  if (!mysql_password || !*mysql_password) mysql_password = "ejudge";
+  snprintf(config_mysql_password, sizeof(config_mysql_password), "%s", mysql_password);
+}
+
+static int
+do_mysql_menu(int *p_cur_item)
+{
+#if CONF_HAS_MYSQL - 0 == 0
+  return 0;
+#endif
+
+  int ret_val = 0;
+  int item_count = MYSQL_LINE_LAST;
+  char **descs = calloc(item_count, sizeof(*descs));
+  asprintf(&descs[MYSQL_LINE_RETURN], "Return to upper-level menu");
+  asprintf(&descs[MYSQL_LINE_SETTINGS], "*** MySQL settings ***");
+
+  for (int i = 0; i < item_count; ++i) {
+    switch (i) {
+    case MYSQL_LINE_RETURN:
+    case MYSQL_LINE_SETTINGS:
+      break;
+    case MYSQL_LINE_ENABLE_FOR_USERS:
+      asprintf(&descs[i], "%-20.20s %s: %-53.53s",
+               "Enable for user database", " ", unparse_bool(config_mysql_enable_for_users));
+      break;
+    case MYSQL_LINE_ENABLE_FOR_CONTESTS:
+      asprintf(&descs[i], "%-20.20s %s: %-53.53s",
+               "Enable for contests", " ", unparse_bool(config_mysql_enable_for_contests));
+      break;
+    case MYSQL_LINE_DATABASE:
+      asprintf(&descs[i], "%-20.20s %s: %-53.53s",
+               "Database name", " ", config_mysql_database);
+      break;
+    case MYSQL_LINE_USER:
+      asprintf(&descs[i], "%-20.20s %s: %-53.53s",
+               "User name", " ", config_mysql_user);
+      break;
+    case MYSQL_LINE_PASSWORD:
+      asprintf(&descs[i], "%-20.20s %s: %-53.53s",
+               "User password", " ", config_mysql_password);
+      break;
+    default:
+      SWERR(("do_mysql_menu: unhandled index i == %d", i));
+    }
+  }
+
+  ITEM **items = calloc(item_count + 1, sizeof(*items));
+  for (int i = 0; i < item_count; ++i) {
+    items[i] = new_item(descs[i], 0);
+  }
+
+  MENU *menu = new_menu(items);
+  set_menu_back(menu, COLOR_PAIR(1));
+  set_menu_fore(menu, COLOR_PAIR(3));
+  WINDOW *out_win = newwin(LINES - 2, COLS, 1, 0);
+  WINDOW *in_win = newwin(LINES - 4, COLS - 2, 2, 1);
+  wattrset(out_win, COLOR_PAIR(1));
+  wbkgdset(out_win, COLOR_PAIR(1));
+  wattrset(in_win, COLOR_PAIR(1));
+  wbkgdset(in_win, COLOR_PAIR(1));
+  wclear(in_win);
+  wclear(out_win);
+  box(out_win, 0, 0);
+  PANEL *out_pan = new_panel(out_win);
+  PANEL *in_pan = new_panel(in_win);
+  set_menu_win(menu, in_win);
+  set_menu_format(menu, LINES - 4, 0);
+
+  int cur_item = *p_cur_item;
+  if (cur_item < 0) cur_item = 0;
+  if (cur_item >= item_count) cur_item = item_count - 1;
+  int first_row = cur_item - (LINES - 4)/2;
+  if (first_row + LINES - 4 > item_count) first_row = item_count - (LINES - 4);
+  if (first_row < 0) first_row = 0;
+  set_top_row(menu, first_row);
+  set_current_item(menu, items[cur_item]);
+
+  while (1) {
+    mvwprintw(stdscr, 0, 0, "Ejudge %s configurator > MySQL settings",
+              compile_version);
+    wclrtoeol(stdscr);
+    ncurses_print_help("Q - quit, Enter - edit");
+    show_panel(out_pan);
+    show_panel(in_pan);
+    post_menu(menu);
+    update_panels();
+    doupdate();
+
+    int c = 0;
+    while (1) {
+      c = getch();
+      int cmd = -1;
+      switch (c) {
+        /*
+      case KEY_BACKSPACE: case KEY_DC: case 127: case 8:
+      case 'd': case 'D': case '÷' & 255: case '×' & 255:
+        c = 'd';
+        goto menu_done;
+        */
+      case 'q': case 'Q': case 'G' & 31:
+        c = 'q';
+        goto menu_done;
+      case '\n': case '\r':
+        c = '\n';
+        goto menu_done;
+      case KEY_UP: case KEY_LEFT:
+        cmd = REQ_UP_ITEM;
+        break;
+      case KEY_DOWN: case KEY_RIGHT:
+        cmd = REQ_DOWN_ITEM;
+        break;
+      case KEY_HOME:
+        cmd = REQ_FIRST_ITEM;
+        break;
+      case KEY_END:
+        cmd = REQ_LAST_ITEM;
+        break;
+      case KEY_NPAGE:
+        {
+          int i = item_index(current_item(menu));
+          if (i + LINES - 4 >= item_count) cmd = REQ_LAST_ITEM;
+          else cmd = REQ_SCR_DPAGE;
+          break;
+        }
+      case KEY_PPAGE:
+        {
+          int i = item_index(current_item(menu));
+          if (i - (LINES - 4) < 0) cmd = REQ_FIRST_ITEM;
+          else cmd = REQ_SCR_UPAGE;
+          break;
+        }
+      }
+      if (cmd != -1) {
+        menu_driver(menu, cmd);
+        update_panels();
+        doupdate();
+      }
+    }
+
+  menu_done: ;
+    int index = item_index(current_item(menu));
+    if (c == 'q') {
+      cur_item = index;
+      break;
+    }
+    if (c == '\n') {
+      if (index == MYSQL_LINE_RETURN) {
+        cur_item = index;
+        break;
+      }
+      if (index == MYSQL_LINE_SETTINGS) continue;
+      if (index == MYSQL_LINE_ENABLE_FOR_USERS) {
+        int j = ncurses_yesno(0, "\\begin{center}\nUse MySQL for user database?\n\\end{center}\n");
+        if (j < 0) continue;
+        config_mysql_enable_for_users = j;
+        cur_item = index;
+        ret_val = 1;
+        break;
+      }
+      if (index == MYSQL_LINE_ENABLE_FOR_CONTESTS) {
+        int j = ncurses_yesno(0, "\\begin{center}\nUse MySQL for contests database?\n\\end{center}\n");
+        if (j < 0) continue;
+        config_mysql_enable_for_contests = j;
+        cur_item = index;
+        ret_val = 1;
+        break;
+      }
+      if (index == MYSQL_LINE_DATABASE) {
+        unsigned char buf[1024];
+        snprintf(buf, sizeof(buf), "%s", config_mysql_database);
+        int j = ncurses_edit_string(LINES / 2, COLS, "MySQL database name\n",
+                                    buf, sizeof(buf), utf8_mode);
+        if (j < 0) continue;
+        snprintf(config_mysql_database, sizeof(config_mysql_database), "%s", buf);
+        cur_item = index;
+        ret_val = 1;
+        break;
+      }
+      if (index == MYSQL_LINE_USER) {
+        unsigned char buf[1024];
+        snprintf(buf, sizeof(buf), "%s", config_mysql_user);
+        int j = ncurses_edit_string(LINES / 2, COLS, "MySQL user name\n",
+                                    buf, sizeof(buf), utf8_mode);
+        if (j < 0) continue;
+        snprintf(config_mysql_user, sizeof(config_mysql_user), "%s", buf);
+        cur_item = index;
+        ret_val = 1;
+        break;
+      }
+      if (index == MYSQL_LINE_PASSWORD) {
+        unsigned char buf[1024];
+        snprintf(buf, sizeof(buf), "%s", config_mysql_password);
+        int j = ncurses_edit_string(LINES / 2, COLS, "MySQL user password\n",
+                                    buf, sizeof(buf), utf8_mode);
+        if (j < 0) continue;
+        snprintf(config_mysql_password, sizeof(config_mysql_password), "%s", buf);
+        cur_item = index;
+        ret_val = 1;
+        break;
+      }
+    }
+  }
+
+  wmove(stdscr, 0, 0);
+  wclrtoeol(stdscr);
+
+  if (in_pan) del_panel(in_pan);
+  if (out_pan) del_panel(out_pan);
+  if (out_win) delwin(out_win);
+  if (in_win) delwin(in_win);
+  if (menu) free_menu(menu);
+  if (items) {
+    for (int i = 0; i < item_count; ++i)
+      if (items[i])
+        free_item(items[i]);
+    xfree(items);
+  }
+  if (descs) {
+    for (int i = 0; i < item_count; ++i)
+      xfree(descs[i]);
+    xfree(descs);
+  }
+
+  *p_cur_item = cur_item;
+  return ret_val;
+}
+
 static const struct path_edit_item set_edit_items[] =
 {
   [SET_LINE_CHARSET] =
@@ -1444,14 +1712,6 @@ static const struct path_edit_item set_edit_items[] =
   [SET_LINE_SYSTEM_GID] =
   {
     "System gid", 0, config_system_gid, sizeof(config_system_gid),
-  },
-  [SET_LINE_DEFAULT_CLARDB_PLUGIN] =
-  {
-    "Default CLARDB plugin", 0, config_default_clardb_plugin, sizeof(config_default_clardb_plugin),
-  },
-  [SET_LINE_DEFAULT_RUNDB_PLUGIN] =
-  {
-    "Default RUNDB plugin", 0, config_default_rundb_plugin, sizeof(config_default_rundb_plugin),
   },
   [SET_LINE_WORKDISK_FLAG] =
   {
@@ -1543,22 +1803,6 @@ initialize_setting_var(int idx)
     snprintf(config_system_gid, sizeof(config_system_gid), "%s",
              system_group);
     break;
-  case SET_LINE_DEFAULT_CLARDB_PLUGIN:
-#if 0 //CONF_HAS_MYSQL - 0 == 1
-    snprintf(config_default_clardb_plugin, sizeof(config_default_clardb_plugin), "%s",
-             "mysql");
-#else
-    config_default_clardb_plugin[0] = 0;
-#endif
-    break;
-  case SET_LINE_DEFAULT_RUNDB_PLUGIN:
-#if 0 // CONF_HAS_MYSQL - 0 == 1
-    snprintf(config_default_rundb_plugin, sizeof(config_default_rundb_plugin), "%s",
-             "mysql");
-#else
-    config_default_rundb_plugin[0] = 0;
-#endif
-    break;
   case SET_LINE_WORKDISK_FLAG:
     snprintf(config_workdisk_flag, sizeof(config_workdisk_flag),
              "%s", "no");
@@ -1593,8 +1837,6 @@ is_valid_setting_var(int idx)
   case SET_LINE_WORKDISK_FLAG:
   case SET_LINE_WORKDISK_SIZE:
   case SET_LINE_INSTALL_FLAG:
-  case SET_LINE_DEFAULT_CLARDB_PLUGIN:
-  case SET_LINE_DEFAULT_RUNDB_PLUGIN:
     return 1;
   case SET_LINE_REG_EMAIL:
     if (!is_valid_email_address(set_edit_items[idx].buf)) return 0;
@@ -1672,8 +1914,6 @@ do_settings_menu(int *p_cur_item)
     case SET_LINE_SERVER_NAME:
     case SET_LINE_SERVER_NAME_EN:
     case SET_LINE_SERVER_MAIN_URL:
-    case SET_LINE_DEFAULT_CLARDB_PLUGIN:
-    case SET_LINE_DEFAULT_RUNDB_PLUGIN:
     case SET_LINE_SYSTEM_UID:
     case SET_LINE_SYSTEM_GID:
     case SET_LINE_WORKDISK_FLAG:
@@ -3100,6 +3340,7 @@ generate_ejudge_xml(FILE *f)
     fprintf(f, "  <server_main_url>%s</server_main_url>\n",
             config_server_main_url);
   }
+  fprintf(f, "  <caps_file>%s</caps_file>\n", CAPABILITIES_FILE_NAME);
   fprintf(f,
           "  <user_map>\n"
           "    <map system_user=\"%s\" ejudge_user=\"%s\"/>\n"
@@ -3128,13 +3369,11 @@ generate_ejudge_xml(FILE *f)
 
   fprintf(f, "\n");
 
-  if (config_default_clardb_plugin[0]) {
+  if (config_mysql_enable_for_contests > 0) {
     fprintf(f, "  <default_clardb_plugin>%s</default_clardb_plugin>\n",
-            config_default_clardb_plugin);
-  }
-  if (config_default_rundb_plugin[0]) {
+            "mysql");
     fprintf(f, "  <default_rundb_plugin>%s</default_rundb_plugin>\n",
-            config_default_rundb_plugin);
+            "mysql");
   }
 
   // plugin configurations
@@ -3148,9 +3387,38 @@ generate_ejudge_xml(FILE *f)
           "       <config>\n"
           "         <data_dir>%s/new-serve-db</data_dir>\n"
           "       </config>\n"
-          "    </plugin>\n"
-          "  </plugins>\n\n",
+          "    </plugin>\n",
           tmppath);
+  if (config_mysql_enable_for_users > 0 || config_mysql_enable_for_contests > 0) {
+    if (!config_mysql_database[0]) {
+      snprintf(config_mysql_database, sizeof(config_mysql_database), "%s", "ejudge");
+    }
+    fprintf(f, 
+            "    <plugin type=\"common\" name=\"mysql\" load=\"yes\">\n"
+            "      <config>\n"
+            "        <password_file>%s</password_file>\n"
+            "        <database>%s</database>\n"
+            "      </config>\n"
+            "    </plugin>\n",
+            MYSQL_PASSWORD_FILE_NAME,
+            config_mysql_database);
+  }
+  if (config_mysql_enable_for_users > 0) {
+    fprintf(f,
+            "    <plugin type=\"uldb\" name=\"mysql\" load=\"yes\" default=\"yes\">\n"
+            "      <config/>\n"
+            "    </plugin>\n");
+  }
+  if (config_mysql_enable_for_contests > 0) {
+    fprintf(f,
+            "    <plugin type=\"cldb\" name=\"mysql\" load=\"yes\">\n"
+            "      <config/>\n"
+            "    </plugin>\n"
+            "    <plugin type=\"rldb\" name=\"mysql\" load=\"yes\">\n"
+            "      <config/>\n"
+            "    </plugin>\n");
+  }
+  fprintf(f, "  </plugins>\n\n");
 
   cur = &path_edit_items[PATH_LINE_SOCKET_PATH];
   if (cur->default_value && !strcmp(cur->default_value, cur->buf)) {
@@ -3208,6 +3476,46 @@ generate_ejudge_xml(FILE *f)
     fprintf(f, "  <!-- The default value is built-in -->\n");
     fprintf(f,"  <!--<contests_home_dir>%s</contests_home_dir>-->\n",cur->buf);
   }
+
+  fprintf(f, "</config>\n");
+}
+
+static void
+generate_mysql_password(FILE *f)
+{
+  if (!config_mysql_user[0]) {
+    snprintf(config_mysql_user, sizeof(config_mysql_user), "%s", "ejudge");
+  }
+  if (!config_mysql_password[0]) {
+    snprintf(config_mysql_password, sizeof(config_mysql_password), "%s", "ejudge");
+  }
+  fprintf(f, "%s\n%s\n", config_mysql_user, config_mysql_password);
+}
+
+static void
+generate_capabilities_xml(FILE *f)
+{
+  unsigned char date_buf[64];
+
+  generate_current_date(date_buf, sizeof(date_buf));
+
+  if (config_charset[0]) {
+    fprintf(f, "<?xml version=\"1.0\" encoding=\"%s\" ?>\n", config_charset);
+  } else {
+    fprintf(f, "<?xml version=\"1.0\" ?>\n");
+  }
+  fprintf(f, "<!-- Generated by ejudge-setup, version %s -->\n",
+          compile_version);
+  fprintf(f, "<!-- Generation date: %s -->\n", date_buf);
+
+  fprintf(f, "<config>\n");
+
+  fprintf(f,
+          "  <user_map>\n"
+          "  </user_map>\n");
+  fprintf(f,
+          "  <caps>\n"
+          "  </caps>\n");
 
   fprintf(f, "</config>\n");
 }
@@ -3653,6 +3961,56 @@ generate_install_script(FILE *f)
   fprintf(f, "fi\n");
   free(txt_ptr); txt_ptr = 0; txt_len = 0;
 
+  {
+    // capabilities.xml
+    unsigned char tmp[PATH_MAX];
+    unsigned char capabilities_path[PATH_MAX];
+    os_rDirName(config_ejudge_xml_path, tmp, sizeof(tmp));
+    snprintf(capabilities_path, sizeof(capabilities_path), "%s/%s", tmp, CAPABILITIES_FILE_NAME);
+
+    fprintf(f, "if [ -f \"%s\" ]\n"
+            "then\n"
+            "echo \"%s already exists, not overwriting\" 1>&2\n"
+            "else\n", capabilities_path, capabilities_path);
+    floc = open_memstream(&txt_ptr, &txt_len);
+    generate_capabilities_xml(floc);
+    close_memstream(floc); floc = 0;
+    snprintf(fpath, sizeof(fpath), "%s", capabilities_path);
+    fprintf(f, "# copy %s to its location\n", CAPABILITIES_FILE_NAME);
+    fprintf(f, "cat << _EOF | %s\n", uudecode_path);
+    base64_encode_file(f, fpath, 0664, txt_ptr);
+    fprintf(f, "_EOF\n");
+    gen_check_retcode(f, fpath);
+    gen_cmd_run(f, "chown %s:%s \"%s\"", config_system_uid, config_system_gid,
+                fpath);
+    fprintf(f, "fi\n");
+    free(txt_ptr); txt_ptr = 0; txt_len = 0;
+  }
+
+  if (config_mysql_enable_for_users > 0 && config_mysql_enable_for_contests) {
+    // mysql_password
+    unsigned char tmp[PATH_MAX];
+    os_rDirName(config_ejudge_xml_path, tmp, sizeof(tmp));
+    snprintf(config_mysql_password_path, sizeof(config_mysql_password_path), "%s/%s", tmp, MYSQL_PASSWORD_FILE_NAME);
+    fprintf(f, "if [ -f \"%s\" ]\n"
+            "then\n"
+            "echo \"%s already exists, not overwriting\" 1>&2\n"
+            "else\n", config_mysql_password_path, config_mysql_password_path);
+    floc = open_memstream(&txt_ptr, &txt_len);
+    generate_mysql_password(floc);
+    close_memstream(floc); floc = 0;
+    snprintf(fpath, sizeof(fpath), "%s", config_mysql_password_path);
+    fprintf(f, "# copy %s to its location\n", MYSQL_PASSWORD_FILE_NAME);
+    fprintf(f, "cat << _EOF | %s\n", uudecode_path);
+    base64_encode_file(f, fpath, 0600, txt_ptr);
+    fprintf(f, "_EOF\n");
+    gen_check_retcode(f, fpath);
+    gen_cmd_run(f, "chown %s:%s \"%s\"", config_system_uid, config_system_gid,
+                fpath);
+    fprintf(f, "fi\n");
+    free(txt_ptr); txt_ptr = 0; txt_len = 0;
+  }
+
   // userlist.xml
   fprintf(f, "if [ -f \"%s\" ]\n"
           "then\n"
@@ -3864,6 +4222,12 @@ generate_install_script(FILE *f)
   gen_cmd_run(f, "chown -R %s:%s \"%s\"",
               config_system_uid, config_system_gid, config_contest1_home_dir);
 
+  if (config_mysql_enable_for_users > 0) {
+    fprintf(f, "# Import initial user database to MySQL\n");
+    gen_cmd_run(f, "%s/ej-users -u %s -g %s --convert --from-plugin xml --to-plugin mysql",
+                EJUDGE_SERVER_BIN_PATH, config_system_uid, config_system_gid);
+  }
+
   fprintf(f, "# Do probe run of the compile server to create dirs\n");
   gen_cmd_run(f, "%s/ej-compile -u %s -g %s -C \"%s\" -i conf/compile.cfg",
               EJUDGE_SERVER_BIN_PATH, config_system_uid, config_system_gid,
@@ -3987,6 +4351,7 @@ static const unsigned char * const main_menu_items[] =
   "Edit paths",
   "Edit global settings",
   "Edit administrator identity",
+  "Edit MySQL settings",
   "Setup compilers",
   "Preview files",
   "Preview setup script",
@@ -3995,21 +4360,22 @@ static const unsigned char * const main_menu_items[] =
 };
 static const unsigned char * const main_menu_hotkeys[] =
 {
-  "PpúÚ",
-  "SsùÙ",
-  "AaæÆ",
-  "CcóÓ",
-  "VvíÍ",
-  "IiûÛ",
-  "TtåÅ",
-  "QqêÊ",
+  "Pp",
+  "Ss",
+  "Aa",
+  "Mm",
+  "Cc",
+  "Vv",
+  "Ii",
+  "Tt",
+  "Qq",
 };
 static const unsigned char main_menu_help_string[] =
-"P-paths,S-settings,A-admin,C-compilers,I-install,V-preview,Q-quit";
+"P-paths,S-settings,A-admin,M-MySQL,C-compilers,I-install,V-preview,Q-quit";
 static void
 do_main_menu(void)
 {
-  int answer = 7;
+  int answer = 8;
   int cur_paths_item = 0;
   int cur_id_item = 0;
   int cur_settings_item = 0;
@@ -4027,10 +4393,10 @@ do_main_menu(void)
               "The ejudge %s initial setup configuration utility",
               compile_version);
     wclrtoeol(stdscr);
-    answer = ncurses_generic_menu(-1, -1, -1, -1, answer, 8, -1, -1,
+    answer = ncurses_generic_menu(-1, -1, -1, -1, answer, 9, -1, -1,
                                   main_menu_items, main_menu_hotkeys,
                                   main_menu_help_string, "Choose action");
-    if (answer == 7) break;
+    if (answer == 8) break;
     switch (answer) {
     case 0:
       while (do_paths_menu(&cur_paths_item));
@@ -4042,6 +4408,9 @@ do_main_menu(void)
       while (do_identity_menu(&cur_id_item));
       break;
     case 3:
+      while (do_mysql_menu(&cur_id_item));
+      break;
+    case 4:
 
       snprintf(script_in_dir0, sizeof(script_in_dir0), "%s/lang/in",
                config_ejudge_script_dir);
@@ -4051,13 +4420,13 @@ do_main_menu(void)
       while (lang_config_menu(script_dir, script_in_dirs, tmp_work_dir, NULL,
                               header, utf8_mode, &cur_lang_item));
       break;
-    case 4:
+    case 5:
       do_preview_menu();
       break;
-    case 5:
+    case 6:
       preview_install_script();
       break;
-    case 6:
+    case 7:
       save_install_script(0, NULL);
       break;
     }
@@ -4228,6 +4597,7 @@ main(int argc, char **argv)
            EJUDGE_SERVER_BIN_PATH);
   initialize_config_vars();
   initialize_setting_vars();
+  initialize_mysql_vars(NULL, NULL, NULL);
 
   if (batch_mode) {
     snprintf(config_user_id, sizeof(config_user_id), "%d", 1);

@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: edit-userlist.c 7356 2013-02-09 08:40:11Z cher $ */
+/* $Id: edit-userlist.c 7615 2013-11-22 20:37:54Z cher $ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1907,7 +1907,8 @@ do_display_user(unsigned char const *upper, int user_id, int contest_id,
           }
           if (r != 1) goto menu_continue;
           r = userlist_clnt_delete_cookie(server_conn, u->id, contest_id,
-                                          cookie_val);
+                                          cookie_val,
+                                          0 /* FIXME: client_key */);
           if (r < 0) {
             vis_err("Delete failed: %s", userlist_strerror(-r));
             goto menu_continue;

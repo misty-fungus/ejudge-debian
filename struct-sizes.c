@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: struct-sizes.c 6735 2012-04-10 14:15:55Z cher $ */
+/* $Id: struct-sizes.c 7592 2013-11-13 17:32:40Z cher $ */
 
 /* Copyright (C) 2007-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -25,6 +25,7 @@
 #include "super-serve.h"
 #include "compile_packet_priv.h"
 #include "problem_config.h"
+#include "userlist.h"
 
 #include <stdio.h>
 
@@ -41,5 +42,6 @@ int main(void)
   printf("sid_state:             %zu\n", sizeof(struct sid_state));
   printf("compile_packet:        %zu\n", sizeof(struct compile_request_bin_packet));
   printf("problem_config_section:%zu\n", sizeof(struct problem_config_section));
+  printf("userlist_cookie:       %zu\n", sizeof(struct userlist_cookie));
   return 0;
 }

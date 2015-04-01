@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: lookup_cookie.c 7364 2013-02-09 20:19:53Z cher $ */
+/* $Id: lookup_cookie.c 7613 2013-11-22 20:21:36Z cher $ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -18,15 +18,17 @@
 #include "userlist_clnt/private.h"
 
 int
-userlist_clnt_lookup_cookie(struct userlist_clnt *clnt,
-                            const ej_ip_t *origin_ip,
-                            int ssl,
-                            ej_cookie_t cookie,
-                            int *p_user_id,
-                            unsigned char **p_login,
-                            unsigned char **p_name,
-                            int *p_locale_id,
-                            int *p_contest_id)
+userlist_clnt_lookup_cookie(
+        struct userlist_clnt *clnt,
+        const ej_ip_t *origin_ip,
+        int ssl,
+        ej_cookie_t cookie,
+        ej_cookie_t client_key,
+        int *p_user_id,
+        unsigned char **p_login,
+        unsigned char **p_name,
+        int *p_locale_id,
+        int *p_contest_id)
 {
   struct userlist_pk_check_cookie * data;
   struct userlist_pk_login_ok * answer = 0;
@@ -46,6 +48,7 @@ userlist_clnt_lookup_cookie(struct userlist_clnt *clnt,
   data->ssl = ssl;
   //  data->contest_id = contest_id;
   data->cookie = cookie;
+  data->client_key = client_key;
   if ((r = userlist_clnt_send_packet(clnt,len,data)) < 0) return r;
   if ((r = userlist_clnt_read_and_notify(clnt,&anslen,&void_answer)) < 0)
     return r;

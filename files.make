@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files.make 6945 2012-07-06 14:35:48Z cher $
+# $Id: files.make 7592 2013-11-13 17:32:40Z cher $
 
 # Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -274,6 +274,7 @@ COMMON_CFILES=\
  xml_utils/err_top_level.c\
  xml_utils/err_top_level_s.c\
  xml_utils/err_variables.c\
+ xml_utils/full_cookie.c\
  xml_utils/leaf_elem.c\
  xml_utils/parse_bool.c\
  xml_utils/parse_date.c\

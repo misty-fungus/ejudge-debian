@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 7454 2013-10-20 19:14:04Z cher $ */
+/* $Id: problem_config.h 7530 2013-11-02 16:35:00Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
@@ -167,6 +167,7 @@ struct problem_config_section
   char **disable_language;
   char **enable_language;
   char **require;
+  char **provide_ok;
   char **lang_time_adj;
   char **lang_time_adj_millis;
   char **lang_max_vm_size;

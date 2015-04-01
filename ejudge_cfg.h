@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: ejudge_cfg.h 6764 2012-04-24 13:32:53Z cher $ */
+/* $Id: ejudge_cfg.h 7639 2013-11-27 12:48:42Z cher $ */
 
 #ifndef __EJUDGE_CFG_H__
 #define __EJUDGE_CFG_H__ 1
 
-/* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -62,8 +62,10 @@ struct ejudge_cfg
 
   int l10n;
   int serialization_key;
-  int disable_cookie_ip_check;
+  int disable_cookie_ip_check; // ignored since 2.3.29
+  int enable_cookie_ip_check;  // supported since 2.3.29
   int enable_contest_select;
+  int disable_new_users;
 
   // these strings actually point into other strings in XML tree
   unsigned char *socket_path;

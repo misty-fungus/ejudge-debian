@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.unix.in 7396 2013-10-02 08:55:10Z cher $
+# $Id: Makefile.unix.in 7563 2013-11-07 18:01:49Z cher $
 # @configure_input@
 
 # Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
@@ -265,13 +265,13 @@ install: local_install
 	if [ -f "${INSTALLSCRIPT}" ]; then install -m 0755 "${INSTALLSCRIPT}" "${DESTDIR}${bindir}"; fi
 
 ej-compile$(EXESFX) : $(C_OBJECTS)
-	$(LD) $(LDFLAGS) $(C_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB}
+	$(LD) $(LDFLAGS) $(C_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB} ${LIBUUID}
 
 ej-compile-control : $(CC_OBJECTS)
 	$(LD) $(LDFLAGS) $(CC_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB}
 
 ej-run${EXESFX} : $(RUN_OBJECTS)
-	$(LD) $(LDFLAGS) $(RUN_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB} ${LIBZIP}
+	$(LD) $(LDFLAGS) $(RUN_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB} ${LIBZIP} ${LIBUUID}
 
 ej-nwrun${EXESFX} : $(NWRUN_OBJECTS)
 	$(LD) $(LDFLAGS) $(NWRUN_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB} ${LIBZIP}
@@ -310,7 +310,7 @@ ej-super-server-control: ${SSC_OBJECTS}
 	${LD} ${LDFLAGS} $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB}
 
 ej-super-run: ${SR_OBJECTS}
-	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl ${LIBZIP}
+	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl ${LIBZIP} ${LIBUUID}
 
 ej-super-run-control: ${SRC_OBJECTS}
 	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl
