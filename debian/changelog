@@ -1,3 +1,11 @@
+ejudge (2.3.29-1~1.gbp9fb9e1) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @9fb9e1a4142a42d3000b1491b68367fe970da023 **
+
+  * [1c09535] New upstream version 2.3.29
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Wed, 01 Apr 2015 23:17:35 +0300
+
 ejudge (2.3.28-3) unstable; urgency=medium
 
   * [ce90f57] fixed typos in debian/control
