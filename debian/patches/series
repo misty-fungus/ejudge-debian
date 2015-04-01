@@ -5,3 +5,4 @@
 05_fix_complile_server_dir_in_ejudge-control
 06_fix_import_in_super-server
 07_fix_ej-super-run_logpath
+08_fix_perl_interpreter_in_scripts
