@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.c 7503 2013-10-25 10:10:36Z cher $ */
+/* $Id: prepare.c 7645 2013-11-29 11:22:33Z cher $ */
 
 /* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -114,6 +114,8 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(notify_status_change, "d"),
   GLOBAL_PARAM(memoize_user_results, "d"),
   GLOBAL_PARAM(advanced_layout, "d"),
+  GLOBAL_PARAM(uuid_run_store, "d"),
+  GLOBAL_PARAM(enable_32bit_checkers, "d"),
   GLOBAL_PARAM(ignore_bom, "d"),
   GLOBAL_PARAM(disable_auto_refresh, "d"),
   GLOBAL_PARAM(disable_user_database, "d"),
@@ -457,6 +459,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(disable_language, "x"),
   PROBLEM_PARAM(enable_language, "x"),
   PROBLEM_PARAM(require, "x"),
+  PROBLEM_PARAM(provide_ok, "x"),
   PROBLEM_PARAM(standard_checker, "s"),
   PROBLEM_PARAM(lang_compiler_env, "x"),
   PROBLEM_PARAM(checker_env, "x"),
@@ -814,6 +817,8 @@ global_init_func(struct generic_section_config *gp)
   p->html_report = -1;
   p->xml_report = -1;
   p->advanced_layout = -1;
+  p->uuid_run_store = -1;
+  p->enable_32bit_checkers = -1;
   p->ignore_bom = -1;
   p->disable_auto_refresh = -1;
   p->disable_user_database = -1;
@@ -1004,6 +1009,7 @@ prepare_problem_free_func(struct generic_section_config *gp)
   sarray_free(p->disable_language);
   sarray_free(p->enable_language);
   sarray_free(p->require);
+  sarray_free(p->provide_ok);
   sarray_free(p->lang_compiler_env);
   sarray_free(p->checker_env);
   sarray_free(p->valuer_env);
@@ -2654,6 +2660,10 @@ set_defaults(
     g->enable_memory_limit_error = DFLT_G_ENABLE_MEMORY_LIMIT_ERROR;
   if (g->advanced_layout < 0)
     g->advanced_layout = 0;
+  if (g->uuid_run_store < 0)
+    g->uuid_run_store = 0;
+  if (g->enable_32bit_checkers < 0)
+    g->enable_32bit_checkers = 0;
   if (g->ignore_bom < 0)
     g->ignore_bom = 0;
   if (g->disable_auto_refresh < 0)
@@ -2812,6 +2822,7 @@ set_defaults(
     GLOBAL_INIT_FIELD(full_archive_dir, DFLT_G_FULL_ARCHIVE_DIR, archive_dir);
     GLOBAL_INIT_FIELD(audit_log_dir, DFLT_G_AUDIT_LOG_DIR, archive_dir);
     GLOBAL_INIT_FIELD(team_report_archive_dir,DFLT_G_TEAM_REPORT_ARCHIVE_DIR,archive_dir);
+    GLOBAL_INIT_FIELD(uuid_archive_dir, DFLT_G_RUN_UUID_ARCHIVE_DIR, archive_dir);
     GLOBAL_INIT_FIELD(team_extra_dir, DFLT_G_TEAM_EXTRA_DIR, var_dir);
 
     GLOBAL_INIT_FIELD(status_dir, DFLT_G_STATUS_DIR, var_dir);
@@ -3536,6 +3547,9 @@ set_defaults(
       }
       if (si != -1 && aprob->require) {
         prob->require = sarray_merge_pf(aprob->require, prob->require);
+      }
+      if (si != -1 && aprob->provide_ok) {
+        prob->provide_ok = sarray_merge_pf(aprob->provide_ok, prob->provide_ok);
       }
       if (si != -1 && aprob->checker_env) {
         prob->checker_env = sarray_merge_pf(aprob->checker_env,
@@ -4444,6 +4458,7 @@ create_dirs(serve_state_t state, int mode)
     if (make_dir(g->xml_report_archive_dir, 0) < 0) return -1;
     if (make_dir(g->report_archive_dir, 0) < 0) return -1;
     if (make_dir(g->audit_log_dir, 0777) < 0) return -1;
+    if (make_dir(g->uuid_archive_dir, 0755) < 0) return -1;
     if (g->team_enable_rep_view) {
       if (make_dir(g->team_report_archive_dir, 0) < 0) return -1;
     }
@@ -5120,6 +5135,10 @@ prepare_set_global_defaults(struct section_global_data *g)
     g->stand_use_login = DFLT_G_STAND_USE_LOGIN;
   if (g->advanced_layout < 0)
     g->advanced_layout = 0;
+  if (g->uuid_run_store < 0)
+    g->uuid_run_store = 0;
+  if (g->enable_32bit_checkers < 0)
+    g->enable_32bit_checkers = 0;
   if (g->ignore_bom < 0)
     g->ignore_bom = 0;
   if (g->disable_auto_refresh < 0)
@@ -5574,6 +5593,7 @@ prepare_copy_problem(const struct section_problem_data *in)
   out->disable_language = 0;
   out->enable_language = 0;
   out->require = 0;
+  out->provide_ok = 0;
   out->checker_env = 0;
   out->valuer_env = 0;
   out->interactor_env = 0;
@@ -6537,7 +6557,7 @@ static const int prob_settable_list[] =
   CNTSPROB_test_sets, CNTSPROB_deadline, CNTSPROB_start_date,
   CNTSPROB_variant_num, CNTSPROB_date_penalty, CNTSPROB_group_start_date,
   CNTSPROB_group_deadline, CNTSPROB_disable_language,
-  CNTSPROB_enable_language, CNTSPROB_require, CNTSPROB_standard_checker,
+  CNTSPROB_enable_language, CNTSPROB_require, CNTSPROB_provide_ok, CNTSPROB_standard_checker,
   CNTSPROB_lang_compiler_env,
   CNTSPROB_checker_env, CNTSPROB_valuer_env, CNTSPROB_interactor_env,
   CNTSPROB_style_checker_env, CNTSPROB_test_checker_env, CNTSPROB_init_env,
@@ -6668,6 +6688,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_language] = 1,
   [CNTSPROB_enable_language] = 1,
   [CNTSPROB_require] = 1,
+  [CNTSPROB_provide_ok] = 1,
   [CNTSPROB_standard_checker] = 1,
   [CNTSPROB_lang_compiler_env] = 1,
   [CNTSPROB_checker_env] = 1,
@@ -6756,7 +6777,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_score_tests, CNTSPROB_test_sets, CNTSPROB_deadline,
   CNTSPROB_start_date, CNTSPROB_variant_num, CNTSPROB_date_penalty,
   CNTSPROB_group_start_date, CNTSPROB_group_deadline,
-  CNTSPROB_disable_language, CNTSPROB_enable_language, CNTSPROB_require,
+  CNTSPROB_disable_language, CNTSPROB_enable_language, CNTSPROB_require, CNTSPROB_provide_ok,
   CNTSPROB_standard_checker, CNTSPROB_checker_env, CNTSPROB_valuer_env,
   CNTSPROB_interactor_env, CNTSPROB_style_checker_env, CNTSPROB_lang_compiler_env,
   CNTSPROB_test_checker_env, CNTSPROB_init_env, CNTSPROB_start_env,
@@ -6876,6 +6897,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_language] = 1,
   [CNTSPROB_enable_language] = 1,
   [CNTSPROB_require] = 1,
+  [CNTSPROB_provide_ok] = 1,
   [CNTSPROB_standard_checker] = 1,
   [CNTSPROB_lang_compiler_env] = 1,
   [CNTSPROB_checker_env] = 1,
@@ -7039,6 +7061,7 @@ static const struct section_problem_data prob_undef_values =
   .disable_language = 0,
   .enable_language = 0,
   .require = 0,
+  .provide_ok = 0,
   .lang_compiler_env = 0,
   .checker_env = 0,
   .valuer_env = 0,

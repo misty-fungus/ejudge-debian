@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: compile.c 7198 2012-12-04 19:07:57Z cher $ */
+/* $Id: compile.c 7550 2013-11-06 18:16:46Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -38,6 +38,7 @@
 #include "startstop.h"
 #include "ejudge_cfg.h"
 #include "compat.h"
+#include "ej_uuid.h"
 
 #include "reuse_xalloc.h"
 #include "reuse_logger.h"
@@ -72,6 +73,7 @@ check_style_only(
         struct compile_reply_packet *rpl,
         const unsigned char *pkt_name,
         const unsigned char *run_name,
+        const unsigned char *work_run_name,
         const unsigned char *report_dir,
         const unsigned char *status_dir)
 {
@@ -95,12 +97,12 @@ check_style_only(
   snprintf(txt_path, sizeof(txt_path), "%s/%s.txt", report_dir, run_name);
   if (req->src_sfx) src_sfx = req->src_sfx;
   snprintf(work_src_path, sizeof(work_src_path), "%s/%s%s",
-           global->compile_work_dir, run_name, src_sfx);
+           global->compile_work_dir, work_run_name, src_sfx);
   snprintf(work_log_path, sizeof(work_log_path), "%s/%s.log",
-           global->compile_work_dir, run_name);
+           global->compile_work_dir, work_run_name);
 
   r = generic_copy_file(REMOVE, global->compile_src_dir, pkt_name, src_sfx,
-                        0, global->compile_work_dir, run_name, src_sfx);
+                        0, global->compile_work_dir, work_run_name, src_sfx);
   if (!r) {
     snprintf(msgbuf, sizeof(msgbuf), "The source file %s/%s%s is missing.\n",
              global->compile_src_dir, pkt_name, src_sfx);
@@ -223,7 +225,7 @@ do_loop(void)
   path_t txt_out;
   path_t report_dir, status_dir;
 
-  path_t  pkt_name, run_name;
+  path_t  pkt_name, run_name, work_run_name;
   char   *pkt_ptr;
   size_t  pkt_len;
   int    r, i;
@@ -316,6 +318,11 @@ do_loop(void)
     rpl.run_id = req->run_id;
     rpl.ts1 = req->ts1;
     rpl.ts1_us = req->ts1_us;
+    rpl.use_uuid = req->use_uuid;
+    rpl.uuid[0] = req->uuid[0];
+    rpl.uuid[1] = req->uuid[1];
+    rpl.uuid[2] = req->uuid[2];
+    rpl.uuid[3] = req->uuid[3];
     get_current_time(&rpl.ts2, &rpl.ts2_us);
     rpl.run_block_len = req->run_block_len;
     rpl.run_block = req->run_block; /* !!! shares memory with req */
@@ -326,7 +333,12 @@ do_loop(void)
              "%s/%06d/report", global->compile_dir, rpl.contest_id);
     snprintf(status_dir, sizeof(status_dir),
              "%s/%06d/status", global->compile_dir, rpl.contest_id);
-    snprintf(run_name, sizeof(run_name), "%06d", rpl.run_id);
+    if (req->use_uuid > 0) {
+      snprintf(run_name, sizeof(run_name), "%s", ej_uuid_unparse(req->uuid, NULL));
+    } else {
+      snprintf(run_name, sizeof(run_name), "%06d", rpl.run_id);
+    }
+    snprintf(work_run_name, sizeof(work_run_name), "%06d", rpl.run_id);
     pathmake(log_out, report_dir, "/", run_name, NULL);
     snprintf(txt_out, sizeof(txt_out), "%s/%s.txt", report_dir, run_name);
 
@@ -344,8 +356,8 @@ do_loop(void)
     }
 
     if (req->style_check_only && req->style_checker && req->style_checker[0]) {
-      check_style_only(global, req, &rpl, pkt_name, run_name, report_dir,
-                       status_dir);
+      check_style_only(global, req, &rpl, pkt_name, run_name, work_run_name,
+                       report_dir, status_dir);
       req = 0;
       continue;
     }
@@ -355,14 +367,14 @@ do_loop(void)
       snprintf(msgbuf, sizeof(msgbuf), "invalid lang_id %d\n", req->lang_id);
       goto report_internal_error;
     }
-    pathmake(src_name, run_name, lang->src_sfx, NULL);
-    pathmake(exe_name, run_name, lang->exe_sfx, NULL);
+    pathmake(src_name, work_run_name, lang->src_sfx, NULL);
+    pathmake(exe_name, work_run_name, lang->exe_sfx, NULL);
 
     pathmake(src_path, global->compile_work_dir, "/", src_name, NULL);
     pathmake(exe_path, global->compile_work_dir, "/", exe_name, NULL);
     pathmake(log_path, global->compile_work_dir, "/", "log", NULL);
     /* the resulting executable file */
-    pathmake(exe_out, report_dir, "/", exe_name, NULL);
+    snprintf(exe_out, sizeof(exe_out), "%s/%s%s", report_dir, run_name, lang->exe_sfx);
 
     /* move the source file into the working dir */
     r = generic_copy_file(REMOVE, global->compile_src_dir, pkt_name,
@@ -937,7 +949,7 @@ main(int argc, char *argv[])
   printf("  -D     - start in daemon mode\n");
   printf("  -i     - initialize mode: create all dirs and exit\n");
   printf("  -k KEY - specify a language filter key\n");
-  printf("  -u U   - start as used U (only as root)\n");
+  printf("  -u U   - start as user U (only as root)\n");
   printf("  -g G   - start as group G (only as root)\n");
   printf("  -C D   - change directory to D\n");
   printf("  -x X   - specify a path to ejudge.xml file\n");
@@ -946,9 +958,3 @@ main(int argc, char *argv[])
   return code;
 }
 
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "tpTask")
- * End:
- */

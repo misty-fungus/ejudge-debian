@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new-server.c 6981 2012-08-13 14:11:30Z cher $ */
+/* $Id: new-server.c 7623 2013-11-23 19:25:40Z cher $ */
 
 /* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
 
@@ -152,17 +152,21 @@ nsdb_get_examiner_count(int contest_id, int prob_id)
 }
 
 struct session_info *
-ns_get_session(ej_cookie_t session_id, time_t cur_time)
+ns_get_session(
+        ej_cookie_t session_id,
+        ej_cookie_t client_key,
+        time_t cur_time)
 {
   struct session_info *p;
 
   if (!cur_time) cur_time = time(0);
   for (p = session_first; p; p = p->next) {
-    if (p->session_id == session_id) break;
+    if (p->_session_id == session_id && p->_client_key == client_key) break;
   }
   if (!p) {
     XCALLOC(p, 1);
-    p->session_id = session_id;
+    p->_session_id = session_id;
+    p->_client_key = client_key;
     p->expire_time = cur_time + 60*60*24;
     if (session_first) {
       session_first->prev = p;
@@ -213,7 +217,7 @@ ns_remove_session(ej_cookie_t session_id)
   struct session_info *p;
 
   for (p = session_first; p; p = p->next) {
-    if (p->session_id == session_id) break;
+    if (p->_session_id == session_id) break;
   }
   do_remove_session(p);
 }

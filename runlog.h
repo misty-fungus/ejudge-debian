@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.h 7505 2013-10-26 19:47:17Z cher $ */
+/* $Id: runlog.h 7581 2013-11-10 14:11:16Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
@@ -64,7 +64,7 @@ enum
   RUN_LAST             = 99,
 };
 
-enum { RUN_LOG_CREATE = 1, RUN_LOG_READONLY = 2, RUN_LOG_NOINDEX = 4 };
+enum { RUN_LOG_CREATE = 1, RUN_LOG_READONLY = 2, RUN_LOG_NOINDEX = 4, RUN_LOG_UUID_INDEX = 8 };
 
 struct ejudge_cfg;
 struct contest_desc;
@@ -87,22 +87,25 @@ run_open(
         time_t init_duration,
         time_t init_sched_time,
         time_t init_finish_time);
-int run_add_record(runlog_state_t state,
-                   time_t         timestamp,
-                   int            nsec,
-                   size_t         size,
-                   const ruint32_t sha1[5],
-                   const ruint32_t uuid[4],
-                   const ej_ip_t *pip,
-                   int            ssl_flag,
-                   int            locale_id,
-                   int            team,
-                   int            problem,
-                   int            language,
-                   int            eoln_type,
-                   int            variant,
-                   int            is_hidden,
-                   int            mime_type);
+int
+run_add_record(
+        runlog_state_t state,
+        time_t         timestamp,
+        int            nsec,
+        size_t         size,
+        const ruint32_t sha1[5],
+        const ruint32_t uuid[4],
+        const ej_ip_t *pip,
+        int            ssl_flag,
+        int            locale_id,
+        int            team,
+        int            problem,
+        int            language,
+        int            eoln_type,
+        int            variant,
+        int            is_hidden,
+        int            mime_type,
+        int            store_flags);
 int run_start_contest(runlog_state_t, time_t);
 time_t run_get_start_time(runlog_state_t);
 int
@@ -233,7 +236,8 @@ enum
     RE_RUN_UUID      = 0x08000000,
     RE_PASSED_MODE   = 0x10000000,
     RE_EOLN_TYPE     = 0x20000000,
-    RE_ALL           = 0x3FFFFFFF,
+    RE_STORE_FLAGS   = 0x40000000,
+    RE_ALL           = 0x7FFFFFFF,
   };
 
 /* structure size is 128 bytes */
@@ -255,7 +259,7 @@ struct run_entry
   rint32_t       score;         /* 4 */
   rint16_t       test;          /* 2 */
   signed char    passed_mode;   /* 1 */
-  unsigned char  unused3;       /* 1 */
+  unsigned char  store_flags;   /* 1 */
   rint32_t       score_adj;     /* 4 */
   rint16_t       locale_id;     /* 2 */
   ruint16_t      judge_id;      /* 2 */
@@ -355,8 +359,15 @@ int run_get_pages(runlog_state_t, int run_id);
 int run_set_pages(runlog_state_t, int run_id, int pages);
 int run_get_total_pages(runlog_state_t, int run_id);
 
-int run_find(runlog_state_t, int first_run, int last_run,
-             int team_id, int prob_id, int lang_id);
+int run_find(
+        runlog_state_t,
+        int first_run,
+        int last_run,
+        int team_id,
+        int prob_id,
+        int lang_id,
+        ruint32_t *p_run_uuid,
+        int *p_store_flags);
 int run_undo_add_record(runlog_state_t, int run_id);
 int run_is_failed_attempt(int status);
 int run_is_valid_test_status(int status);
@@ -407,5 +418,8 @@ int run_get_user_last_run_id(runlog_state_t state, int user_id);
 int run_get_user_first_run_id(runlog_state_t state, int user_id);
 int run_get_user_next_run_id(runlog_state_t state, int run_id);
 int run_get_user_prev_run_id(runlog_state_t state, int run_id);
+
+int run_get_uuid_hash_state(runlog_state_t state);
+int run_find_run_id_by_uuid(runlog_state_t state, ruint32_t *uuid);
 
 #endif /* __RUNLOG_H__ */

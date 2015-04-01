@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog_state.h 7473 2013-10-22 23:24:36Z cher $ */
+/* $Id: runlog_state.h 7532 2013-11-04 17:36:12Z cher $ */
 
 #ifndef __RUNLOG_STATE_H__
 #define __RUNLOG_STATE_H__
@@ -50,6 +50,12 @@ struct run_entry_extra
   int next_user_id;            /* next run with the same user_id, -1, if none */
 };
 
+struct uuid_hash_entry
+{
+  int       run_id;            /* < 0, if the entry is empty */
+  unsigned  uuid[4];
+};
+
 struct rldb_plugin_iface;
 struct rldb_plugin_data;
 struct rldb_plugin_cnts;
@@ -75,6 +81,14 @@ struct runlog_state
 
   int run_extra_u, run_extra_a;
   struct run_entry_extra *run_extras; /* run indices */
+
+  // UUID hash information
+  int uuid_hash_state; // -1 - disabled, 0 - not built, 1 - ok
+  int uuid_hash_size;  // the size of the hash table
+  int uuid_hash_used;  // the number of entries in the table
+  struct uuid_hash_entry *uuid_hash;
+  int uuid_hash_last_added_run_id;
+  int uuid_hash_last_added_index;
 
   // the managing plugin information
   struct rldb_plugin_iface *iface;

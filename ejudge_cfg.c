@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: ejudge_cfg.c 7037 2012-09-30 14:12:24Z cher $ */
+/* $Id: ejudge_cfg.c 7639 2013-11-27 12:48:42Z cher $ */
 
-/* Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -117,7 +117,9 @@ enum
     AT_LOAD,
     AT_DEFAULT,
     AT_DISABLE_COOKIE_IP_CHECK,
+    AT_ENABLE_COOKIE_IP_CHECK,
     AT_ENABLE_CONTEST_SELECT,
+    AT_DISABLE_NEW_USERS,
 
     AT__BARRIER,
     AT__DEFAULT,
@@ -198,7 +200,9 @@ static char const * const attr_map[] =
   "load",
   "default",
   "disable_cookie_ip_check",
+  "enable_cookie_ip_check",
   "enable_contest_select",
+  "disable_new_users",
   0,
   "_default",
 
@@ -566,8 +570,14 @@ ejudge_cfg_do_parse(char const *path)
     case AT_DISABLE_COOKIE_IP_CHECK:
       if (xml_attr_bool(a, &cfg->disable_cookie_ip_check) < 0) goto failed;
       break;
+    case AT_ENABLE_COOKIE_IP_CHECK:
+      if (xml_attr_bool(a, &cfg->enable_cookie_ip_check) < 0) goto failed;
+      break;
     case AT_ENABLE_CONTEST_SELECT:
       if (xml_attr_bool(a, &cfg->enable_contest_select) < 0) goto failed;
+      break;
+    case AT_DISABLE_NEW_USERS:
+      if (xml_attr_bool(a, &cfg->disable_new_users) < 0) goto failed;
       break;
     default:
       xml_err_attr_not_allowed(&cfg->b, a);

@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: run_packet.h 7114 2012-11-01 13:35:22Z cher $ */
+/* $Id: run_packet.h 7563 2013-11-07 18:01:49Z cher $ */
 #ifndef __RUN_PACKET_H__
 #define __RUN_PACKET_H__
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -55,6 +55,8 @@ struct run_reply_packet
   /* time when the report was generated */
   int ts7;
   int ts7_us;
+  /* UUID of the run */
+  unsigned uuid[4];
 };
 
 int

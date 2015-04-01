@@ -1,9 +1,9 @@
 /* -*- c -*- */
-/* $Id: compile_packet.h 6211 2011-03-31 22:56:14Z cher $ */
+/* $Id: compile_packet.h 7537 2013-11-06 11:49:33Z cher $ */
 #ifndef __COMPILE_PACKET_H__
 #define __COMPILE_PACKET_H__
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -30,6 +30,8 @@ struct compile_request_packet
   int style_check_only;
   int ts1;
   int ts1_us;
+  int use_uuid;
+  unsigned uuid[4];
   size_t max_vm_size;
   size_t max_stack_size;
   size_t max_file_size;
@@ -60,6 +62,8 @@ struct compile_reply_packet
   int ts3_us;
   int run_block_len;
   void *run_block;
+  int use_uuid;
+  unsigned int uuid[4];
 };
 
 int

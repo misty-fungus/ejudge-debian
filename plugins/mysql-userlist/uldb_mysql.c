@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_mysql.c 7356 2013-02-09 08:40:11Z cher $ */
+/* $Id: uldb_mysql.c 7627 2013-11-24 06:50:15Z cher $ */
 
 /* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -240,11 +240,15 @@ struct uldb_plugin_iface plugin_uldb_mysql =
   get_prev_user_id_func,
   // get the next user
   get_next_user_id_func,
+  // create a cookie (128 bit)
+  new_cookie_2_func,
+  // get any cookie with the given client key
+  get_client_key_func,
 };
 
 // the size of the cookies pool, must be power of 2
-enum { COOKIES_POOL_SIZE = 1024 };
-enum { COOKIES_MAX_HASH_SIZE = 600 };
+enum { COOKIES_POOL_SIZE = 4096 };
+enum { COOKIES_MAX_HASH_SIZE = 2500 };
 
 // the size of the cntsregs pool
 enum { CNTSREGS_POOL_SIZE = 1024 };
@@ -269,6 +273,7 @@ struct cookies_container;
 struct cookies_cache
 {
   struct cookies_container *hash[COOKIES_POOL_SIZE];
+  struct cookies_container *client_key_hash[COOKIES_POOL_SIZE];
   struct cookies_container *first, *last;
   int count;
 };
@@ -536,7 +541,7 @@ check_func(void *data)
     err("invalid 'version' key value");
     return -1;
   }
-  // current version is 2, so cannot handle future version
+  // current version is 3, so cannot handle future version
   if (version == 1) {
     if (state->mi->simple_fquery(state->md, "CREATE TABLE %sgroups(group_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, group_name VARCHAR(128) NOT NULL UNIQUE KEY, description VARCHAR(512) DEFAULT NULL, created_by INT NOT NULL, create_time DATETIME NOT NULL, last_change_time DATETIME DEFAULT NULL, FOREIGN KEY (created_by) REFERENCES %slogins(user_id));", state->md->table_prefix, state->md->table_prefix) < 0)
       return -1;
@@ -544,7 +549,17 @@ check_func(void *data)
       return -1;
     if (state->mi->simple_fquery(state->md, "UPDATE %sconfig SET config_val = '2' WHERE config_key = 'version' ;", state->md->table_prefix) < 0)
       return -1;
-  } else if (version != 2) {
+    version = 2;
+  }
+  if (version == 2) {
+    // extend cookie size to VARCHAR(64)
+    if (state->mi->simple_fquery(state->md, "ALTER TABLE %scookies MODIFY cookie VARCHAR(64) NOT NULL;", state->md->table_prefix) < 0)
+      return -1;
+    if (state->mi->simple_fquery(state->md, "UPDATE %sconfig SET config_val = '3' WHERE config_key = 'version' ;", state->md->table_prefix) < 0)
+      return -1;
+    version = 3;
+  }
+  if (version != 3) {
     err("cannot handle database version %d", version);
     return -1;
   }
@@ -1166,17 +1181,25 @@ static int
 get_cookie_func(
         void *data,
         ej_cookie_t value,
+        ej_cookie_t client_key,
         const struct userlist_cookie **p_cookie)
 {
   struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
   struct userlist_cookie *c;
 
   if (state->cache_queries && (c = get_cookie_from_pool(state, value))) {
-    *p_cookie = c;
+    if (c->client_key != client_key) {
+      if (p_cookie) *p_cookie = NULL;
+      return -1;
+    }
+    if (p_cookie) *p_cookie = c;
     return 0;
   }
 
-  if (fetch_cookie(state, value, &c) <= 0) return -1;
+  if (fetch_cookie(state, value, client_key, &c) <= 0) {
+    if (p_cookie) *p_cookie = NULL;
+    return -1;
+  }
   if (p_cookie) *p_cookie = c;
   return 0;
 }
@@ -1188,7 +1211,7 @@ is_unique_cookie(
 {
   if (!value) return 0;
   if (state->mi->fquery(state->md, 1,
-                "SELECT user_id FROM %scookies WHERE cookie = '%016llx' ;",
+                "SELECT user_id FROM %scookies WHERE cookie LIKE('%016llx%%') ;",
                 state->md->table_prefix, value) < 0)
     return -1;
   if (state->md->row_count < 0) {
@@ -1258,7 +1281,77 @@ new_cookie_func(
   close_memstream(cmd_f); cmd_f = 0;
   if (state->mi->simple_query(state->md, cmd_t, cmd_z) < 0) goto fail;
   xfree(cmd_t); cmd_t = 0;
-  if (fetch_cookie(state, cookie, &c) < 0) goto fail;
+  if (fetch_cookie(state, cookie, 0, &c) < 0) goto fail;
+  if (p_cookie) *p_cookie = c;
+  return 0;
+
+ fail:
+  if (cmd_f) fclose(cmd_f);
+  xfree(cmd_t);
+  return -1;
+}
+
+static int
+new_cookie_2_func(
+        void *data,
+        int user_id,
+        const ej_ip_t *pip,
+        int ssl_flag,
+        ej_cookie_t cookie,
+        ej_cookie_t client_key,
+        time_t expire,
+        int contest_id,
+        int locale_id,
+        int priv_level,
+        int role,
+        int recovery,
+        int team_login,
+        const struct userlist_cookie **p_cookie)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  FILE *cmd_f = 0;
+  char *cmd_t = 0;
+  size_t cmd_z = 0;
+  struct userlist_cookie *c;
+  struct userlist_cookie newc;
+  int r;
+
+  if (cookie) {
+    if (is_unique_cookie(state, cookie) <= 0) return -1;
+  } else {
+    do {
+      cookie = random_u64();
+    } while (!(r = is_unique_cookie(state, cookie)));
+    if (r < 0) return -1;
+  }
+  if (!client_key) {
+    client_key = random_u64();
+  }
+  if (!expire) expire = time(0) + 24 * 60 * 60;
+
+  ASSERT(cookie != 0);
+  memset(&newc, 0, sizeof(newc));
+  newc.user_id = user_id;
+  newc.ip = *pip;
+  newc.ssl = ssl_flag;
+  newc.cookie = cookie;
+  newc.client_key = client_key;
+  newc.expire = expire;
+  newc.contest_id = contest_id;
+  newc.locale_id = locale_id;
+  newc.priv_level = priv_level;
+  newc.role = role;
+  newc.recovery = recovery;
+  newc.team_login = team_login;
+
+  cmd_f = open_memstream(&cmd_t, &cmd_z);
+  fprintf(cmd_f, "INSERT INTO %scookies VALUES ( ", state->md->table_prefix);
+  unparse_cookie(state, cmd_f, &newc);
+  fprintf(cmd_f, " ) ;");
+  close_memstream(cmd_f); cmd_f = 0;
+  if (state->mi->simple_query(state->md, cmd_t, cmd_z) < 0) goto fail;
+  xfree(cmd_t); cmd_t = 0;
+  if (fetch_cookie(state, cookie, client_key, &c) < 0) goto fail;
   if (p_cookie) *p_cookie = c;
   return 0;
 
@@ -1274,13 +1367,13 @@ remove_cookie_func(
         const struct userlist_cookie *c)
 {
   struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
-  unsigned long long val;
+  unsigned char buf[64];
 
   if (!c) return 0;
 
-  val = c->cookie;
-  if (state->mi->simple_fquery(state->md, "DELETE FROM %scookies WHERE cookie = '%016llx';", state->md->table_prefix, c->cookie) < 0) return -1;
-  remove_cookie_from_pool(state, val);
+  if (state->mi->simple_fquery(state->md, "DELETE FROM %scookies WHERE cookie = '%s';", state->md->table_prefix,
+                               xml_unparse_full_cookie(buf, sizeof(buf), &c->cookie, &c->client_key)) < 0) return -1;
+  remove_cookie_from_pool(state, c->cookie);
   return 0;
 }
 
@@ -1590,8 +1683,11 @@ set_cookie_contest_func(
         int contest_id)
 {
   struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  unsigned char buf[64];
 
-  if (state->mi->simple_fquery(state->md, "UPDATE %scookies SET contest_id = %d WHERE cookie = '%016llx' ;", state->md->table_prefix, contest_id, c->cookie) < 0) return -1;
+  if (state->mi->simple_fquery(state->md, "UPDATE %scookies SET contest_id = %d WHERE cookie = '%s' ;",
+                               state->md->table_prefix, contest_id,
+                               xml_unparse_full_cookie(buf, sizeof(buf), &c->cookie, &c->client_key)) < 0) return -1;
   remove_cookie_from_pool(state, c->cookie);
   return 0;
 }
@@ -1603,8 +1699,11 @@ set_cookie_locale_func(
         int locale_id)
 {
   struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  unsigned char buf[64];
 
-  if (state->mi->simple_fquery(state->md, "UPDATE %scookies SET locale_id = %d WHERE cookie = '%016llx' ;", state->md->table_prefix, locale_id, c->cookie) < 0) return -1;
+  if (state->mi->simple_fquery(state->md, "UPDATE %scookies SET locale_id = %d WHERE cookie = '%s' ;",
+                               state->md->table_prefix, locale_id,
+                               xml_unparse_full_cookie(buf, sizeof(buf), &c->cookie, &c->client_key)) < 0) return -1;
   remove_cookie_from_pool(state, c->cookie);
   return 0;
 }
@@ -1616,8 +1715,11 @@ set_cookie_priv_level_func(
         int priv_level)
 {
   struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  unsigned char buf[64];
 
-  if (state->mi->simple_fquery(state->md, "UPDATE %scookies SET priv_level = %d WHERE cookie = '%016llx' ;", state->md->table_prefix, priv_level, c->cookie) < 0)
+  if (state->mi->simple_fquery(state->md, "UPDATE %scookies SET priv_level = %d WHERE cookie = '%s' ;",
+                               state->md->table_prefix, priv_level,
+                               xml_unparse_full_cookie(buf, sizeof(buf), &c->cookie, &c->client_key)) < 0)
     return -1;
   remove_cookie_from_pool(state, c->cookie);
   return 0;
@@ -1677,9 +1779,9 @@ get_user_info_5_func(
   struct userlist_cookie *cc = 0;
   int cookie_count = 0, reg_count = 0;
   unsigned long long *cookies = 0;
+  ej_cookie_t *client_keys = NULL;
   int *cntsregs = 0;
   int i;
-  char *eptr;
 
   ASSERT(user_id > 0);
   ASSERT(contest_id >= 0);
@@ -1702,12 +1804,12 @@ get_user_info_5_func(
   if (state->md->row_count > 0) {
     cookie_count = state->md->row_count;
     XALLOCAZ(cookies, cookie_count);
+    XALLOCAZ(client_keys, cookie_count);
     for (i = 0; i < cookie_count; i++) {
       if (state->mi->next_row(state->md) < 0) goto fail;
       if (!state->md->row[0]) goto fail;
-      errno = 0; eptr = 0;
-      cookies[i] = strtoull(state->md->row[0], &eptr, 16);
-      if (errno || *eptr) goto fail;
+      if (xml_parse_full_cookie(state->md->row[0], &cookies[i], &client_keys[i]) < 0)
+        goto fail;
     }
   }
   state->mi->free_res(state->md);
@@ -1729,7 +1831,8 @@ get_user_info_5_func(
     u->cookies->first_down = u->cookies->last_down = 0;
   }
   for (i = 0; i < cookie_count; i++) {
-    if (fetch_cookie(state, cookies[i], &cc) < 0) goto fail;
+    // FIXME: this is wrong...
+    if (fetch_cookie(state, cookies[i], client_keys[i], &cc) < 0) goto fail;
     userlist_attach_cookie(u, cc);
   }
 
@@ -3871,11 +3974,14 @@ set_cookie_team_login_func(
         int team_login)
 {
   struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  unsigned char buf[64];
 
   if (state->cache_queries && c->team_login == team_login) return 0;
 
   ASSERT(team_login >= 0 && team_login <= 1);
-  if (state->mi->simple_fquery(state->md, "UPDATE %scookies SET team_login = %d WHERE cookie = '%016llx' ;", state->md->table_prefix, team_login, c->cookie) < 0) return -1;
+  if (state->mi->simple_fquery(state->md, "UPDATE %scookies SET team_login = %d WHERE cookie = '%s' ;",
+                               state->md->table_prefix, team_login,
+                               xml_unparse_full_cookie(buf, sizeof(buf), &c->cookie, &c->client_key)) < 0) return -1;
   remove_cookie_from_pool(state, c->cookie);
   return 0;
 }
@@ -5311,6 +5417,25 @@ get_next_user_id_func(
 
 fail:
   state->mi->free_res(state->md);
+  return 0;
+}
+
+static int
+get_client_key_func(
+        void *data,
+        ej_cookie_t client_key,
+        const struct userlist_cookie **p_cookie)
+{
+  struct uldb_mysql_state *state = (struct uldb_mysql_state*) data;
+  struct userlist_cookie *c;
+
+  if (state->cache_queries && (c = get_client_key_from_pool(state, client_key))) {
+    *p_cookie = c;
+    return 0;
+  }
+
+  if (fetch_client_key(state, client_key, &c) <= 0) return -1;
+  if (p_cookie) *p_cookie = c;
   return 0;
 }
 

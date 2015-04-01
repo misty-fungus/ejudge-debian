@@ -1,9 +1,9 @@
-dnl $Id: configure.ac 7143 2012-11-04 20:07:20Z cher $
-dnl Copyright (C) 2004-2012 Alexander Chernov <cher@ejudge.ru>
+dnl $Id: configure.ac 7561 2013-11-07 13:56:00Z cher $
+dnl Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru>
 
 AC_INIT(ejudge,2.3)
 AC_PREREQ(2.59)
-AC_REVISION($Revision: 7143 $)
+AC_REVISION($Revision: 7561 $)
 
 AC_PREFIX_DEFAULT([/opt/ejudge])
 AC_PROG_INSTALL
@@ -46,6 +46,8 @@ AC_C_CHAR_UNSIGNED
 AC_C_LONG_DOUBLE
 AC_C_STRINGIZE
 AC_C_PROTOTYPES
+
+AC_ARG_WITH([lib32dir], AC_HELP_STRING([--with-lib32dir=DIR],[specify directory for 32-bit libraries]),[lib32dir=$withval])
 
 AC_ARG_WITH([libcap], AC_HELP_STRING([--with-libcap=LIBCAP-DIR],[use the linux capability library]),[ac_cv_libcap_root=$withval])
 AC_ARG_WITH([libcap-include-dir], AC_HELP_STRING([--with-libcap-include-dir],[specify non-standard location of <sys/capability.h> [[LIBCAP-DIR/include]]]),[ac_cv_libcap_include_dir=$withval])
@@ -134,9 +136,19 @@ fi
 [[ x"${ac_cv_style_prefix}" = x -o x"${ac_cv_style_prefix}" = xyes ]] && ac_cv_style_prefix="/ejudge/"
 [[ x"${ac_cv_lang_config_dir}" = x -o x"${ac_cv_lang_config_dir}" = xyes ]] && ac_cv_lang_config_dir="${ac_cv_contests_home_dir}/compile/conf/lang.d"
 
-case "${host}" in
-  x86_64-*linux*)
-    libdir='${exec_prefix}/lib64'
+machine=`uname -m`
+
+case "${machine}" in
+  x86_64)
+    if [[ x"${libdir}" = x'${exec_prefix}/lib' ]]
+    then
+      libdir='${exec_prefix}/lib64'
+    fi
+    if [[ x"${lib32dir}" = x ]]
+    then
+      lib32dir='${exec_prefix}/lib'
+    fi
+    ac_cv_conf_64_bit=1
     ;;
 esac
 
@@ -884,6 +896,12 @@ else
   actual_libexecdir="${libexecdir}"
 fi
 
+actual_libdir=`echo ${libdir} | sed 's|${exec_prefix}|'${actual_exec_prefix}'|'`
+if [[ x"${lib32dir}" != x ]]
+then
+  actual_lib32dir=`echo ${lib32dir} | sed 's|${exec_prefix}|'${actual_exec_prefix}'|'`
+fi
+
 ac_cv_expanded_prefix="${actual_prefix}"
 ac_cv_expanded_locale_dir="${actual_prefix}/share/locale"
 if [[ x"${ac_cv_hidden_bins}" != x ]]
@@ -1028,6 +1046,7 @@ AC_SUBST(ac_cv_has_lib_libuuid)
 AC_SUBST(ac_cv_meta_cc)
 AC_SUBST(ac_cv_need_32)
 AC_SUBST(ac_cv_need_64)
+AC_SUBST(lib32dir)
 
 AC_SUBST(ac_cv_festival_home)
 AC_SUBST(ac_cv_libcap_link)
@@ -1139,6 +1158,11 @@ then
 fi
 AC_DEFINE_UNQUOTED(EJUDGE_PREFIX_DIR,"${ac_cv_expanded_prefix}")
 AC_DEFINE_UNQUOTED(EJUDGE_LIBEXEC_DIR,"${actual_libexecdir}")
+AC_DEFINE_UNQUOTED(EJUDGE_LIB_DIR,"${actual_libdir}")
+if [[ x"${lib32dir}" != x ]]
+then
+  AC_DEFINE_UNQUOTED(EJUDGE_LIB32_DIR,"${actual_lib32dir}")
+fi
 AC_DEFINE_UNQUOTED(EJUDGE_LOCALE_DIR,"$ac_cv_expanded_locale_dir")
 AC_DEFINE_UNQUOTED(EJUDGE_SERVER_BIN_PATH,"${ac_cv_ejudge_server_bin_path}")
 AC_DEFINE_UNQUOTED(EJUDGE_SERVE_PATH,"${ac_cv_ejudge_serve_path}")
@@ -1184,6 +1208,11 @@ fi
 AC_DEFINE_UNQUOTED(CONF_EXE_SUFFIX,"${ac_cv_exe_suffix}")
 AC_DEFINE_UNQUOTED(CONF_DIRSEP,"${ac_cv_dir_separator}")
 AC_DEFINE_UNQUOTED(CONF_PATHSEP,"${ac_cv_path_separator}")
+
+if [[ x"${ac_cv_conf_64_bit}" != xyes ]]
+then
+  AC_DEFINE(CONF_64_BIT, 1)
+fi
 
 if [[ x"${ac_cv_c_long_double}" != xyes ]]
 then

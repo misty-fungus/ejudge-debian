@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 7499 2013-10-24 19:21:03Z cher $ */
+/* $Id: new-server.h 7670 2013-12-11 08:28:55Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -35,7 +35,8 @@ struct session_info
 {
   struct session_info *next;
   struct session_info *prev;
-  ej_cookie_t session_id;
+  ej_cookie_t _session_id;
+  ej_cookie_t _client_key;
   time_t expire_time;
 
   int user_view_all_runs;
@@ -71,6 +72,7 @@ struct http_request_info
   int ssl_flag;
   ej_ip_t ip;
   ej_cookie_t session_id;
+  ej_cookie_t client_key;
   int contest_id;
   int locale_id;
   int role;
@@ -530,7 +532,10 @@ ns_html_err_disqualified(
         struct contest_extra *extra);
 
 struct session_info *
-ns_get_session(ej_cookie_t session_id, time_t cur_time);
+ns_get_session(
+        ej_cookie_t session_id,
+        ej_cookie_t client_key,
+        time_t cur_time);
 
 void ns_remove_session(ej_cookie_t session_id);
 
@@ -571,7 +576,10 @@ void
 ns_refresh_page(FILE *fout, struct http_request_info *phr, int new_action,
                 const unsigned char *extra);
 void
-ns_refresh_page_2(FILE *fout, const unsigned char *url);
+ns_refresh_page_2(
+        FILE *fout,
+        ej_cookie_t client_key,
+        const unsigned char *url);
 
 void
 ns_write_priv_all_runs(FILE *f,
@@ -671,9 +679,10 @@ ns_header(
         const unsigned char *body_attr,
         int locale_id,
         const struct contest_desc *cnts,
+        ej_cookie_t client_key,
         char const *format,
         ...)
-  __attribute__((format(printf, 9, 10)));
+  __attribute__((format(printf, 10, 11)));
 void
 ns_separator(
         FILE *out,
@@ -849,11 +858,14 @@ void ns_new_autoclose(struct client_state *p, void *, size_t);
 
 void
 ns_get_user_problems_summary(
-        const serve_state_t cs, int user_id, int accepting_mode,
+        const serve_state_t cs,
+        int user_id,
+        int accepting_mode,
         unsigned char *solved_flag,   /* whether the problem was OK */
         unsigned char *accepted_flag, /* whether the problem was accepted */
         unsigned char *pending_flag,  /* whether there are pending runs */
         unsigned char *trans_flag,    /* whether there are transient runs */
+        unsigned char *pr_flag,       /* whether there are pending review runs */
         int *best_run,                /* the number of the best run */
         int *attempts,                /* the number of previous attempts */
         int *disqualified,            /* the number of prev. disq. attempts */
@@ -871,6 +883,7 @@ ns_write_user_problems_summary(
         const unsigned char *table_class,
         unsigned char *solved_flag,   /* whether the problem was OK */
         unsigned char *accepted_flag, /* whether the problem was accepted */
+        unsigned char *pr_flag,       /* whether there are pending review runs */
         unsigned char *pending_flag,  /* whether there are pending runs */
         unsigned char *trans_flag,    /* whether there are transient runs */
         int *best_run,                /* the number of the best run */

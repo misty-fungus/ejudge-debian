@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 7339 2013-02-05 21:46:39Z cher $ */
+/* $Id: rldb_plugin_file.c 7581 2013-11-10 14:11:16Z cher $ */
 
 /* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1234,6 +1234,9 @@ add_entry_func(
   }
   if ((flags & RE_EOLN_TYPE)) {
     de->eoln_type = re->eoln_type;
+  }
+  if ((flags & RE_STORE_FLAGS)) {
+    de->store_flags = re->store_flags;
   }
 
   return do_flush_entry(cs, run_id);

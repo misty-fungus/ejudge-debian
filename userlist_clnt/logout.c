@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: logout.c 7364 2013-02-09 20:19:53Z cher $ */
+/* $Id: logout.c 7613 2013-11-22 20:21:36Z cher $ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -18,11 +18,13 @@
 #include "userlist_clnt/private.h"
 
 int
-userlist_clnt_logout(struct userlist_clnt *clnt,
-                     int cmd,
-                     const ej_ip_t *origin_ip,
-                     int ssl,
-                     ej_cookie_t cookie)
+userlist_clnt_logout(
+        struct userlist_clnt *clnt,
+        int cmd,
+        const ej_ip_t *origin_ip,
+        int ssl,
+        ej_cookie_t cookie,
+        ej_cookie_t client_key)
 {
   struct userlist_pk_do_logout out;
   struct userlist_packet *in = 0;
@@ -37,6 +39,7 @@ userlist_clnt_logout(struct userlist_clnt *clnt,
   }
   out.ssl = ssl;
   out.cookie = cookie;
+  out.client_key = client_key;
   if ((r = userlist_clnt_send_packet(clnt, sizeof(out), &out)) < 0) return r;
   if ((r = userlist_clnt_read_and_notify(clnt, &in_size, &void_in)) < 0)
     return r;

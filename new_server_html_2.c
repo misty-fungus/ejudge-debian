@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 7499 2013-10-24 19:21:03Z cher $ */
+/* $Id: new_server_html_2.c 7672 2013-12-11 08:35:44Z cher $ */
 
 /* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -371,6 +371,9 @@ ns_write_priv_all_runs(
     if (run_fields & (1 << RUN_VIEW_RUN_UUID)) {
       fprintf(f, "<th%s>%s</th>", cl, "UUID");
     }
+    if (run_fields & (1 << RUN_VIEW_STORE_FLAGS)) {
+      fprintf(f, "<th%s>%s</th>", cl, "Storage Flags");
+    }
     if (run_fields & (1 << RUN_VIEW_TIME)) {
       fprintf(f, "<th%s>%s</th>", cl, _("Time"));
     }
@@ -499,6 +502,9 @@ ns_write_priv_all_runs(
         if (run_fields & (1 << RUN_VIEW_RUN_UUID)) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
+        if (run_fields & (1 << RUN_VIEW_STORE_FLAGS)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
         if (run_fields & (1 << RUN_VIEW_TIME)) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
@@ -595,6 +601,9 @@ ns_write_priv_all_runs(
           fprintf(f, "<td%s>%d%s</td>", cl, rid, examinable_str);
         }
         if (run_fields & (1 << RUN_VIEW_RUN_UUID)) {
+          fprintf(f, "<td%s>&nbsp;</td>", cl);
+        }
+        if (run_fields & (1 << RUN_VIEW_STORE_FLAGS)) {
           fprintf(f, "<td%s>&nbsp;</td>", cl);
         }
         if (run_fields & (1 << RUN_VIEW_TIME)) {
@@ -747,6 +756,9 @@ ns_write_priv_all_runs(
       }
       if (run_fields & (1 << RUN_VIEW_RUN_UUID)) {
         fprintf(f, "<td%s>%s</td>", cl, ej_uuid_unparse(pe->run_uuid, "&nbsp;"));
+      }
+      if (run_fields & (1 << RUN_VIEW_STORE_FLAGS)) {
+        fprintf(f, "<td%s>%d</td>", cl, pe->store_flags);
       }
       if (run_fields & (1 << RUN_VIEW_TIME)) {
         fprintf(f, "<td%s>%s</td>", cl, durstr);
@@ -1415,9 +1427,7 @@ ns_write_priv_source(const serve_state_t state,
     return;
   }
 
-  src_flags = archive_make_read_path(state, src_path, sizeof(src_path),
-                                     global->run_archive_dir, run_id,
-                                     0, 1);
+  src_flags = serve_make_source_read_path(state, src_path, sizeof(src_path), &info);
   if (src_flags < 0) {
     ns_error(log_f, NEW_SRV_ERR_SOURCE_NONEXISTANT);
     return;
@@ -1429,6 +1439,7 @@ ns_write_priv_source(const serve_state_t state,
     lang = state->langs[info.lang_id];
 
   ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
+            phr->client_key,
             "%s [%s, %s]: %s %d", ns_unparse_role(phr->role),
             phr->name_arm, extra->contest_arm,
             _("Viewing run"), run_id);
@@ -1734,7 +1745,7 @@ ns_write_priv_source(const serve_state_t state,
   filtbuf1[0] = 0;
   if (run_id > 0) {
     run_id2 = run_find(state->runlog_state, run_id - 1, 0, info.user_id,
-                       info.prob_id, info.lang_id);
+                       info.prob_id, info.lang_id, NULL, NULL);
     if (run_id2 >= 0) {
       snprintf(filtbuf1, sizeof(filtbuf1), "%d", run_id2);
     }
@@ -1830,9 +1841,7 @@ ns_write_priv_source(const serve_state_t state,
   }
 
     /* try to load text description of the archive */
-  txt_flags = archive_make_read_path(state, txt_path, sizeof(txt_path),
-                                     global->report_archive_dir,
-                                     run_id, 0, 0);
+  txt_flags = serve_make_report_read_path(state, txt_path, sizeof(txt_path), &info);
   if (txt_flags >= 0) {
     if (generic_read_file(&txt_text, 0, &txt_size, txt_flags, 0,
                           txt_path, 0) >= 0) {
@@ -1888,7 +1897,6 @@ ns_write_priv_report(const serve_state_t cs,
   const unsigned char *start_ptr = 0;
   struct run_entry re;
   const struct section_global_data *global = cs->global;
-  const unsigned char *report_dir = global->report_archive_dir;
   const struct section_problem_data *prob = 0;
 
   static const int new_actions_vector[] =
@@ -1900,13 +1908,6 @@ ns_write_priv_report(const serve_state_t cs,
     NEW_SRV_ACTION_VIEW_TEST_CHECKER,
     NEW_SRV_ACTION_VIEW_TEST_INFO,
   };
-
-  if (team_report_flag && global->team_enable_rep_view) {
-    report_dir = global->team_report_archive_dir;
-    if (global->team_show_judge_report) {
-      report_dir = global->report_archive_dir;
-    }
-  }
 
   if (run_id < 0 || run_id >= run_get_total(cs->runlog_state)
       || run_get_entry(cs->runlog_state, run_id, &re) < 0) {
@@ -1927,9 +1928,15 @@ ns_write_priv_report(const serve_state_t cs,
     goto done;
   }
 
-  rep_flag = archive_make_read_path(cs, rep_path, sizeof(rep_path),
-                                    global->xml_report_archive_dir,
-                                    run_id, 0, 1);
+  int user_mode = 0;
+  if (team_report_flag && global->team_enable_rep_view) {
+    user_mode = 1;
+    if (global->team_show_judge_report) {
+      user_mode = 0;
+    }
+  }
+
+  rep_flag = serve_make_xml_report_read_path(cs, rep_path, sizeof(rep_path), &re);
   if (rep_flag >= 0) {
     if (generic_read_file(&rep_text, 0, &rep_len, rep_flag, 0, rep_path, 0)<0){
       ns_error(log_f, NEW_SRV_ERR_DISK_READ_ERROR);
@@ -1937,8 +1944,12 @@ ns_write_priv_report(const serve_state_t cs,
     }
     content_type = get_content_type(rep_text, &start_ptr);
   } else {
-    rep_flag = archive_make_read_path(cs, rep_path, sizeof(rep_path),
-                                      report_dir, run_id, 0, 1);
+    if (user_mode) {
+      rep_flag = archive_make_read_path(cs, rep_path, sizeof(rep_path),
+                                        global->team_report_archive_dir, run_id, 0, 1);
+    } else {
+      rep_flag = serve_make_report_read_path(cs, rep_path, sizeof(rep_path), &re);
+    }
     if (rep_flag < 0) {
       ns_error(log_f, NEW_SRV_ERR_REPORT_NONEXISTANT);
       goto done;
@@ -1951,6 +1962,7 @@ ns_write_priv_report(const serve_state_t cs,
   }
 
   ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
+            phr->client_key,
             "%s [%s, %s]: %s %d", ns_unparse_role(phr->role),
             phr->name_arm, extra->contest_arm,
             team_report_flag?_("Viewing user report"):_("Viewing report"),
@@ -2033,10 +2045,7 @@ ns_write_audit_log(const serve_state_t cs,
     goto done;
   }
 
-  if ((rep_flag = archive_make_read_path(cs, audit_log_path,
-                                         sizeof(audit_log_path),
-                                         cs->global->audit_log_dir,
-                                         run_id, 0, 0)) < 0) {
+  if ((rep_flag = serve_make_audit_read_path(cs, audit_log_path, sizeof(audit_log_path), &re)) < 0) {
     ns_error(log_f, NEW_SRV_ERR_AUDIT_LOG_NONEXISTANT);
     goto done;
   }
@@ -2054,6 +2063,7 @@ ns_write_audit_log(const serve_state_t cs,
   audit_html = html_armor_string_dup(audit_text);
 
   ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
+            phr->client_key,
             "%s [%s, %s]: %s %d", ns_unparse_role(phr->role),
             phr->name_arm, extra->contest_arm,
             _("Viewing audit log for"), run_id);
@@ -3498,7 +3508,7 @@ ns_priv_edit_run_action(
   if (run_set_entry(cs->runlog_state, run_id, mask, &new_info) < 0)
     FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
 
-  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, &info, phr->user_id, &phr->ip, phr->ssl_flag,
                   "edit-run", "ok", -1,
                   "  mask: 0x%08x", mask);
 
@@ -3592,11 +3602,14 @@ write_from_contest_dir(
 }
 
 static void
-write_from_archive(const serve_state_t cs,
-                   FILE *log_f, FILE *fout,
-                   int flag, int run_id, int test_num,
-                   const unsigned char *dir,
-                   const unsigned char *suffix)
+write_from_archive(
+        const serve_state_t cs,
+        FILE *log_f,
+        FILE *fout,
+        int flag,
+        int test_num,
+        const struct run_entry *re,
+        const unsigned char *suffix)
 {
   full_archive_t far = 0;
   unsigned char fnbuf[64];
@@ -3612,8 +3625,7 @@ write_from_archive(const serve_state_t cs,
 
   snprintf(fnbuf, sizeof(fnbuf), "%06d%s", test_num, suffix);
 
-  rep_flag = archive_make_read_path(cs, arch_path, sizeof(arch_path),
-                                    dir, run_id, 0, ZIP);
+  rep_flag = serve_make_full_report_read_path(cs, arch_path, sizeof(arch_path), re);
   if (rep_flag < 0 || !(far = full_archive_open_read(arch_path))) {
     ns_error(log_f, NEW_SRV_ERR_TEST_NONEXISTANT);
     goto done;
@@ -3659,12 +3671,8 @@ ns_write_tests(const serve_state_t cs, FILE *fout, FILE *log_f,
     goto done;
   }
 
-  if ((rep_flag = archive_make_read_path(cs, rep_path, sizeof(rep_path),
-                                         cs->global->xml_report_archive_dir,
-                                         run_id, 0, 1)) < 0
-      && (rep_flag = archive_make_read_path(cs, rep_path, sizeof(rep_path),
-                                            cs->global->report_archive_dir,
-                                            run_id, 0, 1)) < 0) {
+  if ((rep_flag = serve_make_xml_report_read_path(cs, rep_path, sizeof(rep_path), &re)) < 0
+      && (rep_flag = serve_make_report_read_path(cs, rep_path, sizeof(rep_path), &re)) < 0) {
     ns_error(log_f, NEW_SRV_ERR_REPORT_NONEXISTANT);
     goto done;
   }
@@ -3739,19 +3747,15 @@ ns_write_tests(const serve_state_t cs, FILE *fout, FILE *log_f,
     goto done;
 
   case NEW_SRV_ACTION_VIEW_TEST_OUTPUT:
-    write_from_archive(cs, log_f, fout, t->output_available, run_id, test_num,
-                       cs->global->full_archive_dir, ".o");
+    write_from_archive(cs, log_f, fout, t->output_available, test_num, &re, ".o");
     goto done;
 
   case NEW_SRV_ACTION_VIEW_TEST_ERROR:
-    write_from_archive(cs, log_f, fout, t->stderr_available, run_id, test_num,
-                       cs->global->full_archive_dir, ".e");
+    write_from_archive(cs, log_f, fout, t->stderr_available, test_num, &re, ".e");
     goto done;
 
   case NEW_SRV_ACTION_VIEW_TEST_CHECKER:
-    write_from_archive(cs, log_f, fout, t->checker_output_available,
-                       run_id, test_num,
-                       cs->global->full_archive_dir, ".c");
+    write_from_archive(cs, log_f, fout, t->checker_output_available, test_num, &re, ".c");
     goto done;
   }
 
@@ -5180,9 +5184,7 @@ ns_download_runs(
     }
     snprintf(dstpath, sizeof(dstpath), "%s/%s", dir5, file_name_str);
 
-    srcflags = archive_make_read_path(cs, srcpath, sizeof(srcpath),
-                                      cs->global->run_archive_dir, run_id,
-                                      0, 0);
+    srcflags = serve_make_source_read_path(cs, srcpath, sizeof(srcpath), &info);
     if (srcflags < 0) {
       ns_error(log_f, NEW_SRV_ERR_SOURCE_NONEXISTANT);
       goto cleanup;
@@ -5254,31 +5256,40 @@ do_add_row(
   int arch_flags = 0;
   path_t run_path;
 
+  ruint32_t run_uuid[4];
+  int store_flags = 0;
   gettimeofday(&precise_time, 0);
+  ej_uuid_generate(run_uuid);
+  if (cs->global->uuid_run_store > 0 && run_get_uuid_hash_state(cs->runlog_state) >= 0 && ej_uuid_is_nonempty(run_uuid)) {
+    store_flags = 1;
+  }
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
-                          run_size, re->sha1, NULL,
+                          run_size, re->sha1, run_uuid,
                           &phr->ip, phr->ssl_flag, phr->locale_id,
                           re->user_id, re->prob_id, re->lang_id, re->eoln_type,
-                          re->variant, re->is_hidden, re->mime_type);
+                          re->variant, re->is_hidden, re->mime_type, store_flags);
   if (run_id < 0) {
     fprintf(log_f, _("Failed to add row %d to runlog\n"), row);
     return -1;
   }
   serve_move_files_to_insert_run(cs, run_id);
-  arch_flags = archive_make_write_path(cs, run_path, sizeof(run_path),
-                                       cs->global->run_archive_dir, run_id,
-                                       run_size, 0, 0);
+
+  if (store_flags == 1) {
+    arch_flags = uuid_archive_prepare_write_path(cs, run_path, sizeof(run_path),
+                                                 run_uuid, run_size,
+                                                 DFLT_R_UUID_SOURCE, 0, 0);
+  } else {
+    arch_flags = archive_prepare_write_path(cs, run_path, sizeof(run_path),
+                                            cs->global->run_archive_dir, run_id,
+                                            run_size, NULL, 0, 0);
+  }
   if (arch_flags < 0) {
     run_undo_add_record(cs->runlog_state, run_id);
     fprintf(log_f, _("Cannot allocate space to store run row %d\n"), row);
     return -1;
   }
-  if (archive_dir_prepare(cs, cs->global->run_archive_dir, run_id, 0, 0) < 0) {
-    run_undo_add_record(cs->runlog_state, run_id);
-    fprintf(log_f, _("Cannot allocate space to store run row %d\n"), row);
-    return -1;
-  }
+
   if (generic_write_file(run_text, run_size, arch_flags, 0, run_path, "") < 0) {
     run_undo_add_record(cs->runlog_state, run_id);
     fprintf(log_f, _("Cannot write run row %d\n"), row);
@@ -5286,7 +5297,7 @@ do_add_row(
   }
   run_set_entry(cs->runlog_state, run_id, RE_STATUS | RE_TEST | RE_SCORE, re);
 
-  serve_audit_log(cs, run_id, phr->user_id, &phr->ip, phr->ssl_flag,
+  serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                   "priv-new-run", "ok", re->status, NULL);
   return run_id;
 }
@@ -6029,10 +6040,10 @@ static unsigned char *
 get_source(
         const serve_state_t cs,
         int run_id,
+        const struct run_entry *re,
         const struct section_problem_data *prob,
         int variant)
 {
-  const struct section_global_data *global = cs->global;
   int src_flag = 0, i, n;
   char *eptr = 0;
   path_t src_path = { 0 };
@@ -6063,9 +6074,7 @@ get_source(
     break;
   }
 
-  if ((src_flag = archive_make_read_path(cs, src_path, sizeof(src_path),
-                                         global->run_archive_dir,
-                                         run_id, 0, 1)) < 0)
+  if ((src_flag = serve_make_source_read_path(cs, src_path, sizeof(src_path), re)) < 0)
     goto cleanup;
   if (generic_read_file(&src_txt, 0, &src_len, src_flag, 0, src_path, 0) < 0)
     goto cleanup;
@@ -6130,7 +6139,6 @@ ns_get_checker_comment(
         int run_id,
         int need_html_armor)
 {
-  const struct section_global_data *global = cs->global;
   int rep_flag;
   path_t rep_path;
   unsigned char *str = 0;
@@ -6139,10 +6147,12 @@ ns_get_checker_comment(
   testing_report_xml_t rep_xml = 0;
   struct testing_report_test *rep_tst;
   const unsigned char *start_ptr = 0;
+  struct run_entry re;
 
-  if ((rep_flag = archive_make_read_path(cs, rep_path, sizeof(rep_path),
-                                         global->xml_report_archive_dir,
-                                         run_id, 0, 1)) < 0)
+  if (run_get_entry(cs->runlog_state, run_id, &re) < 0)
+    goto cleanup;
+
+  if ((rep_flag = serve_make_xml_report_read_path(cs, rep_path, sizeof(rep_path), &re)) < 0)
     goto cleanup;
   if (generic_read_file(&rep_txt, 0, &rep_len, rep_flag, 0, rep_path, 0) < 0)
     goto cleanup;
@@ -6177,7 +6187,6 @@ static int get_accepting_passed_tests(
         int run_id,
         const struct run_entry *re)
 {
-  const struct section_global_data *global = cs->global;
   int rep_flag;
   path_t rep_path;
   char *rep_txt = 0;
@@ -6219,9 +6228,7 @@ static int get_accepting_passed_tests(
   }
 
   r = 0;
-  if ((rep_flag = archive_make_read_path(cs, rep_path, sizeof(rep_path),
-                                         global->xml_report_archive_dir,
-                                         run_id, 0, 1)) < 0)
+  if ((rep_flag = serve_make_xml_report_read_path(cs, rep_path, sizeof(rep_path), re)) < 0)
     goto cleanup;
   if (generic_read_file(&rep_txt, 0, &rep_len, rep_flag, 0, rep_path, 0) < 0)
     goto cleanup;
@@ -6594,7 +6601,7 @@ ns_write_olympiads_user_runs(
       fprintf(fout, "<td%s>%s</td>", cl, score_buf);
 
     if (enable_src_view) {
-      if (cnts->exam_mode && (src_txt = get_source(cs, i, prob, variant))) {
+      if (cnts->exam_mode && (src_txt = get_source(cs, i, &re, prob, variant))) {
         fprintf(fout, "<td%s>%s</td>", cl, src_txt);
         xfree(src_txt); src_txt = 0;
       } else {
@@ -6633,11 +6640,14 @@ ns_write_olympiads_user_runs(
 
 void
 ns_get_user_problems_summary(
-        const serve_state_t cs, int user_id, int accepting_mode,
+        const serve_state_t cs,
+        int user_id,
+        int accepting_mode,
         unsigned char *solved_flag,   /* whether the problem was OK */
         unsigned char *accepted_flag, /* whether the problem was accepted */
         unsigned char *pending_flag,  /* whether there are pending runs */
         unsigned char *trans_flag,    /* whether there are transient runs */
+        unsigned char *pr_flag,       /* whether there are pending review runs */
         int *best_run,                /* the number of the best run */
         int *attempts,                /* the number of previous attempts */
         int *disqualified,            /* the number of prev. disq. attempts */
@@ -6657,7 +6667,7 @@ ns_get_user_problems_summary(
   int need_prev_succ = 0; // 1, if we need to compute 'prev_successes' array
 
   /* if 'score_bonus' is set for atleast one problem, we have to scan all runs */
-  for (int prob_id = 0; prob_id <= cs->max_prob; ++prob_id) {
+  for (int prob_id = 1; prob_id <= cs->max_prob; ++prob_id) {
     struct section_problem_data *prob = cs->probs[prob_id];
     if (prob && prob->score_bonus_total > 0) {
       need_prev_succ = 1;
@@ -6802,12 +6812,12 @@ ns_get_user_problems_summary(
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
         case RUN_STYLE_ERR:
-        case RUN_REJECTED:
           if (!accepted_flag[re.prob_id]) {
             best_run[re.prob_id] = run_id;
           }
           break;
 
+        case RUN_REJECTED:
         case RUN_IGNORED:
         case RUN_DISQUALIFIED:
           break;
@@ -6881,17 +6891,38 @@ ns_get_user_problems_summary(
     } else if (global->score_system == SCORE_KIROV) {
       // KIROV contest
       if (cur_prob->score_latest_or_unmarked > 0) {
-        if (marked_flag[re.prob_id] && !re.is_marked) continue;
+        /*
+         * if there exists a "marked" run, the last "marked" score is taken
+         * if there is no "marked" run, the max score is taken
+         */
+        if (marked_flag[re.prob_id] && !re.is_marked) {
+          // already have a "marked" run, so ignore "unmarked" runs
+          continue;
+        }
         marked_flag[re.prob_id] = re.is_marked;
 
         switch (status) {
         case RUN_OK:
+          solved_flag[re.prob_id] = 1;
           cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
                                        1 /* user_mode */, &re, cur_prob,
                                        attempts[re.prob_id],
                                        disqualified[re.prob_id],
                                        prev_successes[re.prob_id], 0, 0);
-          solved_flag[re.prob_id] = 1;
+          if (re.is_marked || cur_score > best_score[re.prob_id]) {
+            best_score[re.prob_id] = cur_score;
+            best_run[re.prob_id] = run_id;
+          }
+          break;
+
+        case RUN_PENDING_REVIEW:
+          // this is OK solution without manual confirmation
+          pr_flag[re.prob_id] = 1;
+          cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
+                                       1 /* user_mode */, &re, cur_prob,
+                                       attempts[re.prob_id],
+                                       disqualified[re.prob_id],
+                                       prev_successes[re.prob_id], 0, 0);
           if (re.is_marked || cur_score > best_score[re.prob_id]) {
             best_score[re.prob_id] = cur_score;
             best_run[re.prob_id] = run_id;
@@ -6900,12 +6931,10 @@ ns_get_user_problems_summary(
 
         case RUN_COMPILE_ERR:
         case RUN_STYLE_ERR:
-        case RUN_REJECTED:
           if (cur_prob->ignore_compile_errors > 0) continue;
-          solved_flag[re.prob_id] = 0;
           attempts[re.prob_id]++;
-          cur_score = 0;
           if (re.is_marked || cur_score > best_score[re.prob_id]) {
+            cur_score = 0;
             best_score[re.prob_id] = cur_score;
             best_run[re.prob_id] = run_id;
           }
@@ -6927,7 +6956,6 @@ ns_get_user_problems_summary(
                                        attempts[re.prob_id],
                                        disqualified[re.prob_id],
                                        prev_successes[re.prob_id], 0, 0);
-          solved_flag[re.prob_id] = 0;
           attempts[re.prob_id]++;
           if (re.is_marked || cur_score > best_score[re.prob_id]) {
             best_score[re.prob_id] = cur_score;
@@ -6935,6 +6963,7 @@ ns_get_user_problems_summary(
           }
           break;
 
+        case RUN_REJECTED:
         case RUN_IGNORED:
           break;
 
@@ -6943,7 +6972,6 @@ ns_get_user_problems_summary(
           break;
 
         case RUN_ACCEPTED:
-        case RUN_PENDING_REVIEW:
         case RUN_PENDING:
           pending_flag[re.prob_id] = 1;
           attempts[re.prob_id]++;
@@ -6953,22 +6981,147 @@ ns_get_user_problems_summary(
         default:
           abort();
         }
+      } else if (cur_prob->score_latest > 0) {
+        if (cur_prob->ignore_unmarked > 0 && !re.is_marked) {
+          // ignore submits which are not "marked"
+          continue;
+        }
+
+        cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
+                                     1 /* user_mode */, &re, cur_prob,
+                                     attempts[re.prob_id],
+                                     disqualified[re.prob_id],
+                                     prev_successes[re.prob_id], 0, 0);
+        switch (status) {
+        case RUN_OK:
+          marked_flag[re.prob_id] = re.is_marked;
+          solved_flag[re.prob_id] = 1;
+          accepted_flag[re.prob_id] = 0;
+          pr_flag[re.prob_id] = 0;
+          pending_flag[re.prob_id] = 0;
+          best_score[re.prob_id] = cur_score;
+          best_run[re.prob_id] = run_id;
+          break;
+
+        case RUN_PENDING_REVIEW:
+          marked_flag[re.prob_id] = re.is_marked;
+          solved_flag[re.prob_id] = 0;
+          accepted_flag[re.prob_id] = 0;
+          pr_flag[re.prob_id] = 1;
+          pending_flag[re.prob_id] = 0;
+          best_score[re.prob_id] = cur_score;
+          best_run[re.prob_id] = run_id;
+          ++attempts[re.prob_id];
+          break;
+
+        case RUN_ACCEPTED:
+          marked_flag[re.prob_id] = re.is_marked;
+          solved_flag[re.prob_id] = 0;
+          accepted_flag[re.prob_id] = 1;
+          pr_flag[re.prob_id] = 0;
+          pending_flag[re.prob_id] = 0;
+          best_score[re.prob_id] = cur_score;
+          best_run[re.prob_id] = run_id;
+          ++attempts[re.prob_id];
+          break;
+
+        case RUN_COMPILE_ERR:
+        case RUN_STYLE_ERR:
+          if (cur_prob->ignore_compile_errors > 0) break;
+          marked_flag[re.prob_id] = re.is_marked;
+          solved_flag[re.prob_id] = 0;
+          accepted_flag[re.prob_id] = 0;
+          pr_flag[re.prob_id] = 0;
+          pending_flag[re.prob_id] = 0;
+          best_score[re.prob_id] = 0;
+          best_run[re.prob_id] = run_id;
+          ++attempts[re.prob_id];
+          break;
+
+        case RUN_CHECK_FAILED:
+        case RUN_IGNORED:
+          break;
+
+        case RUN_REJECTED:
+          marked_flag[re.prob_id] = re.is_marked;
+          solved_flag[re.prob_id] = 0;
+          accepted_flag[re.prob_id] = 0;
+          pr_flag[re.prob_id] = 0;
+          pending_flag[re.prob_id] = 0;
+          best_score[re.prob_id] = 0;
+          best_run[re.prob_id] = run_id;
+          break;
+
+        case RUN_DISQUALIFIED:
+          marked_flag[re.prob_id] = re.is_marked;
+          solved_flag[re.prob_id] = 0;
+          accepted_flag[re.prob_id] = 0;
+          pr_flag[re.prob_id] = 0;
+          pending_flag[re.prob_id] = 0;
+          best_score[re.prob_id] = 0;
+          best_run[re.prob_id] = run_id;
+          ++disqualified[re.prob_id];
+          break;
+
+        case RUN_PENDING:
+          marked_flag[re.prob_id] = re.is_marked;
+          solved_flag[re.prob_id] = 0;
+          accepted_flag[re.prob_id] = 0;
+          pr_flag[re.prob_id] = 0;
+          pending_flag[re.prob_id] = 1;
+          best_score[re.prob_id] = 0;
+          best_run[re.prob_id] = run_id;
+          break;
+
+        case RUN_RUN_TIME_ERR:
+        case RUN_TIME_LIMIT_ERR:
+        case RUN_PRESENTATION_ERR:
+        case RUN_WRONG_ANSWER_ERR:
+        case RUN_PARTIAL:
+        case RUN_MEM_LIMIT_ERR:
+        case RUN_SECURITY_ERR:
+        case RUN_WALL_TIME_LIMIT_ERR:
+          marked_flag[re.prob_id] = re.is_marked;
+          solved_flag[re.prob_id] = 0;
+          accepted_flag[re.prob_id] = 0;
+          pr_flag[re.prob_id] = 0;
+          pending_flag[re.prob_id] = 0;
+          best_score[re.prob_id] = cur_score;
+          best_run[re.prob_id] = run_id;
+          ++attempts[re.prob_id];
+          break;
+
+        default:
+          abort();
+        }
       } else {
-        if (solved_flag[re.prob_id] && cur_prob->score_latest <= 0) continue;
-        if (marked_flag[re.prob_id] && cur_prob->ignore_unmarked > 0
-            && !re.is_marked) continue;
-        if (!marked_flag[re.prob_id]) marked_flag[re.prob_id] = re.is_marked;
+        if (solved_flag[re.prob_id]) {
+          // if the problem is already solved, no need to process this run
+          continue;
+        }
+        if (cur_prob->ignore_unmarked > 0 && !re.is_marked) {
+          // ignore "unmarked" runs, if the option is set
+          continue;
+        }
+
+        cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
+                                     1 /* user_mode */, &re, cur_prob,
+                                     attempts[re.prob_id],
+                                     disqualified[re.prob_id],
+                                     prev_successes[re.prob_id], 0, 0);
 
         switch (status) {
         case RUN_OK:
           solved_flag[re.prob_id] = 1;
-          cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
-                                       1 /* user_mode */, &re, cur_prob,
-                                       attempts[re.prob_id],
-                                       disqualified[re.prob_id],
-                                       prev_successes[re.prob_id], 0, 0);
+          if (cur_score >= best_score[re.prob_id]) {
+            best_score[re.prob_id] = cur_score;
+            best_run[re.prob_id] = run_id;
+          }
+          break;
 
-          if (cur_score >= best_score[re.prob_id] || cur_prob->score_latest > 0) {
+        case RUN_PENDING_REVIEW:
+          pr_flag[re.prob_id] = 1;
+          if (cur_score >= best_score[re.prob_id]) {
             best_score[re.prob_id] = cur_score;
             best_run[re.prob_id] = run_id;
           }
@@ -6976,16 +7129,13 @@ ns_get_user_problems_summary(
 
         case RUN_COMPILE_ERR:
         case RUN_STYLE_ERR:
-        case RUN_REJECTED:
-          if (!cur_prob->ignore_compile_errors) {
-            solved_flag[re.prob_id] = 0;
-            attempts[re.prob_id]++;
-            cur_score = 0;
-            if (cur_score >= best_score[re.prob_id]
-                || cur_prob->score_latest > 0) {
-              best_score[re.prob_id] = cur_score;
-              best_run[re.prob_id] = run_id;
-            }
+          if (cur_prob->ignore_compile_errors > 0) break;
+
+          ++attempts[re.prob_id];
+          cur_score = 0;
+          if (cur_score >= best_score[re.prob_id]) {
+            best_score[re.prob_id] = cur_score;
+            best_run[re.prob_id] = run_id;
           }
           break;
 
@@ -6994,39 +7144,53 @@ ns_get_user_problems_summary(
         case RUN_WALL_TIME_LIMIT_ERR:
         case RUN_PRESENTATION_ERR:
         case RUN_WRONG_ANSWER_ERR:
-        case RUN_CHECK_FAILED:
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
-          break;
-
         case RUN_PARTIAL:
-          solved_flag[re.prob_id] = 0;
-          cur_score = calc_kirov_score(0, 0, start_time, separate_user_score,
-                                       1 /* user_mode */, &re, cur_prob,
-                                       attempts[re.prob_id],
-                                       disqualified[re.prob_id],
-                                       prev_successes[re.prob_id], 0, 0);
-
-          attempts[re.prob_id]++;
-          if (cur_score >= best_score[re.prob_id] || cur_prob->score_latest > 0){
+          ++attempts[re.prob_id];
+          if (cur_score >= best_score[re.prob_id]) {
             best_score[re.prob_id] = cur_score;
             best_run[re.prob_id] = run_id;
           }
           break;
 
+        case RUN_ACCEPTED:
+          accepted_flag[re.prob_id] = 1;
+          if (cur_score >= best_score[re.prob_id]) {
+            best_score[re.prob_id] = cur_score;
+            best_run[re.prob_id] = run_id;
+          }
+          break;
+
+        case RUN_REJECTED:
+          cur_score = 0;
+          if (cur_score >= best_score[re.prob_id]) {
+            best_score[re.prob_id] = cur_score;
+            best_run[re.prob_id] = run_id;
+          }
+          break;
+
+        case RUN_CHECK_FAILED:
         case RUN_IGNORED:
           break;
 
         case RUN_DISQUALIFIED:
-          disqualified[re.prob_id]++;
+          ++disqualified[re.prob_id];
+          cur_score = 0;
+          if (cur_score >= best_score[re.prob_id]) {
+            best_score[re.prob_id] = cur_score;
+            best_run[re.prob_id] = run_id;
+          }
           break;
 
-        case RUN_ACCEPTED:
-        case RUN_PENDING_REVIEW:
         case RUN_PENDING:
           pending_flag[re.prob_id] = 1;
-          attempts[re.prob_id]++;
-          if (best_run[re.prob_id] < 0) best_run[re.prob_id] = run_id;
+          ++attempts[re.prob_id];
+          cur_score = 0;
+          if (cur_score >= best_score[re.prob_id]) {
+            best_score[re.prob_id] = cur_score;
+            best_run[re.prob_id] = run_id;
+          }
           break;
 
         default:
@@ -7155,6 +7319,7 @@ ns_write_user_problems_summary(
         const unsigned char *table_class,
         unsigned char *solved_flag,   /* whether the problem was OK */
         unsigned char *accepted_flag, /* whether the problem was accepted */
+        unsigned char *pr_flag,       /* whether the problem is pending review */
         unsigned char *pending_flag,  /* whether there are pending runs */
         unsigned char *trans_flag,    /* whether there are transient runs */
         int *best_run,                /* the number of the best run */
@@ -7217,8 +7382,10 @@ ns_write_user_problems_summary(
       continue;
     if (cur_prob->hidden > 0) continue;
     s = "";
-    if (accepted_flag[prob_id] || solved_flag[prob_id])
+    if (accepted_flag[prob_id] || solved_flag[prob_id] || pr_flag[prob_id])
       s = " bgcolor=\"#ddffdd\"";
+    else if (pending_flag[prob_id])
+      s = " bgcolor=\"#ffffdd\"";
     else if (!pending_flag[prob_id] && attempts[prob_id])
       s = " bgcolor=\"#ffdddd\"";
     fprintf(fout, "<tr%s>", s);

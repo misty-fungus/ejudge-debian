@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 7379 2013-03-30 13:07:30Z cher $ */
+/* $Id: rldb_mysql.c 7609 2013-11-21 23:25:26Z cher $ */
 
 /* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -241,7 +241,14 @@ do_open(struct rldb_mysql_state *state)
       return -1;
     run_version = 5;
   }
-  if (run_version != 5) {
+  if (run_version == 5) {
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN store_flags TINYINT NOT NULL DEFAULT 0 AFTER eoln_type", md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '6' WHERE config_key = 'run_version' ;", md->table_prefix) < 0)
+      return -1;
+    run_version = 6;
+  }
+  if (run_version != 6) {
     err("run_version == %d is not supported", run_version);
     return -1;
   }
@@ -399,6 +406,7 @@ load_runs(struct rldb_mysql_cnts *cs)
     if (ri.status == RUN_EMPTY) {
       xfree(ri.hash); ri.hash = 0;
       xfree(ri.mime_type); ri.mime_type = 0;
+      xfree(ri.run_uuid); ri.run_uuid = 0;
 
       expand_runs(rls, ri.run_id);
       re = &rls->runs[ri.run_id];
@@ -425,6 +433,7 @@ load_runs(struct rldb_mysql_cnts *cs)
       db_error_inv_value_fail(md, "mime_type");
     xfree(ri.hash); ri.hash = 0;
     xfree(ri.mime_type); ri.mime_type = 0;
+    xfree(ri.run_uuid); ri.run_uuid = 0;
 
     expand_runs(rls, ri.run_id);
     re = &rls->runs[ri.run_id];
@@ -468,12 +477,14 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->saved_test = ri.saved_test;
     re->passed_mode = ri.passed_mode;
     re->eoln_type = ri.eoln_type;
+    re->store_flags = ri.store_flags;
   }
   return 1;
 
  fail:
   xfree(ri.hash);
   xfree(ri.mime_type);
+  xfree(ri.run_uuid);
   mi->free_res(md);
   return -1;
 }
@@ -788,7 +799,7 @@ get_insert_run_id(
   re->run_id = run_id;
   re->time = create_time;
   re->nsec = create_nsec;
-  re->user_id = user_id;
+  //re->user_id = user_id;
   re->status = RUN_EMPTY;
 
   memset(&ri, 0, sizeof(ri));
@@ -798,7 +809,7 @@ get_insert_run_id(
   ri.create_time = create_time;
   ri.create_nsec = create_nsec;
   ri.status = RUN_EMPTY;
-  ri.user_id = user_id;
+  //ri.user_id = user_id;
   ri.last_change_time = curtime.tv_sec;
   ri.last_change_nsec = curtime.tv_usec * 1000;
 
@@ -980,6 +991,10 @@ generate_update_entry_clause(
     fprintf(f, "%seoln_type = %d", sep, re->eoln_type);
     sep = comma;
   }
+  if ((flags & RE_STORE_FLAGS)) {
+    fprintf(f, "%sstore_flags = %d", sep, re->store_flags);
+    sep = comma;
+  }
 
   gettimeofday(&curtime, 0);
   fprintf(f, "%slast_change_time = ", sep);
@@ -1084,6 +1099,9 @@ update_entry(
   }
   if ((flags & RE_EOLN_TYPE)) {
     dst->eoln_type = src->eoln_type;
+  }
+  if ((flags & RE_STORE_FLAGS)) {
+    dst->store_flags = src->store_flags;
   }
 }
 
@@ -1580,6 +1598,7 @@ put_entry_func(
   ri.saved_test = re->saved_test;
   ri.passed_mode = re->passed_mode;
   ri.eoln_type = re->eoln_type;
+  ri.store_flags = re->store_flags;
 
   cmd_f = open_memstream(&cmd_t, &cmd_z);
   fprintf(cmd_f, "INSERT INTO %sruns VALUES ( ", state->md->table_prefix);

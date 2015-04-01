@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 7464 2013-10-22 06:17:01Z cher $ */
+/* $Id: super_html_3.c 7571 2013-11-08 08:51:40Z cher $ */
 
 /* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -296,6 +296,8 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_PRUNE_EMPTY_USERS] = "Serve.cfg:global:prune_empty_users",
   [SSERV_CMD_GLOB_CHANGE_ENABLE_FULL_ARCHIVE] = "Serve.cfg:global:enable_full_archive",
   [SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT] = "Serve.cfg:global:advanced_layout",
+  [SSERV_CMD_GLOB_CHANGE_UUID_RUN_STORE] = "Serve.cfg:global:uuid_run_store",
+  [SSERV_CMD_GLOB_CHANGE_ENABLE_32BIT_CHECKERS] = "Serve.cfg:global:enable_32bit_checkers",
   [SSERV_CMD_GLOB_CHANGE_IGNORE_BOM] = "Serve.cfg:global:ignore_bom",
   [SSERV_CMD_GLOB_CHANGE_DISABLE_USER_DATABASE] = "Serve.cfg:global:disable_user_database",
   [SSERV_CMD_GLOB_CHANGE_ENABLE_MAX_STACK_SIZE] = "Serve.cfg:global:enable_max_stack_size",
@@ -558,6 +560,7 @@ static const unsigned char * const action_to_help_url_map[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DISABLE_LANGUAGE] = "Serve.cfg:problem:disable_language",
   [SSERV_CMD_PROB_CHANGE_ENABLE_LANGUAGE] = "Serve.cfg:problem:enable_language",
   [SSERV_CMD_PROB_CHANGE_REQUIRE] = "Serve.cfg:problem:require",
+  [SSERV_CMD_PROB_CHANGE_PROVIDE_OK] = "Serve.cfg:problem:provide_ok",
   [SSERV_CMD_PROB_CHANGE_TEST_SETS] = "Serve.cfg:problem:test_sets",
   [SSERV_CMD_PROB_CHANGE_SCORE_VIEW] = "Serve.cfg:problem:score_view",
   [SSERV_CMD_PROB_CHANGE_START_DATE] = "Serve.cfg:problem:start_date",
@@ -1139,6 +1142,20 @@ super_html_edit_global_parameters(
                            session_id, form_row_attrs[row ^= 1],
                            self_url, extra_args, hidden_vars);
 
+  if (sizeof(long) == sizeof(long long)) {
+    //GLOBAL_PARAM(enable_32bit_checkers, "d"),
+    html_start_form(f, 1, self_url, hidden_vars);
+    fprintf(f, "<tr%s><td>Compile 32-bit checkers on 64-bit platforms:</td><td>", form_row_attrs[row ^= 1]);
+    html_boolean_select(f, global->enable_32bit_checkers, "param", 0, 0);
+    fprintf(f, "</td><td>");
+    html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ENABLE_32BIT_CHECKERS, "Change");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_ENABLE_32BIT_CHECKERS);
+    fprintf(f, "</tr></form>\n");
+  }
+
+
+
   html_start_form(f, 1, self_url, hidden_vars);
   fprintf(f, "<tr%s><td colspan=\"4\" align=\"center\"><b>Contestant's capabilities</b>", head_row_attr);
   row = 1;
@@ -1502,6 +1519,18 @@ super_html_edit_global_parameters(
     html_submit_button(f, SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT, "Change");
     fprintf(f, "</td>");
     print_help_url(f, SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT);
+    fprintf(f, "</tr></form>\n");
+  }
+
+  if (sstate->show_global_2) {
+    //GLOBAL_PARAM(uuid_run_store, "d"),
+    html_start_form(f, 1, self_url, hidden_vars);
+    fprintf(f, "<tr%s><td>Use UUID instead of run_id to store runs:</td><td>", form_row_attrs[row ^= 1]);
+    html_boolean_select(f, global->uuid_run_store, "param", 0, 0);
+    fprintf(f, "</td><td>");
+    html_submit_button(f, SSERV_CMD_GLOB_CHANGE_UUID_RUN_STORE, "Change");
+    fprintf(f, "</td>");
+    print_help_url(f, SSERV_CMD_GLOB_CHANGE_UUID_RUN_STORE);
     fprintf(f, "</tr></form>\n");
   }
 
@@ -3042,6 +3071,14 @@ super_html_global_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_GLOB_CHANGE_ADVANCED_LAYOUT:
     p_int = &global->advanced_layout;
+    goto handle_boolean;
+
+  case SSERV_CMD_GLOB_CHANGE_UUID_RUN_STORE:
+    p_int = &global->uuid_run_store;
+    goto handle_boolean;
+
+  case SSERV_CMD_GLOB_CHANGE_ENABLE_32BIT_CHECKERS:
+    p_int = &global->enable_32bit_checkers;
     goto handle_boolean;
 
   case SSERV_CMD_GLOB_CHANGE_IGNORE_BOM:
@@ -7433,6 +7470,24 @@ super_html_print_problem(FILE *f,
     xfree(checker_env);
   }
 
+  //PROBLEM_PARAM(provide_ok, "x"),
+  if (!prob->abstract && show_adv) {
+    if (!prob->provide_ok || !prob->provide_ok[0]) {
+      extra_msg = "(not set)";
+      checker_env = xstrdup("");
+    } else {
+      extra_msg = "";
+      checker_env = sarray_unparse_2(prob->provide_ok);
+    }
+    print_string_editing_row_3(f, "Provide OK to problems:", checker_env,
+                               SSERV_CMD_PROB_CHANGE_PROVIDE_OK,
+                               SSERV_CMD_PROB_CLEAR_PROVIDE_OK,
+                               extra_msg,
+                               session_id, form_row_attrs[row ^= 1],
+                               self_url, extra_args, prob_hidden_vars);
+    xfree(checker_env);
+  }
+
   //PROBLEM_PARAM(variant_num, "d"),
   if (!prob->abstract && show_adv) {
     extra_msg = "";
@@ -8653,6 +8708,18 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
   case SSERV_CMD_PROB_CLEAR_REQUIRE:
     sarray_free(prob->require);
     prob->require = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_PROVIDE_OK:
+    if (sarray_parse_2(param2, &tmp_env) < 0)
+      return -SSERV_ERR_INVALID_PARAMETER;
+    sarray_free(prob->provide_ok);
+    prob->provide_ok = tmp_env;
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_PROVIDE_OK:
+    sarray_free(prob->provide_ok);
+    prob->provide_ok = 0;
     return 0;
 
   case SSERV_CMD_PROB_CHANGE_TEST_SETS:

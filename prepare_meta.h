@@ -1,5 +1,5 @@
 // This is an auto-generated file, do not edit
-// Generated 2013/10/25 13:52:05
+// Generated 2013/11/09 23:52:19
 
 #ifndef __PREPARE_META_H__
 #define __PREPARE_META_H__
@@ -29,6 +29,8 @@ enum
   CNTSGLOB_detect_violations,
   CNTSGLOB_enable_memory_limit_error,
   CNTSGLOB_advanced_layout,
+  CNTSGLOB_uuid_run_store,
+  CNTSGLOB_enable_32bit_checkers,
   CNTSGLOB_ignore_bom,
   CNTSGLOB_disable_user_database,
   CNTSGLOB_enable_max_stack_size,
@@ -123,6 +125,7 @@ enum
   CNTSGLOB_xml_report_archive_dir,
   CNTSGLOB_full_archive_dir,
   CNTSGLOB_audit_log_dir,
+  CNTSGLOB_uuid_archive_dir,
   CNTSGLOB_team_extra_dir,
   CNTSGLOB_status_dir,
   CNTSGLOB_work_dir,
@@ -426,6 +429,7 @@ enum
   CNTSPROB_disable_language,
   CNTSPROB_enable_language,
   CNTSPROB_require,
+  CNTSPROB_provide_ok,
   CNTSPROB_lang_compiler_env,
   CNTSPROB_checker_env,
   CNTSPROB_valuer_env,

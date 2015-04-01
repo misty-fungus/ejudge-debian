@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 7501 2013-10-25 09:52:01Z cher $ */
+/* $Id: prepare_out.c 7571 2013-11-08 08:51:40Z cher $ */
 
 /* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -493,6 +493,10 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     unparse_bool(f, "enable_memory_limit_error", global->enable_memory_limit_error);
   if (global->advanced_layout > 0)
     unparse_bool(f, "advanced_layout", global->advanced_layout);
+  if (global->uuid_run_store > 0)
+    unparse_bool(f, "uuid_run_store", global->uuid_run_store);
+  if (global->enable_32bit_checkers > 0)
+    unparse_bool(f, "enable_32bit_checkers", global->enable_32bit_checkers);
   if (global->ignore_bom > 0)
     unparse_bool(f, "ignore_bom", global->ignore_bom);
   if (global->disable_auto_refresh > 0)
@@ -1306,6 +1310,7 @@ prepare_unparse_prob(
   do_xstr(f, &ab, "disable_language", prob->disable_language);
   do_xstr(f, &ab, "enable_language", prob->enable_language);
   do_xstr(f, &ab, "require", prob->require);
+  do_xstr(f, &ab, "provide_ok", prob->provide_ok);
   do_xstr(f, &ab, "score_view", prob->score_view);
 
   if (!prob->abstract && prob->variant_num > 0) {
@@ -1642,6 +1647,7 @@ prepare_unparse_actual_prob(
   do_xstr(f, &ab, "disable_language", prob->disable_language);
   do_xstr(f, &ab, "enable_language", prob->enable_language);
   do_xstr(f, &ab, "require", prob->require);
+  do_xstr(f, &ab, "provide_ok", prob->provide_ok);
   do_xstr(f, &ab, "score_view", prob->score_view);
   do_xstr(f, &ab, "date_penalty", prob->date_penalty);
   do_xstr(f, &ab, "group_start_date", prob->group_start_date);

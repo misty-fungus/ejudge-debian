@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 7467 2013-10-22 08:16:07Z cher $ */
+/* $Id: super_html_4.c 7636 2013-11-25 19:23:10Z cher $ */
 
 /* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -515,8 +515,11 @@ refresh_page(
              phr->session_id, buf);
   }
 
-  //fprintf(out_f, "Content-Type: text/html; charset=%s\nCache-Control: no-cache\nPragma: no-cache\nLocation: %s\n\n", EJUDGE_CHARSET, url);
-  fprintf(out_f, "Location: %s\n\n", url);
+  fprintf(out_f, "Location: %s\n", url);
+  if (phr->client_key) {
+    fprintf(out_f, "Set-Cookie: EJSID=%016llx; Path=/\n", phr->client_key);
+  }
+  putc('\n', out_f);
 }
 
 typedef int (*handler_func_t)(FILE *log_f, FILE *out_f, struct super_http_request_info *phr);
@@ -1111,6 +1114,7 @@ static const struct cnts_edit_info cnts_global_info[] =
   { NS_GLOBAL, CNTSGLOB_enable_max_stack_size, 'Y', 1, 0, 0, 0, 0, "Assume max_stack_size == max_vm_size", 0, 0 },
   { NS_GLOBAL, CNTSGLOB_standings_locale, 134, 1, 1, 0, 1, 0, "Standings locale", 0, 0 },
   { NS_GLOBAL, CNTSGLOB_checker_locale, 's', 1, 1, 1, 1, 0, "Checker locale", 0, 0 },
+  { NS_GLOBAL, CNTSGLOB_enable_32bit_checkers, 'Y', 1, 0, 0, 0, 0, "Compile 32-bit checkers on 64-bit platforms", 0, 0 },
 
   { NS_SID_STATE, SSSS_show_global_1, '-', 1, 0, 0, 0, 0, "Contestant's capabilities", 0, 0 },
   { NS_GLOBAL, CNTSGLOB_team_enable_src_view, 'Y', 1, 0, 0, 0, 0, "Contestants may view their source code", 0, "SidState.show_global_1" },
@@ -1145,6 +1149,7 @@ static const struct cnts_edit_info cnts_global_info[] =
 
   { NS_SID_STATE, SSSS_show_global_2, '-', 1, 0, 0, 0, 0, "Files and directories", 0, 0 },
   { NS_GLOBAL, CNTSGLOB_advanced_layout, 'Y', 1, 0, 0, 0, 0, "Advanced layout of problem files", 0, "SidState.show_global_2" },
+  { NS_GLOBAL, CNTSGLOB_uuid_run_store, 'Y', 1, 0, 0, 0, 0, "Use UUID instead of runid to store runs", 0, "SidState.show_global_2" },
   { NS_GLOBAL, CNTSGLOB_test_dir, 'S', 1, 1, 1, 1, 0, "Directory for tests", "Directory for tests (relative to the contest configuration directory)", "SidState.show_global_2" },
   { NS_GLOBAL, CNTSGLOB_corr_dir, 'S', 1, 1, 1, 1, 0, "Directory for correct answers", "Directory for correct answers (relative to the contest configuration directory)", "SidState.show_global_2" },
   { NS_GLOBAL, CNTSGLOB_info_dir, 'S', 1, 1, 1, 1, 0, "Directory for test information files", "Directory for test information files (relative to the contest configuration directory)", "SidState.show_global_2" },
@@ -1424,6 +1429,7 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_disable_language, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Disabled languages", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_enable_language, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Enabled languages", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_require, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Required problems", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_provide_ok, 'x', 1, 1, 1, 1, SSERV_OP_EDIT_SERVE_PROB_FIELD_DETAIL_PAGE, "Provide OK to problems", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_variant_num, 'd', 1, 1, 1, 1, 0, "Number of variants", 0, 0 },
   { NS_PROBLEM, CNTSPROB_start_date, 't', 1, 1, 0, 0, 0, "Accept start date", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_deadline, 't', 1, 1, 0, 0, 0, "Accept deadline", 0, "SidState.prob_show_adv" },
@@ -6069,6 +6075,7 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_language] = 0,
   [CNTSPROB_enable_language] = 0,
   [CNTSPROB_require] = 0,
+  [CNTSPROB_provide_ok] = 0,
   [CNTSPROB_standard_checker] = 1,
   [CNTSPROB_lang_compiler_env] = 0,
   [CNTSPROB_checker_env] = 0,
@@ -6362,6 +6369,7 @@ const unsigned char prob_editable_details[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_language] = 1,
   [CNTSPROB_enable_language] = 1,
   [CNTSPROB_require] = 1,
+  [CNTSPROB_provide_ok] = 1,
   [CNTSPROB_unhandled_vars] = 1,
 };
 
@@ -6519,6 +6527,7 @@ cmd_op_edit_serve_prob_field_detail(
   case CNTSPROB_disable_language:
   case CNTSPROB_enable_language:
   case CNTSPROB_require:
+  case CNTSPROB_provide_ok:
     split_to_lines(filt_txt, &lns, 2);
     sarray_free(*(char***) f_ptr);
     *(char***) f_ptr = lns;
@@ -6716,6 +6725,34 @@ do_http_request(FILE *log_f, FILE *out_f, struct super_http_request_info *phr)
   return retval;
 }
 
+static void
+parse_cookie(struct super_http_request_info *phr)
+{
+  const unsigned char *cookies = ss_getenv(phr, "HTTP_COOKIE");
+  if (!cookies) return;
+  const unsigned char *s = cookies;
+  ej_cookie_t client_key = 0;
+  while (1) {
+    while (isspace(*s)) ++s;
+    if (strncmp(s, "EJSID=", 6) != 0) {
+      while (*s && *s != ';') ++s;
+      if (!*s) return;
+      ++s;
+      continue;
+    }
+    int n = 0;
+    if (sscanf(s + 6, "%llx%n", &client_key, &n) == 1) {
+      s += 6 + n;
+      if (!*s || isspace(*s) || *s == ';') {
+        phr->client_key = client_key;
+        return;
+      }
+    }
+    phr->client_key = 0;
+    return;
+  }
+}
+
 void
 super_html_http_request(
         char **p_out_t,
@@ -6738,6 +6775,8 @@ super_html_http_request(
     script_name = "/cgi-bin/serve-control";
   snprintf(phr->self_url, sizeof(phr->self_url), "%s://%s%s", protocol, http_host, script_name);
   phr->script_name = script_name;
+
+  parse_cookie(phr);
 
   if ((r = ss_cgi_param(phr, "SID", &s)) < 0) {
     r = -S_ERR_INV_SID;

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: userlist_xml.c 7356 2013-02-09 08:40:11Z cher $ */
+/* $Id: userlist_xml.c 7602 2013-11-19 15:20:38Z cher $ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -173,6 +173,7 @@ static char const * const attr_map[] =
   "group_name",
   "description",
   "user_id",
+  "client_key",
 
   0
 };
@@ -208,6 +209,7 @@ elem_free(struct xml_tree *t)
       xfree(p->name);
       xfree(p->login_hash_table);
       xfree(p->cookie_hash_table);
+      xfree(p->client_key_hash_table);
       xfree(p->group_map);
       xfree(p->group_hash_table);
     }
@@ -500,8 +502,10 @@ parse_passwd(struct xml_tree *t, unsigned char **p_pwd, int *p_method)
 }
 
 static int
-parse_cookies(char const *path, struct xml_tree *cookies,
-              struct userlist_user *usr)
+parse_cookies(
+        char const *path,
+        struct xml_tree *cookies,
+        struct userlist_user *usr)
 {
   struct xml_tree *t;
   struct xml_attr *a;
@@ -526,16 +530,9 @@ parse_cookies(char const *path, struct xml_tree *cookies,
         has_ip = 1;
         break;
       case USERLIST_A_VALUE:
-        {
-          ej_cookie_t val;
-          int n;
-
-          if (!a->text || sscanf(a->text, "%" EJ_PRINTF_LLSPEC "x %n", &val, &n) != 1
-              || !val) {
-            xml_err_attr_invalid(a);
-            return -1;
-          }
-          c->cookie = val;
+        if (xml_parse_full_cookie(a->text, &c->cookie, &c->client_key) < 0) {
+          xml_err_attr_invalid(a);
+          return -1;
         }
         break;
       case USERLIST_A_SSL:
@@ -1736,6 +1733,7 @@ static void
 unparse_cookies(const struct xml_tree *p, FILE *f)
 {
   struct userlist_cookie *c;
+  unsigned char buf[64];
 
   if (!p) return;
   ASSERT(p->tag == USERLIST_T_COOKIES);
@@ -1743,10 +1741,10 @@ unparse_cookies(const struct xml_tree *p, FILE *f)
   for (p = p->first_down; p; p = p->right) {
     ASSERT(p->tag == USERLIST_T_COOKIE);
     c = (struct userlist_cookie*) p;
-    fprintf(f, "      <%s %s=\"%s\" %s=\"%" EJ_PRINTF_LLSPEC "x\" %s=\"%s\" %s=\"%s\"",
+    fprintf(f, "      <%s %s=\"%s\" %s=\"%s\" %s=\"%s\" %s=\"%s\"",
             elem_map[USERLIST_T_COOKIE],
             attr_map[USERLIST_A_IP], xml_unparse_ipv6(&c->ip),
-            attr_map[USERLIST_A_VALUE], c->cookie,
+            attr_map[USERLIST_A_VALUE], xml_unparse_full_cookie(buf, sizeof(buf), &c->cookie, &c->client_key),
             attr_map[USERLIST_A_EXPIRE], xml_unparse_date(c->expire),
             attr_map[USERLIST_A_PRIV_LEVEL],
             protocol_priv_level_str(c->priv_level));
@@ -2400,10 +2398,3 @@ userlist_tag_to_str(int t)
   ASSERT(t > 0 && t < USERLIST_LAST_TAG);
   return elem_map[t];
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "XML_Parser" "XML_Char" "XML_Encoding")
- * End:
- */

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-batch.c 7467 2013-10-22 08:16:07Z cher $ */
+/* $Id: ej-batch.c 7581 2013-11-10 14:11:16Z cher $ */
 
 /* Copyright (C) 2010-2013 Alexander Chernov <cher@ejudge.ru> */
 
@@ -589,7 +589,9 @@ process_submit(
                             0 /* priority_adjustment */,
                             0 /* notify_flag */,
                             prob, lang,
-                            1 /* no_db_flag */);
+                            1 /* no_db_flag */,
+                            NULL /* uuid */,
+                            0 /* store_flags */);
   if (r < 0) {
     // FIXME: handle error
     abort();
@@ -688,7 +690,8 @@ process_compile_packet(
                         0, /* locale_id */
                         0 /* compile_report_dir */,
                         0 /* comp_pkt */,
-                        1 /* no_db_flag */);
+                        1 /* no_db_flag */,
+                        NULL /* uuid */);
   if (r < 0) abort();
 
   return 0;

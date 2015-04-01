@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: build_support.c 7244 2012-12-12 11:52:38Z cher $ */
+/* $Id: build_support.c 7676 2013-12-11 13:37:49Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -876,6 +876,10 @@ do_generate_makefile(
   unsigned char **good_exe_names = NULL;
   unsigned char **fail_exe_names = NULL;
   unsigned char **solutions_exe_names = NULL;
+  unsigned char ejudge_lib_dir[PATH_MAX];
+  unsigned char ejudge_lib32_dir[PATH_MAX];
+  const unsigned char *m32_opt = "";
+  const unsigned char *libdir = NULL;
 
   test_dir[0] = 0;
   test_pat[0] = 0;
@@ -884,6 +888,35 @@ do_generate_makefile(
   tgz_pat[0] = 0;
   tgzdir_pat[0] = 0;
   test_pr_pat[0] = 0;
+
+  ejudge_lib_dir[0] = 0;
+#if defined EJUDGE_LIB_DIR
+  if (!strncmp(EJUDGE_LIB_DIR, EJUDGE_PREFIX_DIR, strlen(EJUDGE_PREFIX_DIR))) {
+    snprintf(ejudge_lib_dir, sizeof(ejudge_lib_dir), "${EJUDGE_PREFIX_DIR}%s", EJUDGE_LIB_DIR + strlen(EJUDGE_PREFIX_DIR));
+  } else {
+    snprintf(ejudge_lib_dir, sizeof(ejudge_lib_dir), "%s", EJUDGE_LIB_DIR);
+  }
+#endif
+  if (!ejudge_lib_dir[0]) {
+    snprintf(ejudge_lib_dir, sizeof(ejudge_lib_dir), "${EJUDGE_PREFIX_DIR}/lib");
+  }
+  ejudge_lib32_dir[0] = 0;
+#if defined EJUDGE_LIB32_DIR
+  if (!strncmp(EJUDGE_LIB32_DIR, EJUDGE_PREFIX_DIR, strlen(EJUDGE_PREFIX_DIR))) {
+    snprintf(ejudge_lib32_dir, sizeof(ejudge_lib32_dir), "${EJUDGE_PREFIX_DIR}%s", EJUDGE_LIB32_DIR + strlen(EJUDGE_PREFIX_DIR));
+  } else {
+    snprintf(ejudge_lib32_dir, sizeof(ejudge_lib32_dir), "%s", EJUDGE_LIB32_DIR);
+  }
+#endif
+  if (!ejudge_lib32_dir[0]) {
+    snprintf(ejudge_lib32_dir, sizeof(ejudge_lib32_dir), "${EJUDGE_PREFIX_DIR}/lib");
+  }
+
+  libdir = ejudge_lib_dir;
+  if (global->enable_32bit_checkers > 0) {
+    libdir = ejudge_lib32_dir;
+    m32_opt = " -m32";
+  }
 
   retval = build_prepare_test_file_names(log_f, cnts, global, prob, variant, NULL,
                                          sizeof(test_dir), test_dir, test_pat, corr_pat, info_pat,
@@ -979,7 +1012,7 @@ do_generate_makefile(
     compiler_flags = NULL;
     fprintf(mk_f, "CLIBS = -lm\n");
     if (need_c_libchecker) {
-      fprintf(mk_f, "CLIBCHECKERFLAGS = -Wall -Wno-pointer-sign -g -std=gnu99 -O2 -I${EJUDGE_PREFIX_DIR}/include/ejudge -L${EJUDGE_PREFIX_DIR}/lib -Wl,--rpath,${EJUDGE_PREFIX_DIR}/lib\n");
+      fprintf(mk_f, "CLIBCHECKERFLAGS =%s -Wall -Wno-pointer-sign -g -std=gnu99 -O2 -I${EJUDGE_PREFIX_DIR}/include/ejudge -L%s -Wl,--rpath,%s\n", m32_opt, libdir, libdir);
       fprintf(mk_f, "CLIBCHECKERLIBS = -lchecker -lm\n");
     }
     fprintf(mk_f, "\n");
@@ -1002,7 +1035,8 @@ do_generate_makefile(
     }
     compiler_flags = NULL;
     if (need_cpp_libchecker) {
-      fprintf(mk_f, "CXXLIBCHECKERFLAGS = -Wall -g -O2 -I${EJUDGE_PREFIX_DIR}/include/ejudge -L${EJUDGE_PREFIX_DIR}/lib -Wl,--rpath,${EJUDGE_PREFIX_DIR}/lib\n");
+      fprintf(mk_f, "CXXLIBCHECKERFLAGS =%s -Wall -g -O2 -I${EJUDGE_PREFIX_DIR}/include/ejudge -L%s -Wl,--rpath,%s\n",
+              m32_opt, libdir, libdir);
       fprintf(mk_f, "CXXLIBCHECKERLIBS = -lchecker -lm\n");
     }
     fprintf(mk_f, "\n");
@@ -1377,6 +1411,7 @@ build_generate_makefile(
   int retval = 0;
   unsigned char makefile_path[PATH_MAX];
   unsigned char tmp_makefile_path[PATH_MAX];
+  unsigned char problem_path[PATH_MAX];
   int file_group = -1;
   int file_mode = -1;
   char *text = 0;
@@ -1390,24 +1425,39 @@ build_generate_makefile(
 
   if (cnts->file_group) {
     file_group = file_perms_parse_group(cnts->file_group);
-    if (file_group <= 0) FAIL(S_ERR_INV_SYS_GROUP);
+    if (file_group <= 0) {
+      fprintf(log_f, "invalid file group '%s'\n", cnts->file_group);
+      FAIL(S_ERR_INV_SYS_GROUP);
+    }
   }
   if (cnts->file_mode) {
     file_mode = file_perms_parse_mode(cnts->file_mode);
-    if (file_mode <= 0) FAIL(S_ERR_INV_SYS_MODE);
+    if (file_mode <= 0) {
+      fprintf(log_f, "invalid file mode '%s'\n", cnts->file_mode);
+      FAIL(S_ERR_INV_SYS_MODE);
+    }
   }
 
   if (global->advanced_layout <= 0) FAIL(S_ERR_INV_CONTEST);
 
+  get_advanced_layout_path(problem_path, sizeof(problem_path), global, prob, NULL, variant);
   get_advanced_layout_path(tmp_makefile_path, sizeof(tmp_makefile_path), global, prob, "tmp_Makefile", variant);
   get_advanced_layout_path(makefile_path, sizeof(makefile_path), global, prob, DFLT_P_MAKEFILE, variant);
+
+  if (access(problem_path, R_OK | W_OK | X_OK) < 0) {
+    fprintf(log_f, "insufficent permissions for directory '%s'\n", problem_path);
+    FAIL(S_ERR_FS_ERROR);
+  }
 
   if (generic_read_file(&text, 0, &size, 0, 0, makefile_path, 0) >= 0) {
     extract_makefile_header_footer(text, &header, &footer);
   }
 
   mk_f = fopen(tmp_makefile_path, "w");
-  if (!mk_f) FAIL(S_ERR_FS_ERROR);
+  if (!mk_f) {
+    fprintf(log_f, "cannot create file '%s'\n", tmp_makefile_path);
+    FAIL(S_ERR_FS_ERROR);
+  }
   if (header) fprintf(mk_f, "%s", header);
   do_generate_makefile(log_f, mk_f, ejudge_config, cnts, cs, sstate, global, prob, variant);
   if (footer) fprintf(mk_f, "%s", footer);
@@ -1418,12 +1468,16 @@ build_generate_makefile(
   }
 
   r = need_file_update(makefile_path, tmp_makefile_path);
-  if (r < 0) FAIL(S_ERR_FS_ERROR);
+  if (r < 0) {
+    fprintf(log_f, "failed to update Makefile\n");
+    FAIL(S_ERR_FS_ERROR);
+  }
   if (!r) {
     unlink(tmp_makefile_path);
     goto cleanup;
   }
   if (logged_rename(log_f, tmp_makefile_path, makefile_path) < 0) {
+    fprintf(log_f, "failed to update Makefile\n");
     FAIL(S_ERR_FS_ERROR);
   }
 
