@@ -1,0 +1,21 @@
+Index: ejudge-debian/lang_config_vis.c
+===================================================================
+--- ejudge-debian.orig/lang_config_vis.c
++++ ejudge-debian/lang_config_vis.c
+@@ -380,7 +380,6 @@ assign_lang_ids(void)
+ 
+   // assign "fixed" language ids (guaranteed to be unique)
+   for (p = lang_first; p; p = p->next) {
+-    if (p->enabled <= 0) continue;
+     for (i = 0; i < lang_id_total; ++i) {
+       if (!strcmp(lang_id_infos[i].lang, p->short_name)
+           && lang_id_infos[i].fixed)
+@@ -388,6 +387,8 @@ assign_lang_ids(void)
+     }
+     if (i >= lang_id_total) continue;
+     p->id = lang_id_infos[i].id;
++    // did not check weather lang is enabled, but checked that lang is fixed,
++    // this means that lang was configured in lang.cfg and we should preserve it.
+     add_to_lang_id_set(p->id);
+   }
+ 

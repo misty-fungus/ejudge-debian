@@ -6,3 +6,4 @@
 06_fix_import_in_super-server
 07_fix_ej-super-run_logpath
 08_fix_perl_interpreter_in_scripts
+09_preserve_configured_langs
