@@ -1,7 +1,7 @@
 Template: ejudge/username
 Type: string
 Default: ejudge
-_Description: Dedicated system account for the ejudge contest managment service:
+Description: Dedicated system account for the ejudge contest managment service:
  The ejudge server must use a dedicated account for its operation so that
  the system's security is not compromised by running it with superuser
  privileges.
@@ -11,7 +11,7 @@ _Description: Dedicated system account for the ejudge contest managment service:
 Template: ejudge/groupname
 Type: string
 Default: ejudge
-_Description: Dedicated system group for ejudge contest managment service:
+Description: Dedicated system group for ejudge contest managment service:
  The ejudge server must use a dedicated group for its operation so that
  the system's security is not compromised by running it with superuser
  privileges.
@@ -22,12 +22,15 @@ _Description: Dedicated system group for ejudge contest managment service:
 Template: ejudge/directory
 Type: string
 Default: /srv/ejudge
-_Description: ejudge contests root directory
+Description: ejudge contests root directory
  Please specify the directory that will be used as root for contests in the
  ejudge server.
 
 
 Template: ejudge/kernel_patch_note
 Type: note
-_Description: Ejudge requires kernel patch to check solutions in secure way
- If your kernel is patched, then hohoho....
+Description: Ejudge requires kernel patch
+ Ejudge requires a kernel patch to enable secure run of solutions.
+ Accept public solutions without kernel patch at your own risk.
+ .
+ Kernel patches can be downloaded at ejudge homepage: https://ejudge.ru/download/

@@ -21,9 +21,6 @@ action="$1"
 oldversion="$2"
 
 . /usr/share/debconf/confmodule
-db_get ejudge/like_debian || true
-
-
 
 case "${action}" in
     configure|abort-upgrade)
