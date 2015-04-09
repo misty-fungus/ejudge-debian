@@ -27,7 +27,6 @@ db_get ejudge/like_debian || true
 
 case "${action}" in
     configure|abort-upgrade)
-#        db_version 2.0
 #
 #        db_get ejudge/username
 #        _USERNAME="${RET:-ejudge}"
@@ -75,30 +74,27 @@ case "${action}" in
             chown "${_USERNAME}:${_GROUPNAME}" "${_DIRECTORY}/contests"
         fi
 
-        #FIXME: patch ejudge to remove this dirty hook
-        #[ -L "${_DIRECTORY}/compile" ] || ln -s /var/lib/ejudge/compile "${_DIRECTORY}/compile"
-
-        [ -d /var/run/ejudge ] || mkdir /var/run/ejudge
+        [ -d "/var/run/ejudge" ] || mkdir "/var/run/ejudge"
 
         #installing sample contest
         if [ ! -d "${_DIRECTORY}/000001" ] && [ ! -e "${_DIRECTORY}/contests/000001.xml" ]; then
             #echo "INFO: copying sample contest"
-            cp -r /usr/share/ejudge/sample_config/000001 "${_DIRECTORY}/"
+            cp -r "/usr/share/ejudge/sample_config/000001" "${_DIRECTORY}/"
             chown -R "${_USERNAME}:${_GROUPNAME}" "${_DIRECTORY}/000001"
-            cp /usr/share/ejudge/sample_config/000001.xml "${_DIRECTORY}/contests/"
+            cp "/usr/share/ejudge/sample_config/000001.xml" "${_DIRECTORY}/contests/"
             chown  "${_USERNAME}:${_GROUPNAME}" "${_DIRECTORY}/contests/000001.xml"
         else
              echo "not installing sample contest --- something is on the way."
         fi
 
         if dpkg --compare-versions "$oldversion" le-nl 2.3.19-1~1.gbp2568db; then
-          [ -d /var/lib/ejudge/db ] && mv /var/lib/ejudge/db /srv/ejudge/user_db
+          [ -d "/var/lib/ejudge/db" ] && mv "/var/lib/ejudge/db ${_DIRECTORY}/user_db"
         fi
 
-        if [ ! -d /srv/ejudge/user_db ]; then
-           mkdir /srv/ejudge/user_db
-           cp /usr/share/ejudge/sample_config/userlist.xml /srv/ejudge/user_db/userlist.xml
-           chown -R "${_USERNAME}:${_GROUPNAME}" /srv/ejudge/user_db
+        if [ ! -d "${_DIRECTORY}/user_db" ]; then
+           mkdir "${_DIRECTORY}/user_db"
+           cp "/usr/share/ejudge/sample_config/userlist.xml" "${_DIRECTORY}/user_db/userlist.xml"
+           chown -R "${_USERNAME}:${_GROUPNAME}" "${_DIRECTORY}/user_db"
         else
             echo "not updating userlist.xml --- file exists"
         fi
@@ -109,30 +105,21 @@ case "${action}" in
              [ ! -L "/usr/lib/cgi-bin/${cgi_script}" ] && ln -s "../ejudge/cgi-bin/${cgi_script}" "/usr/lib/cgi-bin/${cgi_script}"
         done
 
-        #[ -e /var/lib/ejudge/compile/scripts/lang ] || ln -s . /var/lib/ejudge/compile/scripts/lang
-
-        #mkdir /var/cache/ejudge/work-disk/work
-
         #fixing permissions
-        chown -R "${_USERNAME}:${_GROUPNAME}" /var/spool/ejudge
-        chown -R "${_USERNAME}:${_GROUPNAME}" /var/lib/ejudge
-        chown -R "${_USERNAME}:${_GROUPNAME}" /var/run/ejudge
-        chown -R "${_USERNAME}:${_GROUPNAME}" /var/log/ejudge
+        chown -R "${_USERNAME}:${_GROUPNAME}" "/var/spool/ejudge"
+        chown -R "${_USERNAME}:${_GROUPNAME}" "/var/lib/ejudge"
+        chown -R "${_USERNAME}:${_GROUPNAME}" "/var/run/ejudge"
+        chown -R "${_USERNAME}:${_GROUPNAME}" "/var/log/ejudge"
 
 
         cgi_data_dir="/usr/share/ejudge/style"
-        if [ -e /var/www ]; then
-            [ -L /var/www/ejudge ] || ln -s $cgi_data_dir /var/www/ejudge
+        if [ -e "/var/www" ]; then
+            [ -L "/var/www/ejudge" ] || ln -s "${cgi_data_dir}" "/var/www/ejudge"
         else
             echo "WARNING: can not find '/var/www' httpd document root. You'll have to create link for ejudge styles dir" >&2
         fi
 
-        #configuring compilers
-        extra_options=""
-        if [ -e /var/lib/ejudge/compile/ ]; then
-            extra_options="--preserve-compile-cfg"
-        fi
-        ejudge-configure-compilers --batch ${extra_options}
+       ejudge-configure-compilers --batch
 
         #creating links to dojox
         for folder in dijit dojo dojox; do

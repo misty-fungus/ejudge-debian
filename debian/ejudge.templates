@@ -22,20 +22,12 @@ _Description: Dedicated system group for ejudge contest managment service:
 Template: ejudge/directory
 Type: string
 Default: /srv/ejudge
-_Description: ejudge conststs root directory:
+_Description: ejudge contests root directory
  Please specify the directory that will be used as root for contests in the
  ejudge server.
 
 
-Template: ejudge/like_debian
-Type: boolean
-Description: Do you like Debian?
- We'd like to know if you like the Debian GNU/Linux system.
-
-
-Template: ejudge/why_debian_is_great
+Template: ejudge/kernel_patch_note
 Type: note
-Description: Poor misguided one. Why are you installing this package?
- Debian is great. As you continue using Debian, we hope you will
- discover the error in your ways.
-
+_Description: Ejudge requires kernel patch to check solutions in secure way
+ If your kernel is patched, then hohoho....
