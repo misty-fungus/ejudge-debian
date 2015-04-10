@@ -10,7 +10,10 @@
   <testing_work_dir>/var/spool/ejudge/work-disk</testing_work_dir>
   <serialization_key>22723</serialization_key>
   <var_dir>/var/spool/ejudge</var_dir>
-
+  <enable_cookie_ip_check>yes</enable_cookie_ip_check>
+  <!-- Disable new users
+  <disable_new_users>yes</disable_new_users>
+  -->
   <userlist_log>/var/log/ejudge/ej-users.log</userlist_log>
   <super_serve_log>/var/log/ejudge/ej-super-server.log</super_serve_log>
   <job_server_log>/var/log/ejudge/ej-jobs.log</job_server_log>
