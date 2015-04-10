@@ -1,10 +1,15 @@
-ejudge (2.3.29-1~1.gbp9fb9e1) UNRELEASED; urgency=medium
-
-  ** SNAPSHOT build @9fb9e1a4142a42d3000b1491b68367fe970da023 **
+ejudge (2.3.29-1) unstable; urgency=medium
 
   * [1c09535] New upstream version 2.3.29
+  * [3f5f0a7] new debian snapshot 2.3.29-1~1
+  * [cdf7e76] adding confmodule
+  * [e89b00b] added 09_preserve_configured_langs patch
+  * [a0013e9] a bit more of confmodule
+  * [3664f7e] added install note on kernel patch necessity
+  * [848c6a2] Updated install scripts
+  * [bab89eb] Added new config options: disable_new_users and enable_cookie_ip_check
 
- -- Yaroslav Leonov <alximik43@gmail.com>  Wed, 01 Apr 2015 23:17:35 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Fri, 10 Apr 2015 11:53:47 +0300
 
 ejudge (2.3.28-3) unstable; urgency=medium
 
