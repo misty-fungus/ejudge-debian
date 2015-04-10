@@ -29,17 +29,13 @@ case "$1" in
             [ -L "/usr/lib/cgi-bin/${cgi_script}" ] && rm "/usr/lib/cgi-bin/${cgi_script}"
         done
 
-        [ -L /var/www/ejudge ] && rm /var/www/ejudge
+        [ -L "/var/www/ejudge" ] && rm "/var/www/ejudge"
 
         # removing links to dojox
         cgi_data_dir="/usr/share/ejudge/style"
-        for folder in dijit dojo dojox
-        do
+        for folder in dijit dojo dojox; do
             [ -L "$cgi_data_dir/$folder" ] && rm "$cgi_data_dir/$folder"
         done
-
-        # removing symlink to compile home dir. Patch required.
-        [ -L "${_DIRECTORY}/compile" ] && rm "${_DIRECTORY}/compile"
     ;;
 
     failed-upgrade)

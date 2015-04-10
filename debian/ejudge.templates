@@ -29,8 +29,7 @@ Description: ejudge contests root directory
 
 Template: ejudge/kernel_patch_note
 Type: note
-Description: Ejudge requires kernel patch
- Ejudge requires a kernel patch to enable secure run of solutions.
+Description: Ejudge requires a kernel patch to enable secure run of solutions.
  Accept public solutions without kernel patch at your own risk.
  .
  Kernel patches can be downloaded at ejudge homepage: https://ejudge.ru/download/

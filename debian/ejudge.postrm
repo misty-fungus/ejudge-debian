@@ -2,6 +2,7 @@
 # see: dh_installdeb(1)
 
 set -e
+set -x
 
 # summary of how this script can be called:
 #        * <postrm> `remove'
@@ -16,34 +17,27 @@ set -e
 # for details, see http://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-#. /usr/share/debconf/confmodule
+. /usr/share/debconf/confmodule
+
+. /usr/share/debconf/confmodule
+
+db_get ejudge/username || true
+_USERNAME="${RET:-ejudge}"
+
+db_get ejudge/groupname || true
+_GROUPNAME="${RET:-ejudge}"
+
+db_get ejudge/directory || true
+_DIRECTORY="${RET:-/srv/ejudge}"
 
 case "${1}" in
     remove)
     ;;
     purge)
-#        db_version 2.0
-#
-#        db_get ejudge/username
-#        _USERNAME="${RET:-ejudge}"
-#
-#         db_get ejudge/groupname
-#        _GROUPNAME="${RET:-ejudge}"
-#
-#         db_get ejudge/directory
-#        _DIRECTORY="${RET:-/srv/ejudge}"
-#
-#        db_stop
-
-        _USERNAME=ejudge
-        _GROUPNAME=ejudge
-        _DIRECTORY='/srv/ejudge'
-
-
-        [ -d /var/spool/ejudge ] && rm -rf /var/spool/ejudge
-        [ -d /var/run/ejudge ]   && rm -rf /var/run/ejudge
-        [ -d /var/lib/ejudge ]   && rm -rf /var/lib/ejudge
-        [ -d /var/log/ejudge ]   && rm -rf /var/log/ejudge
+        [ -d "/var/spool/ejudge" ] && rm -rf "/var/spool/ejudge"
+        [ -d "/var/run/ejudge" ]   && rm -rf "/var/run/ejudge"
+        [ -d "/var/lib/ejudge" ]   && rm -rf "/var/lib/ejudge"
+        [ -d "/var/log/ejudge" ]   && rm -rf "/var/log/ejudge"
 
 
         if [ -x /usr/sbin/deluser ]; then
@@ -68,5 +62,7 @@ case "${1}" in
 esac
 
 #DEBHELPER#
+
+db_stop || true
 
 exit 0
