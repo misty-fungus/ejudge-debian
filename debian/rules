@@ -10,7 +10,7 @@
 export DH_VERBOSE=1
 
 %:
-	dh --with quilt --without python2,pypy,python-support,python3 $@ --parallel 
+	dh --with quilt,apache2 --without python2,pypy,python-support,python3 $@ --parallel 
 
 .PHONY: override_dh_auto_configure
 override_dh_auto_configure:
