@@ -17,12 +17,17 @@ NAME=ejudge
 DAEMON=/usr/sbin/ejudge-control
 DAEMON_OPTS=""
 SCRIPTNAME=/etc/init.d/$NAME
+ENABLE_EJUDGE=yes
 
 # Exit if the package is not installed
 [ -x $DAEMON ] || exit 0
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+if test "x$ENABLE_EJUDGE" != "xyes"; then
+    exit 0
+fi
 
 # Load the VERBOSE setting and other rcS variables
 . /lib/init/vars.sh
