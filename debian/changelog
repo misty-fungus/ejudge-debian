@@ -1,3 +1,14 @@
+ejudge (2.3.29-2~1.gbpaca9d4) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @aca9d41faad506140686b79c2bab2c6963858af4 **
+
+  * [c2e5ea5] fixed bugs in default config
+  * [9c56345] added ENABLE_EJUDGE control to /etc/default/ejudge
+  * [551d4d5] renamed init.d script
+  * [aca9d41] added apache2 configs
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Sun, 19 Apr 2015 15:42:01 +0300
+
 ejudge (2.3.29-1) unstable; urgency=medium
 
   * [1c09535] New upstream version 2.3.29
