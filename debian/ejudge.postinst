@@ -78,11 +78,6 @@ case "${action}" in
         fi
 
 
-        # creating symlinks for cgi-bin scripts
-        for cgi_script in $( ls /usr/lib/ejudge/cgi-bin/ ); do
-             [ ! -L "/usr/lib/cgi-bin/${cgi_script}" ] && ln -s "../ejudge/cgi-bin/${cgi_script}" "/usr/lib/cgi-bin/${cgi_script}"
-        done
-
         # fixing permissions
         chown -R "${_USERNAME}:${_GROUPNAME}" "/var/spool/ejudge"
         chown -R "${_USERNAME}:${_GROUPNAME}" "/var/lib/ejudge"

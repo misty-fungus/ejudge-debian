@@ -19,8 +19,6 @@ set -x
 
 . /usr/share/debconf/confmodule
 
-. /usr/share/debconf/confmodule
-
 db_get ejudge/username || true
 _USERNAME="${RET:-ejudge}"
 

@@ -24,11 +24,6 @@ set -e
 
 case "$1" in
     remove|upgrade|deconfigure)
-        # removing links to cgi-bin
-        for cgi_script in $( ls /usr/lib/ejudge/cgi-bin/ ); do
-            [ -L "/usr/lib/cgi-bin/${cgi_script}" ] && rm "/usr/lib/cgi-bin/${cgi_script}"
-        done
-
         # removing links to dojox
         cgi_data_dir="/usr/share/ejudge/style"
         for folder in dijit dojo dojox; do

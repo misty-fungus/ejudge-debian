@@ -29,7 +29,7 @@ override_dh_auto_configure:
 	--enable-socket-path=/var/run/ejudge/userlist-socket \
 	--enable-super-serve-socket=/var/run/ejudge/super-serve-socket \
 	--enable-new-server-socket=/var/run/ejudge/new-server-socket \
-	--enable-cgi-bin-dir=/usr/lib/ejudge/cgi-bin \
+	--enable-cgi-bin-dir=/usr/lib/cgi-bin \
 	--enable-cgi-conf-dir=/usr/lib/ejudge/cgi-data \
 	--enable-ejudge-xml=/etc/ejudge/ejudge.xml \
 	--enable-contests-dir=/srv/ejudge/contests \
