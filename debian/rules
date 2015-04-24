@@ -62,6 +62,7 @@ override_dh_auto_install:
 	# installing sample contest
 	mkdir "$(install_root)/usr/share/ejudge/sample_config"
 	cp -r "$(CURDIR)/debian/extra/000001" "$(install_root)/usr/share/ejudge/sample_config"
+	cp -r "$(CURDIR)/contest-1/problems" "$(install_root)/usr/share/ejudge/sample_config"
 	cp "$(CURDIR)/debian/extra/000001.xml" "$(install_root)/usr/share/ejudge/sample_config"
 	# installing default config
 	cp "$(CURDIR)/debian/extra/ejudge.xml" "$(install_root)/etc/ejudge/ejudge.xml"
