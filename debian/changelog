@@ -1,3 +1,11 @@
+ejudge (2.3.29-5~1.gbp8b8a91) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @8b8a91cc361492468191cd072f3feeb8e7c981ca **
+
+  * UNRELEASED
+
+ -- Yaroslav Leonov <alximik@aeon.btty.su>  Sat, 25 Apr 2015 00:52:24 +0300
+
 ejudge (2.3.29-4) unstable; urgency=medium
 
   * [3f829af] new debian snapshot
