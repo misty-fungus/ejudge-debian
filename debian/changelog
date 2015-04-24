@@ -1,3 +1,11 @@
+ejudge (2.3.29-4~1.gbp76969f) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @76969f5eb3157d5720efc73fe2312d0c115eece4 **
+
+  * UNRELEASED
+
+ -- ejudge <alximik43@gmail.com>  Fri, 24 Apr 2015 19:48:58 +0300
+
 ejudge (2.3.29-3) unstable; urgency=medium
 
   * [4581356] new debian snapshot 2.3.29-3
