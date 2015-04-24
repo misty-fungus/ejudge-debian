@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
+"Project-Id-Version: ejudge\n"
 "Report-Msgid-Bugs-To: ejudge@packages.debian.org\n"
-"POT-Creation-Date: 2011-03-16 18:38+0300\n"
+"POT-Creation-Date: 2015-04-24 22:52+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -60,7 +60,7 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../ejudge.templates:3001
-msgid "ejudge conststs root directory:"
+msgid "ejudge contests root directory"
 msgstr ""
 
 #. Type: string
@@ -69,4 +69,24 @@ msgstr ""
 msgid ""
 "Please specify the directory that will be used as root for contests in the "
 "ejudge server."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../ejudge.templates:4001
+msgid "Ejudge requires a kernel patch to enable secure run of solutions."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../ejudge.templates:4001
+msgid "Accept public solutions without kernel patch at your own risk."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../ejudge.templates:4001
+msgid ""
+"Kernel patches can be downloaded at ejudge homepage: https://ejudge.ru/"
+"download/"
 msgstr ""

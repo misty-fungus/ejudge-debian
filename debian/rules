@@ -45,7 +45,7 @@ override_dh_auto_configure:
 override_dh_strip:
 	dh_strip --dbg-package=ejudge-dbg
 
-install_root:="$(CURDIR)/debian/ejudge"
+install_root:=$(CURDIR)/debian/ejudge
 .PHONY: override_dh_auto_install
 override_dh_auto_install:
 	dh_auto_install --destdir=debian/ejudge
@@ -77,6 +77,7 @@ override_dh_auto_install:
 .PHONY: override_dh_auto_clean
 override_dh_auto_clean:
 	dh_auto_clean
+	debconf-updatepo
 	[ ! -f ejudge.ru_RU.KOI8-R.po.bak ] || mv ejudge.ru_RU.KOI8-R.po.bak ejudge.ru_RU.KOI8-R.po
 	rm -f .build
 	rm -f style/ejudge-upgrade-web
