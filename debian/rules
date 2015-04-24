@@ -59,8 +59,6 @@ override_dh_auto_install:
 	# making dirs in var
 	mkdir "$(install_root)/var/lib/ejudge/compile/scripts"
 	mkdir "$(install_root)/var/lib/ejudge/compile/conf"
-	# making plugins directory
-	mkdir "$(install_root)/usr/lib/ejudge/plugins"
 	# installing sample contest
 	mkdir "$(install_root)/usr/share/ejudge/sample_config"
 	cp -r "$(CURDIR)/debian/extra/000001" "$(install_root)/usr/share/ejudge/sample_config"
