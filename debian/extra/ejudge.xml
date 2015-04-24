@@ -61,8 +61,9 @@
   </plugins>
 
   <!-- Options below seems to be builtin and modifying them is probably useless -->
-  <socket_path>/var/run/ejudge/userlist-socket</socket_path>>
-  <super_serve_socket>/var/run/ejudge/super-serve-socket</super_serve_socket>
+  <socket_path>/run/ejudge/userlist-socket</socket_path>
+  <super_serve_socket>/run/ejudge/super-serve-socket</super_serve_socket>
+  <new_server_socket>/run/ejudge/new-server-socket</new_server_socket>
   <contests_dir>/srv/ejudge/contests</contests_dir>
   <l10n_dir>/usr/share/locale</l10n_dir>
   <script_dir>/usr/lib/ejudge</script_dir>
