@@ -29,6 +29,7 @@
   <server_name>Ejudge contest server at localhost</server_name>
   <server_name_en>Ejudge contest server at localhost</server_name_en>
   <server_main_url>http://localhost</server_main_url>
+  <caps_file>/etc/ejudge/capabilities.xml</caps_file>
   <user_map>
     <map system_user="ejudge" ejudge_user="ejudge"/>
   </user_map>
@@ -52,12 +53,33 @@
     </cap>
   </caps>
 
+  <!--
+  <default_clardb_plugin>mysql</default_clardb_plugin>
+  <default_rundb_plugin>mysql</default_rundb_plugin>
+  -->
   <plugins>
     <plugin type="nsdb" name="files">
        <config>
          <data_dir>/var/spool/ejudge/new-serve-db</data_dir>
        </config>
     </plugin>
+    <!--
+    <plugin type="common" name="mysql" load="yes">
+      <config>
+        <password_file>mysql_password</password_file>
+        <database>ejudge</database>
+      </config>
+    </plugin>
+    <plugin type="uldb" name="mysql" load="yes" default="yes">
+      <config/>
+    </plugin>
+    <plugin type="cldb" name="mysql" load="yes">
+      <config/>
+    </plugin>
+    <plugin type="rldb" name="mysql" load="yes">
+      <config/>
+    </plugin>
+    -->
   </plugins>
 
   <!-- Options below seems to be builtin and modifying them is probably useless -->

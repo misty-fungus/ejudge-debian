@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Updates to this file will be reloaded by ejudge services without restart
+-->
+<config>
+  <user_map>
+    <!-- Example user map:
+    <map system_user="user1" local_user="user1" />
+    -->
+  </user_map>
+  <caps>
+    <!-- Example user caps:
+    <cap login="user1">
+      MASTER_LOGIN,JUDGE_LOGIN,LIST_USERS,CREATE_USER,GET_USER,
+      EDIT_USER,DELETE_USER,PRIV_EDIT_USER,PRIV_DELETE_USER,
+      EDIT_CONTEST,DUMP_USERS,EDIT_PASSWD,PRIV_EDIT_PASSWD,
+    </cap>
+    -->
+  </caps>
+</config>

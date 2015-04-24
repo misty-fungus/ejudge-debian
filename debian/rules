@@ -70,6 +70,7 @@ override_dh_auto_install:
 	cp "$(CURDIR)/debian/extra/000001.xml" "$(install_root)/usr/share/ejudge/sample_config"
 	# installing default config
 	cp "$(CURDIR)/debian/extra/ejudge.xml" "$(install_root)/etc/ejudge/ejudge.xml"
+	cp "$(CURDIR)/debian/extra/capabilities.xml" "$(install_root)/etc/ejudge/capabilities.xml"
 	# installing default userlist
 	cp "$(CURDIR)/debian/extra/userlist.xml" "$(install_root)/usr/share/ejudge/sample_config"
 	# istalling missing dirs
