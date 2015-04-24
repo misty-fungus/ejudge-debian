@@ -1,7 +1,9 @@
 Template: ejudge/username
 Type: string
 Default: ejudge
-_Description: Dedicated system account for the ejudge contest managment service:
+_Description: Ejudge user:
+ . 
+ Dedicated system account for the ejudge contest managment service:
  The ejudge server must use a dedicated account for its operation so that
  the system's security is not compromised by running it with superuser
  privileges.
@@ -29,7 +31,9 @@ _Description: ejudge contests root directory
 
 Template: ejudge/kernel_patch_note
 Type: note
-_Description: Ejudge requires a kernel patch to enable secure run of solutions.
+_Description: Ejudge kernel patch 
+ .
+ Ejudge requires a kernel patch to enable secure run of solutions.
  Accept public solutions without kernel patch at your own risk.
  .
  Kernel patches can be downloaded at ejudge homepage: https://ejudge.ru/download/
