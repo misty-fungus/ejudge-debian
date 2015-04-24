@@ -38,6 +38,8 @@ fi
 
 do_start()
 {
+  mkdir -p /var/run/ejudge
+  chown ejudge:ejudge /var/run/ejudge
   umask $UMASK
   $DAEMON $DAEMON_OPTS start
   return $?
