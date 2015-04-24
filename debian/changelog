@@ -1,10 +1,22 @@
-ejudge (2.3.29-4~1.gbp76969f) UNRELEASED; urgency=medium
+ejudge (2.3.29-4) unstable; urgency=medium
 
-  ** SNAPSHOT build @76969f5eb3157d5720efc73fe2312d0c115eece4 **
+  * [3f829af] new debian snapshot
+  * [40e4482] hotfix init.d sctipt for mounted /var/run
+  * [84ac3ad] add libmysqlclient-dev build dependency
+  * [4c13800] updated dependency on libcurl-dev
+  * [239e5ea] Fix checking for mysql on amd64
+  * [1045bd7] do not create plugins folder on install
+  * [8d805e5] fix untranslatable-debconf-templates in debian/control
+  * [2abb121] update pot files on build
+  * [7674dde] use stock sample contest
+  * [0e0b8df] fix apache2-deprecated-auth-config lintian bug
+  * [cdfcc25] fixed prompts and titles in ejudge.template
+  * [adceed4] suppress lintian errors and warnings on bundled dojo
+  * [f2a1a92] updated ejudge.templates
+  * [3079dda] updated socket paths in ejudge.xml
+  * [f509395] add hardening
 
-  * UNRELEASED
-
- -- ejudge <alximik43@gmail.com>  Fri, 24 Apr 2015 19:48:58 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Sat, 25 Apr 2015 00:27:10 +0300
 
 ejudge (2.3.29-3) unstable; urgency=medium
 
