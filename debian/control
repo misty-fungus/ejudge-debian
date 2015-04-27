@@ -2,12 +2,13 @@ Source: ejudge
 Section: net
 Priority: extra
 Maintainer: Yaroslav Leonov <alximik43@gmail.com>
-Build-Depends: debhelper (>= 7.0.50~), autotools-dev, quilt (>= 0.46-7~), bison, flex, libncursesw5-dev, libexpat1-dev, po-debconf, zlib1g-dev, gawk, libcurl4-openssl-dev|libcurl-dev, uuid-dev, libzip-dev, apache2-dev, libmysqlclient-dev
+Build-Depends: debhelper (>= 9), autotools-dev, quilt (>= 0.46-7~), bison, flex, libncursesw5-dev, libexpat1-dev, po-debconf, zlib1g-dev, gawk, libcurl4-openssl-dev|libcurl-dev, uuid-dev, libzip-dev, apache2-dev, libmysqlclient-dev
 Standards-Version: 3.9.6
 Homepage: http://www.ejudge.ru
 
 Package: ejudge
 Architecture: any
+Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}, sharutils, apache2 | httpd, gawk,
  adduser
 Suggests: libjs-dojo-dojox, emboss-lib

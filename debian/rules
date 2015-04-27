@@ -11,36 +11,31 @@
 #  LDFLAGS+=$(HARDENING_LDFLAGS)
 #
 
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
 export DH_VERBOSE=1
 
 %:
-	dh --with quilt,apache2 --without python2,pypy,python-support,python3 $@ --parallel 
+	dh "${@}" --with quilt,apache2 --without python2,pypy,python-support,python3 --parallel
 
 .PHONY: override_dh_auto_configure
 override_dh_auto_configure:
 	[ -f ejudge.ru_RU.KOI8-R.po.bak ] || cp -a ejudge.ru_RU.KOI8-R.po ejudge.ru_RU.KOI8-R.po.bak
-	./configure --build=x86_64-linux-gnu \
-	--prefix=/usr --includedir=\$${prefix}/include \
-	--mandir=\$${prefix}/share/man \
-	--infodir=/usr/share/info \
-	--sysconfdir=/etc \
-	--localstatedir=/var \
-	--libexecdir=/usr/lib \
-	--disable-maintainer-mode \
-	--disable-dependency-tracking \
-	--disable-rpath  \
-	--enable-charset="UTF-8" \
-	--enable-socket-path=/run/ejudge/userlist-socket \
-	--enable-super-serve-socket=/run/ejudge/super-serve-socket \
-	--enable-new-server-socket=/run/ejudge/new-server-socket \
-	--enable-cgi-bin-dir=/usr/lib/cgi-bin \
-	--enable-cgi-conf-dir=/usr/lib/ejudge/cgi-data \
-	--enable-ejudge-xml=/etc/ejudge/ejudge.xml \
-	--enable-contests-dir=/srv/ejudge/contests \
-	--enable-contests-home-dir=/srv/ejudge  \
-	--enable-local-dir=/var/spool/ejudge \
-	--enable-ajax \
-	--enable-lang-config-dir=/var/lib/ejudge/compile/conf/lang.d \
+	dh_auto_configure -- \
+		--disable-rpath  \
+		--libexecdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
+		--enable-charset="UTF-8" \
+		--enable-socket-path=/run/ejudge/userlist-socket \
+		--enable-super-serve-socket=/run/ejudge/super-serve-socket \
+		--enable-new-server-socket=/run/ejudge/new-server-socket \
+		--enable-cgi-bin-dir=/usr/lib/cgi-bin \
+		--enable-cgi-conf-dir=/usr/lib/$(DEB_HOST_MULTIARCH)/ejudge/cgi-data \
+		--enable-ejudge-xml=/etc/ejudge/ejudge.xml \
+		--enable-contests-dir=/srv/ejudge/contests \
+		--enable-contests-home-dir=/srv/ejudge  \
+		--enable-local-dir=/var/spool/ejudge \
+		--enable-ajax \
+		--enable-lang-config-dir=/var/lib/ejudge/compile/conf/lang.d \
 
 # note: dont change /var/... to \$${localstatedir}. configure will write it to config.h as is
 #       same for $${prefix}
@@ -75,7 +70,7 @@ override_dh_auto_install:
 	cp "$(CURDIR)/debian/extra/userlist.xml" "$(install_root)/usr/share/ejudge/sample_config"
 	# istalling missing dirs
 	mkdir "$(install_root)/var/spool/ejudge/work-disk/work"
-	mkdir "$(install_root)/usr/lib/ejudge/cgi-data"
+	mkdir "$(install_root)/usr/lib/$(DEB_HOST_MULTIARCH)/ejudge/cgi-data"
 	dojo_package=$$(ls $(CURDIR)/debian/extra/ | grep dojo-release-.*.tar.gz | head -n 1);\
 	  tar -xzf "$(CURDIR)/debian/extra/$${dojo_package}" --directory "$(install_root)/usr/share/ejudge/style" --transform "s/^$${dojo_package%.tar.gz}\///"  --wildcards "$${dojo_package%.tar.gz}/*"
 
