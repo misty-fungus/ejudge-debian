@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_upsolving_page.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id: priv_upsolving_page.csp 8644 2014-10-18 06:39:05Z cher $ */
 %><%@include "priv_includes.csp"
 %><%@set getter_name = "csp_get_priv_upsolving_page"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
@@ -13,6 +13,7 @@
   const unsigned char *full_protocol = 0;
   const unsigned char *disable_clars = 0;
   const unsigned char *title = NULL;
+  int enable_main_menu = 0;
 
   if (opcaps_check(phr->caps, OPCAP_CONTROL_CONTEST) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);  

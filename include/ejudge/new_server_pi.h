@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new_server_pi.h 8250 2014-05-25 20:38:29Z cher $ */
+/* $Id: new_server_pi.h 8645 2014-10-18 06:39:29Z cher $ */
 #ifndef __NEW_SERVER_PI_H__
 #define __NEW_SERVER_PI_H__
 
@@ -105,13 +105,7 @@ typedef struct TestingQueueArray
   struct TestingQueueEntry *v;
 } TestingQueueArray;
 
-inline int
-ej_fix_prio(int val)
-{
-  if (val < -16) val = -16;
-  if (val > 15) val = 15;
-  return val;
-}
+#define ej_fix_prio(x) (((x) < -16)?-16:(((x) > 15)?15:(x)))
 
 #endif /* __NEW_SERVER_PI_H__ */
 

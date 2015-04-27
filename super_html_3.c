@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: super_html_3.c 8675 2014-10-21 06:17:22Z cher $ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -412,7 +412,8 @@ const unsigned char * const super_serve_help_urls[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_IGNORE_COMPILE_ERRORS] = "Serve.cfg:problem:ignore_compile_errors",
   [SSERV_CMD_PROB_CHANGE_DISABLE_USER_SUBMIT] = "Serve.cfg:problem:disable_user_submit",
   [SSERV_CMD_PROB_CHANGE_DISABLE_TAB] = "Serve.cfg:problem:disable_tab",
-  [SSERV_CMD_PROB_CHANGE_RESTRICTED_STATEMENT] = "Serve.cfg:problem:restricted_statement",
+  [SSERV_CMD_PROB_CHANGE_UNRESTRICTED_STATEMENT] = "Serve.cfg:problem:unrestricted_statement",
+  [SSERV_CMD_PROB_CHANGE_HIDE_FILE_NAMES] = "Serve.cfg:problem:hide_file_names",
   [SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = "Serve.cfg:problem:disable_submit_after_ok",
   [SSERV_CMD_PROB_CHANGE_DISABLE_SECURITY] = "Serve.cfg:problem:disable_security",
   [SSERV_CMD_PROB_CHANGE_DISABLE_TESTING] = "Serve.cfg:problem:disable_testing",
@@ -1560,6 +1561,7 @@ super_html_lang_activate(
     struct section_language_data **new_langs;
     int *new_loc_cs_map;
     unsigned char **new_lang_opts;
+    unsigned char **new_lang_libs;
     int *new_lang_flags;
 
     if (!new_lang_a) new_lang_a = 4;
@@ -1567,25 +1569,30 @@ super_html_lang_activate(
     XCALLOC(new_langs, new_lang_a);
     XCALLOC(new_loc_cs_map, new_lang_a);
     XCALLOC(new_lang_opts, new_lang_a);
+    XCALLOC(new_lang_libs, new_lang_a);
     XCALLOC(new_lang_flags, new_lang_a);
     if (sstate->lang_a > 0) {
       XMEMMOVE(new_langs, sstate->langs, sstate->lang_a);
       XMEMMOVE(new_loc_cs_map, sstate->loc_cs_map, sstate->lang_a);
       XMEMMOVE(new_lang_opts, sstate->lang_opts, sstate->lang_a);
+      XMEMMOVE(new_lang_libs, sstate->lang_libs, sstate->lang_a);
       XMEMMOVE(new_lang_flags, sstate->lang_flags, sstate->lang_a);
     }
     xfree(sstate->langs);
     xfree(sstate->loc_cs_map);
     xfree(sstate->lang_opts);
+    xfree(sstate->lang_libs);
     xfree(sstate->lang_flags);
     sstate->lang_a = new_lang_a;
     sstate->langs = new_langs;
     sstate->loc_cs_map = new_loc_cs_map;
     sstate->lang_opts = new_lang_opts;
+    sstate->lang_libs = new_lang_libs;
     sstate->lang_flags = new_lang_flags;
   }
   sstate->langs[lang_id] = lang;
   sstate->lang_opts[lang_id] = 0;
+  sstate->lang_libs[lang_id] = 0;
   sstate->lang_flags[lang_id] = 0;
   sstate->cs_loc_map[lang->compile_id] = lang_id;
 
@@ -1628,7 +1635,9 @@ super_html_lang_deactivate(
 
   sstate->langs[lang_id] = 0;
   xfree(sstate->lang_opts[lang_id]);
+  xfree(sstate->lang_libs[lang_id]);
   sstate->lang_opts[lang_id] = 0;
+  sstate->lang_libs[lang_id] = 0;
   sstate->lang_flags[lang_id] = 0;
   sstate->cs_loc_map[cs_lang_id] = 0;
 }
@@ -1796,6 +1805,18 @@ super_html_lang_cmd(struct sid_state *sstate, int cmd,
     if (!pl_new) return 0;
     xfree(sstate->lang_opts[lang_id]);
     sstate->lang_opts[lang_id] = 0;
+    break;
+
+  case SSERV_CMD_LANG_CHANGE_LIBS:
+    if (!pl_new) return 0;
+    xfree(sstate->lang_libs[lang_id]);
+    sstate->lang_libs[lang_id] = xstrdup(param2);
+    break;
+
+  case SSERV_CMD_LANG_CLEAR_LIBS:
+    if (!pl_new) return 0;
+    xfree(sstate->lang_libs[lang_id]);
+    sstate->lang_libs[lang_id] = 0;
     break;
 
   default:
@@ -2310,8 +2331,12 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     p_int = &prob->disable_tab;
     goto handle_boolean_2;
 
-  case SSERV_CMD_PROB_CHANGE_RESTRICTED_STATEMENT:
-    p_int = &prob->restricted_statement;
+  case SSERV_CMD_PROB_CHANGE_UNRESTRICTED_STATEMENT:
+    p_int = &prob->unrestricted_statement;
+    goto handle_boolean_2;
+
+  case SSERV_CMD_PROB_CHANGE_HIDE_FILE_NAMES:
+    p_int = &prob->hide_file_names;
     goto handle_boolean_2;
 
   case SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK:
@@ -3757,7 +3782,11 @@ super_html_new_check_tests(
     if (!(prob = sstate->probs[i])) continue;
     already_compiled = 0;
 
-    fprintf(flog, "*** Checking problem %s ***\n", prob->short_name);
+    if (prob->internal_name && prob->internal_name[0] > ' ') {
+      fprintf(flog, "*** Checking problem %s (%s) ***\n", prob->short_name, prob->internal_name);
+    } else {
+      fprintf(flog, "*** Checking problem %s ***\n", prob->short_name);
+    }
     if (prob->disable_testing > 0) {
       fprintf(flog, "Testing is disabled, skipping\n");
       continue;

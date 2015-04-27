@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 8474 2014-08-17 07:03:26Z cher $ */
+/* $Id: prepare.h 8673 2014-10-21 05:36:55Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -849,8 +849,12 @@ struct section_problem_data
   ejintbool_t disable_user_submit;
   /** no problem tab for this problem in problem_navigation mode */
   ejintbool_t disable_tab;
-  /** do not show problem statement after problem expiration */
+  /** do show problem statement after problem expiration */
+  ejintbool_t unrestricted_statement;
+  /** for compatibility with old configs */
   ejintbool_t restricted_statement;
+  /** hide input/output file names from problem submit page */
+  ejintbool_t hide_file_names;
   /** disable submission after this problem is solved */
   ejintbool_t disable_submit_after_ok;
   /** do not test this problem automatically */
@@ -1333,9 +1337,13 @@ void prepare_unparse_unhandled_global(FILE *f,
                                       const struct section_global_data *global);
 int prepare_check_forbidden_global(FILE *f, const struct section_global_data *global);
 
-void prepare_unparse_lang(FILE *f, const struct section_language_data *lang,
-                          const unsigned char *long_name,
-                          const unsigned char *options);
+void
+prepare_unparse_lang(
+        FILE *f,
+        const struct section_language_data *lang,
+        const unsigned char *long_name,
+        const unsigned char *options,
+        const unsigned char *libs);
 void prepare_unparse_unhandled_lang(FILE *f,
                                     const struct section_language_data *lang);
 int prepare_check_forbidden_lang(FILE *f, const struct section_language_data *lang);

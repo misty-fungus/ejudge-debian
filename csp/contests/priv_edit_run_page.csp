@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_edit_run_page.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id: priv_edit_run_page.csp 8644 2014-10-18 06:39:05Z cher $ */
 %><%@include "priv_includes.csp"
 %><%
 #include "ejudge/ej_uuid.h"
@@ -19,6 +19,7 @@
   const unsigned char *str = NULL;
   const unsigned char *s;
   int run_id = 0, prob_id, lang_id;
+  int enable_main_menu = 0;
 
 %><s:read var="run_id" required="yes" error="inv-run-id" /><%
   if (opcaps_check(phr->caps, OPCAP_EDIT_RUN) < 0) {

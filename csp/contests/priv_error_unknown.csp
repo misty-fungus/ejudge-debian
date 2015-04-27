@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_error_unknown.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id: priv_error_unknown.csp 8644 2014-10-18 06:39:05Z cher $ */
 %><%@include "priv_includes.csp"
 %><%@set getter_name = "csp_get_priv_error_unknown"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
@@ -8,6 +8,7 @@
 %><%
   unsigned char title[1024];
   const unsigned char *error_title = NULL;
+  int enable_main_menu = 0;
 
   l10n_setlocale(phr->locale_id);
   error_title = ns_error_title(phr->error_code);

@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_user_ips_page.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id: priv_user_ips_page.csp 8644 2014-10-18 06:39:05Z cher $ */
 %><%@include "priv_includes.csp"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
 %><%@page csp_view_priv_user_ips_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
@@ -10,6 +10,7 @@
     PrivUserIPItem *ui;
     struct teamdb_export td;
     const unsigned char *title = NULL;
+    int enable_main_menu = 0;
 
     if (phr->role < USER_ROLE_JUDGE) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 

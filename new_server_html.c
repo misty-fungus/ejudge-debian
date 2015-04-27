@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 8604 2014-09-10 17:08:07Z cher $ */
+/* $Id: new_server_html.c 8679 2014-10-21 10:14:21Z cher $ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -7193,8 +7193,12 @@ unprivileged_page_login(FILE *fout, struct http_request_info *phr)
 {
   const unsigned char *login = 0;
   const unsigned char *password = 0;
+  const unsigned char *prob_name = 0;
   int r;
   const struct contest_desc *cnts = 0;
+  unsigned char prob_name_2[1024];
+  unsigned char prob_name_3[1024];
+  int action = NEW_SRV_ACTION_MAIN_PAGE;
 
   if ((r = hr_cgi_param(phr, "login", &login)) < 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse login");
@@ -7250,8 +7254,18 @@ unprivileged_page_login(FILE *fout, struct http_request_info *phr)
     }
   }
 
+  hr_cgi_param(phr, "prob_name", &prob_name);
+  prob_name_3[0] = 0;
+  if (prob_name && prob_name[0]) {
+    url_armor_string(prob_name_2, sizeof(prob_name_2), prob_name);
+    action = NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT;
+    snprintf(prob_name_3, sizeof(prob_name_3), "lt=1&prob_name=%s", prob_name_2);
+  } else {
+    snprintf(prob_name_3, sizeof(prob_name_3), "lt=1");
+  }
+
   ns_get_session(phr->session_id, phr->client_key, 0);
-  ns_refresh_page(fout, phr, NEW_SRV_ACTION_MAIN_PAGE, "lt=1");
+  ns_refresh_page(fout, phr, action, prob_name_3);
 }
 
 static void
@@ -9471,7 +9485,7 @@ is_judged_virtual_olympiad(serve_state_t cs, int user_id)
 /*
   *PROBLEM_PARAM(disable_user_submit, "d"),
   *PROBLEM_PARAM(disable_tab, "d"),
-  *PROBLEM_PARAM(restricted_statement, "d"),
+  *PROBLEM_PARAM(unrestricted_statement, "d"),
   *PROBLEM_PARAM(disable_submit_after_ok, "d"),
   *PROBLEM_PARAM(deadline, "s"),
   *PROBLEM_PARAM(start_date, "s"),
@@ -9527,7 +9541,7 @@ ns_get_problem_status(
     is_deadlined = serve_is_problem_deadlined(cs, user_id, user_login,
                                               prob, &user_deadline);
 
-    if (prob->restricted_statement <= 0 || !is_deadlined)
+    if (prob->unrestricted_statement > 0 || !is_deadlined)
       pstat[prob_id] |= PROB_STATUS_VIEWABLE;
 
     if (!is_deadlined && prob->disable_user_submit <= 0
@@ -9537,24 +9551,6 @@ ns_get_problem_status(
     if (prob->disable_tab <= 0)
       pstat[prob_id] |= PROB_STATUS_TABABLE;
   }
-}
-
-static void
-write_row(
-        FILE *fout,
-        const unsigned char *row_label,
-        char *format,
-        ...)
-{
-  va_list args;
-  char buf[1024];
-
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format, args);
-  va_end(args);
-
-  fprintf(fout, "<tr><td class=\"b0\"><b>%s:</b></td><td class=\"b0\">%s</td></tr>\n",
-          row_label, buf);
 }
 
 void
@@ -9598,34 +9594,6 @@ ns_unparse_statement(
     fprintf(fout, "<h3>");
     problem_xml_unparse_node(fout, pp->title, vars, vals);
     fprintf(fout, "</h3>");
-  }
-
-  if (prob->type == PROB_TYPE_STANDARD) {
-    fprintf(fout, "<table class=\"b0\">\n");
-    if (prob->use_stdin <= 0 && prob->input_file[0]) {
-      write_row(fout, _("Input file name"), "<tt>%s</tt>",
-                ARMOR(prob->input_file));
-    }
-    if (prob->use_stdout <= 0 && prob->output_file[0]) {
-      write_row(fout, _("Output file name"), "<tt>%s</tt>",
-                ARMOR(prob->output_file));
-    }
-    if (prob->time_limit_millis > 0) {
-      write_row(fout, _("Time limit"), "%d %s",
-                prob->time_limit_millis, _("ms"));
-    } else if (prob->time_limit > 0) {
-      write_row(fout, _("Time limit"), "%d %s", prob->time_limit, _("s"));
-    }
-    if (prob->max_vm_size > 0) {
-      if (!(prob->max_vm_size % (1024 * 1024))) {
-        write_row(fout, _("Memory limit"), "%zu M",
-                  prob->max_vm_size / (1024*1024));
-      } else {
-        write_row(fout, _("Memory limit"), "%zu",
-                  prob->max_vm_size);
-      }
-    }
-    fprintf(fout, "</table>\n");
   }
 
   if (pp->desc) {
@@ -10044,14 +10012,14 @@ unpriv_get_file(
   if (cs->clients_suspended) FAIL(NEW_SRV_ERR_CLIENTS_SUSPENDED);
   if (start_time <= 0) FAIL(NEW_SRV_ERR_CONTEST_NOT_STARTED);
   if (stop_time > 0 && cs->current_time >= stop_time
-      && prob->restricted_statement > 0)
+      && prob->unrestricted_statement <= 0)
     FAIL(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
   if (!serve_is_problem_started(cs, phr->user_id, prob))
     FAIL(NEW_SRV_ERR_PROB_UNAVAILABLE);
 
   if (serve_is_problem_deadlined(cs, phr->user_id, phr->login,
                                  prob, &user_deadline)
-      && prob->restricted_statement > 0)
+      && prob->unrestricted_statement <= 0)
     FAIL(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
 
   // FIXME: check requisites

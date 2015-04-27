@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-page-gen.c 8624 2014-09-17 11:27:31Z cher $ */
+/* $Id: ej-page-gen.c 8656 2014-10-20 10:14:32Z cher $ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -4790,8 +4790,17 @@ size_t_type_handler(
         const HtmlElement *elem,
         TypeInfo *type_info)
 {
-    // handle "format"?
-    fprintf(prg_f, "fprintf(out_f, \"%%zu\", (size_t)(%s));\n", text);
+    HtmlAttribute *at = NULL;
+    if (elem) {
+        at = html_element_find_attribute(elem, "format");
+    }
+    if (at && !strcmp(at->value, "V")) {
+        fprintf(prg_f, "size_t_to_size_str_f(out_f, (size_t)(%s));\n", text);
+    } else if (at) {
+        fprintf(prg_f, "fprintf(out_f, \"%%%szu\", (size_t)(%s));\n", at->value, text);
+    } else {
+        fprintf(prg_f, "fprintf(out_f, \"%%zu\", (size_t)(%s));\n", text);
+    }
 }
 
 static void

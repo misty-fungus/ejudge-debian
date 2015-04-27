@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-polygon.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: ej-polygon.c 8665 2014-10-20 22:57:15Z cher $ */
 
 /* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -2066,7 +2066,11 @@ process_polygon_zip(
         goto zip_error;
     }
     unsigned char solutions_path[PATH_MAX];
-    snprintf(solutions_path, sizeof(solutions_path), "%s/solutions", problem_path);
+    if (pkt->ignore_solutions) {
+        snprintf(solutions_path, sizeof(solutions_path), "%s/solutions1", problem_path);
+    } else {
+        snprintf(solutions_path, sizeof(solutions_path), "%s/solutions", problem_path);
+    }
     if (os_MakeDirPath2(solutions_path, pkt->dir_mode, pkt->dir_group) < 0) {
         fprintf(log_f, "failed to create directory '%s'\n", solutions_path);
         goto zip_error;

@@ -1,5 +1,5 @@
 <%
-/* $Id: cnts_edit_cur_language_page.csp 8623 2014-09-17 11:27:05Z cher $ */
+/* $Id: cnts_edit_cur_language_page.csp 8638 2014-10-15 20:29:32Z cher $ */
 %><%@include "includes.csp"
 %><%
 %><%@set getter_name = "csp_get_cnts_edit_cur_language_page"
@@ -438,6 +438,17 @@ static const unsigned char * const form_row_attrs[]=
             <td><s:textfield name="param" value="phr->ss->lang_opts[lang->id]" size="48" maxlength="1024" checkExpr="" /></td>
             <td><s:submit ac="lang-change-opts" label="Change" /><s:submit ac="lang-clear-opts" label="Clear" /></td>
             <td><s:help ac="lang-change-opts" /></td>
+        </s:tr>
+    </s:form>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:tr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Additional libraries:</td>
+            <td><s:textfield name="param" value="phr->ss->lang_libs[lang->id]" size="48" maxlength="1024" checkExpr="" /></td>
+            <td><s:submit ac="lang-change-libs" label="Change" /><s:submit ac="lang-clear-libs" label="Clear" /></td>
+            <td><s:help ac="lang-change-libs" /></td>
         </s:tr>
     </s:form>
 

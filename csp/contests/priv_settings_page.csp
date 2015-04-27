@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_settings_page.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id: priv_settings_page.csp 8644 2014-10-18 06:39:05Z cher $ */
 %><%@include "priv_includes.csp"
 %><%@set getter_name = "csp_get_priv_settings_page"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
@@ -8,6 +8,7 @@
 %><%
     const struct section_global_data *global = cs->global;
     const unsigned char *title = NULL;
+    int enable_main_menu = 0;
 
     if (phr->role != USER_ROLE_ADMIN) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 

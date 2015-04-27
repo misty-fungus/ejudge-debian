@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_testing_queue_page.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id: priv_testing_queue_page.csp 8644 2014-10-18 06:39:05Z cher $ */
 %><%@include "priv_includes.csp"
 %><%
 #include "ejudge/super_run_packet.h"
@@ -15,6 +15,7 @@
   const unsigned char *arch;
   unsigned char run_queue_dir[PATH_MAX];
   const unsigned char *queue_dir = NULL;
+  int enable_main_menu = 0;
 
   memset(&vec, 0, sizeof(vec));
 
