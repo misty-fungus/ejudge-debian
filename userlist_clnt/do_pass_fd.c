@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: do_pass_fd.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: do_pass_fd.c 8212 2014-05-15 12:48:23Z cher $ */
 
-/* Copyright (C) 2002-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -16,9 +16,8 @@
  */
 
 #include "userlist_clnt/private.h"
-
-#include "sock_op.h"
-#include "errlog.h"
+#include "ejudge/sock_op.h"
+#include "ejudge/errlog.h"
 
 int
 userlist_clnt_do_pass_fd(
@@ -47,6 +46,5 @@ userlist_clnt_do_pass_fd(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

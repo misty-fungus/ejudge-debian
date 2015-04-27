@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: common_plugin.c 6412 2011-07-17 09:24:58Z cher $ */
+/* $Id: common_plugin.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "common_plugin.h"
-#include "errlog.h"
+#include "ejudge/common_plugin.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <string.h>
 

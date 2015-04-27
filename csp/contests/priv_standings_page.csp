@@ -1,0 +1,61 @@
+<%
+/* $Id: priv_standings_page.csp 8006 2014-03-21 18:34:31Z cher $ */
+%><%@include "priv_includes.csp"
+%><%
+%><%@set getter_name = "csp_get_priv_standings_page"
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@page csp_view_priv_standings_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "priv_stdvars.csp"
+%><%
+  struct user_filter_info *u = 0;
+  const unsigned char *title = NULL;
+
+  if (phr->role < USER_ROLE_JUDGE) {
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  }
+  if (opcaps_check(phr->caps, OPCAP_VIEW_STANDINGS) < 0) {
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  }
+
+  u = user_filter_info_allocate(cs, phr->user_id, phr->session_id);
+
+  l10n_setlocale(phr->locale_id);
+  title = _("Current standings");
+%><%@include "priv_header.csp"
+%>
+<s:form>
+<table border="0">
+<tr><td><s:tr>User filter expression</s:tr>:</td><td><s:textfield name="stand_user_expr" size="64" value="u->stand_user_expr" /></td></tr>
+<tr><td><s:tr>Problem filter expression</s:tr>:</td><td><s:textfield name="stand_prob_expr" size="64" value="u->stand_prob_expr" /></td></tr>
+<tr><td><s:tr>Run filter expression</s:tr>:</td><td><s:textfield name="stand_run_expr" size="64" value="u->stand_run_expr" /></td></tr>
+<tr><td>&nbsp;</td><td><s:submit ac="set-stand-filter" /><s:submit ac="reset-stand-filter" /></td></tr>
+<tr><td>&nbsp;</td><td><a href='<s:config name="style-prefix" />filter_expr.html' target="_blank"><s:tr>Help</s:tr></a></td></tr>
+
+</table>
+</s:form>
+<br/>
+
+<%  if (u->stand_error_msgs) { %>
+<h2><s:tr>Filter expression errors</s:tr></h2>
+<p><pre><font color="red"><s:v value="u->stand_error_msgs" /></font></pre></p>
+<%  } %>
+
+<table class="b0"><tr>
+<td class="b0"><s:a ac="main-page"><s:tr>Main page</s:tr></a></td>
+<td class="b0"><s:a ac="standings"><s:tr>Refresh</s:tr></a></td>
+</tr></table>
+
+<%
+  if (cs->global->score_system == SCORE_KIROV || cs->global->score_system == SCORE_OLYMPIAD)
+    do_write_kirov_standings(cs, cnts, out_f, 0, 1, 0, 0, 0, 0, 0, 0 /*accepting_mode*/, 1, 0, 0, u, 0 /* user_mode */);
+  else if (cs->global->score_system == SCORE_MOSCOW)
+    do_write_moscow_standings(cs, cnts, out_f, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, u);
+  else
+    do_write_standings(cs, cnts, out_f, 1, 0, 0, 0, 0, 0, 0, 1, 0, u);
+%>
+<%@include "priv_footer.csp"
+%><%
+  l10n_setlocale(0);
+cleanup:
+  html_armor_free(&ab);
+%>

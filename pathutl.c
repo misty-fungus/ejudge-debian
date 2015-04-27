@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: pathutl.c 6634 2012-02-07 14:54:16Z cher $ */
+/* $Id: pathutl.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -15,11 +15,11 @@
  * Lesser General Public License for more details.
  */
 
-#include "pathutl.h"
+#include "ejudge/pathutl.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -371,10 +371,3 @@ path_make_relative(
   path_split_free(s_relto);
   path_split_free(s_prefix);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
- * End:
- */

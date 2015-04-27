@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: server_framework.c 7301 2013-01-25 19:23:15Z cher $ */
+/* $Id: server_framework.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,18 +15,17 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/errlog.h"
+#include "ejudge/server_framework.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/sock_op.h"
+#include "ejudge/startstop.h"
 
-#include "errlog.h"
-#include "server_framework.h"
-#include "new_server_proto.h"
-#include "sock_op.h"
-#include "startstop.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -79,10 +78,15 @@ struct server_framework_state
   int client_id;
   int restart_requested;
 
+  time_t server_start_time;
+
   struct client_state *clients_first;
   struct client_state *clients_last;
 
   struct watchlist *w_first, *w_last;
+
+  struct server_framework_job *job_first, *job_last;
+  int job_count, job_serial;
 
   void *user_data;
 };
@@ -771,7 +775,10 @@ nsf_is_restart_requested(struct server_framework_state *state)
 }
 
 struct server_framework_state *
-nsf_init(struct server_framework_params *params, void *data)
+nsf_init(
+        struct server_framework_params *params,
+        void *data,
+        time_t server_start_time)
 {
   struct server_framework_state *state;
 
@@ -779,12 +786,67 @@ nsf_init(struct server_framework_params *params, void *data)
   state->params = params;
   state->user_data = data;
   state->client_id = 1;
+  state->server_start_time = server_start_time;
   return state;
 }
 
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
- * End:
- */
+void
+nsf_add_job(
+        struct server_framework_state *state,
+        struct server_framework_job *job)
+{
+  if (!job) return;
+  job->id = ++state->job_serial;
+  job->start_time = time(NULL);
+  ++state->job_count;
+  job->prev = state->job_last;
+  job->next = NULL;
+  if (state->job_last) {
+    state->job_last->next = job;
+  } else {
+    state->job_first = job;
+  }
+  state->job_last = job;
+}
+
+void
+nsf_remove_job(
+        struct server_framework_state *state,
+        struct server_framework_job *job)
+{
+  if (job->next) {
+    job->next->prev = job->prev;
+  } else {
+    state->job_last = job->prev;
+  }
+  if (job->prev) {
+    job->prev->next = job->next;
+  } else {
+    state->job_first = job->next;
+  }
+  job->next = NULL;
+  job->prev = NULL;
+  job->vt->destroy(job);
+  --state->job_count;
+}
+
+struct server_framework_job *
+nsf_get_first_job(
+        struct server_framework_state *state)
+{
+  return state->job_first;
+}
+
+int
+nsf_get_job_count(
+        struct server_framework_state *state)
+{
+  return state->job_count;
+}
+
+time_t
+nsf_get_server_start_time(
+        struct server_framework_state *state)
+{
+  return state->server_start_time;
+}

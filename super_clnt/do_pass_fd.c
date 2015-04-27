@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: do_pass_fd.c 6158 2011-03-27 06:59:28Z cher $ */
+/* $Id: do_pass_fd.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,12 +15,12 @@
  * GNU General Public License for more details.
  */
 
-#include "super_clnt.h"
-#include "super_proto.h"
-#include "sock_op.h"
-#include "errlog.h"
+#include "ejudge/super_clnt.h"
+#include "ejudge/super_proto.h"
+#include "ejudge/sock_op.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 int
 super_clnt_do_pass_fd(
@@ -44,6 +44,5 @@ super_clnt_do_pass_fd(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: close.c 6131 2011-03-26 09:14:29Z cher $ */
+/* $Id: close.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -16,9 +16,9 @@
  */
 
 #include "new_server_clnt/new_server_clnt_priv.h"
-#include "new_server_proto.h"
+#include "ejudge/new_server_proto.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <unistd.h>
 
@@ -35,6 +35,5 @@ new_server_clnt_close(new_server_conn_t conn)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

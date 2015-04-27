@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: nsdb_plugin_files.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: nsdb_plugin_files.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,16 +15,16 @@
  * GNU General Public License for more details.
  */
 
-#include "nsdb_plugin.h"
-#include "expat_iface.h"
-#include "xml_utils.h"
-#include "errlog.h"
-#include "pathutl.h"
-#include "new-server.h"
+#include "ejudge/nsdb_plugin.h"
+#include "ejudge/expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/errlog.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/new-server.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <sys/types.h>
@@ -995,10 +995,3 @@ get_examiner_count_func(
       count++;
   return count;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

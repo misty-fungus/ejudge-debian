@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: team_extra.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: team_extra.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,14 +15,14 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_limits.h"
-#include "team_extra.h"
-#include "pathutl.h"
-#include "errlog.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/team_extra.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <errno.h>

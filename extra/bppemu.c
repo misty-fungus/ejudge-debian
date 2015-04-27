@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: bppemu.c 5685 2010-01-19 10:08:31Z cher $ */
+/* $Id: bppemu.c 8173 2014-05-12 19:50:16Z cher $ */
 
-/* Copyright (C) 2003-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,7 +22,7 @@
  */
 
 #if defined HAVE_CONFIG_H
-#include "../config.h"
+#include "../include/ejudge/config.h"
 #endif
 
 #include <stdio.h>

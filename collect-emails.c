@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: collect-emails.c 6135 2011-03-26 09:30:42Z cher $ */
+/* $Id: collect-emails.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,12 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/userlist.h"
 
-#include "version.h"
-#include "ejudge_cfg.h"
-#include "userlist.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -181,6 +180,5 @@ main(int argc, char *argv[])
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

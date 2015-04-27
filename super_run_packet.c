@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.c 7430 2013-10-15 11:50:45Z cher $ */
+/* $Id: super_run_packet.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,13 @@
  * GNU General Public License for more details.
  */
 
-#include "super_run_packet.h"
+#include "ejudge/super_run_packet.h"
+#include "ejudge/meta_generic.h"
+#include "ejudge/meta/super_run_packet_meta.h"
+#include "ejudge/prepare.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
-#include "meta_generic.h"
-#include "super_run_packet_meta.h"
-#include "prepare.h"
-#include "errlog.h"
+#include "ejudge/xalloc.h"
 
 #include <string.h>
 
@@ -47,6 +47,7 @@ super_run_in_global_packet_init(struct generic_section_config *gp)
   p->mime_type = -1;
   p->notify_flag = -1;
   p->advanced_layout = -1;
+  p->rejudge_flag = -1;
   p->disable_sound = -1;
   p->is_dos = -1;
   p->time_limit_retry_count = -1;
@@ -76,6 +77,7 @@ super_run_in_global_packet_set_default(struct generic_section_config *gp)
   if (p->mime_type < 0) p->mime_type = 0;
   if (p->notify_flag < 0) p->notify_flag = 0;
   if (p->advanced_layout < 0) p->advanced_layout = 0;
+  if (p->rejudge_flag < 0) p->rejudge_flag = 0;
   if (p->disable_sound < 0) p->disable_sound = 0;
 
   if (p->scoring_system_val < 0) {

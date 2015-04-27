@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: runlog_xml.c 7587 2013-11-11 16:53:34Z cher $ */
+/* $Id: runlog_xml.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,27 +15,26 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/runlog.h"
+#include "ejudge/expat_iface.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/prepare.h"
+#include "ejudge/misctext.h"
+#include "ejudge/contests.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/base64.h"
+#include "ejudge/ej_uuid.h"
 
-#include "runlog.h"
-#include "expat_iface.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "teamdb.h"
-#include "prepare.h"
-#include "misctext.h"
-#include "contests.h"
-#include "xml_utils.h"
-#include "serve_state.h"
-#include "mime_type.h"
-#include "archive_paths.h"
-#include "fileutl.h"
-#include "base64.h"
-#include "ej_uuid.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <errno.h>
 #include <ctype.h>

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cldb_mysql.c 7350 2013-02-08 12:34:27Z cher $ */
+/* $Id: cldb_mysql.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,21 +15,20 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
-#include "cldb_plugin.h"
-#include "clarlog.h"
-#include "clarlog_state.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/cldb_plugin.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/clarlog_state.h"
 #include "../mysql-common/common_mysql.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/errlog.h"
+#include "ejudge/contests.h"
+#include "ejudge/prepare.h"
+#include "ejudge/compat.h"
 
-#include "xml_utils.h"
-#include "errlog.h"
-#include "contests.h"
-#include "prepare.h"
-#include "compat.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <mysql.h>
 

@@ -1,0 +1,193 @@
+<%
+/* $Id: priv_users_page.csp 8237 2014-05-17 06:40:01Z cher $ */
+%><%@include "priv_includes.csp"
+%><%
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/userlist_proto.h"
+%><%@set getter_name = "csp_get_priv_users_page"
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@page csp_view_priv_users_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "priv_stdvars.csp"
+%><%
+  int r;
+  unsigned char *xml_text = 0;
+  struct userlist_list *users = 0;
+  const struct userlist_user *u = 0;
+  const struct userlist_contest *uc = 0;
+  int uid;
+  int row = 1, serial = 1;
+  int details_allowed = 0;
+  unsigned char b1[1024];
+  int new_contest_id = cnts->id;
+  const struct section_global_data *global = extra->serve_state->global;
+  int *run_counts = 0;
+  size_t *run_sizes = 0;
+  const unsigned char *title = _("Users page");
+
+static const unsigned char * const form_row_attrs[]=
+{
+  " bgcolor=\"#d0d0d0\"",
+  " bgcolor=\"#e0e0e0\"",
+};
+
+  if (cnts->user_contest_num > 0) new_contest_id = cnts->user_contest_num;
+  if (ns_open_ul_connection(phr->fw_state) < 0) {
+    FAIL(NEW_SRV_ERR_USERLIST_SERVER_DOWN);
+  }
+  if ((r = userlist_clnt_list_all_users(ul_conn, ULS_LIST_ALL_USERS,
+                                        phr->contest_id, &xml_text)) < 0) {
+    FAIL(NEW_SRV_ERR_USERLIST_SERVER_DOWN);
+  }
+  users = userlist_parse_str(xml_text);
+  xfree(xml_text); xml_text = 0;
+  if (!users) {
+    FAIL(NEW_SRV_ERR_INTERNAL);
+  }
+
+  if (users->user_map_size > 0) {
+    XCALLOC(run_counts, users->user_map_size);
+    XCALLOC(run_sizes, users->user_map_size);
+    run_get_all_statistics(extra->serve_state->runlog_state,
+                           users->user_map_size, run_counts, run_sizes);
+  }
+
+  if (opcaps_check(phr->caps, OPCAP_GET_USER) >= 0) details_allowed = 1;
+
+  l10n_setlocale(phr->locale_id);
+%><%@include "priv_header.csp"
+%><h2>Registered users</h2>
+
+<s:form>
+<table class="b1"><tr><th class="b1">NN</th><th class="b1">Id</th><th class="b1">Login</th><th class="b1">Name</th><th class="b1">Status</th><th class="b1">Flags</th><th class="b1">Reg. date</th><th class="b1">Login date</th><th class="b1">No. of submits</th><th class="b1">Size of submits</th>
+<%  if (global->memoize_user_results > 0) { %>
+<th class="b1">Score</th>
+<%  } %>
+<th class="b1">Select</th></tr>
+<%  for (uid = 1; uid < users->user_map_size; uid++) {
+    if (!(u = users->user_map[uid])) continue;
+    if (!(uc = userlist_get_user_contest(u, new_contest_id))) continue;
+%>
+<tr<s:v escape="false" value="form_row_attrs[row ^= 1]" />>
+<td class="b1"><s:v value="serial++" /></td>
+<%
+    snprintf(b1, sizeof(b1), "uid == %d", uid);
+%>
+<s:url name="UserFilterUrl" ac="main-page">
+    <s:param name="filter_expr" value="b1" />
+</s:url>
+<td class="b1"><s:a url="UserFilterUrl" ><s:v value="uid" /></s:a></td>
+
+<%    if (details_allowed) { %>
+<td class="b1"><s:url name="ViewUserInfoUrl" ac="view-user-info"><s:param name="user_id" value="uid" /></s:url><s:a url="ViewUserInfoUrl"><s:v value="u->login" /></s:a></td>
+<%    } else { %>
+<td class="b1"><s:v value="u->login" /></td>
+<%    } %>
+<%    if (u->cnts0 && u->cnts0->name && *u->cnts0->name) { %>
+<td class="b1"><s:v value="u->cnts0->name" /></td>
+<%    } else { %>
+<td class="b1">&nbsp;</td>
+<%    }%>
+<td class="b1"><s:v escape="false" value="userlist_unparse_reg_status(uc->status)" /></td>
+<%    if ((uc->flags & USERLIST_UC_ALL)) {
+      r = 0; %>
+<td class="b1"><%
+      if ((uc->flags & USERLIST_UC_BANNED))
+        fprintf(out_f, "%s%s", r++?",":"", "banned");
+      if ((uc->flags & USERLIST_UC_INVISIBLE))
+        fprintf(out_f, "%s%s", r++?",":"", "invisible");
+      if ((uc->flags & USERLIST_UC_LOCKED))
+        fprintf(out_f, "%s%s", r++?",":"", "locked");
+      if ((uc->flags & USERLIST_UC_INCOMPLETE))
+        fprintf(out_f, "%s%s", r++?",":"", "incomplete");
+      if ((uc->flags & USERLIST_UC_DISQUALIFIED))
+        fprintf(out_f, "%s%s", r++?",":"", "disqualified");
+%></td>
+<%    } else { %>
+<td class="b1">&nbsp;</td>
+<%    } %>
+<%    if (uc->create_time > 0) {%>
+<td class="b1"><s:v value="uc->create_time" /></td>
+<%    } else { %>
+<td class="b1">&nbsp;</td>
+<%    }%>
+<%    if (u->cnts0 && u->cnts0->last_login_time > 0) {%>
+<td class="b1"><s:v value="u->cnts0->last_login_time" /></td>
+<%    } else { %>
+<td class="b1">&nbsp;</td>
+<%    } %>
+<%    if (run_counts[uid] > 0) {%>
+<td class="b1"><s:v value="run_counts[uid]" /></td><td class="b1"><s:v value="run_sizes[uid]" /></td>
+<%    } else {%>
+<td class="b1">&nbsp;</td><td class="b1">&nbsp;</td>
+<%    }%>
+<%    if (global->memoize_user_results > 0) {%>
+<td class="b1"><s:v value="serve_get_user_result_score(extra->serve_state, uid)" /></td>
+<%    }%>
+<td class="b1"><input type="checkbox" name='user_<s:v value="uid" />'/></td>
+</tr>
+<%  } %>
+</table>
+
+<h2>Users range</h2>
+
+<table>
+<tr><td><s:tr>First User_Id</s:tr>:</td><td><input type="text" name="first_user_id" size="16" /></td></tr>
+<tr><td><s:tr>Last User_Id (incl.)</s:tr></td><td><input type="text" name="last_user_id" size="16" /></td></tr>
+</table>
+
+<h2>Available actions</h2>
+
+<table>
+<tr><td><s:a ac="main-page"><s:tr>Back</s:tr></s:a></td><td><s:tr>Return to the main page</s:tr></td></tr>
+<tr><td><s:submit ac="users-remove-registrations" /></td><td><s:tr>Remove the selected users from the list</s:tr></td></tr>
+<tr><td><s:submit ac="users-set-pending" /></td><td><s:tr>Set the registration status of the selected users to PENDING</s:tr></td></tr>
+<tr><td><s:submit ac="users-set-ok" /></td><td><s:tr>Set the registration status of the selected users to OK</s:tr></td></tr>
+<tr><td><s:submit ac="users-set-rejected" /></td><td><s:tr>Set the registration status of the selected users to REJECTED</s:tr></td></tr>
+<tr><td><s:submit ac="users-set-invisible" /></td><td><s:tr>Set the INVISIBLE flag for the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="users-clear-invisible" /></td><td><s:tr>Clear the INVISIBLE flag for the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="users-set-banned" /></td><td><s:tr>Set the BANNED flag for the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="users-clear-banned" /></td><td><s:tr>Clear the BANNED flag for the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="users-set-locked" /></td><td><s:tr>Set the LOCKED flag for the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="users-clear-locked" /></td><td><s:tr>Clear the LOCKED flag for the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="users-set-incomplete" /></td><td><s:tr>Set the INCOMPLETE flag for the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="users-clear-incomplete" /></td><td><s:tr>Clear the INCOMPLETE flag for the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="users-clear-disqualified" /></td><td><s:tr>Clear the DISQUALIFIED flag for the selected users</s:tr></td></tr>
+<%  if (global->is_virtual) {%>
+<tr><td><s:submit ac="force-start-virtual" /></td><td><s:tr>Force virtual contest start for the selected users</s:tr></td></tr>
+<%  }%>
+
+<%  if (global->user_exam_protocol_header_txt) { %>
+<tr><td><s:submit ac="print-selected-user-protocol" /></td><td><s:tr>Print the user examination protocols for the selected users</s:tr></td></tr>
+<% } %>
+<%  if (global->full_exam_protocol_header_txt) { %>
+<tr><td><s:submit ac="print-selected-user-full-protocol" /></td><td><s:tr>Print the user full examination protocols for the selected users</s:tr></td></tr>
+<% } %>
+<%  if (global->full_exam_protocol_header_txt) { %>
+<tr><td><s:submit ac="print-selected-ufc-protocol" /></td><td><s:tr>Print the user full cyphered examination protocols for the selected users</s:tr></td></tr>
+<% } %>
+</table>
+
+<h2><s:tr>Disqualify selected users</s:tr></h2>
+<p><s:tr>Disqualification explanation</s:tr>:<br>
+<p><textarea name="disq_comment" rows="5" cols="60">
+</textarea></p>
+
+<table class="b0"><tr>
+<td class="b0"><s:submit ac="users-set-disqualified" /></td>
+</tr></table>
+
+<h2><s:tr>Add new user</s:tr></h2>
+<table>
+<tr><td><input type="text" size="32" name="add_login"/></td><td><s:submit ac="users-add-by-login" /></td><td><s:tr>Add a new user specifying his/her login</s:tr></td></tr>
+<tr><td><input type="text" size="32" name="add_user_id"/></td><td><s:submit ac="users-add-by-user-id" /></td><td><s:tr>Add a new user specifying his/her User Id</s:tr></td></tr>
+</table>
+</s:form><%@include "priv_footer.csp"
+%><%
+  l10n_setlocale(0);
+
+cleanup:
+  if (users) userlist_free(&users->b);
+  html_armor_free(&ab);
+  xfree(run_counts);
+  xfree(run_sizes);
+%>

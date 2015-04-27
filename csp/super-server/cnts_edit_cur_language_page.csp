@@ -1,0 +1,501 @@
+<%
+/* $Id: cnts_edit_cur_language_page.csp 8507 2014-08-18 12:40:47Z cher $ */
+%><%@include "includes.csp"
+%><%
+%><%@set getter_name = "csp_get_cnts_edit_cur_language_page"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_cnts_edit_cur_language_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    unsigned char subtitle_buf[1024];
+    const unsigned char *title = 0;
+    const unsigned char *subtitle = subtitle_buf;
+    opcap_t caps = 0;
+    int row = 1;
+    int cur_page = 3;
+    unsigned char cs_conf_file[PATH_MAX];
+    unsigned char num_buf[1024];
+    unsigned char *env = 0;
+
+static const unsigned char head_row_attr[] =
+  " bgcolor=\"#a0a0a0\"";
+static const unsigned char * const form_row_attrs[]=
+{
+  " bgcolor=\"#d0d0d0\"",
+  " bgcolor=\"#e0e0e0\"",
+};
+
+    if (phr->priv_level != PRIV_LEVEL_ADMIN) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (ejudge_cfg_opcaps_find(phr->config, phr->login, &caps) < 0) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (opcaps_check(caps, OPCAP_EDIT_CONTEST) < 0) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (!phr->ss->edited_cnts) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+
+    snprintf(subtitle_buf, sizeof(subtitle_buf), "editing serve.cfg, programming languages");
+    cnts = phr->ss->edited_cnts;
+    struct section_global_data *global = phr->ss->global;
+%><%@include "header.csp"
+%>
+
+<%@include "cnts_edit_cur_top_menu.csp"
+%>
+
+<%
+  if (phr->ss->serve_parse_errors) {
+%>
+<h2><tt>serve.cfg</tt> cannot be edited</h2>
+<font color="red"><pre><s:v value="phr->ss->serve_parse_errors" /></pre></font>
+<%
+    goto bottom_links;
+  }
+%>
+
+<%
+  if (!global) {
+%>
+<h2>No current global settings!</h2>
+<%
+    goto bottom_links;
+  }
+%>
+
+<%
+  if (phr->ss->disable_compilation_server) {
+%>
+<h2>Compilation server is disabled!</h2>
+<p>Enable compilation server on &quot;Global settings&qout; tab.</p>
+<%
+    goto bottom_links;
+  }
+%>
+<%
+  if (!phr->ss->cs_langs_loaded) {
+    super_load_cs_languages(phr->config, phr->ss, global->extra_compile_dirs, 1, cs_conf_file, sizeof(cs_conf_file));
+  }
+%>
+<%
+  if (!phr->ss->cs_langs) {
+%>
+<h2>The standard compilation server is not available!</h2>
+<%
+    goto bottom_links;
+  }
+%>
+
+<table border="0">
+    <s:htr attr="head_row_attr">
+        <td colspan="5" align="center"><b>Compilation limitations</b></td>
+    </s:htr>
+
+<%
+  num_buf[0] = 0;
+  if (((ssize_t) global->compile_max_vm_size) > 0) {
+    num_to_size_str(num_buf, sizeof(num_buf), global->compile_max_vm_size);
+  }
+%>
+    <s:form>
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td colspan="2">Maximum VM size for compilers:</td>
+            <td><s:textfield name="param" value="num_buf" size="48" maxlength="1024" check="no" /></td>
+            <td><s:submit ac="glob-change-compile-max-vm-size" label="Change" /></td>
+            <td><s:help ac="glob-change-compile-max-vm-size" /></td>
+        </s:htr>
+    </s:form>
+
+<%
+  num_buf[0] = 0;
+  if (((ssize_t) global->compile_max_stack_size) > 0) {
+    num_to_size_str(num_buf, sizeof(num_buf), global->compile_max_stack_size);
+  }
+%>
+    <s:form>
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td colspan="2">Maximum stack size for compilers:</td>
+            <td><s:textfield name="param" value="num_buf" size="48" maxlength="1024" check="no" /></td>
+            <td><s:submit ac="glob-change-compile-max-stack-size" label="Change" /></td>
+            <td><s:help ac="glob-change-compile-max-stack-size" /></td>
+        </s:htr>
+    </s:form>
+
+<%
+  num_buf[0] = 0;
+  if (((ssize_t) global->compile_max_file_size) > 0) {
+    num_to_size_str(num_buf, sizeof(num_buf), global->compile_max_file_size);
+  }
+%>
+    <s:form>
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td colspan="2">Maximum file size for compilers:</td>
+            <td><s:textfield name="param" value="num_buf" size="48" maxlength="1024" check="no" /></td>
+            <td><s:submit ac="glob-change-compile-max-file-size" label="Change" /></td>
+            <td><s:help ac="glob-change-compile-max-file-size" /></td>
+        </s:htr>
+    </s:form>
+
+    <s:htr attr="head_row_attr">
+        <td colspan="5" align="center"><b>Available compilers</b></td>
+    </s:htr>
+
+<%
+  int i;
+  for (i = 1; i < phr->ss->cs_lang_total; ++i) {
+    const struct section_language_data *cs_lang = phr->ss->cs_langs[i];
+    if (!cs_lang) continue;
+    if (!phr->ss->cs_lang_names[i]) continue;
+    if (!*phr->ss->cs_lang_names[i]) continue;
+    const struct section_language_data *lang = 0;
+    if (phr->ss->cs_loc_map[i] > 0) lang = phr->ss->langs[phr->ss->cs_loc_map[i]];
+    const unsigned char *td_attr = "";
+    td_attr = "";
+    if (lang && lang->insecure && global && global->secure_run > 0) {
+      td_attr = " bgcolor=\"#ffffdd\"";
+    } else if (lang) {
+      td_attr = " bgcolor=\"#ddffdd\"";
+    }
+%>
+    <s:form>
+        <s:hidden name="lang_id" value="i" />
+        <tr>
+            <td colspan="3"<s:v value="td_attr" escape="false" />><%
+    if (lang && lang->long_name[0]) {
+%><b><s:v value="lang->long_name" /></b><%
+      if (!phr->ss->cs_lang_names[i]) {
+%> <font color="magenta">(No version script!)</font><%
+      } else if (!*phr->ss->cs_lang_names[i]) {
+%> <font color="red">(Version script failed!)</font><%
+      } else {
+%> (<s:v value="phr->ss->cs_lang_names[i]" />)<%
+      }
+    } else if (!phr->ss->cs_lang_names[i]) {
+%><b><s:v value="cs_lang->long_name" /></b> <font color="magenta">(No version script!)</font><%
+    } else if (!*phr->ss->cs_lang_names[i]) {
+%><b><s:v value="cs_lang->long_name" /></b> <font color="red">(Version script failed!)</font><%
+    } else {
+%><b><s:v value="phr->ss->cs_lang_names[i]" /></b><%
+    }
+%></td>
+            <td<s:v value="td_attr" escape="false" />><%
+    if (lang) {
+      if (!phr->ss->lang_flags[lang->id]) {
+%><s:submit ac="lang-show-details" label="View details" /><%
+      } else {
+%><s:submit ac="lang-hide-details" label="Hide details" /><%
+      }
+      if (!phr->ss->loc_cs_map[lang->id]) {
+%><s:submit ac="lang-deactivate" label="Deactivate" /><%
+      }
+    } else {
+%><s:submit ac="lang-activate" label="Activate" /><%
+    }
+%></td>
+            <td<s:v value="td_attr" escape="false" />>&nbsp;</td>
+        </tr>
+    </s:form>
+
+<%
+    if (!lang || !phr->ss->lang_flags[lang->id]) continue;
+    //ASSERT(lang->compile_id == i);
+    row = 1;
+%>
+
+    <s:htr attr="form_row_attrs[row ^= 1]">
+        <td width="50">&nbsp;</td>
+        <td>Language ID:</td>
+        <td><s:v value="lang->id" /></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:htr>
+
+    <s:htr attr="form_row_attrs[row ^= 1]">
+        <td width="50">&nbsp;</td>
+        <td>Compilation server ID:</td>
+        <td><s:v value="lang->compile_id" /></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:htr>
+
+    <s:htr attr="form_row_attrs[row ^= 1]">
+        <td width="50">&nbsp;</td>
+        <td>Language short name:</td>
+        <td><s:v value="lang->short_name" /></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:htr>
+
+    <s:htr attr="form_row_attrs[row ^= 1]">
+        <td width="50">&nbsp;</td>
+        <td>Language architecture:</td>
+        <td><s:v value="lang->arch" /><% if (!lang->arch || !lang->arch[0]) { %><i>(Default)</i><% } %></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:htr>
+
+    <s:htr attr="form_row_attrs[row ^= 1]">
+        <td width="50">&nbsp;</td>
+        <td>Suffix of the source files:</td>
+        <td><s:v value="lang->src_sfx" /></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:htr>
+
+    <s:htr attr="form_row_attrs[row ^= 1]">
+        <td width="50">&nbsp;</td>
+        <td>Suffix of the executable files:</td>
+        <td><s:v value="lang->exe_sfx" /><% if (!lang->exe_sfx || !*lang->exe_sfx) { %><i>(Empty)</i><% } %></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:htr>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Language long name:</td>
+            <td><s:textfield name="param" value="lang->long_name" size="48" maxlength="1024" check="false" /></td>
+            <td><s:submit ac="lang-change-long-name" label="Change" /><s:submit ac="lang-clear-long-name" label="Clear" /></td>
+            <td><s:help ac="lang-change-long-name" /></td>
+        </s:htr>
+    </s:form>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Language external name:</td>
+            <td><s:textfield name="param" value="lang->extid" size="48" maxlength="1024" checkExpr="" /></td>
+            <td><s:submit ac="lang-change-extid" label="Change" /><s:submit ac="lang-clear-extid" label="Clear" /></td>
+            <td><s:help ac="lang-change-extid" /></td>
+        </s:htr>
+    </s:form>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Disable this language for participants:</td>
+            <td><s:yesno name="param" value="lang->disabled" /></td>
+            <td><s:submit ac="lang-change-disabled" label="Change" /></td>
+            <td><s:help ac="lang-change-disabled" /></td>
+        </s:htr>
+    </s:form>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>This language is insecure:</td>
+            <td><s:yesno name="param" value="lang->insecure" /></td>
+            <td><s:submit ac="lang-change-insecure" label="Change" /></td>
+            <td><s:help ac="lang-change-insecure" /></td>
+        </s:htr>
+    </s:form>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Disable security restrictions:</td>
+            <td><s:yesno name="param" value="lang->disable_security" /></td>
+            <td><s:submit ac="lang-change-disable-security" label="Change" /></td>
+            <td><s:help ac="lang-change-disable-security" /></td>
+        </s:htr>
+    </s:form>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Disable any testing of submissions:</td>
+            <td><s:yesno name="param" value="lang->disable_testing" /></td>
+            <td><s:submit ac="lang-change-disable-testing" label="Change" /></td>
+            <td><s:help ac="lang-change-disable-testing" /></td>
+        </s:htr>
+    </s:form>
+
+<%
+    if (!lang->disable_testing) {
+%>
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Disable automatic testing of submissions:</td>
+            <td><s:yesno name="param" value="lang->disable_auto_testing" /></td>
+            <td><s:submit ac="lang-change-disable-auto-testing" label="Change" /></td>
+            <td><s:help ac="lang-change-disable-auto-testing" /></td>
+        </s:htr>
+    </s:form>
+<%
+    }
+%>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Language source files are binary:</td>
+            <td><s:yesno name="param" value="lang->binary" /></td>
+            <td><s:submit ac="lang-change-binary" label="Change" /></td>
+            <td><s:help ac="lang-change-binary" /></td>
+        </s:htr>
+    </s:form>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Perform UNIX->DOS conversion:</td>
+            <td><s:yesno name="param" value="lang->is_dos" /></td>
+            <td><s:submit ac="lang-change-is-dos" label="Change" /></td>
+            <td><s:help ac="lang-change-is-dos" /></td>
+        </s:htr>
+    </s:form>
+
+<%
+    num_buf[0] = 0;
+    if (lang->max_vm_size != ~((size_t) 0) && lang->max_vm_size != 0) {
+      num_to_size_str(num_buf, sizeof(num_buf), lang->max_vm_size);
+    }
+%>
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Maximum VM size:</td>
+            <td><s:textfield name="param" value="num_buf" size="48" maxlength="1024" check="false" /></td>
+            <td><s:submit ac="lang-change-max-vm-size" label="Change" /></td>
+            <td><s:help ac="lang-change-max-vm-size" /></td>
+        </s:htr>
+    </s:form>
+
+<%
+    num_buf[0] = 0;
+    if (lang->max_stack_size != ~((size_t) 0) && lang->max_stack_size != 0) {
+      num_to_size_str(num_buf, sizeof(num_buf), lang->max_stack_size);
+    }
+%>
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Maximum stack size:</td>
+            <td><s:textfield name="param" value="num_buf" size="48" maxlength="1024" check="false" /></td>
+            <td><s:submit ac="lang-change-max-stack-size" label="Change" /></td>
+            <td><s:help ac="lang-change-max-stack-size" /></td>
+        </s:htr>
+    </s:form>
+
+<%
+    num_buf[0] = 0;
+    if (lang->max_file_size != ~((size_t) 0) && lang->max_file_size != 0) {
+      num_to_size_str(num_buf, sizeof(num_buf), lang->max_file_size);
+    }
+%>
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Maximum file size:</td>
+            <td><s:textfield name="param" value="num_buf" size="48" maxlength="1024" check="false" /></td>
+            <td><s:submit ac="lang-change-max-file-size" label="Change" /></td>
+            <td><s:help ac="lang-change-max-file-size" /></td>
+        </s:htr>
+    </s:form>
+
+<%
+    if (lang->binary) {
+%>
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Content type for files:</td>
+            <td><s:textfield name="param" value="lang->content_type" size="48" maxlength="1024" check="false" /></td>
+            <td><s:submit ac="lang-change-content-type" label="Change" /><s:submit ac="lang-clear-content-type" label="Clear" /></td>
+            <td><s:help ac="lang-change-content-type" /></td>
+        </s:htr>
+    </s:form>
+<%
+    }
+%>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Style checker command:</td>
+            <td><s:textfield name="param" value="lang->style_checker_cmd" size="48" maxlength="1024" check="false" /></td>
+            <td><s:submit ac="lang-change-style-checker-cmd" label="Change" /><s:submit ac="lang-clear-style-checker-cmd" label="Clear" /></td>
+            <td><s:help ac="lang-change-style-checker-cmd" /></td>
+        </s:htr>
+    </s:form>
+
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Additional compilation options:</td>
+            <td><s:textfield name="param" value="phr->ss->lang_opts[lang->id]" size="48" maxlength="1024" checkExpr="" /></td>
+            <td><s:submit ac="lang-change-opts" label="Change" /><s:submit ac="lang-clear-opts" label="Clear" /></td>
+            <td><s:help ac="lang-change-opts" /></td>
+        </s:htr>
+    </s:form>
+
+<%
+    env = 0;
+    if (lang->style_checker_env && lang->style_checker_env[0]) {
+      env = sarray_unparse(lang->style_checker_env);
+    }
+%>
+    <s:form>
+        <s:hidden name="lang_id" value="lang->compile_id" />
+        <s:htr attr="form_row_attrs[row ^= 1]">
+            <td width="50">&nbsp;</td>
+            <td>Style checker environment:</td>
+            <td><s:textfield name="param" value="env" size="48" maxlength="1024" checkExpr="" /></td>
+            <td><s:submit ac="lang-change-style-checker-env" label="Change" /><s:submit ac="lang-clear-style-checker-env" label="Clear" /></td>
+            <td><s:help ac="lang-change-style-checker-env" /></td>
+        </s:htr>
+    </s:form>
+<%
+    xfree(env); env = 0;
+%>
+
+<%
+    if (lang->unhandled_vars) {
+      row = 1;
+%>
+    <s:htr attr="head_row_attr">
+        <td width="50">&nbsp;</td>
+        <td colspan="4" align="center"><b>Compilation limitations</b></td>
+    </s:htr>
+    <s:htr attr="form_row_attrs[row ^= 1]">
+        <td width="50">&nbsp;</td>
+        <td colspan="2"><pre><s:v value="lang->unhandled_vars" checkExpr="" /></pre></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:htr>
+<%
+    }
+%>
+
+<%
+  }
+%>
+</table>
+
+<s:form><table><tr><td><s:submit ac="lang-update-versions" label="Update versions" /></td></tr></table></s:form>
+
+<%
+bottom_links: ;
+%>
+
+<%@include "cnts_edit_cur_bottom_menu.csp"
+%>
+
+<%@include "footer.csp"
+%><%
+  l10n_setlocale(0);
+cleanup:
+  html_armor_free(&ab);
+%>

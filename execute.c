@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: execute.c 7157 2012-11-11 21:18:51Z cher $ */
+/* $Id: execute.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,15 +15,14 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/testinfo.h"
+#include "ejudge/fileutl.h"
 
-#include "testinfo.h"
-#include "fileutl.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_exec.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/exec.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>

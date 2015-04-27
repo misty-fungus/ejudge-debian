@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: sock_op_get_creds.c 6161 2011-03-27 07:01:28Z cher $ */
+/* $Id: sock_op_get_creds.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/sock_op.h"
+#include "ejudge/errlog.h"
 
-#include "sock_op.h"
-
-#include "errlog.h"
-
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -99,6 +97,5 @@ sock_op_get_creds(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

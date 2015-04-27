@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: sock_op_get_fds.c 6161 2011-03-27 07:01:28Z cher $ */
+/* $Id: sock_op_get_fds.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "sock_op.h"
+#include "ejudge/sock_op.h"
+#include "ejudge/errlog.h"
 
-#include "errlog.h"
-
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -81,11 +80,11 @@ sock_op_get_fds(
 
   fds = (int*) CMSG_DATA(pmsg);
   if (pmsg->cmsg_len == CMSG_LEN(2 * sizeof(int))) {
-    info("%d: received 2 file descriptors: %d, %d", conn_id, fds[0], fds[1]);
+    //info("%d: received 2 file descriptors: %d, %d", conn_id, fds[0], fds[1]);
     client_fds[0] = fds[0];
     client_fds[1] = fds[1];
   } else if (pmsg->cmsg_len == CMSG_LEN(1 * sizeof(int))) {
-    info("%d: received 1 file descriptor: %d", conn_id, fds[0]);
+    //info("%d: received 1 file descriptor: %d", conn_id, fds[0]);
     client_fds[0] = fds[0];
     client_fds[1] = -1;
   } else {
@@ -103,6 +102,5 @@ sock_op_get_fds(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

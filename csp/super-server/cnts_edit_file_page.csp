@@ -1,0 +1,311 @@
+<%
+/* $Id: cnts_edit_file_page.csp 8532 2014-08-22 13:18:02Z cher $ */
+%><%@include "includes.csp"
+%><%
+#include "ejudge/osdeps.h"
+
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+%><%@set getter_name = "csp_get_cnts_edit_file_page"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_cnts_edit_file_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    unsigned char subtitle_buf[1024];
+    const unsigned char *title = 0;
+    const unsigned char *subtitle = subtitle_buf;
+    char *text_p = 0;
+    size_t text_z = 0;
+    opcap_t caps = 0;
+    unsigned char conf_path[PATH_MAX];
+    unsigned char full_path[PATH_MAX];
+    struct stat stb;
+
+    if (phr->priv_level != PRIV_LEVEL_ADMIN) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (ejudge_cfg_opcaps_find(phr->config, phr->login, &caps) < 0) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (opcaps_check(caps, OPCAP_EDIT_CONTEST) < 0) FAIL(SSERV_ERR_PERMISSION_DENIED);
+
+    cnts = phr->ss->edited_cnts;
+    if (!cnts) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+
+    const unsigned char *file_path1 = 0;
+    const unsigned char *param_expl = 0;
+    unsigned char **p_str = 0;
+    int help_type = 0;
+    int back_action = SSERV_CMD_CNTS_EDIT_CUR_CONTEST_PAGE;
+    switch (phr->action) {
+    case SSERV_CMD_GLOB_EDIT_CONTEST_START_CMD_PAGE:
+        if (!phr->ss->global) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+        file_path1 = phr->ss->global->contest_start_cmd;
+        if (!file_path1 || !*file_path1) {
+            snprintf(phr->ss->global->contest_start_cmd, sizeof(phr->ss->global->contest_start_cmd), "%s", "start_cmd");
+            file_path1 = phr->ss->global->contest_start_cmd;
+        }
+        param_expl = "Contest start script";
+        p_str = &phr->ss->contest_start_cmd_text;
+        back_action = SSERV_CMD_CNTS_EDIT_CUR_GLOBAL_PAGE;
+        break;
+    case SSERV_CMD_GLOB_EDIT_CONTEST_STOP_CMD_PAGE:
+        if (!phr->ss->global) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+        file_path1 = phr->ss->global->contest_stop_cmd;
+        if (!file_path1 || !*file_path1) {
+            phr->ss->global->contest_stop_cmd = "stop_cmd";
+            file_path1 = phr->ss->global->contest_stop_cmd;
+        }
+        param_expl = "Contest stop script";
+        p_str = &phr->ss->contest_stop_cmd_text;
+        back_action = SSERV_CMD_CNTS_EDIT_CUR_GLOBAL_PAGE;
+        break;
+    case SSERV_CMD_GLOB_EDIT_STAND_HEADER_FILE_PAGE:
+        if (!phr->ss->global) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+        file_path1 = phr->ss->global->stand_header_file;
+        if (!file_path1 || !*file_path1) {
+            snprintf(phr->ss->global->stand_header_file, sizeof(phr->ss->global->stand_header_file), "%s", "stand_header.html");
+            file_path1 = phr->ss->global->stand_header_file;
+        }
+        param_expl = "Standings HTML header file";
+        p_str = &phr->ss->stand_header_text;
+        help_type = 1;
+        back_action = SSERV_CMD_CNTS_EDIT_CUR_GLOBAL_PAGE;
+        break;
+    case SSERV_CMD_GLOB_EDIT_STAND_FOOTER_FILE_PAGE:
+        if (!phr->ss->global) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+        file_path1 = phr->ss->global->stand_footer_file;
+        if (!file_path1 || !*file_path1) {
+            snprintf(phr->ss->global->stand_footer_file, sizeof(phr->ss->global->stand_footer_file), "%s", "stand_footer.html");
+            file_path1 = phr->ss->global->stand_footer_file;
+        }
+        param_expl = "Standings HTML footer file";
+        p_str = &phr->ss->stand_footer_text;
+        help_type = 1;
+        back_action = SSERV_CMD_CNTS_EDIT_CUR_GLOBAL_PAGE;
+        break;
+    case SSERV_CMD_GLOB_EDIT_STAND2_HEADER_FILE_PAGE:
+        if (!phr->ss->global) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+        file_path1 = phr->ss->global->stand2_header_file;
+        if (!file_path1 || !*file_path1) {
+            snprintf(phr->ss->global->stand2_header_file, sizeof(phr->ss->global->stand2_header_file), "%s", "stand2_header.html");
+            file_path1 = phr->ss->global->stand2_header_file;
+        }
+        param_expl = "Supplementary standings HTML header file";
+        p_str = &phr->ss->stand2_header_text;
+        help_type = 1;
+        back_action = SSERV_CMD_CNTS_EDIT_CUR_GLOBAL_PAGE;
+        break;
+    case SSERV_CMD_GLOB_EDIT_STAND2_FOOTER_FILE_PAGE:
+        if (!phr->ss->global) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+        file_path1 = phr->ss->global->stand2_footer_file;
+        if (!file_path1 || !*file_path1) {
+            snprintf(phr->ss->global->stand2_footer_file, sizeof(phr->ss->global->stand2_footer_file), "%s", "stand2_footer.html");
+            file_path1 = phr->ss->global->stand2_footer_file;
+        }
+        param_expl = "Supplementary standings HTML footer file";
+        p_str = &phr->ss->stand2_footer_text;
+        help_type = 1;
+        back_action = SSERV_CMD_CNTS_EDIT_CUR_GLOBAL_PAGE;
+        break;
+    case SSERV_CMD_GLOB_EDIT_PLOG_HEADER_FILE_PAGE:
+        if (!phr->ss->global) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+        file_path1 = phr->ss->global->plog_header_file;
+        if (!file_path1 || !*file_path1) {
+            snprintf(phr->ss->global->plog_header_file, sizeof(phr->ss->global->plog_header_file), "%s", "plog_header.html");
+            file_path1 = phr->ss->global->plog_header_file;
+        }
+        param_expl = "Public submission log HTML header file";
+        p_str = &phr->ss->plog_header_text;
+        help_type = 1;
+        back_action = SSERV_CMD_CNTS_EDIT_CUR_GLOBAL_PAGE;
+        break;
+    case SSERV_CMD_GLOB_EDIT_PLOG_FOOTER_FILE_PAGE:
+        if (!phr->ss->global) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+        file_path1 = phr->ss->plog_footer_text;
+        if (!file_path1 || !*file_path1) {
+            snprintf(phr->ss->global->plog_footer_file, sizeof(phr->ss->global->plog_footer_file), "%s", "plog_footer.html");
+            file_path1 = phr->ss->global->plog_footer_file;
+        }
+        param_expl = "Public submission log HTML footer file";
+        p_str = &phr->ss->plog_footer_text;
+        help_type = 1;
+        back_action = SSERV_CMD_CNTS_EDIT_CUR_GLOBAL_PAGE;
+        break;
+    case SSERV_CMD_CNTS_EDIT_USERS_HEADER_PAGE:
+        file_path1 = cnts->users_header_file;
+        if (!file_path1 || !*file_path1) {
+            phr->ss->edited_cnts->users_header_file = xstrdup("users_header.html"); 
+            file_path1 = cnts->users_header_file;
+        }
+        param_expl = "'users' HTML header file";
+        p_str = &phr->ss->users_header_text;
+        help_type = 1;
+        break;
+    case SSERV_CMD_CNTS_EDIT_USERS_FOOTER_PAGE:
+        file_path1 = cnts->users_footer_file;
+        if (!file_path1 || !*file_path1) {
+            phr->ss->edited_cnts->users_footer_file = xstrdup("users_footer.html"); 
+            file_path1 = cnts->users_footer_file;
+        }
+        param_expl = "'users' HTML footer file";
+        p_str = &phr->ss->users_footer_text;
+        help_type = 1;
+        break;
+    case SSERV_CMD_CNTS_EDIT_COPYRIGHT_PAGE:
+        file_path1 = cnts->copyright_file;
+        if (!file_path1 || !*file_path1) {
+            phr->ss->edited_cnts->copyright_file = xstrdup("copyright.html"); 
+            file_path1 = cnts->copyright_file;
+        }
+        param_expl = "Copyright notice file";
+        p_str = &phr->ss->copyright_text;
+        help_type = 1;
+        break;
+    case SSERV_CMD_CNTS_EDIT_WELCOME_PAGE:
+        file_path1 = cnts->welcome_file;
+        if (!file_path1 || !*file_path1) {
+            phr->ss->edited_cnts->welcome_file = xstrdup("welcome.html"); 
+            file_path1 = cnts->welcome_file;
+        }
+        param_expl = "Participant welcome message";
+        p_str = &phr->ss->welcome_text;
+        help_type = 1;
+        break;
+    case SSERV_CMD_CNTS_EDIT_REG_WELCOME_PAGE:
+        file_path1 = cnts->reg_welcome_file;
+        if (!file_path1 || !*file_path1) {
+            phr->ss->edited_cnts->reg_welcome_file = xstrdup("reg_welcome.html"); 
+            file_path1 = cnts->reg_welcome_file;
+        }
+        param_expl = "Registration welcome message";
+        p_str = &phr->ss->reg_welcome_text;
+        help_type = 1;
+        break;
+    case SSERV_CMD_CNTS_EDIT_REGISTER_EMAIL_FILE_PAGE:
+        file_path1 = cnts->register_email_file;
+        if (!file_path1 || !*file_path1) {
+            phr->ss->edited_cnts->register_email_file = xstrdup("register_email.txt"); 
+            file_path1 = cnts->register_email_file;
+        }
+        param_expl = "Registration letter template";
+        p_str = &phr->ss->register_email_text;
+        help_type = 2;
+        break;
+    default:
+        FAIL(SSERV_ERR_INVALID_PARAMETER);
+    }
+
+    snprintf(subtitle_buf, sizeof(subtitle_buf), "%s, contest %d", param_expl, cnts->id);
+
+    if (!cnts->root_dir || !*cnts->root_dir) {
+        fprintf(log_f, "Contest root directory is not set\n");
+        FAIL(SSERV_ERR_INVALID_PARAMETER);
+    }
+    if (!os_IsAbsolutePath(cnts->root_dir)) {
+        fprintf(log_f, "Contest root directory '%s' is not absolute\n", cnts->root_dir);
+        FAIL(SSERV_ERR_INVALID_PARAMETER);
+    }
+
+    if (!cnts->conf_dir) {
+        snprintf(conf_path, sizeof(conf_path), "%s/%s", cnts->root_dir, "conf");
+    } else if (!os_IsAbsolutePath(cnts->conf_dir)) {
+        snprintf(conf_path, sizeof(conf_path), "%s/%s", cnts->root_dir, cnts->conf_dir);
+    }
+    if (!os_IsAbsolutePath(file_path1)) {
+        snprintf(full_path, sizeof(full_path), "%s/%s", conf_path, file_path1);
+    } else {
+        snprintf(full_path, sizeof(full_path), "%s", file_path1);
+    }
+%><%@include "header.csp"
+%>
+
+<h2>Editing <s:v value="param_expl" escape="false" />, contest <s:v value="cnts->id" /></h2>
+
+<table border="0">
+    <tr><td><s:_>Parameter value</s:_>:</td><td><s:v value="file_path1" /></td></tr>
+    <tr><td><s:_>Full path</s:_>:</td><td><s:v value="full_path" /></td></tr>
+</table>
+
+<%
+  if (stat(full_path, &stb) < 0) {
+%>
+<p><big><font color="red">Note: file does not exist</font></big></p>
+<%
+  } else if (!S_ISREG(stb.st_mode)) {
+%>
+<p><big><font color="red">Note: file is not regular</font></big></p>
+<%
+  } else if (access(full_path, R_OK) < 0) {
+%>
+<p><big><font color="red">Note: file is not readable</font></big></p>
+<%
+  } else {
+    if (!*p_str) {
+      if (generic_read_file(&text_p, 0, &text_z, 0, 0, full_path, 0) < 0) {
+%><p><big><font color="red">Note: cannot read file</font></big></p>
+<%
+      } else {
+        *p_str = text_p; text_p = 0;
+      }
+    }
+  }
+  if (!*p_str) *p_str = xstrdup("");
+%>
+
+<s:form enctype="multipart/form-data">
+<s:hidden name="edit_action" value="phr->action" />
+<textarea name="param" rows="20" cols="80"><s:v value="*p_str" /></textarea>
+
+<table border="0"><tr>
+    <td><s:a ac="main-page">To the top</s:a></td>
+    <td><s:a action="back_action">Back</s:a></td>
+    <td><s:submit ac="cnts-reload-file-action" label="Reload" /></td>
+    <td><s:submit ac="cnts-save-file-action" label="Save" /></td>
+    <td><s:submit ac="cnts-clear-file-action" label="Clear" /></td>
+</tr></table>
+</s:form>
+
+<%
+  if (help_type == 1) {
+%>
+<hr/>
+<h2>Summary of valid format substitutions</h2>
+
+<table border="1">
+    <tr><td><tt>%L</tt></td><td>The locale number (0 - English, 1 - Russian)</td></tr>
+    <tr><td><tt>%C</tt></td><td>The page character set</td></tr>
+    <tr><td><tt>%T</tt></td><td>The content type (text/html)</td></tr>
+    <tr><td><tt>%H</tt></td><td>The page title</td></tr>
+    <tr><td><tt>%R</tt></td><td>The ejudge copyright notice</td></tr>
+    <tr><td><tt>%%</tt></td><td>The percent sign <tt>%</tt></td></tr>
+</table>
+
+<%
+  } else if (help_type == 2) {
+%>
+<hr/>
+<h2>Summary of valid format substitutions</h2>
+
+<table border="1">
+    <tr><td><tt>%Ui</tt></td><td>The user identifier</td></tr>
+    <tr><td><tt>%Un</tt></td><td>The user name</td></tr>
+    <tr><td><tt>%Ul</tt></td><td>The user login</td></tr>
+    <tr><td><tt>%Ue</tt></td><td>The user e-mail</td></tr>
+    <tr><td><tt>%Uz</tt></td><td>The user registration password</td></tr>
+    <tr><td><tt>%UZ</tt></td><td>The user team password</td></tr>
+    <tr><td><tt>%Vl</tt></td><td>The locale number (0 - English, 1 - Russian)</td></tr>
+    <tr><td><tt>%Vu</tt></td><td>The `register' CGI-program URL</td></tr>
+    <tr><td><tt>%%</tt></td><td>The percent sign <tt>%</tt></td></tr>
+</table>
+
+<%
+  }
+%>
+
+<%@include "footer.csp"
+%><%
+  l10n_setlocale(0);
+cleanup:
+  xfree(text_p);
+  html_armor_free(&ab);
+%>

@@ -1,0 +1,87 @@
+<%
+/* $Id: priv_priv_users_page.csp 8238 2014-05-17 10:52:34Z cher $ */
+%><%@include "priv_includes.csp"
+%><%
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@page csp_view_priv_priv_users_page(PageInterface *ps, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "priv_stdvars.csp"
+%><%
+  PrivViewPrivUsersPage *pvp = (PrivViewPrivUsersPage*) ps;
+  PrivUserInfoArray *users = &pvp->users;
+  int i;
+  unsigned int role_mask;
+  int row = 1, cnt, r;
+  const unsigned char *title = _("Privileged users page");
+
+static const unsigned char * const form_row_attrs[]=
+{
+  " bgcolor=\"#d0d0d0\"",
+  " bgcolor=\"#e0e0e0\"",
+};
+
+  l10n_setlocale(phr->locale_id);
+%><%@include "priv_header.csp"
+%><h2>Privileged users</h2>
+<s:form>
+<table class="b1"><tr><th class="b1">NN</th><th class="b1">Id</th><th class="b1">Login</th><th class="b1">Name</th><th class="b1">Roles</th><th class="b1">Select</th></tr>
+<%
+  for (i = 0; i < users->u; i++) {
+%>
+<tr<s:v escape="false" value="form_row_attrs[row ^= 1]" />>
+    <td class="b1"><s:v value="i + 1" /></td>
+    <td class="b1"><s:v value="users->v[i]->user_id" /></td>
+    <td class="b1"><s:v value="users->v[i]->login" /></td>
+    <td class="b1"><s:v value="users->v[i]->name" /></td>
+<%
+    if ((role_mask = users->v[i]->role_mask)) {
+%>
+<td class="b1">
+<%
+      for (cnt = 0, r = USER_ROLE_OBSERVER; r <= USER_ROLE_ADMIN; r++)
+        if ((role_mask & (1 << r)))
+          fprintf(out_f, "%s%s", cnt++?",":"", ns_unparse_role(r));
+%>
+</td>
+<%
+    } else {
+%>
+<td class="b1">&nbsp;</td>
+<%
+    }
+%>
+<td class="b1"><input type="checkbox" name='user_<s:v value="users->v[i]->user_id" />'/></td>
+</tr>
+<%
+  }
+%>
+</table>
+
+<h2>Available actions</h2>
+
+<table>
+<tr><td><s:a ac="main-page"><s:tr>Back</s:tr></s:a></td><td><s:tr>Return to the main page</s:tr></td></tr>
+<tr><td><s:submit ac="priv-users-remove" /></td><td><s:tr>Remove the selected users from the list (ADMINISTRATORs cannot be removed)</s:tr></td></tr>
+<tr><td><s:submit ac="priv-users-add-observer" /></td><td><s:tr>Add the OBSERVER role to the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="priv-users-del-observer" /></td><td><s:tr>Remove the OBSERVER role from the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="priv-users-add-examiner" /></td><td><s:tr>Add the EXAMINER role to the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="priv-users-add-examiner" /></td><td><s:tr>Remove the EXAMINER role from the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="priv-users-add-chief-examiner" /></td><td><s:tr>Add the CHIEF EXAMINER role to the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="priv-users-del-chief-examiner" /></td><td><s:tr>Remove the CHIEF EXAMINER role from the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="priv-users-add-coordinator" /></td><td><s:tr>Add the COORDINATOR role to the selected users</s:tr></td></tr>
+<tr><td><s:submit ac="priv-users-del-coordinator" /></td><td><s:tr>Remove the COORDINATOR role from the selected users</s:tr></td></tr>
+</table>
+
+<h2><s:tr>Add new user</s:tr></h2>
+
+<table>
+<tr><td><input type="text" size="32" name="add_login"/></td><td>
+<%  html_role_select(out_f, USER_ROLE_OBSERVER, 0, "add_role_1"); %>
+</td><td><s:submit ac="priv-users-add-by-login" /></td><td><s:tr>Add a new user specifying his/her login</s:tr></td></tr>
+<tr><td><input type="text" size="32" name="add_user_id"/></td><td>
+<%  html_role_select(out_f, USER_ROLE_OBSERVER, 0, "add_role_2"); %>
+</td><td><s:submit ac="priv-users-add-by-user-id" /></td><td><s:tr>Add a new user specifying his/her User Id</s:tr></td></tr>
+</table><%@include "priv_footer.csp"
+%><%
+  l10n_setlocale(0);
+  html_armor_free(&ab);
+%>

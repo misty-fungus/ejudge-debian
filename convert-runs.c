@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: convert-runs.c 7364 2013-02-09 20:19:53Z cher $ */
+/* $Id: convert-runs.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,19 +15,18 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/contests.h"
+#include "ejudge/runlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/compat.h"
 
-#include "ejudge_cfg.h"
-#include "contests.h"
-#include "runlog.h"
-#include "xml_utils.h"
-#include "compat.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -125,8 +124,22 @@ void *forced_link_table[] =
   xml_attr_bool,
   xml_attr_bool_byte,
   xml_attr_int,
+  xml_attr_ulong,
   xml_attr_date,
-  //xml_elem_ip_mask,
+  xml_do_parse_ipv6,
+  xml_parse_ipv6_2,
+  xml_parse_ipv6,
+  xml_unparse_ipv6,
+  ipv6cmp,
+  ipv6_match_mask,
+  xml_msg,
+  xml_unparse_ipv6_mask,
+  xml_parse_ipv6_mask,
+  xml_elem_ipv6_mask,
+  ipv6_is_empty,
+  xml_unparse_full_cookie,
+  xml_parse_full_cookie,
+
   close_memstream,
 };
 

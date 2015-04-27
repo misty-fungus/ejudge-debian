@@ -1,6 +1,6 @@
-/* $Id: reuse_exec.c 7303 2013-01-26 14:28:47Z cher $ */
+/* $Id: reuse_exec.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 1998-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 1998-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1998-01-21 14:33:28 cher> */
 
 /*
@@ -20,10 +20,10 @@
  * PURPOSE: process abstraction layer
  */
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/exec.h"
 
 #include <sys/types.h>
 #include <sys/wait.h>

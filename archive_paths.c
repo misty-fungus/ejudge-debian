@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: archive_paths.c 7643 2013-11-29 08:58:46Z cher $ */
+/* $Id: archive_paths.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,20 +15,19 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_types.h"
-#include "ej_limits.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/prepare.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/ej_uuid.h"
+#include "ejudge/prepare_dflt.h"
 
-#include "archive_paths.h"
-#include "prepare.h"
-#include "fileutl.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "serve_state.h"
-#include "ej_uuid.h"
-#include "prepare_dflt.h"
-
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -513,10 +512,24 @@ uuid_archive_prepare_write_path(
   return flags;
 }
 
+static void
+remove_all_suffixes(const unsigned char *base)
+{
+  unsigned char path[PATH_MAX];
+
+  snprintf(path, sizeof(path), "%s", base);
+  unlink(path);
+  snprintf(path, sizeof(path), "%s.gz", base);
+  unlink(path);
+  snprintf(path, sizeof(path), "%s.zip", base);
+  unlink(path);
+}
+
 int
 uuid_archive_remove(
         const serve_state_t state,
-        const ruint32_t run_uuid[4])
+        const ruint32_t run_uuid[4],
+        int preserve_source)
 {
   unsigned char base[PATH_MAX];
   unsigned char path[PATH_MAX];
@@ -529,12 +542,19 @@ uuid_archive_remove(
            ((const unsigned char *) run_uuid)[0],
            ((const unsigned char *) run_uuid)[1],
            ej_uuid_unparse(run_uuid, NULL));
-  snprintf(path, sizeof(path), "%s/%s", base, DFLT_R_UUID_SOURCE);
-  unlink(path);
-  snprintf(path, sizeof(path), "%s/%s.gz", base, DFLT_R_UUID_SOURCE);
-  unlink(path);
-  snprintf(path, sizeof(path), "%s/%s.zip", base, DFLT_R_UUID_SOURCE);
-  unlink(path);
+  if (preserve_source <= 0) {
+    snprintf(path, sizeof(path), "%s/%s", base, DFLT_R_UUID_SOURCE);
+    remove_all_suffixes(path);
+  }
+
+  snprintf(path, sizeof(path), "%s/%s", base, DFLT_R_UUID_XML_REPORT);
+  remove_all_suffixes(path);
+
+  snprintf(path, sizeof(path), "%s/%s", base, DFLT_R_UUID_REPORT);
+  remove_all_suffixes(path);
+
+  snprintf(path, sizeof(path), "%s/%s", base, DFLT_R_UUID_FULL_ARCHIVE);
+  remove_all_suffixes(path);
 
   return 0;
 }

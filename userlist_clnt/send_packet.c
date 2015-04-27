@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: send_packet.c 6169 2011-03-27 12:34:46Z cher $ */
+/* $Id: send_packet.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -16,10 +16,9 @@
  */
 
 #include "userlist_clnt/private.h"
+#include "ejudge/errlog.h"
 
-#include "errlog.h"
-
-#include "reuse_integral.h"
+#include "ejudge/integral.h"
 
 #include <sys/uio.h>
 #include <errno.h>

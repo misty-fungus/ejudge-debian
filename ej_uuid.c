@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: ej_uuid.c 7563 2013-11-07 18:01:49Z cher $ */
+/* $Id: ej_uuid.c 8185 2014-05-14 10:42:15Z cher $ */
 
-/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-
-#include "ej_uuid.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_uuid.h"
 
 #include <stdio.h>
 #include <string.h>

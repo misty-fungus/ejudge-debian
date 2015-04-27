@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: html_hyperref.c 6343 2011-05-22 21:20:22Z cher $ */
+/* $Id: html_hyperref.c 8211 2014-05-15 08:23:47Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "mischtml.h"
+#include "ejudge/mischtml.h"
 
 #include <stdio.h>
 #include <stdarg.h>

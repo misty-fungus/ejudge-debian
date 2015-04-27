@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: send_packet.c 6171 2011-03-27 12:36:18Z cher $ */
+/* $Id: send_packet.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,12 +15,12 @@
  * GNU General Public License for more details.
  */
 
-#include "super_clnt.h"
-#include "super_proto.h"
-#include "errlog.h"
+#include "ejudge/super_clnt.h"
+#include "ejudge/super_proto.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_osdeps.h"
-#include "reuse_integral.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/integral.h"
 
 #include <sys/uio.h>
 #include <stdlib.h>

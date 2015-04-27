@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: l10n.c 7466 2013-10-22 08:12:39Z cher $ */
+/* $Id: l10n.c 8557 2014-08-27 12:35:04Z cher $ */
 
-/* Copyright (C) 2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2013-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "../config.h"
+#include "../include/ejudge/config.h"
 
 #include "checker_internal.h"
 
@@ -34,6 +34,10 @@ checker_l10n_prepare(void)
     // shortcuts
     if (!strcasecmp(ej_locale, "russian") || !strcasecmp(ej_locale, "ru") || !strcasecmp(ej_locale, "1")) {
         ej_locale = "ru_RU.UTF-8";
+    } else if (!strcasecmp(ej_locale, "ukrainian") || !strcasecmp(ej_locale, "uk") || !strcasecmp(ej_locale, "2")) {
+        ej_locale = "uk_UA.UTF-8";
+    } else if (!strcasecmp(ej_locale, "kazakh") || !strcasecmp(ej_locale, "kk") || !strcasecmp(ej_locale, "3")) {
+        ej_locale = "kk_KZ.UTF-8";
     }
 
     // some memory is definitely leaked here

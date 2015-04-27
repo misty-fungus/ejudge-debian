@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: recv_packet.c 6157 2011-03-27 06:59:06Z cher $ */
+/* $Id: recv_packet.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,19 +15,21 @@
  * GNU General Public License for more details.
  */
 
-#include "super_clnt.h"
-#include "super_proto.h"
-#include "errlog.h"
+#include "ejudge/super_clnt.h"
+#include "ejudge/super_proto.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <unistd.h>
 
 int
-super_clnt_recv_packet(int sock_fd,
-                       struct prot_super_packet *p_res,
-                       size_t *p_size, void **p_data)
+super_clnt_recv_packet(
+        int sock_fd,
+        struct prot_super_packet *p_res,
+        size_t *p_size,
+        void **p_data)
 {
   unsigned char *b, *alloc_mem = 0, *bb;
   int in_size, r, n, code = -SSERV_UNKNOWN_ERROR;
@@ -111,9 +113,8 @@ super_clnt_recv_packet(int sock_fd,
   return code;
 }
 
-/**
+/*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

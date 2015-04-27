@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: serve_2.c 7651 2013-12-01 12:18:36Z cher $ */
+/* $Id: serve_2.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,43 +15,43 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/runlog.h"
+#include "ejudge/prepare.h"
+#include "ejudge/l10n.h"
+#include "ejudge/html.h"
+#include "ejudge/errlog.h"
+#include "ejudge/protocol.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/contests.h"
+#include "ejudge/job_packet.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/compile_packet.h"
+#include "ejudge/run_packet.h"
+#include "ejudge/curtime.h"
+#include "ejudge/userlist.h"
+#include "ejudge/sformat.h"
+#include "ejudge/misctext.h"
+#include "ejudge/charsets.h"
+#include "ejudge/compat.h"
+#include "ejudge/varsubst.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/super_run_packet.h"
+#include "ejudge/prepare_dflt.h"
+#include "ejudge/testing_report_xml.h"
+#include "ejudge/server_framework.h"
+#include "ejudge/ej_uuid.h"
+#include "ejudge/team_extra.h"
 
-#include "serve_state.h"
-#include "runlog.h"
-#include "prepare.h"
-#include "l10n.h"
-#include "html.h"
-#include "errlog.h"
-#include "protocol.h"
-#include "clarlog.h"
-#include "fileutl.h"
-#include "teamdb.h"
-#include "contests.h"
-#include "job_packet.h"
-#include "archive_paths.h"
-#include "xml_utils.h"
-#include "compile_packet.h"
-#include "run_packet.h"
-#include "curtime.h"
-#include "userlist.h"
-#include "sformat.h"
-#include "misctext.h"
-#include "charsets.h"
-#include "compat.h"
-#include "varsubst.h"
-#include "mime_type.h"
-#include "ejudge_cfg.h"
-#include "super_run_packet.h"
-#include "prepare_dflt.h"
-#include "testing_report_xml.h"
-#include "server_framework.h"
-#include "ej_uuid.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/exec.h"
 
 #include <unistd.h>
 #include <errno.h>
@@ -539,6 +539,36 @@ serve_build_run_dirs(serve_state_t state, int contest_id)
     snprintf(team_report_dir, sizeof(team_report_dir),
              "%s/var/%06d/teamreports", global->super_run_dir, contest_id);
     do_build_run_dirs(state, status_dir, report_dir, team_report_dir, full_report_dir);
+
+    for (i = 1; i <= state->max_lang; ++i) {
+      struct section_language_data *lang = state->langs[i];
+      if (lang && lang->super_run_dir && lang->super_run_dir[0]) {
+        snprintf(status_dir, sizeof(status_dir),
+                 "%s/var/%06d/status", lang->super_run_dir, contest_id);
+        snprintf(report_dir, sizeof(report_dir),
+                 "%s/var/%06d/report", lang->super_run_dir, contest_id);
+        snprintf(full_report_dir, sizeof(full_report_dir),
+                 "%s/var/%06d/output", lang->super_run_dir, contest_id);
+        snprintf(team_report_dir, sizeof(team_report_dir),
+                 "%s/var/%06d/teamreports", lang->super_run_dir, contest_id);
+        do_build_run_dirs(state, status_dir, report_dir, team_report_dir, full_report_dir);
+      }
+    }
+
+    for (i = 1; i <= state->max_prob; ++i) {
+      struct section_problem_data *prob = state->probs[i];
+      if (prob && prob->super_run_dir && prob->super_run_dir[0]) {
+        snprintf(status_dir, sizeof(status_dir),
+                 "%s/var/%06d/status", prob->super_run_dir, contest_id);
+        snprintf(report_dir, sizeof(report_dir),
+                 "%s/var/%06d/report", prob->super_run_dir, contest_id);
+        snprintf(full_report_dir, sizeof(full_report_dir),
+                 "%s/var/%06d/output", prob->super_run_dir, contest_id);
+        snprintf(team_report_dir, sizeof(team_report_dir),
+                 "%s/var/%06d/teamreports", prob->super_run_dir, contest_id);
+        do_build_run_dirs(state, status_dir, report_dir, team_report_dir, full_report_dir);
+      }
+    }
   } else {
     for (i = 1; i <= state->max_tester; i++) {
       if (!state->testers[i]) continue;
@@ -1070,7 +1100,8 @@ serve_compile_request(
         const struct section_language_data *lang,
         int no_db_flag,
         const ruint32_t uuid[4],
-        int store_flags)
+        int store_flags,
+        int rejudge_flag)
 {
   struct compile_run_extra rx;
   struct compile_request_packet cp;
@@ -1238,6 +1269,7 @@ serve_compile_request(
   if (lang) {
     rx.is_dos = lang->is_dos;
   }
+  rx.rejudge_flag = rejudge_flag;
 
   if (compile_request_packet_write(&cp, &pkt_len, &pkt_buf) < 0) {
     // FIXME: need reasonable recovery?
@@ -1435,7 +1467,8 @@ serve_run_request(
         const unsigned char *compile_report_dir,
         const struct compile_reply_packet *comp_pkt,
         int no_db_flag,
-        ruint32_t uuid[4])
+        ruint32_t uuid[4],
+        int rejudge_flag)
 {
   int cn;
   struct section_global_data *global = state->global;
@@ -1734,6 +1767,7 @@ serve_run_request(
       srgp->checker_locale = xstrdup(global->checker_locale);
     }
   }
+  srgp->rejudge_flag = rejudge_flag;
 
   struct super_run_in_problem_packet *srpp = srp->problem;
   srpp->type = xstrdup(problem_unparse_type(prob->type));
@@ -2426,7 +2460,8 @@ serve_read_compile_packet(
                         comp_extra->priority_adjustment,
                         comp_pkt->judge_id, comp_extra->accepting_mode,
                         comp_extra->notify_flag, re.mime_type, re.eoln_type,
-                        re.locale_id, compile_report_dir, comp_pkt, 0, re.run_uuid) < 0) {
+                        re.locale_id, compile_report_dir, comp_pkt, 0, re.run_uuid,
+                        comp_extra->rejudge_flag) < 0) {
     snprintf(errmsg, sizeof(errmsg), "failed to write run packet\n");
     goto report_check_failed;
   }
@@ -3168,7 +3203,8 @@ serve_rejudge_run(
                                 priority_adjustment,
                                 1 /* notify flag */,
                                 prob, NULL /* lang */,
-                                0 /* no_db_flag */, re.run_uuid, re.store_flags);
+                                0 /* no_db_flag */, re.run_uuid, re.store_flags,
+                                1 /* rejudge_flag */);
       if (r < 0) {
         serve_report_check_failed(config, cnts, state, run_id, serve_err_str(r));
         err("rejudge_run: serve_compile_request failed: %s", serve_err_str(r));
@@ -3188,7 +3224,8 @@ serve_rejudge_run(
                       re.user_id, re.prob_id, re.lang_id,
                       re.variant, priority_adjustment,
                       -1, accepting_mode, 1, re.mime_type, re.eoln_type,
-                      re.locale_id, 0, 0, 0, re.run_uuid);
+                      re.locale_id, 0, 0, 0, re.run_uuid,
+                      1 /* rejudge_flag */);
     xfree(run_text);
     return;
   }
@@ -3211,7 +3248,8 @@ serve_rejudge_run(
                             0, prob->style_checker_cmd,
                             prob->style_checker_env,
                             accepting_mode, priority_adjustment, 1, prob, lang, 0,
-                            re.run_uuid, re.store_flags);
+                            re.run_uuid, re.store_flags,
+                            1 /* rejudge_flag */);
   if (r < 0) {
     serve_report_check_failed(config, cnts, state, run_id, serve_err_str(r));
     err("rejudge_run: serve_compile_request failed: %s", serve_err_str(r));
@@ -4483,7 +4521,7 @@ serve_clear_by_mask(serve_state_t state,
         && !run_is_readonly(state->runlog_state, r)) {
       if (run_get_entry(state->runlog_state, r, &re) >= 0 && run_clear_entry(state->runlog_state, r) >= 0) {
         if (re.store_flags == 1) {
-          uuid_archive_remove(state, re.run_uuid);
+          uuid_archive_remove(state, re.run_uuid, 0);
         } else {
           archive_remove(state, global->run_archive_dir, r, 0);
           archive_remove(state, global->xml_report_archive_dir, r, 0);
@@ -4543,7 +4581,7 @@ serve_ignore_by_mask(serve_state_t state,
     re.status = new_status;
     if (run_set_entry(state->runlog_state, r, RE_STATUS, &re) >= 0) {
       if (re.store_flags == 1) {
-        uuid_archive_remove(state, re.run_uuid);
+        uuid_archive_remove(state, re.run_uuid, 1);
       } else {
         archive_remove(state, global->xml_report_archive_dir, r, 0);
         archive_remove(state, global->report_archive_dir, r, 0);
@@ -5175,4 +5213,27 @@ serve_make_audit_read_path(
                                  re->run_id, NULL, 0);
   }
   return ret;
+}
+
+int
+serve_count_unread_clars(
+        const serve_state_t state,
+        int user_id,
+        time_t start_time)
+{
+  int i, total = 0;
+  struct clar_entry_v1 clar;
+
+  for (i = clar_get_total(state->clarlog_state) - 1; i >= 0; i--) {
+    if (clar_get_record(state->clarlog_state, i, &clar) < 0)
+      continue;
+    if (clar.id < 0) continue;
+    if (clar.to > 0 && clar.to != user_id) continue;
+    if (!clar.to && clar.from > 0) continue;
+    if (start_time <= 0 && clar.hide_flag) continue;
+    if (clar.from != user_id
+        && !team_extra_get_clar_status(state->team_extra_state, user_id, i))
+      total++;
+  }
+  return total;
 }

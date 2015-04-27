@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: t3m_zip_packet_class.c 6999 2012-08-20 12:34:29Z cher $ */
+/* $Id: t3m_zip_packet_class.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,16 +15,15 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/t3m_packet_class.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/t3_packets.h"
+#include "ejudge/misctext.h"
+#include "ejudge/prepare.h"
 
-#include "t3m_packet_class.h"
-#include "serve_state.h"
-#include "t3_packets.h"
-#include "misctext.h"
-#include "prepare.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #if CONF_HAS_LIBZIP - 0 == 1
 #include <zip.h>
@@ -657,9 +656,3 @@ zip_packet_class_create(void)
   return 0;
 #endif /* CONF_HAS_LIBZIP */
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: reuse_isfile.c 6227 2011-04-04 19:10:59Z cher $ */
+/* $Id: reuse_isfile.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This library is free software; you can redistribute it and/or
@@ -15,7 +15,7 @@
  * Lesser General Public License for more details.
  */
 
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 #include <windows.h>
 

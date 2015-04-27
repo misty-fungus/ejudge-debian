@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: compile-control.c 6634 2012-02-07 14:54:16Z cher $ */
+/* $Id: compile-control.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,21 +15,20 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/prepare.h"
+#include "ejudge/compile_packet.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/startstop.h"
 
-#include "ejudge_cfg.h"
-#include "pathutl.h"
-#include "serve_state.h"
-#include "prepare.h"
-#include "compile_packet.h"
-#include "fileutl.h"
-#include "startstop.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>

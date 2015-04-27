@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: style_archive.c 7186 2012-11-20 17:27:30Z cher $ */
+/* $Id: style_archive.c 8204 2014-05-14 22:06:18Z cher $ */
 
-/* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "../mime_type.h"
-#include "../ej_process.h"
+#include "../include/ejudge/mime_type.h"
+#include "../include/ejudge/ej_process.h"
 
 #include <stdio.h>
 #include <stdlib.h>

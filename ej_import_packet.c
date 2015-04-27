@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: ej_import_packet.c 6936 2012-07-04 17:00:44Z cher $ */
+/* $Id: ej_import_packet.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,12 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_import_packet.h"
-#include "ej_import_packet_meta.h"
+#include "ejudge/ej_import_packet.h"
+#include "ejudge/meta/ej_import_packet_meta.h"
+#include "ejudge/meta_generic.h"
 
-#include "meta_generic.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 void
 ej_import_packet_init(struct generic_section_config *gp)

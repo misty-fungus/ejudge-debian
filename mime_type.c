@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: mime_type.c 6163 2011-03-27 07:09:00Z cher $ */
+/* $Id: mime_type.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,14 +15,13 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/fileutl.h"
 
-#include "mime_type.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "fileutl.h"
-
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -247,10 +246,3 @@ mime_type_parse_suffix(const unsigned char *str)
       return i;
   return -1;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
- * End:
- */

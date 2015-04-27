@@ -1,0 +1,197 @@
+<%
+/* $Id: cnts_edit_access_page.csp 8426 2014-08-04 12:28:06Z cher $ */
+%><%@include "includes.csp"
+%><%
+%><%@set getter_name = "csp_get_cnts_edit_access_page"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_cnts_edit_access_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    unsigned char subtitle_buf[1024];
+    const unsigned char *title = 0;
+    const unsigned char *subtitle = subtitle_buf;
+    opcap_t caps = 0;
+    int row = 1;
+
+static const unsigned char * const form_row_attrs[]=
+{
+  " bgcolor=\"#d0d0d0\"",
+  " bgcolor=\"#e0e0e0\"",
+};
+
+    if (phr->priv_level != PRIV_LEVEL_ADMIN) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (ejudge_cfg_opcaps_find(phr->config, phr->login, &caps) < 0) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (opcaps_check(caps, OPCAP_EDIT_CONTEST) < 0) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (!phr->ss->edited_cnts) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+
+    cnts = phr->ss->edited_cnts;
+    struct contest_access *acc = 0;
+    const unsigned char *acc_mode = 0;
+    const unsigned char *acc_desc = 0;
+    int default_is_allow = 0;
+
+    switch (phr->action) {
+    case SSERV_CMD_CNTS_EDIT_REGISTER_ACCESS_PAGE:
+        acc = cnts->register_access;
+        acc_mode = "0";
+        acc_desc = "Access rules for contest registration";
+        break;
+    case SSERV_CMD_CNTS_EDIT_USERS_ACCESS_PAGE:
+        acc = cnts->users_access;
+        acc_mode = "1";
+        acc_desc = "Access rules for registered users list";
+        break;
+    case SSERV_CMD_CNTS_EDIT_MASTER_ACCESS_PAGE:
+        acc = cnts->master_access;
+        acc_mode = "2";
+        acc_desc = "Access rules for contest administration";
+        break;
+    case SSERV_CMD_CNTS_EDIT_JUDGE_ACCESS_PAGE:
+        acc = cnts->judge_access;
+        acc_mode = "3";
+        acc_desc = "Access rules for contest judges";
+        break;
+    case SSERV_CMD_CNTS_EDIT_TEAM_ACCESS_PAGE:
+        acc = cnts->team_access;
+        acc_mode = "4";
+        acc_desc = "Access rules for contest participation";
+        break;
+    case SSERV_CMD_CNTS_EDIT_SERVE_CONTROL_ACCESS_PAGE:
+        acc = cnts->serve_control_access;
+        acc_mode = "5";
+        acc_desc = "Access rules for contest setup";
+        break;
+    default:
+        abort();
+    }
+
+    snprintf(subtitle_buf, sizeof(subtitle_buf), "%s, contest %d", acc_desc, cnts->id);
+    if (acc) default_is_allow = acc->default_is_allow;
+%><%@include "header.csp"
+%>
+
+<table border="0">
+<%
+  if (acc) {
+%>
+<%
+    const struct contest_ip *p;
+    int i;
+    for (p = CNTS_FIRST_IP(acc), i = 0; p; p = CNTS_NEXT_IP(p), i++) {
+%>
+    <s:form>
+        <s:hidden name="acc_mode" />
+        <s:hidden name="rule_num" value="i" checkExpr=">=0" />
+        <tr<s:v value="form_row_attrs[row ^= 1]" escape="false"/>>
+            <td><s:v value="i" /></td>
+            <td><tt><s:v value="xml_unparse_ipv6_mask(&p->addr, &p->mask)" escape="false" /></tt></td>
+            <td><s:yesno name="access" value="p->allow" noLabel="Deny" yesLabel="Allow" /></td>
+            <td>
+                <select name="ssl">
+                    <s:option value="-1" selectedExpr="p->ssl < 0">Any</s:option>
+                    <s:option value="0" selectedExpr="!p->ssl">No SSL</s:option>
+                    <s:option value="1" selectedExpr="p->ssl > 0">SSL</s:option>
+                </select>
+            </td>
+            <td>
+                <s:submit ac="cnts-change-rule" label="Change" />
+                <s:submit ac="cnts-delete-rule" label="Delete" />
+<%
+      if (i > 0) {
+%>
+                <s:submit ac="cnts-up-rule" label="Move up" />
+<%
+      }
+%>
+<%
+      if (p->b.right) {
+%>
+                <s:submit ac="cnts-down-rule" label="Move down" />
+<%
+      }
+%>
+            </td>
+        </tr>
+    </s:form>
+<%
+    }
+%>
+<%
+  }
+%>
+
+    <s:form>
+    <s:hidden name="acc_mode" checkExpr=">= 0" />
+    <tr<s:v value="form_row_attrs[row ^= 1]" escape="false"/>>
+        <td>New address:</td>
+        <td><s:textfield name="ip" value="" size="16" /></td>
+        <td><s:yesno name="access" value="0" noLabel="Deny" yesLabel="Allow" /></td>
+        <td>
+            <select name="ssl">
+                <s:option value="-1" selectedExpr="1">Any</s:option>
+                <s:option value="0" selectedExpr="0">No SSL</s:option>
+                <s:option value="1" selectedExpr="0">SSL</s:option>
+            </select>
+        </td>
+        <td><s:submit ac="cnts-add-rule" label="Add" /></td>
+    </tr>
+    </s:form>
+
+    <s:form>
+    <s:hidden name="acc_mode" checkExpr=">= 0" />
+    <tr<s:v value="form_row_attrs[row ^= 1]" escape="false"/>>
+        <td>Default access:</td>
+        <td><s:yesno name="access" value="default_is_allow" noLabel="Deny" yesLabel="Allow" /></td>
+        <td><s:submit ac="cnts-default-access" label="Change" /></td>
+    </tr>
+    </s:form>
+</table>
+
+<%
+    const int *contests = 0;
+    int contest_num = contests_get_list(&contests);
+%>
+<s:form>
+<s:hidden name="acc_mode" checkExpr=">= 0" />
+<table border="0"><tr>
+    <td>Copy access rules from:</td>
+    <td>
+        <select name="templ_id">
+            <option value="0">Current contest</option>
+<%
+  for (int j = 0; j < contest_num; j++) {
+    const struct contest_desc *tmp_cnts = 0;
+    if (contests_get(contests[j], &tmp_cnts) < 0) continue;
+%>
+            <s:option value="tmp_cnts->id"><s:v value="tmp_cnts->id" /> - <s:v value="tmp_cnts->name" /></s:option>
+<%
+  }
+%>
+        </select>
+    <td>
+    <td>
+        <select name="acc_from">
+            <option value="0">&lt;register_access&gt;</option>
+            <option value="1">&lt;users_access&gt;</option>
+            <option value="2">&lt;master_access&gt;</option>
+            <option value="3">&lt;judge_access&gt;</option>
+            <option value="4">&lt;team_access&gt;</option>
+            <option value="5">&lt;serve_control_access&gt;</option>
+        </select>
+    </td>
+    <td><s:submit ac="cnts-copy-access" label="Copy" /></td>
+</tr></table>
+</s:form>
+
+<table border="0"><tr>
+    <td><s:a ac="main-page">To the top</s:a></td>
+    <td><s:a ac="cnts-edit-cur-contest-page">Back</s:a></td>
+</tr></table>
+
+<%@include "footer.csp"
+%><%
+  l10n_setlocale(0);
+cleanup:
+  html_armor_free(&ab);
+%>

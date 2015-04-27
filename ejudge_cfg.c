@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: ejudge_cfg.c 7639 2013-11-27 12:48:42Z cher $ */
+/* $Id: ejudge_cfg.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,20 +15,20 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
 
 #ifdef __MINGW32__
 #undef HAVE_PWD_H
 #endif
 
-#include "ejudge_cfg.h"
-#include "expat_iface.h"
-#include "errlog.h"
-#include "xml_utils.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/expat_iface.h"
+#include "ejudge/errlog.h"
+#include "ejudge/xml_utils.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -1190,10 +1190,3 @@ ejudge_cfg_caps_add(
   cap_node->caps = caps;
   xml_link_node_last(cfg->caps_node, &cap_node->b);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "XML_Parser" "XML_Char" "XML_Encoding")
- * End:
- */

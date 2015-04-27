@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: random.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: random.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "random.h"
-#include "errlog.h"
+#include "ejudge/random.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -170,9 +170,3 @@ random_bytes(unsigned char *buf, int count)
   for (; r; r--, p++)
     *p = (unsigned char) rand();
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

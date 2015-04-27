@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 7571 2013-11-08 08:51:40Z cher $ */
+/* $Id: prepare_out.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,22 +15,21 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/prepare.h"
+#include "ejudge/prepare_dflt.h"
+#include "ejudge/meta/prepare_meta.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/prepare_serve.h"
+#include "ejudge/errlog.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/misctext.h"
+#include "ejudge/sformat.h"
+#include "ejudge/varsubst.h"
 
-#include "prepare.h"
-#include "prepare_dflt.h"
-#include "prepare_meta.h"
-#include "xml_utils.h"
-#include "prepare_serve.h"
-#include "errlog.h"
-#include "ejudge_cfg.h"
-#include "misctext.h"
-#include "sformat.h"
-#include "varsubst.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -2920,9 +2919,3 @@ prepare_unparse_variants(FILE *f, const struct variant_map *vmap,
   fprintf(f, "</variant_map>\n");
   if (footer) fprintf(f, "%s", footer);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

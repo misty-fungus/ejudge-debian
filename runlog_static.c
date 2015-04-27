@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: runlog_static.c 7382 2013-04-11 18:29:52Z cher $ */
+/* $Id: runlog_static.c 8227 2014-05-16 11:55:08Z cher $ */
 
-/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -15,11 +15,10 @@
  * Lesser General Public License for more details.
  */
 
-#include "config.h"
-
-#include "runlog.h"
-#include "problem_common.h"
-#include "xml_utils.h"
+#include "ejudge/config.h"
+#include "ejudge/runlog.h"
+#include "ejudge/problem_common.h"
+#include "ejudge/xml_utils.h"
 
 #if CONF_HAS_LIBINTL - 0 == 1
 #include <libintl.h>
@@ -361,9 +360,9 @@ run_fix_runlog_time(
 
     if (prev_time >= cur_time + 3600) {
       fprintf(log_f, "Error: timestamp for run %d: %ld (%s); ",
-              run_id - 1, prev_time, xml_unparse_date(prev_time));
+              run_id - 1, (long) prev_time, xml_unparse_date(prev_time));
       fprintf(log_f, "timestamp for run %d: %ld (%s); ",
-              run_id, cur_time, xml_unparse_date(cur_time));
+              run_id, (long) cur_time, xml_unparse_date(cur_time));
       fprintf(log_f, "no DST change detected\n");
       return -1;
     }
@@ -390,9 +389,9 @@ run_fix_runlog_time(
 */
 
     fprintf(log_f, "Warning: timestamp for run %d: %ld (%s); ",
-            run_id - 1, prev_time, xml_unparse_date(prev_time));
+            run_id - 1, (long) prev_time, xml_unparse_date(prev_time));
     fprintf(log_f, "timestamp for run %d: %ld (%s); ",
-            run_id, cur_time, xml_unparse_date(cur_time));
+            run_id, (long) cur_time, xml_unparse_date(cur_time));
     fprintf(log_f, "DST change detected, fixing\n");
 
     // find how many runs need fixing

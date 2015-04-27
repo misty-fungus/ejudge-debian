@@ -1,9 +1,9 @@
 #ifndef __CHECKER_INTERNAL_H__
 #define __CHECKER_INTERNAL_H__
 
-/* $Id: checker_internal.h 7460 2013-10-21 21:35:57Z cher $ */
+/* $Id: checker_internal.h 8247 2014-05-25 18:49:18Z cher $ */
 
-/* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -44,12 +44,12 @@ extern "C" {
 #define XCALLOC(p,s)    ((p) = (typeof(p)) xcalloc((s), sizeof((p)[0])))
 #define XREALLOC(p,s)   ((p) = (typeof(p)) xrealloc((p), (s) * sizeof((p)[0])))
 #define XALLOCA(p,s)    ((p) = (typeof(p)) alloca((s) * sizeof((p)[0])))
-#define XALLOCAZ(p,s)   ((p) = (typeof(p)) alloca((s) * sizeof((p)[0])), memset((p), 0, (s)*sizeof(*(p))), (p))
+#define XALLOCAZ(p,s)   ((p) = (typeof(p)) alloca((s) * sizeof((p)[0])), memset((p), 0, (s)*sizeof(*(p))))
 #else
 #define XCALLOC(p,s)    ((p) = xcalloc((s), sizeof((p)[0])))
 #define XREALLOC(p,s)   ((p) = xrealloc((p), (s) * sizeof((p)[0])))
 #define XALLOCA(p,s)    ((p) = alloca((s) * sizeof((p)[0])))
-#define XALLOCAZ(p,s)   ((p) = alloca((s) * sizeof((p)[0])), memset((p), 0, (s)*sizeof(*(p))), (p))
+#define XALLOCAZ(p,s)   ((p) = alloca((s) * sizeof((p)[0])), memset((p), 0, (s)*sizeof(*(p))))
 #endif
 #define XMEMMOVE(d,s,c) (memmove((d),(s),(c)*sizeof(*(d))))
 #define XMEMZERO(d,c)   (memset((d),0,(c)*sizeof(*(d))))

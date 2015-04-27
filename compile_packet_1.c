@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: compile_packet_1.c 7537 2013-11-06 11:49:33Z cher $ */
+/* $Id: compile_packet_1.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,20 +15,19 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_types.h"
-#include "ej_limits.h"
-#include "ej_byteorder.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/ej_byteorder.h"
+#include "ejudge/compile_packet.h"
+#include "ejudge/compile_packet_priv.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/prepare.h"
+#include "ejudge/runlog.h"
 
-#include "compile_packet.h"
-#include "compile_packet_priv.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "prepare.h"
-#include "runlog.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_integral.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -205,7 +204,7 @@ compile_request_packet_read(
 
  failed:
   /* even the contest id is not available */
-  err("compile_request_packet_read: error %s, %d", "$Revision: 7537 $", errcode);
+  err("compile_request_packet_read: error %s, %d", "$Revision: 8531 $", errcode);
   compile_request_packet_free(pout);
   return -1;
 }

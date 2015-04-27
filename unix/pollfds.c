@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: pollfds.c 6760 2012-04-23 14:45:23Z cher $ */
+/* $Id: pollfds.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "pollfds.h"
+#include "ejudge/pollfds.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <poll.h>
 #include <string.h>
@@ -127,3 +127,9 @@ pollfds_call_handlers(
     }
   }
 }
+
+/*
+ * Local variables:
+ *  compile-command: "make -C .."
+ * End:
+ */

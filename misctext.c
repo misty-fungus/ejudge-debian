@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: misctext.c 7497 2013-10-24 13:50:17Z cher $ */
+/* $Id: misctext.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,12 +15,12 @@
  * GNU General Public License for more details.
  */
 
-#include "misctext.h"
-#include "base64.h"
-#include "compat.h"
+#include "ejudge/misctext.h"
+#include "ejudge/base64.h"
+#include "ejudge/compat.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -30,7 +30,7 @@
 #include <errno.h>
 #include <limits.h>
 
-#include "win32_compat.h"
+#include "ejudge/win32_compat.h"
 
 #if CONF_HAS_LIBINTL - 0 == 1
 #include <libintl.h>
@@ -2366,10 +2366,3 @@ csv_armor_buf(struct html_armor_buffer *pb, const unsigned char *s)
   csv_armor_string(s, pb->buf);
   return pb->buf;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

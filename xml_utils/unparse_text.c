@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: unparse_text.c 5677 2010-01-19 09:59:15Z cher $ */
+/* $Id: unparse_text.c 8211 2014-05-15 08:23:47Z cher $ */
 
-/* Copyright (C) 2004-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "misctext.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/misctext.h"
 
 #include <stdlib.h>
 
@@ -44,6 +44,5 @@ xml_unparse_text(FILE *f, const unsigned char *tag_name,
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

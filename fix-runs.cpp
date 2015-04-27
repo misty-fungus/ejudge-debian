@@ -1,21 +1,20 @@
-/* $Id: fix-runs.cpp 7492 2013-10-24 11:04:12Z cher $ */
+/* $Id: fix-runs.cpp 8531 2014-08-22 13:08:06Z cher $ */
 
 extern "C" {
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/contests.h"
+#include "ejudge/runlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/misctext.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/sha.h"
+#include "ejudge/compat.h"
 
-#include "ejudge_cfg.h"
-#include "contests.h"
-#include "runlog.h"
-#include "xml_utils.h"
-#include "misctext.h"
-#include "fileutl.h"
-#include "sha.h"
-
-#include "reuse_xalloc.h"
-#include "compat.h"
+#include "ejudge/xalloc.h"
 }
 
 #include <stdio.h>

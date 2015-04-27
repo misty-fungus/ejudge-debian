@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: attr_int.c 6491 2011-10-21 06:16:54Z cher $ */
+/* $Id: attr_int.c 8210 2014-05-14 23:41:03Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "errlog.h"
-#include "expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/errlog.h"
+#include "ejudge/expat_iface.h"
 
 int
 xml_attr_int(struct xml_attr *a, int *pval)
@@ -48,6 +48,5 @@ xml_attr_int(struct xml_attr *a, int *pval)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

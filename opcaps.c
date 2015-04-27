@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: opcaps.c 6930 2012-07-04 04:04:07Z cher $ */
+/* $Id: opcaps.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "opcaps.h"
+#include "ejudge/opcaps.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <ctype.h>
@@ -284,9 +284,3 @@ opcaps_get_predef_caps(int id)
   }
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

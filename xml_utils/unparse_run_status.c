@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: unparse_run_status.c 7377 2013-03-27 07:51:42Z cher $ */
+/* $Id: unparse_run_status.c 8227 2014-05-16 11:55:08Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "runlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/runlog.h"
 
 #include <string.h>
 

@@ -1,0 +1,34 @@
+<%
+#include "ejudge/new-server.h"
+#include "ejudge/new_server_pi.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/external_action.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/misctext.h"
+#include "ejudge/runlog.h"
+#include "ejudge/l10n.h"
+#include "ejudge/prepare.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/copyright.h"
+#include "ejudge/mischtml.h"
+#include "ejudge/html.h"
+#include "ejudge/userlist.h"
+#include "ejudge/sformat.h"
+
+#include "ejudge/xalloc.h"
+
+#include <libintl.h>
+#define _(x) gettext(x)
+
+#define FAIL(c) do { retval = -(c); goto cleanup; } while (0)
+
+void
+unpriv_load_html_style(struct http_request_info *phr,
+                       const struct contest_desc *cnts,
+                       struct contest_extra **p_extra,
+                       time_t *p_cur_time);
+void
+do_json_user_state(FILE *fout, const serve_state_t cs, int user_id,
+                   int need_reload_check);
+%>

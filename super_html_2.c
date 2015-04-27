@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_2.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: super_html_2.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,34 +15,33 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "version.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/super_html.h"
+#include "ejudge/super-serve.h"
+#include "ejudge/super_proto.h"
+#include "ejudge/contests.h"
+#include "ejudge/misctext.h"
+#include "ejudge/mischtml.h"
+#include "ejudge/opcaps.h"
+#include "ejudge/protocol.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/prepare.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/userlist.h"
+#include "ejudge/ej_process.h"
+#include "ejudge/vcs.h"
+#include "ejudge/compat.h"
+#include "ejudge/file_perms.h"
 
-#include "super_html.h"
-#include "super-serve.h"
-#include "super_proto.h"
-#include "contests.h"
-#include "misctext.h"
-#include "mischtml.h"
-#include "opcaps.h"
-#include "protocol.h"
-#include "ejudge_cfg.h"
-#include "pathutl.h"
-#include "fileutl.h"
-#include "xml_utils.h"
-#include "prepare.h"
-#include "userlist_proto.h"
-#include "userlist_clnt.h"
-#include "userlist.h"
-#include "ej_process.h"
-#include "vcs.h"
-#include "compat.h"
-#include "file_perms.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdarg.h>
 #include <string.h>
@@ -143,54 +142,6 @@ super_html_clear_variable(struct sid_state *sstate, int cmd)
   case SSERV_CMD_CNTS_CLEAR_DIR_GROUP: p_str = &cnts->dir_group; break;
   case SSERV_CMD_CNTS_CLEAR_FILE_MODE: p_str = &cnts->file_mode; break;
   case SSERV_CMD_CNTS_CLEAR_FILE_GROUP: p_str = &cnts->file_group; break;
-  case SSERV_CMD_CNTS_CLEAR_USERS_HEADER_TEXT:
-    p_str = &sstate->users_header_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_USERS_FOOTER_TEXT:
-    p_str = &sstate->users_footer_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_REGISTER_HEADER_TEXT:
-    p_str = &sstate->register_header_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_REGISTER_FOOTER_TEXT:
-    p_str = &sstate->register_footer_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_TEAM_HEADER_TEXT:
-    p_str = &sstate->team_header_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_TEAM_MENU_1_TEXT:
-    p_str = &sstate->team_menu_1_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_TEAM_MENU_2_TEXT:
-    p_str = &sstate->team_menu_2_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_TEAM_MENU_3_TEXT:
-    p_str = &sstate->team_menu_3_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_TEAM_SEPARATOR_TEXT:
-    p_str = &sstate->team_separator_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_TEAM_FOOTER_TEXT:
-    p_str = &sstate->team_footer_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_PRIV_HEADER_TEXT:
-    p_str = &sstate->priv_header_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_PRIV_FOOTER_TEXT:
-    p_str = &sstate->priv_footer_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_COPYRIGHT_TEXT:
-    p_str = &sstate->copyright_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_WELCOME_TEXT:
-    p_str = &sstate->welcome_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_REG_WELCOME_TEXT:
-    p_str = &sstate->reg_welcome_text;
-    break;
-  case SSERV_CMD_CNTS_CLEAR_REGISTER_EMAIL_FILE_TEXT:
-    p_str = &sstate->register_email_text;
-    break;
   default:
     abort();
   }
@@ -276,7 +227,7 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
                            int param1, const unsigned char *param2,
                            int param3, int param4, int param5)
 {
-  unsigned char **p_str = 0, **p_str_d2u = 0;
+  unsigned char **p_str = 0;
   unsigned char **p_email = 0;
   unsigned char *p_bool = 0;
   time_t *p_date = 0;
@@ -542,55 +493,6 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
     p_str = &cnts->file_group;
     break;
 
-  case SSERV_CMD_CNTS_SAVE_USERS_HEADER:
-    p_str_d2u = &sstate->users_header_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_USERS_FOOTER:
-    p_str_d2u = &sstate->users_footer_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_REGISTER_HEADER:
-    p_str_d2u = &sstate->register_header_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_REGISTER_FOOTER:
-    p_str_d2u = &sstate->register_footer_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_TEAM_HEADER:
-    p_str_d2u = &sstate->team_header_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_TEAM_MENU_1:
-    p_str_d2u = &sstate->team_menu_1_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_TEAM_MENU_2:
-    p_str_d2u = &sstate->team_menu_2_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_TEAM_MENU_3:
-    p_str_d2u = &sstate->team_menu_3_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_TEAM_SEPARATOR:
-    p_str_d2u = &sstate->team_separator_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_TEAM_FOOTER:
-    p_str_d2u = &sstate->team_footer_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_PRIV_HEADER:
-    p_str_d2u = &sstate->priv_header_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_PRIV_FOOTER:
-    p_str_d2u = &sstate->priv_footer_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_COPYRIGHT:
-    p_str_d2u = &sstate->copyright_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_WELCOME:
-    p_str_d2u = &sstate->welcome_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_REG_WELCOME:
-    p_str_d2u = &sstate->reg_welcome_text;
-    break;
-  case SSERV_CMD_CNTS_SAVE_REGISTER_EMAIL_FILE:
-    p_str_d2u = &sstate->register_email_text;
-    break;
-
   case SSERV_CMD_CNTS_DEFAULT_ACCESS:
     if (!(p_access = get_contest_access_by_num(cnts, param1)))
       return -SSERV_ERR_INVALID_PARAMETER;
@@ -770,12 +672,6 @@ super_html_set_contest_var(struct sid_state *sstate, int cmd,
     return 0;
   }
 
-  if (p_str_d2u) {
-    xfree(*p_str_d2u);
-    *p_str_d2u = dos2unix_str(param2);
-    return 0;
-  }
-
   if (p_str) {
     // text variable
     xfree(*p_str);
@@ -886,89 +782,20 @@ diff_func(const unsigned char *path1, const unsigned char *path2)
   return read_process_output(diff_cmdline, 0, 1, 0);
 }
 
-/*
 int
-super_html_serve_probe_run(FILE *f,
-                           int priv_level,
-                           int user_id,
-                           int contest_id,
-                           const unsigned char *login,
-                           ej_cookie_t session_id,
-                           ej_ip_t ip_address,
-                           int ssl,
-                           struct ejudge_cfg *config,
-                           const unsigned char *self_url,
-                           const unsigned char *hidden_vars,
-                           const unsigned char *extra_args)
-{
-  int errcode;
-  const struct contest_desc *cnts = 0;
-  struct contest_extra *extra = 0;
-  unsigned char *serve_buf = 0, *s = 0;
-  opcap_t caps;
-  unsigned char hbuf[1024];
-
-  if ((errcode = contests_get(contest_id, &cnts)) < 0) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "Invalid contest %d!", contest_id);
-  }
-  if (priv_level < PRIV_LEVEL_JUDGE
-      || opcaps_find(&cnts->capabilities, login, &caps) < 0
-      || opcaps_check(caps, OPCAP_CONTROL_CONTEST) < 0
-      || !contests_check_serve_control_ip_2(cnts, ip_address, ssl)) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "Permission denied");
-  }
-  if (!cnts->root_dir) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "Root dir is not defined");
-  }
-  if (!(extra = get_existing_contest_extra(contest_id))) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "Contest is not handled");
-  }
-
-  errcode = super_serve_start_serve_test_mode(cnts, &serve_buf, extra->socket_fd);
-  s = html_armor_string_dup(serve_buf);
-  fprintf(f, "<p>Probe run log:<br><pre>%s</pre>\n", s);
-  xfree(s);
-  xfree(serve_buf);
-  fprintf(f, "<table border=\"0\"><tr>");
-  fprintf(f, "<td>%sTo the top</a></td>",
-          html_hyperref(hbuf, sizeof(hbuf), session_id, self_url,extra_args,0));
-  fprintf(f, "<td>%sBack</a></td>",
-          html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
-                        "contest_id=%d&action=%d", contest_id,
-                        SSERV_CMD_CONTEST_PAGE));
-  fprintf(f, "</tr></table>\n");
-  return 0;
-}
-*/
-
-int
-super_html_commit_contest(
-        FILE *f,
-        int priv_level,
+super_html_commit_contest_2(
+        FILE *log_f,
         int user_id,
         const unsigned char *login,
-        ej_cookie_t session_id,
         const ej_ip_t *ip_address,
-        struct ejudge_cfg *config,
+        const struct ejudge_cfg *config,
         struct userlist_clnt *us_conn,
-        struct sid_state *sstate,
-        int cmd,
-        const unsigned char *self_url,
-        const unsigned char *hidden_vars,
-        const unsigned char *extra_args)
+        struct sid_state *sstate)
 {
   struct contest_desc *cnts = sstate->edited_cnts;
   struct section_global_data *global = sstate->global;
   struct stat sb;
-  char *flog_txt = 0;
-  size_t flog_size = 0;
-  FILE *flog = 0;
   int errcode;
-  unsigned char *s = 0;
   unsigned char hbuf[1024];
   unsigned char *xml_header = 0;
   unsigned char *xml_footer = 0;
@@ -1049,28 +876,28 @@ super_html_commit_contest(
   int old_serve_group = 0, old_serve_mode = 0;
 
   if (!cnts) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "No current contest!");
+    fprintf(log_f, "No current contest!");
+    return -1;
   }
   if (!cnts->root_dir || !*cnts->root_dir) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "root_dir is not set!");
+    fprintf(log_f, "Contest root dir is not set!");
+    return -1;
   }
   if (!cnts->name) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "contest name is not defined");
+    fprintf(log_f, "Contest name is not defined");
+    return -1;
   }
   if (!os_IsAbsolutePath(cnts->root_dir)) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "root_dir is not an absolute path!");
+    fprintf(log_f, "Contest root_dir is not an absolute path");
+    return -1;
   }
   if (stat(cnts->root_dir, &sb) >= 0 && !S_ISDIR(sb.st_mode)) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "root_dir is not a directory!");
+    fprintf(log_f, "Contest root_dir is not a directory");
+    return -1;
   }
   if (!sstate->serve_parse_errors && sstate->disable_compilation_server) {
-    return super_html_report_error(f, session_id, self_url, extra_args,
-                                   "Compilation server must be enabled");
+    fprintf(log_f, "Compilation server must be enabled");
+    return -1;
   }
   if (!sstate->serve_parse_errors && sstate->global) {
     j = 0;
@@ -1078,22 +905,12 @@ super_html_commit_contest(
       for (i = 1; i < sstate->lang_a; i++)
         if (sstate->langs[i]) j++;
     }
-    /*
-    if (!j)
-      return super_html_report_error(f, session_id, self_url, extra_args,
-                                     "No languages activated");
-    */
 
     j = 0;
     if (sstate->probs) {
       for (i = 1; i < sstate->prob_a; i++)
         if (sstate->probs[i]) j++;
     }
-    /*
-    if (!j)
-      return super_html_report_error(f, session_id, self_url, extra_args,
-                                     "No problems defined");
-    */
     if (sstate->probs) {
       for (i = 1; i < sstate->prob_a; i++)
         if (sstate->probs[i] && sstate->probs[i]->variant_num > 0)
@@ -1104,24 +921,27 @@ super_html_commit_contest(
       snprintf(sstate->global->variant_map_file,
                sizeof(sstate->global->variant_map_file), "variant.map");
     if (need_variant_map && !sstate->global->variant_map) {
-      flog = open_memstream(&flog_txt, &flog_size);
-      if (super_html_update_variant_map(flog, sstate->edited_cnts->id,
+      char *vlog_s = 0;
+      size_t vlog_z = 0;
+      FILE *vlog_f = open_memstream(&vlog_s, &vlog_z);
+      if (super_html_update_variant_map(vlog_f, sstate->edited_cnts->id,
                                         us_conn, sstate->edited_cnts,
                                         sstate->global, sstate->prob_a,
                                         sstate->probs,
                                         &sstate->var_header_text,
                                         &sstate->var_footer_text) < 0) {
-        close_memstream(flog); flog = 0;
-        xfree(flog_txt); flog_txt = 0; flog_size = 0;
-        return super_html_report_error(f, session_id, self_url, extra_args,
-                                       "Cannot update the variant map");
+        close_memstream(vlog_f); vlog_f = 0;
+        fprintf(log_f, "Cannot update the variant map:\n%s\n", vlog_s);
+        xfree(vlog_s); vlog_s = 0; vlog_z = 0;
+        return -1;
       }
-      close_memstream(flog); flog = 0;
-      xfree(flog_txt); flog_txt = 0; flog_size = 0;
+      fclose(vlog_f); vlog_f = 0;
+      xfree(vlog_s); vlog_s = 0; vlog_z = 0;
     }
-    if (need_variant_map && !sstate->global->variant_map)
-      return super_html_report_error(f, session_id, self_url, extra_args,
-                                     "No variant map defined");
+    if (need_variant_map && !sstate->global->variant_map) {
+      fprintf(log_f, "No variant map defined");
+      return -1;
+    }
   }
   // FIXME: what else we should validate
 
@@ -1139,27 +959,25 @@ super_html_commit_contest(
     snprintf(conf_path, sizeof(conf_path), "%s", cnts->conf_dir);
   }
 
-  flog = open_memstream(&flog_txt, &flog_size);
-
   /* Create the contest root directory */
   if (stat(cnts->root_dir, &sb) >= 0) {
     if (!S_ISDIR(sb.st_mode)) {
-      fprintf(flog, "error: contest root directory `%s' is not actually a directory\n",
+      fprintf(log_f, "error: contest root directory `%s' is not actually a directory\n",
               cnts->root_dir);
       goto failed;
     }
-    fprintf(flog, "contest root directory `%s' already exists\n", cnts->root_dir);
+    fprintf(log_f, "contest root directory `%s' already exists\n", cnts->root_dir);
   } else {
     if ((errcode = os_MakeDirPath(cnts->root_dir, 0775)) < 0) {
-      fprintf(flog, "error: contest root directory `%s' creation failed\n",
+      fprintf(log_f, "error: contest root directory `%s' creation failed\n",
               cnts->root_dir);
-      fprintf(flog, "error: %s\n", os_GetErrorString(-errcode));
+      fprintf(log_f, "error: %s\n", os_GetErrorString(-errcode));
       goto failed;
     }
-    fprintf(flog, "contest root directory `%s' is created\n", cnts->root_dir);
-    file_perms_set(flog, cnts->root_dir, dir_group, dir_mode, 0, 0);
+    fprintf(log_f, "contest root directory `%s' is created\n", cnts->root_dir);
+    file_perms_set(log_f, cnts->root_dir, dir_group, dir_mode, 0, 0);
     if (vcs_add_dir(cnts->root_dir, &vcs_str) > 0) {
-      fprintf(flog, "Version control:\n%s\n", vcs_str);
+      fprintf(log_f, "Version control:\n%s\n", vcs_str);
       xfree(vcs_str); vcs_str = 0;
     }
   }
@@ -1167,21 +985,21 @@ super_html_commit_contest(
   /* Create the contest configuration directory */
   if (stat(conf_path, &sb) >= 0) {
     if (!S_ISDIR(sb.st_mode)) {
-      fprintf(flog, "error: contest configuration directory `%s' is not actually a directory\n", conf_path);
+      fprintf(log_f, "error: contest configuration directory `%s' is not actually a directory\n", conf_path);
       goto failed;
     }
-    fprintf(flog, "contest configuration directory `%s' already exists\n", conf_path);
+    fprintf(log_f, "contest configuration directory `%s' already exists\n", conf_path);
   } else {
     if ((errcode = os_MakeDirPath(conf_path, 0775)) < 0) {
-      fprintf(flog, "error: contest configuration directory `%s' creation failed\n",
+      fprintf(log_f, "error: contest configuration directory `%s' creation failed\n",
               conf_path);
-      fprintf(flog, "error: %s\n", os_GetErrorString(-errcode));
+      fprintf(log_f, "error: %s\n", os_GetErrorString(-errcode));
       goto failed;
     }
-    file_perms_set(flog, conf_path, dir_group, dir_mode, 0, 0);
-    fprintf(flog, "contest configuration directory `%s' is created\n", conf_path);
+    file_perms_set(log_f, conf_path, dir_group, dir_mode, 0, 0);
+    fprintf(log_f, "contest configuration directory `%s' is created\n", conf_path);
     if (vcs_add_dir(conf_path, &vcs_str) > 0) {
-      fprintf(flog, "Version control:\n%s\n", vcs_str);
+      fprintf(log_f, "Version control:\n%s\n", vcs_str);
       xfree(vcs_str); vcs_str = 0;
     }
   }
@@ -1189,61 +1007,61 @@ super_html_commit_contest(
   /* FIXME: create statement, test, checker directories, etc... */
 
   /* Save the users_header_file as temporary file */
-  if ((uhf = save_conf_file(flog, "`users' HTML header file",
+  if ((uhf = save_conf_file(log_f, "`users' HTML header file",
                             cnts->users_header_file, sstate->users_header_text,
                             conf_path,
                             users_header_path, users_header_path_2)) < 0)
     goto failed;
 
   /* Save the users_footer_file as temporary file */
-  if ((uff = save_conf_file(flog, "`users' HTML footer file",
+  if ((uff = save_conf_file(log_f, "`users' HTML footer file",
                             cnts->users_footer_file, sstate->users_footer_text,
                             conf_path,
                             users_footer_path, users_footer_path_2)) < 0)
     goto failed;
 
   /* Save the register_header_file as temporary file */
-  if ((rhf = save_conf_file(flog, "`register' HTML header file",
+  if ((rhf = save_conf_file(log_f, "`register' HTML header file",
                             cnts->register_header_file, sstate->register_header_text,
                             conf_path,
                             register_header_path, register_header_path_2)) < 0)
     goto failed;
 
   /* Save the register_footer_file as temporary file */
-  if ((rff = save_conf_file(flog, "`register' HTML footer file",
+  if ((rff = save_conf_file(log_f, "`register' HTML footer file",
                             cnts->register_footer_file, sstate->register_footer_text,
                             conf_path,
                             register_footer_path, register_footer_path_2)) < 0)
     goto failed;
 
   /* Save the team_header_file as temporary file */
-  if ((thf = save_conf_file(flog, "`team' HTML header file",
+  if ((thf = save_conf_file(log_f, "`team' HTML header file",
                             cnts->team_header_file, sstate->team_header_text,
                             conf_path,
                             team_header_path, team_header_path_2)) < 0)
     goto failed;
 
   /* Save the team_menu_1_file as temporary file */
-  if ((t1f = save_conf_file(flog, "`team' HTML content menu1",
+  if ((t1f = save_conf_file(log_f, "`team' HTML content menu1",
                             cnts->team_menu_1_file, sstate->team_menu_1_text,
                             conf_path,
                             team_menu_1_path, team_menu_1_path_2)) < 0)
 
   /* Save the team_menu_2_file as temporary file */
-  if ((t2f = save_conf_file(flog, "`team' HTML content menu2",
+  if ((t2f = save_conf_file(log_f, "`team' HTML content menu2",
                             cnts->team_menu_2_file, sstate->team_menu_2_text,
                             conf_path,
                             team_menu_2_path, team_menu_2_path_2)) < 0)
     goto failed;
   /* Save the team_menu_2_file as temporary file */
-  if ((t3f = save_conf_file(flog, "`team' HTML content menu3",
+  if ((t3f = save_conf_file(log_f, "`team' HTML content menu3",
                             cnts->team_menu_3_file, sstate->team_menu_3_text,
                             conf_path,
                             team_menu_3_path, team_menu_3_path_2)) < 0)
     goto failed;
 
   /* Save the team_separator_file as temporary file */
-  if ((tsf = save_conf_file(flog, "`team' HTML separator file",
+  if ((tsf = save_conf_file(log_f, "`team' HTML separator file",
                             cnts->team_separator_file,
                             sstate->team_separator_text,
                             conf_path,
@@ -1251,95 +1069,95 @@ super_html_commit_contest(
     goto failed;
 
   /* Save the team_footer_file as temporary file */
-  if ((tff = save_conf_file(flog, "`team' HTML footer file",
+  if ((tff = save_conf_file(log_f, "`team' HTML footer file",
                             cnts->team_footer_file, sstate->team_footer_text,
                             conf_path,
                             team_footer_path, team_footer_path_2)) < 0)
     goto failed;
 
   /* Save the priv_header_file as temporary file */
-  if ((ihf = save_conf_file(flog, "privileged HTML header file",
+  if ((ihf = save_conf_file(log_f, "privileged HTML header file",
                             cnts->priv_header_file, sstate->priv_header_text,
                             conf_path,
                             priv_header_path, priv_header_path_2)) < 0)
     goto failed;
 
   /* Save the priv_footer_file as temporary file */
-  if ((iff = save_conf_file(flog, "privileged HTML footer file",
+  if ((iff = save_conf_file(log_f, "privileged HTML footer file",
                             cnts->priv_footer_file, sstate->priv_footer_text,
                             conf_path,
                             priv_footer_path, priv_footer_path_2)) < 0)
     goto failed;
 
   /* Save the copyright_file as temporary file */
-  if ((cpf = save_conf_file(flog, "copyright notice file",
+  if ((cpf = save_conf_file(log_f, "copyright notice file",
                             cnts->copyright_file, sstate->copyright_text,
                             conf_path,
                             copyright_path, copyright_path_2)) < 0)
     goto failed;
 
   /* Save the welcome_file as temporary file */
-  if ((cwf = save_conf_file(flog, "welcome file",
+  if ((cwf = save_conf_file(log_f, "welcome file",
                             cnts->welcome_file, sstate->welcome_text,
                             conf_path,
                             welcome_path, welcome_path_2)) < 0)
     goto failed;
 
   /* Save the reg_welcome_file as temporary file */
-  if ((crwf = save_conf_file(flog, "registration welcome file",
+  if ((crwf = save_conf_file(log_f, "registration welcome file",
                              cnts->reg_welcome_file, sstate->reg_welcome_text,
                              conf_path,
                              reg_welcome_path, reg_welcome_path_2)) < 0)
     goto failed;
 
   /* Save the register_email_file as temporary file */
-  if ((ref = save_conf_file(flog, "registration e-mail template",
+  if ((ref = save_conf_file(log_f, "registration e-mail template",
                             cnts->register_email_file, sstate->register_email_text,
                             conf_path,
                             register_email_path, register_email_path_2)) < 0)
     goto failed;
 
   if (global) {
-    if ((csf = save_conf_file(flog, "contest start command script",
+    if ((csf = save_conf_file(log_f, "contest start command script",
                               global->contest_start_cmd,
                               sstate->contest_start_cmd_text,
                               conf_path,
                               contest_start_cmd_path,
                               contest_start_cmd_path_2)) < 0)
       goto failed;
-    if ((ctf = save_conf_file(flog, "contest stop command script",
+    if ((ctf = save_conf_file(log_f, "contest stop command script",
                               global->contest_stop_cmd,
                               sstate->contest_stop_cmd_text,
                               conf_path,
                               contest_stop_cmd_path,
                               contest_stop_cmd_path_2)) < 0)
       goto failed;
-    if ((shf = save_conf_file(flog, "standings HTML header file",
+    if ((shf = save_conf_file(log_f, "standings HTML header file",
                               global->stand_header_file, sstate->stand_header_text,
                               conf_path,
                               stand_header_path, stand_header_path_2)) < 0)
       goto failed;
-    if ((sff = save_conf_file(flog, "standings HTML footer file",
+    if ((sff = save_conf_file(log_f, "standings HTML footer file",
                               global->stand_footer_file, sstate->stand_footer_text,
                               conf_path,
                               stand_footer_path, stand_footer_path_2)) < 0)
       goto failed;
-    if ((s2hf = save_conf_file(flog, "supplementary standings HTML header file",
+    if ((s2hf = save_conf_file(log_f, "supplementary standings HTML header file",
                                global->stand2_header_file, sstate->stand2_header_text,
                                conf_path,
                                stand2_header_path, stand2_header_path_2)) < 0)
       goto failed;
-    if ((s2ff = save_conf_file(flog, "supplementary standings HTML footer file",
+    if ((s2ff = save_conf_file(log_f, "supplementary standings HTML footer file",
                                global->stand2_footer_file, sstate->stand2_footer_text,
                                conf_path,
                                stand2_footer_path, stand2_footer_path_2)) < 0)
       goto failed;
-    if ((phf = save_conf_file(flog, "public submission log HTML header file",
+    if ((phf = save_conf_file(log_f, "public submission log HTML header file",
                               global->plog_header_file, sstate->plog_header_text,
                               conf_path,
                               plog_header_path, plog_header_path_2)) < 0)
       goto failed;
-    if ((pff = save_conf_file(flog, "public submission log HTML footer file",
+    if ((pff = save_conf_file(log_f, "public submission log HTML footer file",
                               global->plog_footer_file, sstate->plog_footer_text,
                               conf_path,
                               plog_footer_path, plog_footer_path_2)) < 0)
@@ -1350,7 +1168,7 @@ super_html_commit_contest(
       prepare_unparse_variants(vmap_f, global->variant_map,
                                sstate->var_header_text, sstate->var_footer_text);
       close_memstream(vmap_f); vmap_f = 0;
-      if ((vmf = save_conf_file(flog, "variant map file",
+      if ((vmf = save_conf_file(log_f, "variant map file",
                                 global->variant_map_file, vmap_txt,
                                 conf_path,
                                 vmap_path, vmap_path_2)) < 0)
@@ -1363,14 +1181,14 @@ super_html_commit_contest(
   contests_make_path(xml_path, sizeof(xml_path), cnts->id);
   errcode = super_html_get_contest_header_and_footer(xml_path, &xml_header, &xml_footer);
   if (errcode == -SSERV_ERR_FILE_NOT_EXIST) {
-    fprintf(flog, "XML file `%s' does not exist\n", xml_path);
+    fprintf(log_f, "XML file `%s' does not exist\n", xml_path);
     snprintf(audit_rec, sizeof(audit_rec),
              "<!-- audit: created %s %d (%s) %s -->\n",
              xml_unparse_date(time(0)), user_id, login,
              xml_unparse_ipv6(ip_address));
     vcs_add_flag = 1;
   } else if (errcode < 0) {
-    fprintf(flog, "Failed to read XML file `%s': %s\n",
+    fprintf(log_f, "Failed to read XML file `%s': %s\n",
             xml_path, super_proto_strerror(-errcode));
     goto failed;
   } else {
@@ -1390,14 +1208,14 @@ super_html_commit_contest(
   if (!sstate->serve_parse_errors && sstate->global) {
     snprintf(serve_cfg_path, sizeof(serve_cfg_path), "%s/serve.cfg", conf_path);
     if (make_temp_file(serve_cfg_path_2, serve_cfg_path) < 0) {
-      fprintf(flog, "error: cannot create a temporary serve.cfg `%s'\n"
+      fprintf(log_f, "error: cannot create a temporary serve.cfg `%s'\n"
               "error: %s\n", serve_cfg_path, os_ErrorMsg());
       goto failed;
     }
 
     errcode = super_html_get_serve_header_and_footer(serve_cfg_path, &serve_header, &serve_footer);
     if (errcode == -SSERV_ERR_FILE_NOT_EXIST) {
-      fprintf(flog, "serve configuration file `%s' does not exist\n", serve_cfg_path);
+      fprintf(log_f, "serve configuration file `%s' does not exist\n", serve_cfg_path);
       serve_header = xstrdup("# $" "Id" "$\n");
       snprintf(serve_audit_rec, sizeof(serve_audit_rec),
                "# audit: created %s %d (%s) %s\n",
@@ -1405,7 +1223,7 @@ super_html_commit_contest(
                xml_unparse_ipv6(ip_address));
       serve_vcs_add_flag = 1;
     } else if (errcode < 0) {
-      fprintf(flog, "failed to read serve configuration file `%s': %s\n",
+      fprintf(log_f, "failed to read serve configuration file `%s': %s\n",
               serve_cfg_path, super_proto_strerror(-errcode));
       goto failed;
     } else {
@@ -1428,7 +1246,7 @@ super_html_commit_contest(
       snprintf(diff_cmdline, sizeof(diff_cmdline),
                "/usr/bin/diff -u \"%s\" \"%s\"", serve_cfg_path, serve_cfg_path_2);
       diff_str = read_process_output(diff_cmdline, 0, 1, 0);
-      fprintf(flog, "Changes in serve.cfg:\n%s\n", diff_str);
+      fprintf(log_f, "Changes in serve.cfg:\n%s\n", diff_str);
       xfree(diff_str); diff_str = 0;
     }
   }
@@ -1437,31 +1255,31 @@ super_html_commit_contest(
   errcode = contests_unparse_and_save(cnts, NULL, xml_header, xml_footer,
                                       audit_rec, diff_func, &diff_str);
   if (errcode < 0) {
-    fprintf(flog, "error: saving of `%s' failed: %s\n", xml_path,
+    fprintf(log_f, "error: saving of `%s' failed: %s\n", xml_path,
             contests_strerror(-errcode));
     goto failed;
   } else if (diff_str && *diff_str) {
-    fprintf(flog, "contest XML file `%s' saved successfully\n", xml_path);
-    fprintf(flog, "Changes in the file:\n%s\n", diff_str);
+    fprintf(log_f, "contest XML file `%s' saved successfully\n", xml_path);
+    fprintf(log_f, "Changes in the file:\n%s\n", diff_str);
     if (vcs_add_flag && vcs_add(xml_path, &vcs_str) > 0) {
-      fprintf(flog, "Version control:\n%s\n", vcs_str);
+      fprintf(log_f, "Version control:\n%s\n", vcs_str);
       xfree(vcs_str); vcs_str = 0;
     }
     if (vcs_commit(xml_path, &vcs_str) > 0) {
-      fprintf(flog, "Version control:\n%s\n", vcs_str);
+      fprintf(log_f, "Version control:\n%s\n", vcs_str);
     }
   } else {
     if (vcs_add_flag) {
-      fprintf(flog, "contest XML file `%s' is generated\n", xml_path);
+      fprintf(log_f, "contest XML file `%s' is generated\n", xml_path);
       if (vcs_add(xml_path, &vcs_str) > 0) {
-        fprintf(flog, "Version control:\n%s\n", vcs_str);
+        fprintf(log_f, "Version control:\n%s\n", vcs_str);
         xfree(vcs_str); vcs_str = 0;
       }
       if (vcs_commit(xml_path, &vcs_str) > 0) {
-        fprintf(flog, "Version control:\n%s\n", vcs_str);
+        fprintf(log_f, "Version control:\n%s\n", vcs_str);
       }
     } else {
-      fprintf(flog, "contest XML file `%s' is not changed\n", xml_path);
+      fprintf(log_f, "contest XML file `%s' is not changed\n", xml_path);
     }
   }
   xfree(diff_str); diff_str = 0;
@@ -1469,64 +1287,64 @@ super_html_commit_contest(
         
 
   /* 12. Rename files */
-  rename_files(flog, uhf, users_header_path, users_header_path_2, file_group, file_mode);
-  rename_files(flog, uff, users_footer_path, users_footer_path_2, file_group, file_mode);
-  rename_files(flog, rhf, register_header_path, register_header_path_2, file_group, file_mode);
-  rename_files(flog, rff, register_footer_path, register_footer_path_2, file_group, file_mode);
-  rename_files(flog, thf, team_header_path, team_header_path_2, file_group, file_mode);
+  rename_files(log_f, uhf, users_header_path, users_header_path_2, file_group, file_mode);
+  rename_files(log_f, uff, users_footer_path, users_footer_path_2, file_group, file_mode);
+  rename_files(log_f, rhf, register_header_path, register_header_path_2, file_group, file_mode);
+  rename_files(log_f, rff, register_footer_path, register_footer_path_2, file_group, file_mode);
+  rename_files(log_f, thf, team_header_path, team_header_path_2, file_group, file_mode);
   
-  rename_files(flog, t1f, team_menu_1_path, team_menu_1_path_2, file_group, file_mode);
-  rename_files(flog, t2f, team_menu_2_path, team_menu_2_path_2, file_group, file_mode);
-  rename_files(flog, t3f, team_menu_3_path, team_menu_3_path_2, file_group, file_mode);
-  rename_files(flog, tsf, team_separator_path, team_separator_path_2, file_group, file_mode);
-  rename_files(flog, tff, team_footer_path, team_footer_path_2, file_group, file_mode);
-  rename_files(flog, ihf, priv_header_path, priv_header_path_2, file_group, file_mode);
-  rename_files(flog, iff, priv_footer_path, priv_footer_path_2, file_group, file_mode);
-  rename_files(flog, cpf, copyright_path, copyright_path_2, file_group, file_mode);
-  rename_files(flog, cwf, welcome_path, welcome_path_2, file_group, file_mode);
-  rename_files(flog, crwf, reg_welcome_path, reg_welcome_path_2, file_group, file_mode);
-  rename_files(flog, ref, register_email_path, register_email_path_2, file_group, file_mode);
-  rename_files(flog, csf, contest_start_cmd_path,contest_start_cmd_path_2,file_group,file_mode);
+  rename_files(log_f, t1f, team_menu_1_path, team_menu_1_path_2, file_group, file_mode);
+  rename_files(log_f, t2f, team_menu_2_path, team_menu_2_path_2, file_group, file_mode);
+  rename_files(log_f, t3f, team_menu_3_path, team_menu_3_path_2, file_group, file_mode);
+  rename_files(log_f, tsf, team_separator_path, team_separator_path_2, file_group, file_mode);
+  rename_files(log_f, tff, team_footer_path, team_footer_path_2, file_group, file_mode);
+  rename_files(log_f, ihf, priv_header_path, priv_header_path_2, file_group, file_mode);
+  rename_files(log_f, iff, priv_footer_path, priv_footer_path_2, file_group, file_mode);
+  rename_files(log_f, cpf, copyright_path, copyright_path_2, file_group, file_mode);
+  rename_files(log_f, cwf, welcome_path, welcome_path_2, file_group, file_mode);
+  rename_files(log_f, crwf, reg_welcome_path, reg_welcome_path_2, file_group, file_mode);
+  rename_files(log_f, ref, register_email_path, register_email_path_2, file_group, file_mode);
+  rename_files(log_f, csf, contest_start_cmd_path,contest_start_cmd_path_2,file_group,file_mode);
   if (csf) chmod(contest_start_cmd_path, 0775);
 
-  rename_files(flog, csf, contest_stop_cmd_path,
+  rename_files(log_f, csf, contest_stop_cmd_path,
                contest_stop_cmd_path_2, file_group,file_mode);
   if (ctf) chmod(contest_stop_cmd_path, 0775);
 
-  rename_files(flog, shf, stand_header_path, stand_header_path_2, file_group, file_mode);
-  rename_files(flog, sff, stand_footer_path, stand_footer_path_2, file_group, file_mode);
-  rename_files(flog, s2hf, stand2_header_path, stand2_header_path_2, file_group, file_mode);
-  rename_files(flog, s2ff, stand2_footer_path, stand2_footer_path_2, file_group, file_mode);
-  rename_files(flog, phf, plog_header_path, plog_header_path_2, file_group, file_mode);
-  rename_files(flog, pff, plog_footer_path, plog_footer_path_2, file_group, file_mode);
+  rename_files(log_f, shf, stand_header_path, stand_header_path_2, file_group, file_mode);
+  rename_files(log_f, sff, stand_footer_path, stand_footer_path_2, file_group, file_mode);
+  rename_files(log_f, s2hf, stand2_header_path, stand2_header_path_2, file_group, file_mode);
+  rename_files(log_f, s2ff, stand2_footer_path, stand2_footer_path_2, file_group, file_mode);
+  rename_files(log_f, phf, plog_header_path, plog_header_path_2, file_group, file_mode);
+  rename_files(log_f, pff, plog_footer_path, plog_footer_path_2, file_group, file_mode);
   file_perms_get(vmap_path, &old_vmap_group, &old_vmap_mode);
-  rename_files(flog, vmf, vmap_path, vmap_path_2, file_group, file_mode);
+  rename_files(log_f, vmf, vmap_path, vmap_path_2, file_group, file_mode);
   file_perms_get(serve_cfg_path, &old_serve_group, &old_serve_mode);
-  rename_files(flog, sf, serve_cfg_path, serve_cfg_path_2, file_group, file_mode);
+  rename_files(log_f, sf, serve_cfg_path, serve_cfg_path_2, file_group, file_mode);
 
   if (vmf > 0) {
     if (vmap_vcs_add_flag && vcs_add(vmap_path, &vcs_str) > 0) {
-      fprintf(flog, "Version control:\n%s\n", vcs_str);
+      fprintf(log_f, "Version control:\n%s\n", vcs_str);
       xfree(vcs_str); vcs_str = 0;
     }
     if (vcs_commit(vmap_path, &vcs_str) > 0) {
-      fprintf(flog, "Version control:\n%s\n", vcs_str);
+      fprintf(log_f, "Version control:\n%s\n", vcs_str);
     }
     xfree(vcs_str); vcs_str = 0;
-    file_perms_set(flog, vmap_path, file_group, file_mode,
+    file_perms_set(log_f, vmap_path, file_group, file_mode,
                    old_vmap_group, old_vmap_mode);
   }
 
   if (sf > 0) {
     if (serve_vcs_add_flag && vcs_add(serve_cfg_path, &vcs_str) > 0) {
-      fprintf(flog, "Version control:\n%s\n", vcs_str);
+      fprintf(log_f, "Version control:\n%s\n", vcs_str);
       xfree(vcs_str); vcs_str = 0;
     }
     if (vcs_commit(serve_cfg_path, &vcs_str) > 0) {
-      fprintf(flog, "Version control:\n%s\n", vcs_str);
+      fprintf(log_f, "Version control:\n%s\n", vcs_str);
     }
     xfree(vcs_str); vcs_str = 0;
-    file_perms_set(flog, serve_cfg_path, file_group, file_mode,
+    file_perms_set(log_f, serve_cfg_path, file_group, file_mode,
                    old_serve_group, old_serve_mode);
   }
 
@@ -1536,7 +1354,7 @@ super_html_commit_contest(
 
     for (; capp; capp = (struct opcap_list_item*) capp->b.right) {
       if ((i = userlist_clnt_lookup_user(us_conn, capp->login, 0, &uid, NULL)) != ULS_LOGIN_OK) {
-        fprintf(flog, "Error: cannot find user \"%s\": %s\n", capp->login,
+        fprintf(log_f, "Error: cannot find user \"%s\": %s\n", capp->login,
                 userlist_strerror(-i));
         continue;
       }
@@ -1546,10 +1364,10 @@ super_html_commit_contest(
                                                     USERLIST_REG_OK, 0, 0)) < 0
           || (i = userlist_clnt_change_registration(us_conn,uid,cnts->id,-1, 1,
                                                     USERLIST_UC_INVISIBLE))<0) {
-        fprintf(flog, "Error: failed to register user %s (%d) for contest %d: %s\n", capp->login, uid, cnts->id, userlist_strerror(-i));
+        fprintf(log_f, "Error: failed to register user %s (%d) for contest %d: %s\n", capp->login, uid, cnts->id, userlist_strerror(-i));
         continue;
       }
-      fprintf(flog, "user %s (%d) is registered for contest %d\n",
+      fprintf(log_f, "user %s (%d) is registered for contest %d\n",
               capp->login, uid, cnts->id);
     }
   }
@@ -1559,7 +1377,7 @@ super_html_commit_contest(
                                           user_id, cnts->id)) < 0
       || (i = userlist_clnt_change_registration(us_conn, user_id, cnts->id,
                                                 USERLIST_REG_OK, 0, 0) < 0)) {
-    fprintf(flog, "failed to register user %s (%d) for contest %d: %s\n",
+    fprintf(log_f, "failed to register user %s (%d) for contest %d: %s\n",
             login, user_id, cnts->id, userlist_strerror(-i));
   } else {
     fprintf(flog, "user %s (%d) is registered for contest %d\n",
@@ -1568,47 +1386,8 @@ super_html_commit_contest(
   */
 
   // start serve and create all the necessary dirs
-  close_memstream(flog); flog = 0;
   xfree(xml_header);
   xfree(xml_footer);
-
-  /* all is done */
-  fprintf(f, "<h2>Contest is saved successfully</h2>\n");
-  s = html_armor_string_dup(flog_txt);
-  fprintf(f, "<p>Contest saving log:<br><pre>%s</pre>\n", s);
-  xfree(s);
-  xfree(flog_txt);
-
-  if (!sstate->serve_parse_errors) {
-    flog_txt = 0; flog_size = 0;
-    flog = open_memstream(&flog_txt, &flog_size);
-    prepare_further_instructions(flog, cnts->root_dir, cnts->conf_dir,
-                                 global, sstate->aprob_u, sstate->aprobs,
-                                 sstate->prob_a, sstate->probs);
-    close_memstream(flog); flog = 0;
-    //s = html_armor_string_dup(flog_txt);
-    fprintf(f, "<h2>Further instructions</h2>%s\n", flog_txt);
-    //xfree(s);
-    xfree(flog_txt); flog_txt = 0; flog_size = 0;
-  }
-
-  fprintf(f, "<table border=\"0\"><tr>");
-  fprintf(f, "<td>%sTo the top</a></td>\n",
-          html_hyperref(hbuf, sizeof(hbuf), session_id, self_url,extra_args,0));
-
-  unsigned char new_hidden_vars[1024];
-  snprintf(new_hidden_vars, sizeof(new_hidden_vars),
-           "%s<input type=\"hidden\" name=\"contest_id\" value=\"%d\"/>",
-           hidden_vars, cnts->id);
-
-  fprintf(f, "<td>");
-  html_start_form(f, 1, self_url, new_hidden_vars);
-  fprintf(f, "<input type=\"submit\" name=\"action_%d\" value=\"%s\"/>",
-          SSERV_CMD_CHECK_TESTS, "Check contest settings");
-  fprintf(f, "</form></td>\n");
-  fprintf(f, "</tr></table>\n");
-
-  super_serve_clear_edited_contest(sstate);
   return 0;
 
  failed:
@@ -1616,7 +1395,6 @@ super_html_commit_contest(
   xfree(serve_footer);
   xfree(xml_header);
   xfree(xml_footer);
-  if (flog) close_memstream(flog);
   if (vmap_f) close_memstream(vmap_f);
   xfree(vmap_txt);
 
@@ -1646,23 +1424,86 @@ super_html_commit_contest(
   if (plog_footer_path_2[0]) unlink(plog_footer_path_2);
   if (serve_cfg_path_2[0]) unlink(serve_cfg_path_2);
 
-  fprintf(f, "<h2><font color=\"red\">Contest saving failed</font></h2>\n");
-  s = html_armor_string_dup(flog_txt);
+  return -1;
+}
+
+int
+super_html_commit_contest(
+        FILE *f,
+        int priv_level,
+        int user_id,
+        const unsigned char *login,
+        ej_cookie_t session_id,
+        const ej_ip_t *ip_address,
+        struct ejudge_cfg *config,
+        struct userlist_clnt *us_conn,
+        struct sid_state *sstate,
+        int cmd,
+        const unsigned char *self_url,
+        const unsigned char *hidden_vars,
+        const unsigned char *extra_args)
+{
+  struct contest_desc *cnts = sstate->edited_cnts;
+  struct section_global_data *global = sstate->global;
+  unsigned char *s = 0;
+  unsigned char hbuf[1024];
+
+  char *log_s = 0;
+  size_t log_z = 0;
+  FILE *log_f = open_memstream(&log_s, &log_z);
+  int r = super_html_commit_contest_2(log_f, user_id, login, ip_address, config, us_conn, sstate);
+  fclose(log_f); log_f = 0;
+  if (r < 0) goto failed;
+
+  fprintf(f, "<h2>Contest is saved successfully</h2>\n");
+  s = html_armor_string_dup(log_s);
   fprintf(f, "<p>Contest saving log:<br><pre>%s</pre>\n", s);
-  xfree(s);
-  xfree(flog_txt);
+  xfree(s); s = 0;
+  xfree(log_s); log_s = 0; log_z = 0;
+
+  if (!sstate->serve_parse_errors) {
+    char *ins_s = 0;
+    size_t ins_z = 0;
+    FILE *ins_f = open_memstream(&ins_s, &ins_z);
+    prepare_further_instructions(ins_f, cnts->root_dir, cnts->conf_dir,
+                                 global, sstate->aprob_u, sstate->aprobs,
+                                 sstate->prob_a, sstate->probs);
+    close_memstream(ins_f); ins_f = 0;
+    fprintf(f, "<h2>Further instructions</h2>%s\n", ins_s);
+    xfree(ins_s); ins_s = 0; ins_z = 0;
+  }
+
+  fprintf(f, "<table border=\"0\"><tr>");
+  fprintf(f, "<td>%sTo the top</a></td>\n",
+          html_hyperref(hbuf, sizeof(hbuf), session_id, self_url,extra_args,0));
+
+  unsigned char new_hidden_vars[1024];
+  snprintf(new_hidden_vars, sizeof(new_hidden_vars),
+           "%s<input type=\"hidden\" name=\"contest_id\" value=\"%d\"/>",
+           hidden_vars, cnts->id);
+
+  fprintf(f, "<td>");
+  html_start_form(f, 1, self_url, new_hidden_vars);
+  fprintf(f, "<input type=\"submit\" name=\"action_%d\" value=\"%s\"/>",
+          SSERV_CMD_CHECK_TESTS_PAGE, "Check contest settings");
+  fprintf(f, "</form></td>\n");
+  fprintf(f, "</tr></table>\n");
+
+  super_serve_clear_edited_contest(sstate);
+  return 0;
+
+ failed:
+  fprintf(f, "<h2><font color=\"red\">Contest saving failed</font></h2>\n");
+  s = html_armor_string_dup(log_s);
+  fprintf(f, "<p>Contest saving log:<br><pre>%s</pre>\n", s);
+  xfree(s); s = 0;
+  xfree(log_s); log_s = 0; log_z = 0;
   fprintf(f, "<table border=\"0\"><tr>");
   fprintf(f, "<td>%sTo the top</a></td>",
           html_hyperref(hbuf, sizeof(hbuf), session_id, self_url,extra_args,0));
   fprintf(f, "<td>%sBack</a></td>",
           html_hyperref(hbuf, sizeof(hbuf), session_id, self_url, extra_args,
-                        "action=%d", SSERV_CMD_EDIT_CURRENT_CONTEST));
+                        "action=%d", SSERV_CMD_CNTS_EDIT_CUR_CONTEST_PAGE));
   fprintf(f, "</tr></table>\n");
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

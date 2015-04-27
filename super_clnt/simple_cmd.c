@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: simple_cmd.c 5682 2010-01-19 10:03:27Z cher $ */
+/* $Id: simple_cmd.c 8237 2014-05-17 06:40:01Z cher $ */
 
-/* Copyright (C) 2004,2005 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,16 +15,17 @@
  * GNU General Public License for more details.
  */
 
-#include "super_clnt.h"
-#include "super_proto.h"
-#include "errlog.h"
+#include "ejudge/super_clnt.h"
+#include "ejudge/super_proto.h"
+#include "ejudge/errlog.h"
 
 #include <stdlib.h>
 
 int
-super_clnt_simple_cmd(int sock_fd,
-                      int cmd,
-                      int contest_id)
+super_clnt_simple_cmd(
+        int sock_fd,
+        int cmd,
+        int contest_id)
 {
   struct prot_super_pkt_simple_cmd *out = 0;
   struct prot_super_packet *in = 0;
@@ -52,9 +53,8 @@ super_clnt_simple_cmd(int sock_fd,
   return in->id;
 }
 
-/**
+/*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

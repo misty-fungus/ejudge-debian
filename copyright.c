@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: copyright.c 7270 2013-01-18 14:50:20Z cher $ */
+/* $Id: copyright.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,12 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/copyright.h"
+#include "ejudge/version.h"
 
-#include "copyright.h"
-#include "version.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <stdio.h>
 
@@ -41,8 +40,8 @@ make_copyright(unsigned char *buf, size_t size)
              "This program is free software; you can redistribute it and/or modify it under the terms of the <a href=\"http://www.gnu.org/licenses/gpl.html\">GNU General Public License</a> as published by the <a href=\"http://www.fsf.org\">Free Software Foundation</a>; either version 2 of the License, or (at your option) any later version.</p>\n"
              "<p class=\"ejudge_copyright\">Visual design and web-interface &copy; %s <a href=\"%s\">Toto Lasvik</a>.</p>"),
            "http://www.ejudge.ru",
-           compile_version, compile_date, "2000-2013",
-           "2006-2013", "http://www.lasvik.ru");
+           compile_version, compile_date, "2000-2014",
+           "2006-2014", "http://www.lasvik.ru");
 }
 
 static unsigned char *copyright_str = 0;
@@ -63,9 +62,12 @@ get_copyright(int locale_id)
   return copyright_str;
 }
 
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
- * End:
- */
+void
+write_copyright_short(FILE *out_f)
+{
+  fprintf(out_f, 
+          "<p class=\"ejudge_copyright\"><a href=\"%s\">ejudge %s (%s)</a>.</p>\n"
+          "<p class=\"ejudge_copyright\">Copyright &copy; %s Alexander Chernov.</p>\n",
+          "http://www.ejudge.ru",
+          compile_version, compile_date, "2000-2014");
+}

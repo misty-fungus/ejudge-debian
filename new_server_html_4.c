@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 7623 2013-11-23 19:25:40Z cher $ */
+/* $Id: new_server_html_4.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,38 +15,37 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/new-server.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/contests.h"
+#include "ejudge/userlist.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/runlog.h"
+#include "ejudge/html.h"
+#include "ejudge/prepare.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/misctext.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/sha.h"
+#include "ejudge/filter_tree.h"
+#include "ejudge/filter_eval.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/charsets.h"
+#include "ejudge/compat.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/errlog.h"
+#include "ejudge/prepare_dflt.h"
+#include "ejudge/ej_uuid.h"
 
-#include "new-server.h"
-#include "new_server_proto.h"
-#include "contests.h"
-#include "userlist.h"
-#include "userlist_proto.h"
-#include "userlist_clnt.h"
-#include "runlog.h"
-#include "html.h"
-#include "prepare.h"
-#include "archive_paths.h"
-#include "fileutl.h"
-#include "teamdb.h"
-#include "misctext.h"
-#include "clarlog.h"
-#include "mime_type.h"
-#include "sha.h"
-#include "filter_tree.h"
-#include "filter_eval.h"
-#include "xml_utils.h"
-#include "charsets.h"
-#include "compat.h"
-#include "ejudge_cfg.h"
-#include "errlog.h"
-#include "prepare_dflt.h"
-#include "ej_uuid.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <stdlib.h>
 #include <errno.h>
@@ -84,15 +83,15 @@ cmd_login(
   opcap_t caps;
 
   // login, password, role, contest_id
-  if (ns_cgi_param(phr, "login", &login) <= 0)
+  if (hr_cgi_param(phr, "login", &login) <= 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-  if (ns_cgi_param(phr, "password", &password) <= 0)
+  if (hr_cgi_param(phr, "password", &password) <= 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
   if (phr->contest_id <= 0 || contests_get(phr->contest_id, &cnts) || !cnts)
     FAIL(NEW_SRV_ERR_INV_CONTEST_ID);
   if (!cnts->managed)
     FAIL(NEW_SRV_ERR_INV_CONTEST_ID);
-  if (ns_cgi_param(phr, "role", &role_str) <= 0)
+  if (hr_cgi_param(phr, "role", &role_str) <= 0)
     FAIL(NEW_SRV_ERR_INV_ROLE);
   if (parse_int(role_str, &phr->role) < 0
       || phr->role < 0 || phr->role >= USER_ROLE_LAST)
@@ -289,7 +288,7 @@ do_schedule(
   const unsigned char *s = 0;
   time_t sloc = 0, start_time, stop_time;
 
-  if (ns_cgi_param(phr, "sched_time", &s) <= 0)
+  if (hr_cgi_param(phr, "sched_time", &s) <= 0)
     return -NEW_SRV_ERR_INV_TIME_SPEC;
   if (xml_parse_date(NULL, 0, 0, 0, s, &sloc) < 0 || sloc < 0)
     return -NEW_SRV_ERR_INV_TIME_SPEC;
@@ -414,7 +413,7 @@ cmd_operation(
     serve_update_status_file(cs, 1);
     break;
   case NEW_SRV_ACTION_REJUDGE_ALL_2:
-    ns_add_job(serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, 1));
+    nsf_add_job(phr->fw_state, serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, 1));
     break;
   case NEW_SRV_ACTION_SCHEDULE:
     return do_schedule(phr, cs, cnts);
@@ -575,7 +574,7 @@ cmd_run_operation(
   char *src_text = 0;
   size_t src_len = 0;
 
-  if (ns_cgi_param(phr, "run_id", &s) <= 0)
+  if (hr_cgi_param(phr, "run_id", &s) <= 0)
     FAIL(NEW_SRV_ERR_INV_RUN_ID);
   if (parse_int(s, &run_id) < 0 || run_id < 0)
     FAIL(NEW_SRV_ERR_INV_RUN_ID);
@@ -691,7 +690,7 @@ cmd_clar_operation(
   unsigned char *msg_txt = 0;
   size_t msg_len = 0;
 
-  if (ns_cgi_param(phr, "clar_id", &s) <= 0)
+  if (hr_cgi_param(phr, "clar_id", &s) <= 0)
     FAIL(NEW_SRV_ERR_INV_CLAR_ID);
   if (parse_int(s, &clar_id) < 0 || clar_id < 0)
     FAIL(NEW_SRV_ERR_INV_CLAR_ID);
@@ -801,7 +800,7 @@ cmd_submit_run(
       abort();
   }
 
-  if (ns_cgi_param(phr, "prob", &s) <= 0)
+  if (hr_cgi_param(phr, "prob", &s) <= 0)
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
   if (s && *s == '#') {
     if (parse_int(s + 1, &i) < 0 || i <= 0 || i > cs->max_prob || !(prob = cs->probs[i]))
@@ -818,7 +817,7 @@ cmd_submit_run(
   /* check variant */
   switch (phr->role) {
   case USER_ROLE_CONTESTANT:
-    if (ns_cgi_param(phr, "variant", &s) != 0)
+    if (hr_cgi_param(phr, "variant", &s) != 0)
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
     if (prob->variant_num > 0) {
       if ((variant = find_variant(cs, phr->user_id, prob->id, 0)) <= 0)
@@ -830,11 +829,11 @@ cmd_submit_run(
   case USER_ROLE_JUDGE:
   case USER_ROLE_ADMIN:
     if (prob->variant_num <= 0) {
-      if (ns_cgi_param(phr, "variant", &s) != 0)
+      if (hr_cgi_param(phr, "variant", &s) != 0)
         FAIL(NEW_SRV_ERR_INV_VARIANT);
       variant = 0;
     } else {
-      if ((r = ns_cgi_param(phr, "variant", &s)) < 0)
+      if ((r = hr_cgi_param(phr, "variant", &s)) < 0)
         FAIL(NEW_SRV_ERR_INV_VARIANT);
       if (!r) {
         if ((variant = find_variant(cs, phr->user_id, prob->id, 0)) <= 0)
@@ -854,7 +853,7 @@ cmd_submit_run(
 
   /* parse language */
   if (prob->type == PROB_TYPE_STANDARD) {
-    if (ns_cgi_param(phr, "lang", &s) <= 0)
+    if (hr_cgi_param(phr, "lang", &s) <= 0)
       FAIL(NEW_SRV_ERR_INV_LANG_ID);
     for (i = 1; i <= cs->max_lang; i++)
       if (cs->langs[i] && !strcmp(s, cs->langs[i]->short_name))
@@ -865,13 +864,13 @@ cmd_submit_run(
     lang = cs->langs[i];
 
     if (cs->global->enable_eoln_select > 0) {
-      ns_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
+      hr_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
       if (eoln_type < 0 || eoln_type > EOLN_CRLF) eoln_type = 0;
     }
   }
 
   /* get the source */
-  if (!ns_cgi_param_bin(phr, "file", &run_text, &run_size))
+  if (!hr_cgi_param_bin(phr, "file", &run_text, &run_size))
     FAIL(NEW_SRV_ERR_SOURCE_NONEXISTANT);
   if (!run_size)
     FAIL(NEW_SRV_ERR_SUBMIT_EMPTY);
@@ -1111,7 +1110,8 @@ cmd_submit_run(
                                      lang->compiler_env,
                                      0, prob->style_checker_cmd,
                                      prob->style_checker_env,
-                                     -1, 0, 0, prob, lang, 0, run_uuid, store_flags)) < 0) {
+                                     -1, 0, 0, prob, lang, 0, run_uuid, store_flags,
+                                     0 /* rejudge_flag */)) < 0) {
         serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       }
     }
@@ -1138,14 +1138,16 @@ cmd_submit_run(
                                        0 /* priority_adjustment */,
                                        0 /* notify flag */,
                                        prob, NULL /* lang */,
-                                       0 /* no_db_flag */, run_uuid, store_flags)) < 0) {
+                                       0 /* no_db_flag */, run_uuid, store_flags,
+                                       0 /* rejudge_flag */)) < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
       } else {
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid) < 0)
+                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              0 /* rejudge_flag */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }
@@ -1187,7 +1189,8 @@ cmd_submit_run(
                                        0 /* priority_adjustment */,
                                        0 /* notify flag */,
                                        prob, NULL /* lang */,
-                                       0 /* no_db_flag */, run_uuid, store_flags)) < 0) {
+                                       0 /* no_db_flag */, run_uuid, store_flags,
+                                       0 /* rejudge_flag */)) < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
       } else {
@@ -1196,7 +1199,8 @@ cmd_submit_run(
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid) < 0)
+                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              0 /* rejudge_flag */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }
@@ -1231,7 +1235,7 @@ cmd_import_xml_runs(
   if (cs->global->enable_runlog_merge <= 0)
     FAIL(NEW_SRV_ERR_NOT_SUPPORTED);
 
-  if (!(r = ns_cgi_param(phr, "file", &s)))
+  if (!(r = hr_cgi_param(phr, "file", &s)))
     FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
   else if (r < 0)
     FAIL(NEW_SRV_ERR_BINARY_FILE);
@@ -1802,14 +1806,14 @@ cmd_dump_master_runs(
   if (phr->role != USER_ROLE_ADMIN && phr->role != USER_ROLE_JUDGE)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
-  if (ns_cgi_param(phr, "filter_expr", &filter_expr) < 0)
+  if (hr_cgi_param(phr, "filter_expr", &filter_expr) < 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
   if (!filter_expr) filter_expr = "";
 
-  if (ns_cgi_param_int_opt_2(phr, "first_run", &first_run, &first_run_set) < 0)
+  if (hr_cgi_param_int_opt_2(phr, "first_run", &first_run, &first_run_set) < 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
 
-  if (ns_cgi_param_int_opt_2(phr, "last_run", &last_run, &last_run_set) < 0)
+  if (hr_cgi_param_int_opt_2(phr, "last_run", &last_run, &last_run_set) < 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
 
   retval = do_dump_master_runs(fout, phr, cnts, extra,
@@ -1838,7 +1842,7 @@ cmd_force_start_virtual(
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
   if (!global->is_virtual)
     FAIL(NEW_SRV_ERR_NOT_VIRTUAL);
-  if (ns_cgi_param_int(phr, "user_id_2", &user_id_2) < 0)
+  if (hr_cgi_param_int(phr, "user_id_2", &user_id_2) < 0)
     FAIL(NEW_SRV_ERR_INV_USER_ID);
   if (!teamdb_lookup(cs->teamdb_state, user_id_2))
     FAIL(NEW_SRV_ERR_INV_USER_ID);
@@ -1879,9 +1883,9 @@ cmd_reload_server_2(
   if (!extra) return 0;
   if (!extra->serve_state) return 0;
 
-  if (ns_cgi_param(phr, "login", &login) <= 0)
+  if (hr_cgi_param(phr, "login", &login) <= 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-  if (ns_cgi_param(phr, "password", &password) <= 0)
+  if (hr_cgi_param(phr, "password", &password) <= 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
   if (!strcmp(login, "__unix__") && !strcmp(password, "__unix__")) {
@@ -2143,10 +2147,3 @@ new_server_cmd_handler(FILE *fout, struct http_request_info *phr)
     return -NEW_SRV_ERR_INV_ACTION;
   }
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
- * End:
- */

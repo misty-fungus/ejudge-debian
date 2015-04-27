@@ -1,7 +1,7 @@
 /* -*- mode: fundamental -*- */
-/* $Id: filter_expr.y 7587 2013-11-11 16:53:34Z cher $ */
+/* $Id: filter_expr.y 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -16,9 +16,9 @@
  */
 
 %{
-#include "filter_tree.h"
+#include "ejudge/filter_tree.h"
 
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 #include <string.h>

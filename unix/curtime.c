@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: curtime.c 7315 2013-01-27 13:31:05Z cher $ */
+/* $Id: curtime.c 8195 2014-05-14 20:19:32Z cher $ */
 
-/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "curtime.h"
+#include "ejudge/curtime.h"
 
 #include <sys/time.h>
 #include <stdlib.h>

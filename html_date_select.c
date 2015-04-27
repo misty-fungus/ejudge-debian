@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: html_date_select.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: html_date_select.c 8413 2014-08-03 21:27:39Z cher $ */
 
-/* Copyright (C) 2005-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "html.h"
+#include "ejudge/html.h"
 
 static const unsigned char * const months_names[] =
 {
@@ -26,30 +26,39 @@ static const unsigned char * const months_names[] =
 void
 html_date_select(FILE *f, time_t t)
 {
-  struct tm *tt = localtime(&t);
   int i;
 
-  fprintf(f, "Time: <input type=\"text\" name=\"d_hour\" value=\"%02d\" size=\"2\" maxlength=\"2\"/>:<input type=\"text\" name=\"d_min\" value=\"%02d\" size=\"2\" maxlength=\"2\"/>:<input type=\"text\" name=\"d_sec\" value=\"%02d\" size=\"2\" maxlength=\"2\"/>",
-          tt->tm_hour, tt->tm_min, tt->tm_sec);
-  fprintf(f, "Date: <select name=\"d_mday\">");
-  for (i = 1; i <= 31; i++) {
-    fprintf(f, "<option value=\"%d\"%s>%02d</option>",
-            i, (i == tt->tm_mday)?" selected=\"1\"":"", i);
-  }
-  fprintf(f, "</select>");
-  fprintf(f, "/<select name=\"d_mon\">");
-  for (i = 0; i < 12; i++) {
-    fprintf(f, "<option value=\"%d\"%s>%s</option>",
-            i + 1, (i == tt->tm_mon)?" selected=\"1\"":"", months_names[i]);
-  }
-  fprintf(f, "</select>");
-  fprintf(f, "/<input type=\"text\" name=\"d_year\" value=\"%d\" size=\"4\" maxlength=\"4\"/>", tt->tm_year + 1900);
-  if (!t) fprintf(f, "<i>(Not set)</i>");
-}
+  if (t <= 0) {
+    fprintf(f, "Time: <input type=\"text\" name=\"d_hour\" value=\"\" size=\"2\" maxlength=\"2\"/>:<input type=\"text\" name=\"d_min\" value=\"\" size=\"2\" maxlength=\"2\"/>:<input type=\"text\" name=\"d_sec\" value=\"\" size=\"2\" maxlength=\"2\"/>");
+    fprintf(f, "Date: <select name=\"d_mday\">");
+    for (i = 1; i <= 31; i++) {
+      fprintf(f, "<option value=\"%d\">%02d</option>", i, i);
+    }
+    fprintf(f, "</select>");
+    fprintf(f, "/<select name=\"d_mon\">");
+    for (i = 0; i < 12; i++) {
+      fprintf(f, "<option value=\"%d\">%s</option>", i + 1, months_names[i]);
+    }
+    fprintf(f, "</select>");
+    fprintf(f, "/<input type=\"text\" name=\"d_year\" value=\"\" size=\"4\" maxlength=\"4\"/>");
+    fprintf(f, "<i>(Not set)</i>");
+  } else {
+    struct tm *tt = localtime(&t);
 
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
- * End:
- */
+    fprintf(f, "Time: <input type=\"text\" name=\"d_hour\" value=\"%02d\" size=\"2\" maxlength=\"2\"/>:<input type=\"text\" name=\"d_min\" value=\"%02d\" size=\"2\" maxlength=\"2\"/>:<input type=\"text\" name=\"d_sec\" value=\"%02d\" size=\"2\" maxlength=\"2\"/>",
+            tt->tm_hour, tt->tm_min, tt->tm_sec);
+    fprintf(f, "Date: <select name=\"d_mday\">");
+    for (i = 1; i <= 31; i++) {
+      fprintf(f, "<option value=\"%d\"%s>%02d</option>",
+              i, (i == tt->tm_mday)?" selected=\"1\"":"", i);
+    }
+    fprintf(f, "</select>");
+    fprintf(f, "/<select name=\"d_mon\">");
+    for (i = 0; i < 12; i++) {
+      fprintf(f, "<option value=\"%d\"%s>%s</option>",
+              i + 1, (i == tt->tm_mon)?" selected=\"1\"":"", months_names[i]);
+    }
+    fprintf(f, "</select>");
+    fprintf(f, "/<input type=\"text\" name=\"d_year\" value=\"%d\" size=\"4\" maxlength=\"4\"/>", tt->tm_year + 1900);
+  }
+}

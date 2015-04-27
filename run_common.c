@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_common.c 7467 2013-10-22 08:16:07Z cher $ */
+/* $Id: run_common.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,33 +15,32 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/misctext.h"
+#include "ejudge/prepare.h"
+#include "ejudge/run_packet.h"
+#include "ejudge/super_run_packet.h"
+#include "ejudge/run.h"
+#include "ejudge/errlog.h"
+#include "ejudge/runlog.h"
+#include "ejudge/digest_io.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/testinfo.h"
+#include "ejudge/full_archive.h"
+#include "ejudge/win32_compat.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/interrupt.h"
+#include "ejudge/nwrun_packet.h"
+#include "ejudge/filehash.h"
+#include "ejudge/curtime.h"
+#include "ejudge/cpu.h"
+#include "ejudge/ej_process.h"
 
-#include "misctext.h"
-#include "prepare.h"
-#include "run_packet.h"
-#include "super_run_packet.h"
-#include "run.h"
-#include "errlog.h"
-#include "runlog.h"
-#include "digest_io.h"
-#include "fileutl.h"
-#include "testinfo.h"
-#include "full_archive.h"
-#include "win32_compat.h"
-#include "ejudge_cfg.h"
-#include "interrupt.h"
-#include "nwrun_packet.h"
-#include "filehash.h"
-#include "curtime.h"
-#include "cpu.h"
-#include "ej_process.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
-#include "reuse_exec.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/exec.h"
+#include "ejudge/logger.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -908,6 +907,9 @@ invoke_valuer(
   if (srgp->checker_locale && srgp->checker_locale[0]) {
     task_SetEnv(tsk, "EJUDGE_LOCALE", srgp->checker_locale);
   }
+  if (srgp->rejudge_flag > 0) {
+    task_SetEnv(tsk, "EJUDGE_REJUDGE", "1");
+  }
   task_EnableAllSignals(tsk);
 
   task_PrintArgs(tsk);
@@ -1008,6 +1010,9 @@ start_interactive_valuer(
   task_SetEnv(tsk, "EJUDGE", "1");
   if (srgp->checker_locale && srgp->checker_locale[0]) {
     task_SetEnv(tsk, "EJUDGE_LOCALE", srgp->checker_locale);
+  }
+  if (srgp->rejudge_flag > 0) {
+    task_SetEnv(tsk, "EJUDGE_REJUDGE", "1");
   }
   task_EnableAllSignals(tsk);
 
@@ -1688,7 +1693,23 @@ invoke_interactor(
         const unsigned char *checker_locale,
         int stdin_fd,
         int stdout_fd,
-        long time_limit_ms)
+        long time_limit_ms,
+        int program_pid)
+	__attribute__((unused)); // on Windows
+static tpTask
+invoke_interactor(
+        const unsigned char *interactor_cmd,
+        const unsigned char *test_src_path,
+        const unsigned char *output_path,
+        const unsigned char *corr_src_path,
+        const unsigned char *working_dir,
+        const unsigned char *check_out_path,
+        char **interactor_env,
+        const unsigned char *checker_locale,
+        int stdin_fd,
+        int stdout_fd,
+        long time_limit_ms,
+        int program_pid)
 {
   tpTask tsk_int = NULL;
 
@@ -1698,6 +1719,11 @@ invoke_interactor(
   task_AddArg(tsk_int, output_path);
   if (corr_src_path && corr_src_path[0]) {
     task_AddArg(tsk_int, corr_src_path);
+  }
+  if (program_pid > 0) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%d", program_pid);
+    task_AddArg(tsk_int, buf);
   }
   task_SetPathAsArg0(tsk_int);
   task_SetWorkingDir(tsk_int, working_dir);
@@ -2269,14 +2295,6 @@ run_one_test(
     }
     fcntl(pfd2[0], F_SETFD, FD_CLOEXEC);
     fcntl(pfd2[1], F_SETFD, FD_CLOEXEC);
-
-    tsk_int = invoke_interactor(interactor_cmd, test_src, output_path, corr_src,
-                                working_dir, check_out_path, srpp->interactor_env, srgp->checker_locale,
-                                pfd1[0], pfd2[1], srpp->interactor_time_limit_ms);
-    if (!tsk_int) {
-      append_msg_to_log(check_out_path, "interactor failed to start");
-      goto check_failed;
-    }
   }
 #endif
 
@@ -2488,6 +2506,18 @@ run_one_test(
     append_msg_to_log(check_out_path, "failed to start %s", exe_path);
     goto check_failed;
   }
+
+#ifndef __WIN32__
+  if (interactor_cmd) {
+    tsk_int = invoke_interactor(interactor_cmd, test_src, output_path, corr_src,
+                                working_dir, check_out_path, srpp->interactor_env, srgp->checker_locale,
+                                pfd1[0], pfd2[1], srpp->interactor_time_limit_ms, task_GetPid(tsk));
+    if (!tsk_int) {
+      append_msg_to_log(check_out_path, "interactor failed to start");
+      goto check_failed;
+    }
+  }
+#endif
 
   if (pfd1[0] >= 0) close(pfd1[0]);
   if (pfd1[1] >= 0) close(pfd1[1]);

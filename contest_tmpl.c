@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: contest_tmpl.c 7356 2013-02-09 08:40:11Z cher $ */
+/* $Id: contest_tmpl.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,20 +15,19 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/contests.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/expat_iface.h"
+#include "ejudge/super_html.h"
+#include "ejudge/super-serve.h"
+#include "ejudge/fileutl.h"
 
-#include "ej_limits.h"
-#include "contests.h"
-#include "ejudge_cfg.h"
-#include "expat_iface.h"
-#include "super_html.h"
-#include "super-serve.h"
-#include "fileutl.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <limits.h>
@@ -323,10 +322,3 @@ contest_tmpl_clone(struct sid_state *sstate,
 
   return cnts;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
- * End:
- */

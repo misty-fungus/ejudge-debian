@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 7672 2013-12-11 08:35:44Z cher $ */
+/* $Id: new_server_html_2.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,45 +15,45 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/new-server.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/filter_eval.h"
+#include "ejudge/misctext.h"
+#include "ejudge/mischtml.h"
+#include "ejudge/html.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/base64.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/l10n.h"
+#include "ejudge/filehash.h"
+#include "ejudge/digest_io.h"
+#include "ejudge/testing_report_xml.h"
+#include "ejudge/full_archive.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/userlist.h"
+#include "ejudge/team_extra.h"
+#include "ejudge/errlog.h"
+#include "ejudge/csv.h"
+#include "ejudge/sha.h"
+#include "ejudge/sformat.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/charsets.h"
+#include "ejudge/compat.h"
+#include "ejudge/run_packet.h"
+#include "ejudge/prepare_dflt.h"
+#include "ejudge/super_run_packet.h"
+#include "ejudge/ej_uuid.h"
+#include "ejudge/new_server_pi.h"
 
-#include "new-server.h"
-#include "new_server_proto.h"
-#include "filter_eval.h"
-#include "misctext.h"
-#include "mischtml.h"
-#include "html.h"
-#include "clarlog.h"
-#include "base64.h"
-#include "xml_utils.h"
-#include "archive_paths.h"
-#include "fileutl.h"
-#include "mime_type.h"
-#include "l10n.h"
-#include "filehash.h"
-#include "digest_io.h"
-#include "testing_report_xml.h"
-#include "full_archive.h"
-#include "teamdb.h"
-#include "userlist.h"
-#include "team_extra.h"
-#include "errlog.h"
-#include "csv.h"
-#include "sha.h"
-#include "sformat.h"
-#include "userlist_clnt.h"
-#include "charsets.h"
-#include "compat.h"
-#include "run_packet.h"
-#include "prepare_dflt.h"
-#include "super_run_packet.h"
-#include "ej_uuid.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <zlib.h>
 #include <sys/types.h>
@@ -1300,1064 +1300,6 @@ ns_write_all_clars(
   html_armor_free(&ab);
 }
 
-static unsigned char *
-html_unparse_bool(unsigned char *buf, size_t size, int value)
-{
-  snprintf(buf, size, "%s", value?_("Yes"):_("No"));
-  return buf;
-}
-static unsigned char *
-html_select_yesno(unsigned char *buf, size_t size,
-                  const unsigned char *var_name, int value)
-{
-  unsigned char *s1 = "", *s2 = "";
-
-  if (!var_name) var_name = "param";
-  if (value) s2 = " selected=\"yes\"";
-  else s1 = " selected=\"yes\"";
-
-  snprintf(buf, size,
-           "<select name=\"%s\">"
-           "<option value=\"0\"%s>%s</option>"
-           "<option value=\"1\"%s>%s</option>"
-           "</select>",
-           var_name, s1, _("No"), s2, _("Yes"));
-
-  return buf;
-}
-
-void
-ns_write_run_view_menu(
-        FILE *f, struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra,
-        int run_id)
-{
-  unsigned char hbuf[1024];
-  int i;
-  static int action_list[] =
-  {
-    NEW_SRV_ACTION_VIEW_SOURCE,
-    NEW_SRV_ACTION_VIEW_REPORT,
-    NEW_SRV_ACTION_VIEW_USER_REPORT,
-    NEW_SRV_ACTION_VIEW_AUDIT_LOG,
-    0,
-  };
-  static const unsigned char * const action_name[] =
-  {
-    __("Source"),
-    __("Report"),
-    __("User report"),
-    __("Audit log"),
-  };
-
-  fprintf(f, "<table class=\"b0\"><tr>");
-  fprintf(f, "<td class=\"b0\">%s%s</a></td>",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
-          _("Main page"));
-  for (i = 0; action_list[i] > 0; i++) {
-    fprintf(f, "<td class=\"b0\">");
-    if (phr->action != action_list[i]) {
-      /*
-      fprintf(f, "%s",
-              ns_aref_2(hbuf, sizeof(hbuf), phr, "menu", action_list[i],
-                        "run_id=%d", run_id));
-      */
-      fprintf(f, "%s",
-              ns_aref(hbuf, sizeof(hbuf), phr, action_list[i],
-                      "run_id=%d", run_id));
-    }
-    fprintf(f, "%s", gettext(action_name[i]));
-    if (phr->action != action_list[i]) {
-      fprintf(f, "</a>");
-    }
-    fprintf(f, "</td>");
-  }
-  fprintf(f, "</tr></table>\n");
-}
-
-void
-ns_write_priv_source(const serve_state_t state,
-                     FILE *f,
-                     FILE *log_f,
-                     struct http_request_info *phr,
-                     const struct contest_desc *cnts,
-                     struct contest_extra *extra,
-                     int run_id)
-{
-  path_t src_path;
-  struct run_entry info;
-  char *src_text = 0; //, *html_text;
-  //unsigned char *numb_txt;
-  size_t src_len; //, html_len, numb_len;
-  time_t start_time;
-  int variant, src_flags;
-  unsigned char filtbuf1[128];
-  unsigned char filtbuf2[256];
-  unsigned char filtbuf3[512];
-  unsigned char *ps1, *ps2;
-  time_t run_time;
-  int run_id2;
-  unsigned char bt[1024];
-  unsigned char bb[1024];
-  const struct section_problem_data *prob = 0;
-  const struct section_language_data *lang = 0;
-  const unsigned char *ss;
-  const struct section_global_data *global = state->global;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  const unsigned char *run_charset = 0;
-  int charset_id = 0;
-  const unsigned char *cl = 0;
-  int txt_flags = 0;
-  path_t txt_path = { 0 };
-  char *txt_text = 0;
-  size_t txt_size = 0;
-
-  if (ns_cgi_param(phr, "run_charset", &ss) > 0 && ss && *ss)
-    run_charset = ss;
-
-  if (run_id < 0 || run_id >= run_get_total(state->runlog_state)) {
-    ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
-    return;
-  }
-  run_get_entry(state->runlog_state, run_id, &info);
-  if (info.status > RUN_LAST
-      || (info.status > RUN_MAX_STATUS && info.status < RUN_TRANSIENT_FIRST)) {
-    ns_error(log_f, NEW_SRV_ERR_SOURCE_UNAVAILABLE);
-    return;
-  }
-
-  src_flags = serve_make_source_read_path(state, src_path, sizeof(src_path), &info);
-  if (src_flags < 0) {
-    ns_error(log_f, NEW_SRV_ERR_SOURCE_NONEXISTANT);
-    return;
-  }
-
-  if (info.prob_id > 0 && info.prob_id <= state->max_prob)
-    prob = state->probs[info.prob_id];
-  if (info.lang_id > 0 && info.lang_id <= state->max_lang)
-    lang = state->langs[info.lang_id];
-
-  ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %s]: %s %d", ns_unparse_role(phr->role),
-            phr->name_arm, extra->contest_arm,
-            _("Viewing run"), run_id);
-
-  run_time = info.time;
-  if (run_time < 0) run_time = 0;
-  start_time = run_get_start_time(state->runlog_state);
-  if (start_time < 0) start_time = 0;
-  if (run_time < start_time) run_time = start_time;
-
-  ns_write_run_view_menu(f, phr, cnts, extra, run_id);
-
-  fprintf(f, "<h2>%s %d",
-          _("Information about run"), run_id);
-  if (phr->role == USER_ROLE_ADMIN && opcaps_check(phr->caps, OPCAP_EDIT_RUN) >= 0) {
-    fprintf(f, " [<a href=\"%s\">%s</a>]",
-            ns_url(bb, sizeof(bb), phr, NEW_SRV_ACTION_PRIV_EDIT_RUN_PAGE,
-                   "run_id=%d", run_id),
-            "Edit");
-  }
-  fprintf(f, "</h2>\n");
-
-  fprintf(f, "<table>\n");
-  fprintf(f, "<tr><td style=\"width: 10em;\">%s:</td><td>%d</td></tr>\n", _("Run ID"), info.run_id);
-  fprintf(f, "<tr><td>%s:</td><td>%s:%d</td></tr>\n",
-          _("Submission time"), duration_str(1, info.time, 0, 0, 0), info.nsec);
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("Contest time"), duration_str_2(filtbuf1, sizeof(filtbuf1), run_time - start_time, info.nsec));
-
-#if CONF_HAS_LIBUUID - 0 != 0
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", "UUID", ej_uuid_unparse(info.run_uuid, ""));
-#endif
-
-  // IP-address
-  fprintf(f, "<tr><td>%s:</td>", _("Originator IP"));
-  snprintf(filtbuf1, sizeof(filtbuf1), "ip == ip(%d)", run_id);
-  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-  fprintf(f, "<td>%s%s</a></td>",
-          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
-                  "filter_expr=%s", filtbuf2),
-          xml_unparse_ip(info.a.ip));
-  fprintf(f, "</tr>\n");
-
-  // user_id
-  snprintf(filtbuf1, sizeof(filtbuf1), "uid == %d", info.user_id);
-  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-  fprintf(f, "<tr><td>%s:</td><td>%s%d</a></td></tr>",
-          _("User ID"),
-          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
-                  "filter_expr=%s", filtbuf2),
-          info.user_id);
-
-  // user login
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("User login"), teamdb_get_login(state->teamdb_state, info.user_id));
-
-  // user name
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("User name"), ARMOR(teamdb_get_name(state->teamdb_state, info.user_id)));
-
-  // problem
-  if (prob) {
-    snprintf(filtbuf1, sizeof(filtbuf1), "prob == \"%s\"",  prob->short_name);
-    url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-    fprintf(f, "<tr><td>%s:</td><td>%s%s - %s</a>",
-            "Problem", ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0, "filter_expr=%s", filtbuf2),
-            prob->short_name, ARMOR(prob->long_name));
-    if (prob->xml_file && prob->xml_file[0]) {
-      fprintf(f, " %s[%s]</a>",
-              ns_aref(filtbuf3, sizeof(filtbuf3), phr,
-                      NEW_SRV_ACTION_PRIV_SUBMIT_PAGE,
-                      "problem=%d", prob->id),
-              "Statement");
-    }
-    fprintf(f, "</td></tr>\n");
-  } else {
-    fprintf(f, "<tr><td>%s:</td><td>#%d</td></tr>\n", "Problem", info.prob_id);
-  }
-
-  // variant
-  if (prob && prob->variant_num > 0) {
-    variant = info.variant;
-    if (!variant) variant = find_variant(state, info.user_id, info.prob_id, 0);
-    if (variant > 0) {
-      snprintf(filtbuf1, sizeof(filtbuf1), "prob == \"%s\" && variant == %d", 
-               prob->short_name, variant);
-      url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-      ps1 = ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
-                    "filter_expr=%s", filtbuf2);
-      ps2 = "</a>";
-      if (info.variant > 0) {
-        snprintf(bb, sizeof(bb), "%d", info.variant);
-      } else {
-        snprintf(bb, sizeof(bb), "%d (implicit)", variant);
-      }
-    } else {
-      ps1 = ""; ps2 = "";
-      snprintf(bb, sizeof(bb), "<i>unassigned</i>");
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s%s%s</td></tr>\n", _("Variant"), ps1, bb, ps2);
-  }
-
-  // lang_id
-  if (lang) {
-    snprintf(filtbuf1, sizeof(filtbuf1), "lang == \"%s\"", lang->short_name);
-    url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-    fprintf(f, "<tr><td>%s:</td><td>%s%s - %s</a></td></tr>\n", _("Language"),
-            ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0, "filter_expr=%s", filtbuf2),
-            lang->short_name, ARMOR(lang->long_name));
-  } else if (!info.lang_id) {
-    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Language"), "N/A");
-  } else {
-    fprintf(f, "<tr><td>%s:</td><td>#%d</td></tr>\n", _("Language"), info.lang_id);
-  }
-
-  // EOLN type
-  if (info.eoln_type) {
-    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("EOLN Type"),
-            eoln_type_unparse_html(info.eoln_type));
-  }
-
-  // status
-  run_status_to_str_short(bb, sizeof(bb), info.status);
-  snprintf(filtbuf1, sizeof(filtbuf1), "status == %s", bb);
-  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-  fprintf(f, "<tr><td>%s:</td><td>%s%s</a></td></tr>\n",
-          _("Status"),
-          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0, "filter_expr=%s", filtbuf2),
-          run_status_str(info.status, 0, 0, 0, 0));
-
-  if (info.passed_mode > 0) {
-    if (info.test < 0) {
-      snprintf(bb, sizeof(bb), "N/A");
-    } else {
-      snprintf(bb, sizeof(bb), "%d", info.test);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Tests passed"), bb);
-  }
-  if (global->score_system == SCORE_KIROV
-      || global->score_system == SCORE_OLYMPIAD) {
-    if (info.passed_mode <= 0) {
-      // test (number of tests passed)
-      if (info.test <= 0) {
-        snprintf(bb, sizeof(bb), "N/A");
-      } else {
-        snprintf(bb, sizeof(bb), "%d", info.test - 1);
-      }
-      fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Tests passed"), bb);
-    }
-
-    // score
-    if (info.score < 0) {
-      snprintf(bb, sizeof(bb), "N/A");
-    } else {
-      snprintf(bb, sizeof(bb), "%d", info.score);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"), bb);
-  } else if (global->score_system == SCORE_MOSCOW) {
-    if (info.passed_mode <= 0) {
-      // the first failed test
-      if (info.test <= 0) {
-        snprintf(bb, sizeof(bb), "N/A");
-      } else {
-        snprintf(bb, sizeof(bb), "%d", info.test);
-      }
-      fprintf(f, "<tr><td>%s:</td><td><i>%s</i></td></tr>\n", _("Failed test"), bb);
-    }
-
-    // score
-    if (info.score < 0) {
-      snprintf(bb, sizeof(bb), "N/A");
-    } else {
-      snprintf(bb, sizeof(bb), "%d", info.score);
-    }
-    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"), bb);
-  } else {
-    // ACM scoring system
-    if (info.passed_mode <= 0) {
-      // first failed test
-      if (info.test <= 0) {
-        snprintf(bb, sizeof(bb), "N/A");
-      } else {
-        snprintf(bb, sizeof(bb), "%d", info.test);
-      }
-      fprintf(f, "<tr><td>%s:</td><td><i>%s</i></td></tr>\n", _("Failed test"), bb);
-    }
-  }
-
-  // is_marked
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("Marked?"),
-          html_unparse_bool(bb, sizeof(bb), info.is_marked));
-  fprintf(f, "</table>\n");
-
-  /// additional info
-  fprintf(f, "<script language=\"javascript\">\n");
-  fprintf(f,
-          "function setDivVisibility(oper, value)\n"
-          "{\n"
-          "  obj1 = document.getElementById(\"Show\" + oper + \"Div\");\n"
-          "  obj2 = document.getElementById(\"Hide\" + oper + \"Div\");\n"
-          "  if (value) {\n"
-          "    obj1.style.display = \"none\";\n"
-          "    obj2.style.display = \"\";\n"
-          "  } else {\n"
-          "    obj1.style.display = \"\";\n"
-          "    obj2.style.display = \"none\";\n"
-          "  }\n"
-          "}\n"
-          "");
-  fprintf(f, "</script>\n");
-
-  fprintf(f, "<div id=\"ShowExtraDiv\">");
-  fprintf(f, "<a onclick=\"setDivVisibility('Extra', true)\">[%s]</a>\n", "More info");
-  fprintf(f, "</div>");
-  fprintf(f, "<div style=\"display: none;\" id=\"HideExtraDiv\">");
-  fprintf(f, "<a onclick=\"setDivVisibility('Extra', false)\">[%s]</a><br/>\n", "Hide extended info");
-
-  fprintf(f, "<table>\n");
-
-  // mime_type
-  if (!info.lang_id) {
-    fprintf(f, "<tr><td>%s</td><td>%s</td></tr>\n",
-            _("Content type"), mime_type_get_type(info.mime_type));
-  }
-
-  // is_imported
-  fprintf(f, "<tr><td style=\"width: 10em;\">%s:</td><td>%s</td></tr>\n",
-          _("Imported?"), html_unparse_bool(bb, sizeof(bb), info.is_imported));
-
-  // is_hidden
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("Hidden?"), html_unparse_bool(bb, sizeof(bb), info.is_hidden));
-
-  // is_examinable
-  /*
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("Examinable?"),
-          html_unparse_bool(bb, sizeof(bb), info.is_examinable));
-  */
-
-  // is_saved
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("Saved?"),
-          html_unparse_bool(bb, sizeof(bb), info.is_saved));
-
-  // is_readonly
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("Read-only?"), html_unparse_bool(bb, sizeof(bb), info.is_readonly));
-
-  // locale_id
-  fprintf(f, "<tr><td>%s:</td><td>%d</td></tr>\n", _("Locale ID"), info.locale_id);
-
-  // score_adj
-  if (global->score_system != SCORE_ACM) {
-    fprintf(f, "<tr><td>%s:</td><td>%d</td></tr>\n", _("Score adjustment"),
-            info.score_adj);
-  }
-
-  // size
-  snprintf(filtbuf1, sizeof(filtbuf1), "size == size(%d)", run_id);
-  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-  fprintf(f, "<tr><td>%s:</td><td>%s%u</a></td></tr>\n",
-          _("Size"),
-          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
-                  "filter_expr=%s", filtbuf2),
-          info.size);
-
-  // hash code
-  snprintf(filtbuf1, sizeof(filtbuf1), "hash == hash(%d)", run_id);
-  url_armor_string(filtbuf2, sizeof(filtbuf2), filtbuf1);
-  fprintf(f, "<tr><td>%s:</td><td>%s%s</a></td></tr>\n",
-          _("Hash value"),
-          ns_aref(filtbuf3, sizeof(filtbuf3), phr, 0,
-                  "filter_expr=%s", filtbuf2),
-          unparse_sha1(info.sha1));
-
-  fprintf(f, "<tr><td>%s:</td><td>%d</td></tr>\n", _("Pages printed"), info.pages);
-  fprintf(f, "</table>\n");
-
-  fprintf(f, "</div>\n");
-
-  fprintf(f, "<p>%s%s</a></p>\n",
-          ns_aref(filtbuf3, sizeof(filtbuf3), phr,
-                  NEW_SRV_ACTION_PRIV_DOWNLOAD_RUN, "run_id=%d", run_id),
-          _("Download run"));
-
-  if (phr->role == USER_ROLE_ADMIN && opcaps_check(phr->caps, OPCAP_EDIT_RUN) >= 0
-      && info.is_readonly <= 0) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-    fprintf(f, "<p>%s</p>", BUTTON(NEW_SRV_ACTION_CLEAR_RUN));
-    fprintf(f, "</form>\n");
-  }
-
-  if (opcaps_check(phr->caps, OPCAP_PRINT_RUN) >= 0) {
-    html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-    fprintf(f, "<p>%s</p>", BUTTON(NEW_SRV_ACTION_PRINT_RUN));
-    fprintf(f, "</form>\n");
-  }
-
-  filtbuf1[0] = 0;
-  if (run_id > 0) {
-    run_id2 = run_find(state->runlog_state, run_id - 1, 0, info.user_id,
-                       info.prob_id, info.lang_id, NULL, NULL);
-    if (run_id2 >= 0) {
-      snprintf(filtbuf1, sizeof(filtbuf1), "%d", run_id2);
-    }
-  }
-  html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-  html_hidden(f, "run_id", "%d", run_id);
-  fprintf(f, "<p>%s: %s %s</p></form>\n",
-          _("Compare this run with run"),
-          html_input_text(bt, sizeof(bt), "run_id2", 10, 0, "%s", filtbuf1),
-          BUTTON(NEW_SRV_ACTION_COMPARE_RUNS));
-
-  html_start_form(f, 0, phr->self_url, phr->hidden_vars);
-  html_hidden(f, "run_id", "%d", run_id);
-  fprintf(f, "<p>%s: ", _("Charset"));
-  charset_html_select(f, "run_charset", run_charset);
-  fprintf(f, "%s</p>",
-          ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_VIEW_SOURCE,
-                           _("Change")));
-  fprintf(f, "</form>\n");
-
-  if (global->enable_report_upload) {
-    html_start_form(f, 2, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "run_id", "%d", run_id);
-    fprintf(f, "<p>%s: ", _("Upload judging protocol"));
-    fprintf(f, "<input type=\"file\" name=\"file\"/>");
-    if (global->team_enable_rep_view) {
-      fprintf(f, "<input type=\"checkbox\" %s%s/>%s",
-              "name=\"judge_report\"", "checked=\"yes\"",
-              _("Judge's report"));
-      fprintf(f, "<input type=\"checkbox\" %s%s/>%s",
-              "name=\"user_report\"", "checked=\"yes\"",
-              _("User's report"));
-    }
-    fprintf(f, "%s</form>\n", BUTTON(NEW_SRV_ACTION_UPLOAD_REPORT));
-  }
-
-  /*
-  print_nav_buttons(state, f, run_id, sid, self_url, hidden_vars, extra_args,
-                    _("Main page"), 0, 0, 0, _("Refresh"), _("View report"),
-                    _("View team report"));
-  */
-
-  fprintf(f, "<hr>\n");
-  if (prob && prob->type > 0 && info.mime_type > 0) {
-    if(info.mime_type >= MIME_TYPE_IMAGE_FIRST
-       && info.mime_type <= MIME_TYPE_IMAGE_LAST) {
-      fprintf(f, "<p><img src=\"%s\" alt=\"submit image\"/></p>",
-              ns_url(filtbuf3, sizeof(filtbuf3), phr,
-                     NEW_SRV_ACTION_PRIV_DOWNLOAD_RUN,
-                     "run_id=%d&no_disp=1", run_id));
-    } else {
-      fprintf(f, "<p>The submission is binary and thus is not shown.</p>\n");
-    }
-  } else if (lang && lang->binary) {
-    fprintf(f, "<p>The submission is binary and thus is not shown.</p>\n");
-  } else if (!info.is_imported) {
-    if (src_flags < 0 || generic_read_file(&src_text, 0, &src_len, src_flags, 0, src_path, "") < 0) {
-      fprintf(f, "<big><font color=\"red\">Cannot read source text!</font></big>\n");
-    } else {
-      if (run_charset && (charset_id = charset_get_id(run_charset)) > 0) {
-        unsigned char *newsrc = charset_decode_to_heap(charset_id, src_text);
-        xfree(src_text);
-        src_text = newsrc;
-        src_len = strlen(src_text);
-      }
-
-      fprintf(f, "<table class=\"b0\">");
-      text_table_number_lines(f, src_text, src_len, 0, " class=\"b0\"");
-      fprintf(f, "</table><br/><hr/>");
-
-      xfree(src_text); src_text = 0;
-      /*
-      numb_txt = "";
-      if ((numb_len = text_numbered_memlen(src_text, src_len))) {
-        numb_txt = alloca(numb_len + 1);
-        text_number_lines(src_text, src_len, numb_txt);
-      }
-
-      html_len = html_armored_memlen(numb_txt, numb_len);
-      html_text = alloca(html_len + 16);
-      html_armor_text(numb_txt, numb_len, html_text);
-      html_text[html_len] = 0;
-      fprintf(f, "<pre>%s</pre>", html_text);
-      xfree(src_text);
-      fprintf(f, "<hr/>\n");
-      */
-    }
-    /*
-    print_nav_buttons(state, f, run_id, sid, self_url, hidden_vars, extra_args,
-                      _("Main page"), 0, 0, 0, _("Refresh"), _("View report"),
-                      _("View team report"));
-    */
-  }
-
-    /* try to load text description of the archive */
-  txt_flags = serve_make_report_read_path(state, txt_path, sizeof(txt_path), &info);
-  if (txt_flags >= 0) {
-    if (generic_read_file(&txt_text, 0, &txt_size, txt_flags, 0,
-                          txt_path, 0) >= 0) {
-      fprintf(f, "<h2>%s</h2>\n<pre>%s</pre>\n", "Style checker output", ARMOR(txt_text));
-      xfree(txt_text); txt_text = 0; txt_size = 0;
-    }
-  }
-
-  fprintf(f, "<h2>%s</h2>\n", _("Send a message about this run"));
-  html_start_form_id(f, 1, phr->self_url, "run_comment", phr->hidden_vars);
-  html_hidden(f, "run_id", "%d", run_id);
-  fprintf(f, "<table%s><tr>", cl);
-  fprintf(f, "<td%s>%s</td>", cl,
-          BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE));
-  fprintf(f, "<td%s>%s</td>", cl,
-          BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK));
-  fprintf(f, "</tr></table><br/>\n");
-  fprintf(f, "<table%s><tr>", cl);
-  fprintf(f, "<td><input type=\"button\" onclick=\"formatViolation()\" value=\"%s\" /></td>", _("Formatting rules violation"));
-  fprintf(f, "</tr></table>\n");
-  fprintf(f, "<p><textarea id=\"msg_text\" name=\"msg_text\" rows=\"20\" cols=\"60\">"
-          "</textarea></p>");
-  cl = " class=\"b0\"";
-  fprintf(f, "<table%s><tr>", cl);
-  fprintf(f, "<td%s>%s</td>", cl,
-          BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT));
-  fprintf(f, "<td%s>%s</td>", cl,
-          BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE));
-  fprintf(f, "<td%s>%s</td>", cl,
-          BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK));
-  fprintf(f, "<td%s>%s</td>", cl,
-          BUTTON(NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED));
-  fprintf(f, "</tr></table>\n");
-  fprintf(f, "</form>\n");
-
-  html_armor_free(&ab);
-}
-
-void
-ns_write_priv_report(const serve_state_t cs,
-                     FILE *f,
-                     FILE *log_f,
-                     struct http_request_info *phr,
-                     const struct contest_desc *cnts,
-                     struct contest_extra *extra,
-                     int team_report_flag,
-                     int run_id)
-{
-  path_t rep_path;
-  char *rep_text = 0, *html_text;
-  size_t rep_len = 0, html_len;
-  int rep_flag, content_type;
-  const unsigned char *start_ptr = 0;
-  struct run_entry re;
-  const struct section_global_data *global = cs->global;
-  const struct section_problem_data *prob = 0;
-
-  static const int new_actions_vector[] =
-  {
-    NEW_SRV_ACTION_VIEW_TEST_INPUT,
-    NEW_SRV_ACTION_VIEW_TEST_OUTPUT,
-    NEW_SRV_ACTION_VIEW_TEST_ANSWER,
-    NEW_SRV_ACTION_VIEW_TEST_ERROR,
-    NEW_SRV_ACTION_VIEW_TEST_CHECKER,
-    NEW_SRV_ACTION_VIEW_TEST_INFO,
-  };
-
-  if (run_id < 0 || run_id >= run_get_total(cs->runlog_state)
-      || run_get_entry(cs->runlog_state, run_id, &re) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
-    goto done;
-  }
-  if (re.status > RUN_MAX_STATUS) {
-    ns_error(log_f, NEW_SRV_ERR_REPORT_UNAVAILABLE);
-    goto done;
-  }
-  if (!run_is_report_available(re.status)) {
-    ns_error(log_f, NEW_SRV_ERR_REPORT_UNAVAILABLE);
-    goto done;
-  }
-  if (re.prob_id <= 0 || re.prob_id > cs->max_prob
-      || !(prob = cs->probs[re.prob_id])) {
-    ns_error(log_f, NEW_SRV_ERR_INV_PROB_ID);
-    goto done;
-  }
-
-  int user_mode = 0;
-  if (team_report_flag && global->team_enable_rep_view) {
-    user_mode = 1;
-    if (global->team_show_judge_report) {
-      user_mode = 0;
-    }
-  }
-
-  rep_flag = serve_make_xml_report_read_path(cs, rep_path, sizeof(rep_path), &re);
-  if (rep_flag >= 0) {
-    if (generic_read_file(&rep_text, 0, &rep_len, rep_flag, 0, rep_path, 0)<0){
-      ns_error(log_f, NEW_SRV_ERR_DISK_READ_ERROR);
-      goto done;
-    }
-    content_type = get_content_type(rep_text, &start_ptr);
-  } else {
-    if (user_mode) {
-      rep_flag = archive_make_read_path(cs, rep_path, sizeof(rep_path),
-                                        global->team_report_archive_dir, run_id, 0, 1);
-    } else {
-      rep_flag = serve_make_report_read_path(cs, rep_path, sizeof(rep_path), &re);
-    }
-    if (rep_flag < 0) {
-      ns_error(log_f, NEW_SRV_ERR_REPORT_NONEXISTANT);
-      goto done;
-    }
-    if (generic_read_file(&rep_text, 0, &rep_len, rep_flag, 0, rep_path, 0)<0){
-      ns_error(log_f, NEW_SRV_ERR_DISK_READ_ERROR);
-      goto done;
-    }
-    content_type = get_content_type(rep_text, &start_ptr);
-  }
-
-  ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %s]: %s %d", ns_unparse_role(phr->role),
-            phr->name_arm, extra->contest_arm,
-            team_report_flag?_("Viewing user report"):_("Viewing report"),
-            run_id);
-
-  ns_write_run_view_menu(f, phr, cnts, extra, run_id);
-
-  switch (content_type) {
-  case CONTENT_TYPE_TEXT:
-    html_len = html_armored_memlen(start_ptr, rep_len);
-    if (html_len > 2 * 1024 * 1024) {
-      html_text = xmalloc(html_len + 16);
-      html_armor_text(rep_text, rep_len, html_text);
-      html_text[html_len] = 0;
-      fprintf(f, "<pre>%s</pre>", html_text);
-      xfree(html_text);
-    } else {
-      html_text = alloca(html_len + 16);
-      html_armor_text(rep_text, rep_len, html_text);
-      html_text[html_len] = 0;
-      fprintf(f, "<pre>%s</pre>", html_text);
-    }
-    break;
-  case CONTENT_TYPE_HTML:
-    fprintf(f, "%s", start_ptr);
-    break;
-  case CONTENT_TYPE_XML:
-    if (prob->type == PROB_TYPE_TESTS) {
-      if (team_report_flag) {
-        write_xml_team_tests_report(cs, prob, f, start_ptr, "b1");
-      } else {
-        write_xml_tests_report(f, 0, start_ptr, phr->session_id, phr->self_url,
-                               "", "b1", 0);
-      }
-    } else {
-      if (team_report_flag) {
-        write_xml_team_testing_report(cs, prob, f, 0, re.is_marked, start_ptr, "b1", phr->session_id, phr->self_url, "",
-                                      new_actions_vector);
-      } else {
-        write_xml_testing_report(f, 0, start_ptr, phr->session_id,phr->self_url,
-                                 "", new_actions_vector, "b1", 0);
-      }
-    }
-    break;
-  default:
-    abort();
-  }
-
-  /*
-  xfree(rep_text);
-  fprintf(f, "<hr>\n");
-  print_nav_buttons(state, f, run_id, sid, self_url, hidden_vars, extra_args,
-                    _("Main page"), 0, 0, 0, _("View source"), t6, t7);
-  */
-
- done:;
-  xfree(rep_text);
-}
-
-void
-ns_write_audit_log(const serve_state_t cs,
-                   FILE *f,
-                   FILE *log_f,
-                   struct http_request_info *phr,
-                   const struct contest_desc *cnts,
-                   struct contest_extra *extra,
-                   int run_id)
-{
-  struct run_entry re;
-  int rep_flag;
-  path_t audit_log_path;
-  struct stat stb;
-  char *audit_text = 0;
-  size_t audit_text_size = 0;
-  char *audit_html = 0;
-
-  if (run_id < 0 || run_id >= run_get_total(cs->runlog_state)
-      || run_get_entry(cs->runlog_state, run_id, &re) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
-    goto done;
-  }
-
-  if ((rep_flag = serve_make_audit_read_path(cs, audit_log_path, sizeof(audit_log_path), &re)) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_AUDIT_LOG_NONEXISTANT);
-    goto done;
-  }
-  if (lstat(audit_log_path, &stb) < 0
-      || !S_ISREG(stb.st_mode)) {
-    ns_error(log_f, NEW_SRV_ERR_AUDIT_LOG_NONEXISTANT);
-    goto done;
-  }
-
-  if (generic_read_file(&audit_text, 0, &audit_text_size, 0, 0, audit_log_path,
-                        0) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_DISK_READ_ERROR);
-    goto done;
-  }
-  audit_html = html_armor_string_dup(audit_text);
-
-  ns_header(f, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %s]: %s %d", ns_unparse_role(phr->role),
-            phr->name_arm, extra->contest_arm,
-            _("Viewing audit log for"), run_id);
-  ns_write_run_view_menu(f, phr, cnts, extra, run_id);
-  fprintf(f, "<hr/>\n");
-  if (!audit_text || !*audit_text) {
-    fprintf(f, "<p><i>%s</i></p>", _("Audit log is empty"));
-  } else {
-    fprintf(f, "<pre>%s</pre>", audit_html);
-  }
-  ns_footer(f, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-
- done:;
-  xfree(audit_html);
-  xfree(audit_text);
-}
-
-void
-ns_write_priv_clar(const serve_state_t cs,
-                   FILE *f,
-                   FILE *log_f,
-                   struct http_request_info *phr,
-                   const struct contest_desc *cnts,
-                   struct contest_extra *extra,
-                   int clar_id)
-{
-  //const struct section_global_data *global = cs->global;
-  struct clar_entry_v1 clar;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  struct html_armor_buffer rb = HTML_ARMOR_INITIALIZER;
-  time_t start_time;
-  unsigned char *msg_txt = 0;
-  size_t msg_len = 0;
-  unsigned char bb[1024];
-  unsigned char b1[1024], b2[1024];
-  const unsigned char *clar_subj = 0;
-  unsigned char hbuf[1024];
-
-  if (clar_id < 0 || clar_id >= clar_get_total(cs->clarlog_state)
-      || clar_get_record(cs->clarlog_state, clar_id, &clar) < 0
-      || clar.id < 0) {
-    ns_error(log_f, NEW_SRV_ERR_INV_CLAR_ID);
-    goto done;
-  }
-  start_time = run_get_start_time(cs->runlog_state);
-  clar_subj = clar_get_subject(cs->clarlog_state, clar_id);
-
-  fprintf(f, "<h2>%s %d", _("Message"), clar_id);
-  if (phr->role == USER_ROLE_ADMIN && opcaps_check(phr->caps, OPCAP_EDIT_RUN) >= 0) {
-    fprintf(f, " [<a href=\"%s\">%s</a>]",
-            ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_PRIV_EDIT_CLAR_PAGE,
-                   "clar_id=%d", clar_id),
-            "Edit");
-  }
-  fprintf(f, "</h2>\n");
-  fprintf(f, "<table border=\"0\">\n");
-  fprintf(f, "<tr><td>%s:</td><td>%d</td></tr>\n", _("Clar ID"), clar_id);
-  if (clar.hide_flag)
-    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-            _("Available only after contest start"),
-            clar.hide_flag?_("YES"):_("NO"));
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Flags"),
-          clar_flags_html(cs->clarlog_state, clar.flags,
-                          clar.from, clar.to, 0, 0));
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("Time"), duration_str(1, clar.time, 0, 0, 0));
-  if (!cs->global->is_virtual && start_time > 0) {
-    fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n",
-            _("Duration"), duration_str(0, clar.time, start_time, 0, 0));
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>\n", _("IP address"),
-          xml_unparse_ip(clar.a.ip));
-  fprintf(f, "<tr><td>%s:</td><td>%u</td></tr>\n", _("Size"), clar.size);
-  fprintf(f, "<tr><td>%s:</td>", _("Sender"));
-  if (!clar.from) {
-    if (!clar.j_from)
-      fprintf(f, "<td><b>%s</b></td>", _("judges"));
-    else
-      fprintf(f, "<td><b>%s</b> (%s)</td>", _("judges"),
-              ARMOR(teamdb_get_name_2(cs->teamdb_state, clar.j_from)));
-  } else {
-    snprintf(b1, sizeof(b1), "uid == %d", clar.from);
-    url_armor_string(b2, sizeof(b2), b1);
-    fprintf(f, "<td>%s%s (%d)</a></td>",
-            ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_MAIN_PAGE,
-                    "filter_expr=%s", b2),
-            ARMOR(teamdb_get_name_2(cs->teamdb_state, clar.from)),
-            clar.from);
-  }
-  fprintf(f, "</tr>\n<tr><td>%s:</td>", _("To"));
-  if (!clar.to && !clar.from) {
-    fprintf(f, "<td><b>%s</b></td>", _("all"));
-  } else if (!clar.to) {
-    fprintf(f, "<td><b>%s</b></td>", _("judges"));
-  } else {
-    snprintf(b1, sizeof(b1), "uid == %d", clar.to);
-    url_armor_string(b2, sizeof(b2), b1);
-    fprintf(f, "<td>%s%s (%d)</a></td>",
-            ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_MAIN_PAGE,
-                    "filter_expr=%s", b2),
-            ARMOR(teamdb_get_name_2(cs->teamdb_state, clar.to)), clar.to);
-  }
-  fprintf(f, "</tr>\n");
-  if (clar.in_reply_to > 0) {
-    fprintf(f, "<tr><td>%s:</td><td>%s%d</td></a></tr>", _("In reply to"),
-            ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_VIEW_CLAR,
-                    "clar_id=%d", clar.in_reply_to - 1),
-            clar.in_reply_to - 1);
-  }
-  fprintf(f, "<tr><td>%s:</td><td>%d</td></tr>", _("Locale code"),
-          clar.locale_id);
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("Subject"),ARMOR(clar_subj));
-  fprintf(f, "</table>\n");
-  /*
-  print_nav_buttons(state, f, 0, sid, self_url, hidden_vars, extra_args,
-                    _("Main page"), 0, 0, 0, 0, 0, 0);
-  */
-  fprintf(f, "<hr>\n");
-
-  if (clar_get_text(cs->clarlog_state, clar_id, &msg_txt, &msg_len) < 0) {
-    fprintf(f, "<big><font color=\"red\">%s</font></big>\n",
-            _("Cannot read message text!"));
-  } else {
-    fprintf(f, "<pre>%s</pre>", ARMOR(msg_txt));
-    xfree(msg_txt); msg_txt = 0;
-  }
-
-  if (phr->role >= USER_ROLE_JUDGE && clar.from
-      && opcaps_check(phr->caps, OPCAP_REPLY_MESSAGE) >= 0) {
-    fprintf(f, "<hr/>\n");
-    html_start_form(f, 2, phr->self_url, phr->hidden_vars);
-    html_hidden(f, "in_reply_to", "%d", clar_id);
-    fprintf(f, "<p>%s\n", BUTTON(NEW_SRV_ACTION_CLAR_REPLY_READ_PROBLEM));
-    fprintf(f, "%s\n", BUTTON(NEW_SRV_ACTION_CLAR_REPLY_NO_COMMENTS));
-    fprintf(f, "%s\n", BUTTON(NEW_SRV_ACTION_CLAR_REPLY_YES));
-    fprintf(f, "%s\n", BUTTON(NEW_SRV_ACTION_CLAR_REPLY_NO));
-    fprintf(f, "<p><textarea name=\"reply\" rows=\"20\" cols=\"60\"></textarea></p>\n");
-    fprintf(f, "<p>%s\n", BUTTON(NEW_SRV_ACTION_CLAR_REPLY));
-    fprintf(f, "%s\n", BUTTON(NEW_SRV_ACTION_CLAR_REPLY_ALL));
-    fprintf(f, "</form>\n");
-  }
-
- done:;
-  html_armor_free(&ab);
-  html_armor_free(&rb);
-  xfree(msg_txt);
-}
-
-void
-ns_priv_edit_clar_page(
-        const serve_state_t cs,
-        FILE *f,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra,
-        int clar_id)
-{
-  unsigned char hbuf[1024];
-  struct clar_entry_v1 clar;
-  //const unsigned char *clar_subj = 0;
-  //time_t start_time;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  const unsigned char *from_str = NULL, *to_str = NULL;
-  unsigned char from_buf[128], to_buf[128];
-  const unsigned char *s;
-  unsigned char *msg_txt = NULL;
-  size_t msg_len = 0;
-
-  if (clar_id < 0 || clar_id >= clar_get_total(cs->clarlog_state)
-      || clar_get_record(cs->clarlog_state, clar_id, &clar) < 0
-      || clar.id < 0) {
-    ns_error(log_f, NEW_SRV_ERR_INV_CLAR_ID);
-    goto done;
-  }
-  //start_time = run_get_start_time(cs->runlog_state);
-  //clar_subj = clar_get_subject(cs->clarlog_state, clar_id);
-
-  fprintf(f, "<h2>%s %d", _("Message"), clar_id);
-  if (opcaps_check(phr->caps, OPCAP_VIEW_CLAR) >= 0) {
-    fprintf(f, " [<a href=\"%s\">%s</a>]",
-            ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_CLAR,
-                   "clar_id=%d", clar_id),
-            "View");
-  }
-  fprintf(f, "</h2>\n");
-
-  html_start_form(f, 2, phr->self_url, phr->hidden_vars);
-  fprintf(f, "<input type=\"hidden\" name=\"action\" value=\"%d\" />\n", NEW_SRV_ACTION_PRIV_EDIT_CLAR_ACTION);
-  fprintf(f, "<input type=\"hidden\" name=\"clar_id\" value=\"%d\" />\n", clar_id);
-  unsigned char *cl = " class=\"b0\"";
-  fprintf(f, "<table%s>\n", cl);
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%d</td></tr>\n", cl, "Clar ID", cl, clar_id);
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s.%06d</td></tr>\n", cl, "Time", cl, xml_unparse_date(clar.time),
-          clar.nsec / 1000);
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%d</td></tr>\n", cl, "Size", cl, clar.size);
-
-  if (clar.from <= 0 && clar.to <= 0) {
-    from_str = "judges";
-    to_str = "all";
-  } else if (clar.from <= 0) {
-    from_str = "judges";
-  } else if (clar.to <= 0) {
-    to_str = "judges";
-  }
-  if (clar.from > 0) {
-    if (!(from_str = teamdb_get_login(cs->teamdb_state, clar.from))) {
-      snprintf(from_buf, sizeof(from_buf), "#%d", clar.from);
-      from_str = from_buf;
-    }
-  }
-  if (clar.to > 0) {
-    if (!(to_str = teamdb_get_login(cs->teamdb_state, clar.to))) {
-      snprintf(to_buf, sizeof(to_buf), "#%d", clar.to);
-      to_str = to_buf;
-    }
-  }
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"from\" size=\"40\" value=\"%s\" /></td></tr>\n",
-          cl, "From (Login or #Id)", cl, ARMOR(from_str));
-  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"to\" size=\"40\" value=\"%s\" /></td></tr>\n",
-          cl, "To (Login or #Id)", cl, ARMOR(to_str));
-  from_buf[0] = 0; from_str = from_buf;
-  if (clar.j_from > 0) {
-    if (!(from_str = teamdb_get_login(cs->teamdb_state, clar.j_from))) {
-      snprintf(from_buf, sizeof(from_buf), "#%d", clar.j_from);
-      from_str = from_buf;
-    }
-  }
-  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"j_from\" size=\"40\" value=\"%s\" /></td></tr>\n",
-          cl, "Judge from (Login or #Id)", cl, ARMOR(from_str));
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s><select name=\"flags\" value=\"%d\">", cl, "Flags", cl, clar.flags);
-  static const unsigned char * const clar_flags[] = { "New", "Viewed", "Answered", NULL };
-  for (int i = 0; clar_flags[i]; ++i) {
-    s = "";
-    if (i == clar.flags) s = " selected=\"selected\"";
-    fprintf(f, "<option value=\"%d\"%s>%s</option>", i, s, ARMOR(clar_flags[i]));
-  }
-  fprintf(f, "</td></tr>\n");
-
-  s = "";
-  if (clar.hide_flag) s = " checked=\"checked\"";
-  fprintf(f, "<tr><td%s>%s?</td><td%s><input type=\"checkbox\" name=\"hide_flag\"%s /></td></tr>\n",
-          cl, "Hidden", cl, s);
-  s = "";
-  if (clar.appeal_flag) s = " checked=\"checked\"";
-  fprintf(f, "<tr><td%s>%s?</td><td%s><input type=\"checkbox\" name=\"appeal_flag\"%s /></td></tr>\n",
-          cl, "Apellation", cl, s);
-  
-  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"ip\" size=\"40\" value=\"%s\" /></td></tr>\n",
-          cl, "IP", cl, xml_unparse_ip(clar.a.ip));
-  s = "";
-  if (clar.ssl_flag) s = " checked=\"checked\"";
-  fprintf(f, "<tr><td%s>%s?</td><td%s><input type=\"checkbox\" name=\"ssl_flag\"%s /></td></tr>\n",
-          cl, "SSL", cl, s);
-
-  from_buf[0] = 0;
-  if (clar.locale_id >= 0) snprintf(from_buf, sizeof(from_buf), "%d", clar.locale_id);
-  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"locale_id\" size=\"40\" value=\"%s\" /></td></tr>\n",
-          cl, "Locale", cl, from_buf);
-
-  from_buf[0] = 0;
-  if (clar.in_reply_to > 0) snprintf(from_buf, sizeof(from_buf), "%d", clar.in_reply_to - 1);
-  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"in_reply_to\" size=\"40\" value=\"%s\" /></td></tr>\n",
-          cl, "In reply to", cl, from_buf);
-
-  from_buf[0] = 0;
-  if (clar.run_id > 0) snprintf(from_buf, sizeof(from_buf), "%d", clar.run_id - 1);
-  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"run_id\" size=\"40\" value=\"%s\" /></td></tr>\n",
-          cl, "Run ID", cl, from_buf);
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"charset\" size=\"40\" value=\"%s\" /></td></tr>\n",
-          cl, "Charset", cl, clar.charset);
-  fprintf(f, "<tr><td%s>%s:</td><td%s><input type=\"text\" name=\"subject\" size=\"80\" value=\"%s\" /></td></tr>\n",
-          cl, "Subject", cl, clar.subj);
-  fprintf(f, "</table>\n");
-
-  clar_get_text(cs->clarlog_state, clar_id, &msg_txt, &msg_len);
-  fprintf(f, "<p><textarea name=\"text\" rows=\"20\" cols=\"60\">%s</textarea></p>\n", ARMOR(msg_txt));
-
-  fprintf(f, "<table%s><tr>\n", cl);
-  fprintf(f, "<td%s><input type=\"submit\" name=\"save\" value=\"Save\" /></td>", cl);
-  fprintf(f, "<td%s><input type=\"submit\" name=\"cancel\" value=\"Cancel\" /></td>", cl);
-  fprintf(f, "</tr></table>\n");  
-  fprintf(f, "</form>\n");
-
-done:;
-  xfree(msg_txt);
-  html_armor_free(&ab);
-}
-
-
 // 0 - undefined or empty, -1 - invalid, 1 - ok
 static int
 parse_user_field(
@@ -2370,7 +1312,7 @@ parse_user_field(
 {
   const unsigned char *s = NULL;
   unsigned char *str = NULL;
-  int r = ns_cgi_param(phr, name, &s);
+  int r = hr_cgi_param(phr, name, &s);
   char *eptr = NULL;
   int user_id = 0;
 
@@ -2447,16 +1389,16 @@ ns_priv_edit_clar_action(
     FAIL(NEW_SRV_ERR_INV_CLAR_ID);
   }
 
-  if (ns_cgi_param_int(phr, "clar_id", &clar_id) < 0
+  if (hr_cgi_param_int(phr, "clar_id", &clar_id) < 0
       || clar_id < 0 || clar_id >= clar_get_total(cs->clarlog_state)
       || clar_get_record(cs->clarlog_state, clar_id, &clar) < 0
       || clar.id < 0) {
     FAIL(NEW_SRV_ERR_INV_CLAR_ID);
   }
 
-  if (ns_cgi_param(phr, "cancel", &s) > 0 && *s) goto cleanup;
+  if (hr_cgi_param(phr, "cancel", &s) > 0 && *s) goto cleanup;
   s = NULL;
-  if (ns_cgi_param(phr, "save", &s) <= 0 || !*s) goto cleanup;
+  if (hr_cgi_param(phr, "save", &s) <= 0 || !*s) goto cleanup;
 
   if (parse_user_field(cs, phr, "from", 0, 1, &new_from) <= 0) {
     fprintf(log_f, "invalid 'from' field value\n");
@@ -2474,14 +1416,14 @@ ns_priv_edit_clar_action(
     }
     if (!r || new_j_from <= 0) new_j_from = 0;
   }
-  if (ns_cgi_param_int(phr, "flags", &new_flags) < 0 || new_flags < 0 || new_flags > 2) {
+  if (hr_cgi_param_int(phr, "flags", &new_flags) < 0 || new_flags < 0 || new_flags > 2) {
     fprintf(log_f, "invalid 'flags' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
-  if (ns_cgi_param(phr, "hide_flag", &s) > 0) new_hide_flag = 1;
-  if (ns_cgi_param(phr, "appeal_flag", &s) > 0) new_appeal_flag = 1;
-  if (ns_cgi_param(phr, "ssl_flag", &s) > 0) new_ssl_flag = 1;
-  if ((r = ns_cgi_param(phr, "ip", &s)) < 0) {
+  if (hr_cgi_param(phr, "hide_flag", &s) > 0) new_hide_flag = 1;
+  if (hr_cgi_param(phr, "appeal_flag", &s) > 0) new_appeal_flag = 1;
+  if (hr_cgi_param(phr, "ssl_flag", &s) > 0) new_ssl_flag = 1;
+  if ((r = hr_cgi_param(phr, "ip", &s)) < 0) {
     fprintf(log_f, "invalid 'ip' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
@@ -2490,7 +1432,7 @@ ns_priv_edit_clar_action(
     fprintf(log_f, "invalid 'ip' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
-  if (ns_cgi_param_int_opt(phr, "locale_id", &new_locale_id, 0) < 0) {
+  if (hr_cgi_param_int_opt(phr, "locale_id", &new_locale_id, 0) < 0) {
     fprintf(log_f, "invalid 'locale_id' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
@@ -2499,7 +1441,7 @@ ns_priv_edit_clar_action(
     fprintf(log_f, "invalid 'locale_id' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
-  if (ns_cgi_param_int_opt(phr, "in_reply_to", &new_in_reply_to, -1) < 0) {
+  if (hr_cgi_param_int_opt(phr, "in_reply_to", &new_in_reply_to, -1) < 0) {
     fprintf(log_f, "invalid 'in_reply_to' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -2508,7 +1450,7 @@ ns_priv_edit_clar_action(
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
   ++new_in_reply_to;
-  if (ns_cgi_param_int_opt(phr, "run_id", &new_run_id, -1) < 0) {
+  if (hr_cgi_param_int_opt(phr, "run_id", &new_run_id, -1) < 0) {
     fprintf(log_f, "invalid 'run_id' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -2519,7 +1461,7 @@ ns_priv_edit_clar_action(
   ++new_run_id;
 
   s = NULL;
-  if ((r = ns_cgi_param(phr, "charset", &s)) < 0) {
+  if ((r = hr_cgi_param(phr, "charset", &s)) < 0) {
     fprintf(log_f, "invalid 'charset' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -2530,7 +1472,7 @@ ns_priv_edit_clar_action(
   new_charset = xstrdup(EJUDGE_CHARSET);
 
   s = NULL;
-  if ((r = ns_cgi_param(phr, "subject", &s)) < 0) {
+  if ((r = hr_cgi_param(phr, "subject", &s)) < 0) {
     fprintf(log_f, "invalid 'subject' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -2538,7 +1480,7 @@ ns_priv_edit_clar_action(
   new_subject = text_input_process_string(s, 0, 0);
 
   s = NULL;
-  if ((r = ns_cgi_param(phr, "text", &s)) < 0) {
+  if ((r = hr_cgi_param(phr, "text", &s)) < 0) {
     fprintf(log_f, "invalid 'text' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -2630,278 +1572,6 @@ cleanup:
   return retval;
 }
 
-void
-ns_priv_edit_run_page(
-        const serve_state_t cs,
-        FILE *f,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra,
-        int run_id)
-{
-  const struct section_global_data *global = cs->global;
-  const struct section_problem_data *prob = NULL;
-  const struct section_language_data *lang = NULL;
-  time_t start_time = 0, run_time = 0;
-  struct run_entry info;
-  unsigned char hbuf[1024], buf[1024];
-  const unsigned char *str = NULL;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  const unsigned char *s;
-  const unsigned char *dis = "";
-
-  if (run_id < 0 || run_id >= run_get_total(cs->runlog_state)) {
-    ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
-    goto done;
-  }
-  if (run_get_entry(cs->runlog_state, run_id, &info) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
-    goto done;
-  }
-  if (info.status < 0 || info.status > RUN_MAX_STATUS) {
-    ns_error(log_f, NEW_SRV_ERR_INV_RUN_ID);
-    goto done;
-  }
-
-  ns_write_run_view_menu(f, phr, cnts, extra, run_id);
-
-  if (global->is_virtual) {
-    start_time = run_get_virtual_start_time(cs->runlog_state, info.user_id);
-  } else {
-    start_time = run_get_start_time(cs->runlog_state);
-  }
-  if (start_time < 0) start_time = 0;
-  run_time = info.time;
-  if (run_time < 0) run_time = 0;
-  if (run_time < start_time) run_time = start_time;
-
-  if (info.is_readonly > 0) dis = " disabled=\"disabled\"";
-
-  fprintf(f, "<h2>%s %d", "Run", run_id);
-  fprintf(f, " [<a href=\"%s\">%s</a>]",
-          ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_SOURCE,
-                 "run_id=%d", run_id),
-            "Source");
-  fprintf(f, "</h2>\n");
-
-  html_start_form(f, 2, phr->self_url, phr->hidden_vars);
-  fprintf(f, "<input type=\"hidden\" name=\"action\" value=\"%d\" />\n", NEW_SRV_ACTION_PRIV_EDIT_RUN_ACTION);
-  fprintf(f, "<input type=\"hidden\" name=\"run_id\" value=\"%d\" />\n", run_id);
-  unsigned char *cl = " class=\"b0\"";
-  fprintf(f, "<table%s>\n", cl);
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%d</td></tr>\n", cl, "Run ID", cl, run_id);
-  if (run_time != info.time) {
-    if (info.time <= 0) {
-      fprintf(f, "<tr><td%s>%s:</td><td%s>%ld.%06d</td></tr>\n", cl, "DB timestamp",
-              cl, (long) info.time, info.nsec / 1000);
-    } else {
-      fprintf(f, "<tr><td%s>%s:</td><td%s>%s.%06d</td></tr>\n", cl, "DB time",
-              cl, xml_unparse_date(info.time), info.nsec / 1000);
-    }
-  }
-  if (run_time <= 0) {
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%ld.%06d</td></tr>\n", cl, "Timestamp",
-            cl, (long) run_time, info.nsec / 1000);
-  } else {
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%s.%06d</td></tr>\n", cl, "Time",
-            cl, xml_unparse_date(run_time), info.nsec / 1000);
-  }
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Contest time",
-          cl, duration_str_2(hbuf, sizeof(hbuf), run_time - start_time, info.nsec));
-  if (info.user_id <= 0 || !(str = teamdb_get_login(cs->teamdb_state, info.user_id))) {
-    snprintf(buf, sizeof(buf), "#%d", info.user_id);
-    str = buf;
-  }
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "User login/ID",
-          cl, html_input_text(hbuf, sizeof(hbuf), "user", 20, info.is_readonly, "%s", ARMOR(str)));
-  if ((str = teamdb_get_name(cs->teamdb_state, info.user_id))) {
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "User name",
-            cl, ARMOR(str));
-  }
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s><select name=\"prob\"%s>", cl, "Prob name/ID", cl, dis);
-  if (info.prob_id <= 0 || info.prob_id > cs->max_prob || !(prob = cs->probs[info.prob_id])) {
-    fprintf(f, "<option value=\"%d\" selected=\"selected\">#%d</option>",
-            info.prob_id, info.prob_id);
-  }
-  for (int prob_id = 1; prob_id <= cs->max_prob; ++prob_id) {
-    if (cs->probs[prob_id]) {
-      s = "";
-      if (info.prob_id == prob_id) s = " selected=\"selected\"";
-      fprintf(f, "<option value=\"%d\"%s>%s - %s</option>",
-              prob_id, s, cs->probs[prob_id]->short_name,
-              ARMOR(cs->probs[prob_id]->long_name));
-    }
-  }
-  fprintf(f, "</select></td></tr>\n");
-
-  if (prob && prob->variant_num > 0) {
-    str = "";
-    if (info.variant > 0) {
-      snprintf(buf, sizeof(buf), "%d", info.variant);
-      str = buf;
-    }
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Variant",
-            cl, html_input_text(hbuf, sizeof(hbuf), "variant", 20, info.is_readonly, "%s", str));
-  }
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s><select name=\"lang\"%s>", cl, "Lang name/ID", cl, dis);
-  if (info.lang_id == 0) {
-    fprintf(f, "<option value=\"0\" selected=\"selected\"></option>");
-    str = "";
-  } else if (info.lang_id < 0 || info.lang_id > cs->max_lang || !(lang = cs->langs[info.lang_id])) {
-    fprintf(f, "<option value=\"%d\" selected=\"selected\">#%d</option>", info.lang_id, info.lang_id);
-  }
-  for (int lang_id = 1; lang_id <= cs->max_lang; ++lang_id) {
-    if (cs->langs[lang_id]) {
-      s = "";
-      if (info.lang_id == lang_id) s = " selected=\"selected\"";
-      fprintf(f, "<option value=\"%d\"%s>%s - %s</option>",
-              lang_id, s, cs->langs[lang_id]->short_name,
-              ARMOR(cs->langs[lang_id]->long_name));
-    }
-  }
-  fprintf(f, "</select></td></tr>\n");
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s><select name=\"eoln_type\"%s>",
-          cl, "EOLN Type", cl, dis);
-  fprintf(f, "<option value=\"0\"></option>");
-  s = "";
-  if (info.eoln_type == 1) s = " selected=\"selected\"";
-  fprintf(f, "<option value=\"1\"%s>LF (Unix/MacOS)</option>", s);
-  s = "";
-  if (info.eoln_type == 2) s = " selected=\"selected\"";
-  fprintf(f, "<option value=\"2\"%s>CRLF (Windows/DOS)</option>", s);
-  fprintf(f, "</select></td></tr>\n");
-
-  fprintf(f, "<tr><td%s>%s:</td>", cl, "Status");
-  write_change_status_dialog(cs, f, NULL, info.is_imported, "b0", info.status, info.is_readonly);
-  fprintf(f, "</tr>\n");
-
-  buf[0] = 0;
-  if (info.passed_mode > 0) {
-    if (info.test >= 0) {
-      snprintf(buf, sizeof(buf), "%d", info.test);
-    }
-    s = "Tests passed";
-  } else {
-    if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
-      if (info.test > 0) {
-        snprintf(buf, sizeof(buf), "%d", info.test - 1);
-      }
-      s = "Tests passed";
-    } else if (global->score_system == SCORE_MOSCOW || global->score_system == SCORE_ACM) {
-      if (info.test > 0) {
-        snprintf(buf, sizeof(buf), "%d", info.test);
-      }
-      s = "Failed test";
-    } else {
-      abort();
-    }
-  }
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, s,
-          cl, html_input_text(hbuf, sizeof(hbuf), "test", 20, info.is_readonly, "%s", buf));
-
-  if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD
-      || global->score_system == SCORE_MOSCOW) {
-    buf[0] = 0;
-    if (info.score >= 0) {
-      snprintf(buf, sizeof(buf), "%d", info.score);
-    }
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Score",
-            cl, html_input_text(hbuf, sizeof(hbuf), "score", 20, info.is_readonly, "%s", buf));
-
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Score adjustment",
-            cl, html_input_text(hbuf, sizeof(hbuf), "score_adj", 20, info.is_readonly, "%d", info.score_adj));
-  }
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Marked",
-          cl, html_checkbox(hbuf, sizeof(hbuf), "is_marked", "1", info.is_marked, info.is_readonly));
-
-  if (global->separate_user_score > 0) {
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Has saved score",
-            cl, html_checkbox(hbuf, sizeof(hbuf), "is_saved", "1", info.is_saved, info.is_readonly));
-    fprintf(f, "<tr><td%s>%s:</td>", cl, "Saved status");
-    write_change_status_dialog(cs, f, "saved_status", info.is_imported, "b0", info.saved_status,
-                               info.is_readonly);
-    fprintf(f, "</tr>\n");
-    buf[0] = 0;
-    if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
-      snprintf(buf, sizeof(buf), "%d", info.saved_test);
-      s = "Saved tests passed";
-    } else if (global->score_system == SCORE_MOSCOW || global->score_system == SCORE_ACM) {
-      if (info.saved_test > 0) {
-        snprintf(buf, sizeof(buf), "%d", info.saved_test);
-      }
-      s = "Saved failed test";
-    } else {
-      abort();
-    }
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, s,
-            cl, html_input_text(hbuf, sizeof(hbuf), "saved_test", 20, info.is_readonly, "%s", buf));
-    if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD
-        || global->score_system == SCORE_MOSCOW) {
-      buf[0] = 0;
-      if (info.saved_score >= 0) {
-        snprintf(buf, sizeof(buf), "%d", info.saved_score);
-      }
-      fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Saved score",
-              cl, html_input_text(hbuf, sizeof(hbuf), "saved_score", 20, info.is_readonly, "%s", buf));
-    }
-  }
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "IP",
-          cl, html_input_text(hbuf, sizeof(hbuf), "ip", 20, info.is_readonly,
-                              "%s", xml_unparse_ip(info.a.ip)));
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "SSL",
-          cl, html_checkbox(hbuf, sizeof(hbuf), "ssl_flag", "1", info.ssl_flag, info.is_readonly));
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Size",
-          cl, html_input_text(hbuf, sizeof(hbuf), "size", 20, info.is_readonly,
-                              "%d", (int) info.size));
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "SHA1",
-          cl, html_input_text(hbuf, sizeof(hbuf), "sha1", 60, info.is_readonly,
-                              "%s", unparse_sha1(info.sha1)));
-
-#if CONF_HAS_LIBUUID - 0 != 0
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "UUID",
-          cl, html_input_text(hbuf, sizeof(hbuf), "uuid", 60, info.is_readonly,
-                              "%s", ej_uuid_unparse(info.run_uuid, "")));
-#endif
-
-  if (!info.lang_id) {
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Content type",
-            cl, html_input_text(hbuf, sizeof(hbuf), "mime_type", 60, info.is_readonly,
-                                "%s", ARMOR(mime_type_get_type(info.mime_type))));
-  }
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Hidden",
-          cl, html_checkbox(hbuf, sizeof(hbuf), "is_hidden", "1", info.is_hidden, info.is_readonly));
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Imported",
-          cl, html_checkbox(hbuf, sizeof(hbuf), "is_imported", "1", info.is_imported, info.is_readonly));
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Read-only",
-          cl, html_checkbox(hbuf, sizeof(hbuf), "is_readonly", "1", info.is_readonly, 0));
-
-  fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Locale ID",
-          cl, html_input_text(hbuf, sizeof(hbuf), "locale_id", 20, info.is_readonly,
-                              "%d", info.locale_id));
-  if (global->enable_printing > 0) {
-    fprintf(f, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n", cl, "Pages printed",
-            cl, html_input_text(hbuf, sizeof(hbuf), "pages", 20, info.is_readonly,
-                                "%d", info.pages));
-  }
-  fprintf(f, "</table>\n");
-
-  fprintf(f, "<table%s><tr>\n", cl);
-  fprintf(f, "<td%s><input type=\"submit\" name=\"save\" value=\"Save\" /></td>", cl);
-  fprintf(f, "<td%s><input type=\"submit\" name=\"cancel\" value=\"Cancel\" /></td>", cl);
-  fprintf(f, "</tr></table>\n");  
-  fprintf(f, "</form>\n");
-done:;
-  html_armor_free(&ab);
-}
-
 int
 ns_priv_edit_run_action(
         FILE *out_f,
@@ -2929,7 +1599,7 @@ ns_priv_edit_run_action(
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
   }
 
-  if (ns_cgi_param_int(phr, "run_id", &run_id) < 0
+  if (hr_cgi_param_int(phr, "run_id", &run_id) < 0
       || run_id < 0 || run_id >= run_get_total(cs->runlog_state)) {
     FAIL(NEW_SRV_ERR_INV_RUN_ID);
   }
@@ -2940,9 +1610,9 @@ ns_priv_edit_run_action(
     FAIL(NEW_SRV_ERR_INV_RUN_ID);
   }
 
-  if (ns_cgi_param(phr, "cancel", &s) > 0 && *s) goto cleanup;
+  if (hr_cgi_param(phr, "cancel", &s) > 0 && *s) goto cleanup;
   s = NULL;
-  if (ns_cgi_param(phr, "save", &s) <= 0 || !*s) goto cleanup;
+  if (hr_cgi_param(phr, "save", &s) <= 0 || !*s) goto cleanup;
   s = NULL;
 
   if (global->is_virtual) {
@@ -2954,7 +1624,7 @@ ns_priv_edit_run_action(
 
   // FIXME: handle special "recheck file attributes" option
 
-  if (ns_cgi_param(phr, "is_readonly", &s) > 0) new_is_readonly = 1;
+  if (hr_cgi_param(phr, "is_readonly", &s) > 0) new_is_readonly = 1;
   if (info.is_readonly > 0 && new_is_readonly) goto cleanup;
   if (info.is_readonly > 0 && !new_is_readonly) {
     new_info.is_readonly = 0;
@@ -2978,7 +1648,7 @@ ns_priv_edit_run_action(
   }
 
   value = -1;
-  if (ns_cgi_param_int(phr, "prob", &value) < 0 || value <= 0) {
+  if (hr_cgi_param_int(phr, "prob", &value) < 0 || value <= 0) {
     fprintf(log_f, "invalid 'prob' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -2999,7 +1669,7 @@ ns_priv_edit_run_action(
   }
   if (prob && prob->variant_num > 0) {
     value = -1;
-    if (ns_cgi_param_int(phr, "variant", &value) < 0 || value < 0) {
+    if (hr_cgi_param_int(phr, "variant", &value) < 0 || value < 0) {
       /*
       fprintf(log_f, "invalid 'variant' field value\n");
       FAIL(NEW_SRV_ERR_INV_PARAM);
@@ -3021,7 +1691,7 @@ ns_priv_edit_run_action(
   }
 
   value = -1;
-  if (ns_cgi_param_int(phr, "lang", &value) < 0 || value < 0) {
+  if (hr_cgi_param_int(phr, "lang", &value) < 0 || value < 0) {
     fprintf(log_f, "invalid 'lang' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -3044,7 +1714,7 @@ ns_priv_edit_run_action(
   }
 
   value = -1;
-  if (ns_cgi_param_int(phr, "eoln_type", &value) < 0
+  if (hr_cgi_param_int(phr, "eoln_type", &value) < 0
       || value < 0 || value > EOLN_CRLF) {
     fprintf(log_f, "invalid 'eoln_type' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
@@ -3063,7 +1733,7 @@ ns_priv_edit_run_action(
   (void) lang;
 
   value = -1;
-  if (ns_cgi_param_int(phr, "status", &value) < 0 || value < 0) {
+  if (hr_cgi_param_int(phr, "status", &value) < 0 || value < 0) {
     fprintf(log_f, "invalid 'status' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -3084,7 +1754,7 @@ ns_priv_edit_run_action(
   }
 
   value = -1;
-  if (ns_cgi_param_int_opt(phr, "test", &value, -1) < -1) {
+  if (hr_cgi_param_int_opt(phr, "test", &value, -1) < -1) {
     fprintf(log_f, "invalid 'test' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
@@ -3143,7 +1813,7 @@ ns_priv_edit_run_action(
   if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD
       || global->score_system == SCORE_MOSCOW) {
     value = -1;
-    if (ns_cgi_param_int_opt(phr, "score", &value, -1) < -1) {
+    if (hr_cgi_param_int_opt(phr, "score", &value, -1) < -1) {
       fprintf(log_f, "invalid 'score' field value\n");
       FAIL(NEW_SRV_ERR_INV_PARAM);
     }
@@ -3199,7 +1869,7 @@ ns_priv_edit_run_action(
     }
 
     value = -100000;
-    if (ns_cgi_param_int_opt(phr, "score_adj", &value, -100000) < -1) {
+    if (hr_cgi_param_int_opt(phr, "score_adj", &value, -100000) < -1) {
       fprintf(log_f, "invalid 'score_adj' field value\n");
       FAIL(NEW_SRV_ERR_INV_PARAM);
     }
@@ -3214,7 +1884,7 @@ ns_priv_edit_run_action(
   }
 
   value = 0;
-  if (ns_cgi_param(phr, "is_marked", &s) > 0) value = 1;
+  if (hr_cgi_param(phr, "is_marked", &s) > 0) value = 1;
   if (info.is_marked != value) {
     new_info.is_marked = value;
     mask |= RE_IS_MARKED;
@@ -3222,7 +1892,7 @@ ns_priv_edit_run_action(
 
   if (global->separate_user_score > 0) {
     value = 0;
-    if (ns_cgi_param(phr, "is_saved", &s) > 0) value = 1;
+    if (hr_cgi_param(phr, "is_saved", &s) > 0) value = 1;
     if (info.is_saved != value) {
       new_info.is_saved = value;
       mask |= RE_IS_SAVED;
@@ -3237,7 +1907,7 @@ ns_priv_edit_run_action(
     }
     if (new_info.is_saved) {
       value = -1;
-      if (ns_cgi_param_int(phr, "saved_status", &value) < 0 || value < 0) {
+      if (hr_cgi_param_int(phr, "saved_status", &value) < 0 || value < 0) {
         fprintf(log_f, "invalid 'saved_status' field value\n");
         FAIL(NEW_SRV_ERR_INV_PARAM);    
       }
@@ -3253,7 +1923,7 @@ ns_priv_edit_run_action(
       }
 
       value = -1;
-      if (ns_cgi_param_int_opt(phr, "saved_test", &value, -1) < -1) {
+      if (hr_cgi_param_int_opt(phr, "saved_test", &value, -1) < -1) {
         fprintf(log_f, "invalid 'saved_test' field value\n");
         FAIL(NEW_SRV_ERR_INV_PARAM);
       }
@@ -3300,7 +1970,7 @@ ns_priv_edit_run_action(
       if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD
           || global->score_system == SCORE_MOSCOW) {
         value = -1;
-        if (ns_cgi_param_int_opt(phr, "saved_score", &value, -1) < -1) {
+        if (hr_cgi_param_int_opt(phr, "saved_score", &value, -1) < -1) {
           fprintf(log_f, "invalid 'saved_score' field value\n");
           FAIL(NEW_SRV_ERR_INV_PARAM);
         }
@@ -3359,7 +2029,7 @@ ns_priv_edit_run_action(
   }
 
   s = NULL;
-  if ((r = ns_cgi_param(phr, "ip", &s)) < 0) {
+  if ((r = hr_cgi_param(phr, "ip", &s)) < 0) {
     fprintf(log_f, "invalid 'ip' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
@@ -3375,14 +2045,14 @@ ns_priv_edit_run_action(
     mask |= RE_IP;
   }
   value = 0;
-  if (ns_cgi_param(phr, "ssl_flag", &s) > 0) value = 1;
+  if (hr_cgi_param(phr, "ssl_flag", &s) > 0) value = 1;
   if (info.ssl_flag != value) {
     new_info.ssl_flag = value;
     mask |= RE_SSL_FLAG;
   }
 
   value = -1;
-  if (ns_cgi_param_int(phr, "size", &value) < 0 || value < 0) {
+  if (hr_cgi_param_int(phr, "size", &value) < 0 || value < 0) {
     fprintf(log_f, "invalid 'size' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -3396,7 +2066,7 @@ ns_priv_edit_run_action(
   }
 
   s = NULL;
-  if ((r = ns_cgi_param(phr, "sha1", &s)) < 0) {
+  if ((r = hr_cgi_param(phr, "sha1", &s)) < 0) {
     fprintf(log_f, "invalid 'sha1' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -3414,7 +2084,7 @@ ns_priv_edit_run_action(
 
 #if CONF_HAS_LIBUUID - 0 != 0
   s = NULL;
-  if ((r = ns_cgi_param(phr, "uuid", &s)) < 0) {
+  if ((r = hr_cgi_param(phr, "uuid", &s)) < 0) {
     fprintf(log_f, "invalid 'uuid' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);    
   }
@@ -3441,7 +2111,7 @@ ns_priv_edit_run_action(
 
   if (new_info.lang_id == 0) {
     s = NULL;
-    if ((r = ns_cgi_param(phr, "mime_type", &s)) < 0) {
+    if ((r = hr_cgi_param(phr, "mime_type", &s)) < 0) {
       fprintf(log_f, "invalid 'mime_type' field value\n");
       FAIL(NEW_SRV_ERR_INV_PARAM);    
     }
@@ -3458,7 +2128,7 @@ ns_priv_edit_run_action(
   }
 
   value = 0;
-  if (ns_cgi_param(phr, "is_hidden", &s) > 0) value = 1;
+  if (hr_cgi_param(phr, "is_hidden", &s) > 0) value = 1;
   if (info.is_hidden != value) {
     if (!value && info.time < start_time) {
       fprintf(log_f, "is_hidden flag cannot be cleared because time < start_time");
@@ -3469,7 +2139,7 @@ ns_priv_edit_run_action(
   }
 
   value = 0;
-  if (ns_cgi_param(phr, "is_imported", &s) > 0) value = 1;
+  if (hr_cgi_param(phr, "is_imported", &s) > 0) value = 1;
   if (info.is_imported != value) {
     // check availability of operation
     new_info.is_imported = value;
@@ -3477,7 +2147,7 @@ ns_priv_edit_run_action(
   }
 
   value = -1;
-  if (ns_cgi_param_int_opt(phr, "locale_id", &value, -1) < 0) {
+  if (hr_cgi_param_int_opt(phr, "locale_id", &value, -1) < 0) {
     fprintf(log_f, "invalid 'locale_id' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
@@ -3491,7 +2161,7 @@ ns_priv_edit_run_action(
   }
 
   value = -1;
-  if (ns_cgi_param_int_opt(phr, "pages", &value, -1) < 0) {
+  if (hr_cgi_param_int_opt(phr, "pages", &value, -1) < 0) {
     fprintf(log_f, "invalid 'pages' field value\n");
     FAIL(NEW_SRV_ERR_INV_PARAM);
   }
@@ -3764,964 +2434,6 @@ ns_write_tests(const serve_state_t cs, FILE *fout, FILE *log_f,
   testing_report_free(r);
 }
 
-int
-ns_write_passwords(FILE *fout, FILE *log_f,
-                   struct http_request_info *phr,
-                   const struct contest_desc *cnts,
-                   struct contest_extra *extra)
-{
-  const serve_state_t cs = extra->serve_state;
-  const unsigned char *s;
-  int i, max_user_id, serial = 1;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  struct teamdb_export td;
-  unsigned char cl[128];
-
-  snprintf(cl, sizeof(cl), " class=\"b1\"");
-
-  fprintf(fout, "<table%s>\n"
-          "<tr><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th></tr>",
-          cl, cl, "NN", cl, _("User Id"), cl, _("User login"),
-          cl, _("User name"), cl, _("Flags"),
-          cl, _("Password"), cl, _("Location"));
-  max_user_id = teamdb_get_max_team_id(cs->teamdb_state);
-  for (i = 1; i <= max_user_id; i++) {
-    if (!teamdb_lookup(cs->teamdb_state, i)) continue;
-    if (teamdb_export_team(cs->teamdb_state, i, &td) < 0) continue;
-    if (td.flags) continue;
-    if (!td.user) continue;
-    if (phr->action == NEW_SRV_ACTION_VIEW_CNTS_PWDS) {
-      if (!td.user->cnts0
-          || td.user->cnts0->team_passwd_method != USERLIST_PWD_PLAIN)
-        continue;
-      s = td.user->cnts0->team_passwd;
-    } else {
-      if (td.user->passwd_method != USERLIST_PWD_PLAIN) continue;
-      s = td.user->passwd;
-    }
-    fprintf(fout, "<tr><td%s>%d</td><td%s>%d</td><td%s><tt>%s</tt></td>",
-            cl, serial++, cl, i, cl, ARMOR(td.login));
-    if (td.name && *td.name) {
-      fprintf(fout, "<td%s><tt>%s</tt></td>", cl, ARMOR(td.name));
-    } else {
-      fprintf(fout, "<td%s><i>%s</i></td>", cl, _("Not set"));
-    }
-    fprintf(fout, "<td%s>%s</td>", cl, "&nbsp;"); /* FIXME: print flags */
-    if (s && *s) {
-      fprintf(fout, "<td%s><tt>%s</tt></td>", cl, ARMOR(s));
-    } else {
-      fprintf(fout, "<td%s><i>%s</i></td>", cl, _("Not set"));
-    }
-    if (td.user->cnts0 && td.user->cnts0->location) {
-      fprintf(fout, "<td%s>%s</td>", cl, ARMOR(td.user->cnts0->location));
-    } else {
-      fprintf(fout, "<td%s><i>%s</i></td>", cl, _("Not set"));
-    }
-    fprintf(fout, "</tr>");
-  }
-  fprintf(fout, "</table>\n");
-
-  html_armor_free(&ab);
-  return 0;
-}
-
-int
-ns_write_online_users(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  const serve_state_t cs = extra->serve_state;
-  int i, max_user_id, j, serial = 1;
-  struct last_access_info *ai;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  struct teamdb_export td;
-  unsigned char cl[128];
-
-  snprintf(cl, sizeof(cl), " class=\"b1\"");
-
-  fprintf(fout, "<table%s>"
-          "<tr>"
-          "<th%s>NN</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "</tr>",
-          cl,
-          cl,
-          cl, _("User Id"),
-          cl, _("User login"),
-          cl, _("User name"),
-          cl, _("IP address"));
-
-  if (cs->global->disable_user_database > 0) {
-    max_user_id = run_get_max_user_id(cs->runlog_state);
-  } else {
-    max_user_id = teamdb_get_max_team_id(cs->teamdb_state);
-  }
-  for (i = 1; i <= max_user_id; i++) {
-    if (i >= extra->user_access_idx.a) continue;
-    if ((j = extra->user_access_idx.v[i]) < 0) continue;
-    ai = &extra->user_access[USER_ROLE_CONTESTANT].v[j];
-    if (ai->time + 65 < cs->current_time) continue;
-    if (!teamdb_lookup(cs->teamdb_state, i)) continue;
-    if (teamdb_export_team(cs->teamdb_state, i, &td) < 0) continue;
-
-    fprintf(fout, "<tr><td%s>%d</td><td%s>%d</td><td%s>%s</td>",
-            cl, serial++, cl, i, cl, ARMOR(td.login));
-    if (td.name && *td.name) {
-      fprintf(fout, "<td%s><tt>%s</tt></td>", cl, ARMOR(td.name));
-    } else {
-      fprintf(fout, "<td%s><i>%s</i></td>", cl, _("Not set"));
-    }
-    fprintf(fout, "<td%s><tt>%s%s</tt></td>",
-            cl, xml_unparse_ipv6(&ai->ip), ai->ssl?"/ssl":"");
-    fprintf(fout, "</tr>\n");
-  }
-  fprintf(fout, "</table>\n");
-  html_armor_free(&ab);
-  return 0;
-}
-
-struct user_ip_item
-{
-  int user_id;
-
-  int ip_u;
-  int ip_a;
-  ej_ip_t *ips;
-};
-
-int
-ns_write_user_ips(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  const serve_state_t cs = extra->serve_state;
-  unsigned char cl[1024];
-  int total_runs, run_id, i, max_user_id, serial = 1, j;
-  struct run_entry re;
-  struct user_ip_item **uu = 0, *ui;
-  int u_a = 0;
-  struct teamdb_export td;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-
-  snprintf(cl, sizeof(cl), " class=\"b1\"");
-
-  fprintf(fout, "<table%s>"
-          "<tr>"
-          "<th%s>NN</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "</tr>",
-          cl,
-          cl,
-          cl, _("User Id"),
-          cl, _("User login"),
-          cl, _("User name"),
-          cl, _("IP addresses"));
-
-  u_a = 1024;
-  XCALLOC(uu, u_a);
-
-  total_runs = run_get_total(cs->runlog_state);
-  for (run_id = 0; run_id < total_runs; ++run_id) {
-    run_get_entry(cs->runlog_state, run_id, &re);
-    if (!run_is_valid_status(re.status)) continue;
-    if (re.status == RUN_EMPTY) continue;
-    if (re.user_id <= 0 || re.user_id > EJ_MAX_USER_ID) continue;
-    if (!re.a.ip) continue;
-    if (re.user_id >= u_a) {
-      int new_a = u_a;
-      struct user_ip_item **new_u;
-
-      while (new_a <= re.user_id) new_a *= 2;
-      XCALLOC(new_u, new_a);
-      memcpy(new_u, uu, u_a * sizeof(new_u[0]));
-      xfree(uu);
-      uu = new_u;
-      u_a = new_a;
-    }
-    if (!uu[re.user_id]) {
-      XCALLOC(uu[re.user_id], 1);
-    }
-    ui = uu[re.user_id];
-    for (i = 0; i < ui->ip_u; ++i) {
-      ej_ip_t ipv6;
-      run_entry_to_ipv6(&re, &ipv6);
-      if (!ipv6cmp(&ui->ips[i], &ipv6))
-        break;
-    }
-    if (i < ui->ip_u) continue;
-    if (ui->ip_u >= ui->ip_a) {
-      if (!ui->ip_a) ui->ip_a = 8;
-      ui->ip_a *= 2;
-      XREALLOC(ui->ips, ui->ip_a);
-    }
-    run_entry_to_ipv6(&re, &ui->ips[ui->ip_u++]);
-  }
-
-  if (cs->global->disable_user_database > 0) {
-    max_user_id = run_get_max_user_id(cs->runlog_state);
-  } else {
-    max_user_id = teamdb_get_max_team_id(cs->teamdb_state);
-  }
-  for (i = 1; i < u_a && i <= max_user_id; ++i) {
-    if (!(ui = uu[i])) continue;
-    if (!teamdb_lookup(cs->teamdb_state, i)) continue;
-    if (teamdb_export_team(cs->teamdb_state, i, &td) < 0) continue;
-
-    fprintf(fout, "<tr><td%s>%d</td><td%s>%d</td><td%s>%s</td>",
-            cl, serial++, cl, i, cl, ARMOR(td.login));
-    if (td.name && *td.name) {
-      fprintf(fout, "<td%s><tt>%s</tt></td>", cl, ARMOR(td.name));
-    } else {
-      fprintf(fout, "<td%s><i>%s</i></td>", cl, _("Not set"));
-    }
-    fprintf(fout, "<td%s>", cl);
-    for (j = 0; j < ui->ip_u; ++j) {
-      if (j > 0) fprintf(fout, " ");
-      fprintf(fout, "%s", xml_unparse_ipv6(&ui->ips[j]));
-    }
-    fprintf(fout, "</td></tr>\n");
-  }
-
-  html_armor_free(&ab);
-  for (i = 0; i < u_a; ++i) {
-    if (!(ui = uu[i])) continue;
-    xfree(ui->ips);
-    xfree(ui);
-  }
-  xfree(uu);
-  return 0;
-}
-
-struct ip_user_item
-{
-  ej_ip_t ip;
-  int uid_u, uid_a;
-  int *uids;
-};
-
-int
-ns_write_ip_users(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  unsigned char cl[1024];
-  int total_runs, run_id, i, j;
-  const serve_state_t cs = extra->serve_state;
-  struct run_entry re;
-  int ip_a = 0, ip_u = 0, serial = 1;
-  struct ip_user_item *ips = 0;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  struct teamdb_export td;
-
-  total_runs = run_get_total(cs->runlog_state);
-  for (run_id = 0; run_id < total_runs; ++run_id) {
-    run_get_entry(cs->runlog_state, run_id, &re);
-    if (!run_is_valid_status(re.status)) continue;
-    if (re.status == RUN_EMPTY) continue;
-    if (re.user_id <= 0 || re.user_id > EJ_MAX_USER_ID) continue;
-    if (!re.a.ip) continue;
-    for (i = 0; i < ip_u; ++i) {
-      ej_ip_t ipv6;
-      run_entry_to_ipv6(&re, &ipv6);
-      if (!ipv6cmp(&ips[i].ip, &ipv6))
-        break;
-    }
-    if (i == ip_u) {
-      if (ip_u == ip_a) {
-        if (!ip_a) ip_a = 16;
-        ip_a *= 2;
-        XREALLOC(ips, ip_a);
-      }
-      memset(&ips[i], 0, sizeof(ips[i]));
-      run_entry_to_ipv6(&re, &ips[i].ip);
-      ip_u++;
-    }
-    for (j = 0; j < ips[i].uid_u; ++j)
-      if (ips[i].uids[j] == re.user_id)
-        break;
-    if (j == ips[i].uid_u) {
-      if (ips[i].uid_u == ips[i].uid_a) {
-        if (!ips[i].uid_a) ips[i].uid_a = 16;
-        ips[i].uid_a *= 2;
-        XREALLOC(ips[i].uids, ips[i].uid_a);
-      }
-      ips[i].uids[j] = re.user_id;
-      ips[i].uid_u++;
-    }
-  }
-
-  snprintf(cl, sizeof(cl), " class=\"b1\"");
-
-  fprintf(fout, "<table%s>"
-          "<tr>"
-          "<th%s>NN</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "</tr>",
-          cl,
-          cl,
-          cl, _("IP address"),
-          cl, _("Users"));
-  for (i = 0; i < ip_u; ++i) {
-    fprintf(fout, "<tr><td%s>%d</td><td%s>%s</td><td%s>",
-            cl, serial++, cl, xml_unparse_ipv6(&ips[i].ip), cl);
-    for (j = 0; j < ips[i].uid_u; ++j) {
-      if (!teamdb_lookup(cs->teamdb_state, ips[i].uids[j]))
-        continue;
-      if (teamdb_export_team(cs->teamdb_state, ips[i].uids[j], &td) < 0)
-        continue;
-      if (j > 0) fprintf(fout, " ");
-      fprintf(fout, "%s", ARMOR(td.login));
-      if (td.name && *td.name) {
-        fprintf(fout, "(%s)", ARMOR(td.name));
-      }
-    }
-    fprintf(fout, "</td></tr>\n");
-  }
-
-  for (i = 0; i < ip_u; ++i)
-    xfree(ips[i].uids);
-  xfree(ips);
-  html_armor_free(&ab);
-  return 0;
-}
-
-int
-ns_write_exam_info(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  const serve_state_t cs = extra->serve_state;
-  int i, j, max_user_id, serial = 1;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  struct teamdb_export td;
-  unsigned char cl[128];
-  struct userlist_members *mm = 0;
-  struct userlist_member *m = 0;
-  struct userlist_user_info *ui = 0;
-
-  snprintf(cl, sizeof(cl), " class=\"b1\"");
-
-  fprintf(fout, "<table%s>\n"
-          "<tr><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th><th%s>%s</th></tr>",
-          cl, cl, "NN", cl, _("User Id"), cl, _("User login"),
-          cl, _("User name"),
-          cl, _("Flags"),
-          cl, _("First name"),
-          cl, _("Family name"),
-          cl, _("Location"),
-          cl, _("Exam Id"),
-          cl, _("Cypher"));
-  max_user_id = teamdb_get_max_team_id(cs->teamdb_state);
-  for (i = 1; i <= max_user_id; i++) {
-    if (!teamdb_lookup(cs->teamdb_state, i)) continue;
-    if (teamdb_export_team(cs->teamdb_state, i, &td) < 0) continue;
-    //if (td.flags) continue;
-    if (!td.user) continue;
-
-    ui = td.user->cnts0;
-    fprintf(fout, "<tr><td%s>%d</td><td%s>%d</td><td%s><tt>%s</tt></td>",
-            cl, serial++, cl, i, cl, ARMOR(td.login));
-    if (td.name && *td.name) {
-      fprintf(fout, "<td%s><tt>%s</tt></td>", cl, ARMOR(td.name));
-    } else {
-      fprintf(fout, "<td%s><i>%s</i></td>", cl, _("Not set"));
-    }
-    fprintf(fout, "<td%s>%s</td>", cl, "&nbsp;"); /* FIXME: print flags */
-
-    m = 0;
-    if (ui && (mm = ui->members) && mm->u > 0) {
-      for (j = 0; j < mm->u; j++)
-        if ((m = mm->m[j]) && m->team_role == USERLIST_MB_CONTESTANT)
-          break;
-    }
-
-    if (m && m->firstname) {
-      fprintf(fout, "<td%s>%s</td>", cl, ARMOR(m->firstname));
-    } else {
-      fprintf(fout, "<td%s><i>&nbsp;</i></td>", cl);
-    }
-    if (m && m->surname) {
-      fprintf(fout, "<td%s>%s</td>", cl, ARMOR(m->surname));
-    } else {
-      fprintf(fout, "<td%s><i>&nbsp;</i></td>", cl);
-    }
-
-    if (ui && ui->location) {
-      fprintf(fout, "<td%s>%s</td>", cl, ARMOR(ui->location));
-    } else {
-      fprintf(fout, "<td%s><i>&nbsp;</i></td>", cl);
-    }
-    if (ui && ui->exam_id) {
-      fprintf(fout, "<td%s>%s</td>", cl, ARMOR(ui->exam_id));
-    } else {
-      fprintf(fout, "<td%s><i>&nbsp;</i></td>", cl);
-    }
-    if (ui && ui->exam_cypher) {
-      fprintf(fout, "<td%s>%s</td>", cl, ARMOR(ui->exam_cypher));
-    } else {
-      fprintf(fout, "<td%s><i>&nbsp;</i></td>", cl);
-    }
-    fprintf(fout, "</tr>");
-  }
-  fprintf(fout, "</table>\n");
-
-  html_armor_free(&ab);
-  return 0;
-}
-
-int
-ns_user_info_page(FILE *fout, FILE *log_f,
-                  struct http_request_info *phr,
-                  const struct contest_desc *cnts,
-                  struct contest_extra *extra,
-                  int view_user_id)
-{
-  serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  struct teamdb_export u_info;
-  const struct team_extra *u_extra = 0;
-  const struct team_warning *cur_warn = 0;
-  int flags, pages_total;
-  int runs_num = 0, clars_num = 0;
-  size_t clars_total = 0, runs_total = 0;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  const unsigned char *nbsp2 = "<td>&nbsp;</td><td>&nbsp;</td>";
-  const unsigned char *s;
-  const struct userlist_user *u = 0;
-  const struct userlist_contest *uc = 0;
-  unsigned char bb[1024], hbuf[1024];
-  int allowed_edit = 0, needed_cap = 0, init_value, i;
-  struct userlist_user_info *ui = 0;
-
-  teamdb_export_team(cs->teamdb_state, view_user_id, &u_info);
-  u_extra = team_extra_get_entry(cs->team_extra_state, view_user_id);
-  run_get_team_usage(cs->runlog_state, view_user_id, &runs_num, &runs_total);
-  clar_get_user_usage(cs->clarlog_state,view_user_id, &clars_num, &clars_total);
-  pages_total = run_get_total_pages(cs->runlog_state, view_user_id);
-  flags = teamdb_get_flags(cs->teamdb_state, view_user_id);
-  u = u_info.user;
-  if (u) uc = userlist_get_user_contest(u, phr->contest_id);
-  if (u) ui = u->cnts0;
-
-  fprintf(fout, "<ul>\n");
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, 0, 0),
-          _("Main page"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_USERS, 0),
-          _("View regular users"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_REG_PWDS, 0),
-          _("View registration passwords"));
-  if (!cnts->disable_team_password) {
-    fprintf(fout, "<li>%s%s</a></li>\n",
-            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_CNTS_PWDS, 0),
-            _("View contest passwords"));
-  }
-  fprintf(fout, "</ul>\n");
-
-  // table has 4 columns
-  fprintf(fout, "<table>\n");
-
-  // user id
-  fprintf(fout, "<tr><td>%s:</td><td>%d</td>%s</tr>\n",
-          _("User Id"), view_user_id, nbsp2);
-
-  // user login
-  fprintf(fout, "<tr><td>%s:</td><td><tt>%s</tt></td>%s</tr>\n",
-          _("User Login"), ARMOR(u_info.login), nbsp2);
-
-  // user name
-  if (u_info.name && *u_info.name) {
-    s = ARMOR(u_info.name);
-  } else {
-    s = _("<i>Not set</i>");
-  }
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td>%s</tr>\n",
-          _("User Name"), s, nbsp2);
-
-  // contest registration time
-  if (uc && uc->create_time > 0) {
-    s = xml_unparse_date(uc->create_time);
-  } else {
-    s = "&nbsp;";
-  }
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td>%s</tr>\n",
-          _("Registration time"), s, nbsp2);
-  // last login time
-  if (ui && ui->last_login_time > 0) {
-    s = xml_unparse_date(ui->last_login_time);
-  } else {
-    s = "&nbsp;";
-  }
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td>%s</tr>\n",
-          _("Last login time"), s, nbsp2);
-  if (/*opcaps_check(phr->caps, OPCAP_GENERATE_TEAM_PASSWORDS) >= 0*/ 1) {
-  // registration password (if available)
-    bb[0] = 0;
-    if (u && !u->passwd) {
-      snprintf(bb, sizeof(bb), "<i>%s</i>", _("Not set"));
-    } else if (u && u->passwd_method != USERLIST_PWD_PLAIN) {
-      snprintf(bb, sizeof(bb), "<i>%s</i>", _("Changed by user"));
-    } else if (u) {
-      snprintf(bb, sizeof(bb), "<tt>%s</tt>", ARMOR(u->passwd));
-    }
-    if (bb[0]) {
-      fprintf(fout, "<tr><td>%s:</td><td>%s</td>%s</tr>\n",
-              _("Registration password"), bb, nbsp2);
-    }
-  // contest password (if enabled and available)
-    if (!cnts->disable_team_password) {
-      bb[0] = 0;
-      if (ui && !ui->team_passwd) {
-        snprintf(bb, sizeof(bb), "<i>%s</i>", _("Not set"));
-      } else if (ui && ui->team_passwd_method != USERLIST_PWD_PLAIN) {
-        snprintf(bb, sizeof(bb), "<i>%s</i>", _("Changed by user"));
-      } else if (ui) {
-        snprintf(bb, sizeof(bb), "<tt>%s</tt>", ARMOR(ui->team_passwd));
-      }
-      if (bb[0]) {
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td>%s</tr>\n",
-                _("Contest password"), bb, nbsp2);
-      }
-    }
-  }
-
-  fprintf(fout,"<tr><td>%s:</td><td>%s</td>%s</tr>\n",
-          _("Privileged?"),
-          (u && u->is_privileged)? _("Yes") : _("No"),
-          nbsp2);
-
-  // invisible, locked, banned status and change buttons
-  // to make invisible EDIT_REG is enough for all users
-  // to ban or lock DELETE_PRIV_REG required for privileged users
-  allowed_edit = 0;
-  if (opcaps_check(phr->caps, OPCAP_EDIT_REG) >= 0) allowed_edit = 1;
-  if (allowed_edit) {
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(fout, "user_id", "%d", view_user_id);
-  }
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td><td>&nbsp;</td>",
-          _("Invisible?"), (flags & TEAM_INVISIBLE)?_("Yes"):_("No"));
-  if(allowed_edit) {
-    fprintf(fout, "<td>%s</td>",
-            ns_submit_button(bb, sizeof(bb), 0,
-                             NEW_SRV_ACTION_TOGGLE_VISIBILITY,
-                             (flags & TEAM_INVISIBLE)?_("Make visible"):_("Make invisible")));
-  } else {
-    fprintf(fout, "<td>&nbsp;</td>");
-  }
-  fprintf(fout, "</tr>\n");
-  if (allowed_edit) {
-    fprintf(fout, "</form>");
-  }
-
-  allowed_edit = 0;
-  if (u) {
-    if (u->is_privileged) {
-      if ((flags & TEAM_BANNED)) needed_cap = OPCAP_PRIV_CREATE_REG;
-      else needed_cap = OPCAP_PRIV_DELETE_REG;
-    } else {
-      if ((flags & TEAM_BANNED)) needed_cap = OPCAP_CREATE_REG;
-      else needed_cap = OPCAP_DELETE_REG;
-    }
-    if (opcaps_check(phr->caps, needed_cap) >= 0) allowed_edit = 1;
-  }
-  if (allowed_edit) {
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(fout, "user_id", "%d", view_user_id);
-  }
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td><td>&nbsp;</td>",
-          _("Banned?"), (flags & TEAM_BANNED)?_("Yes"):_("No"));
-  if(allowed_edit) {
-    fprintf(fout, "<td>%s</td>",
-            ns_submit_button(bb, sizeof(bb), 0,
-                             NEW_SRV_ACTION_TOGGLE_BAN,
-                             (flags & TEAM_BANNED)?_("Remove ban"):_("Ban")));
-  } else {
-    fprintf(fout, "<td>&nbsp;</td>");
-  }
-  fprintf(fout, "</tr>\n");
-  if (allowed_edit) {
-    fprintf(fout, "</form>");
-  }
-
-  allowed_edit = 0;
-  if (u) {
-    if (u->is_privileged) {
-      if ((flags & TEAM_LOCKED)) needed_cap = OPCAP_PRIV_CREATE_REG;
-      else needed_cap = OPCAP_PRIV_DELETE_REG;
-    } else {
-      if ((flags & TEAM_LOCKED)) needed_cap = OPCAP_CREATE_REG;
-      else needed_cap = OPCAP_DELETE_REG;
-    }
-    if (opcaps_check(phr->caps, needed_cap) >= 0) allowed_edit = 1;
-  }
-  if (allowed_edit) {
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(fout, "user_id", "%d", view_user_id);
-  }
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td><td>&nbsp;</td>",
-          _("Locked?"), (flags & TEAM_LOCKED)?_("Yes"):_("No"));
-  if(allowed_edit) {
-    fprintf(fout, "<td>%s</td>",
-            ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_TOGGLE_LOCK,
-                             (flags & TEAM_LOCKED)?_("Unlock"):_("Lock")));
-  } else {
-    fprintf(fout, "<td>&nbsp;</td>");
-  }
-  fprintf(fout, "</tr>\n");
-  if (allowed_edit) {
-    fprintf(fout, "</form>");
-  }
-
-  allowed_edit = 0;
-  if (u) {
-    if (u->is_privileged) {
-      if ((flags & TEAM_INCOMPLETE)) needed_cap = OPCAP_PRIV_CREATE_REG;
-      else needed_cap = OPCAP_PRIV_DELETE_REG;
-    } else {
-      if ((flags & TEAM_INCOMPLETE)) needed_cap = OPCAP_CREATE_REG;
-      else needed_cap = OPCAP_DELETE_REG;
-    }
-    if (opcaps_check(phr->caps, needed_cap) >= 0) allowed_edit = 1;
-  }
-  if (allowed_edit) {
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(fout, "user_id", "%d", view_user_id);
-  }
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td><td>&nbsp;</td>",
-          _("Incomplete?"), (flags & TEAM_INCOMPLETE)?_("Yes"):_("No"));
-  if(allowed_edit) {
-    fprintf(fout, "<td>%s</td>",
-            ns_submit_button(bb, sizeof(bb), 0,
-                             NEW_SRV_ACTION_TOGGLE_INCOMPLETENESS,
-                             (flags & TEAM_INCOMPLETE)?_("Clear"):_("Set")));
-  } else {
-    fprintf(fout, "<td>&nbsp;</td>");
-  }
-  fprintf(fout, "</tr>\n");
-  if (allowed_edit) {
-    fprintf(fout, "</form>");
-  }
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td><td>&nbsp;</td><td>&nbsp;</td></tr>", _("Disqualified?"), (flags & TEAM_DISQUALIFIED)?_("Yes"):_("No"));
-
-  fprintf(fout,"<tr><td>%s:</td><td>%d</td>%s</tr>\n",
-          _("Number of Runs"), runs_num, nbsp2);
-  fprintf(fout,"<tr><td>%s:</td><td>%zu</td>%s</tr>\n",
-          _("Total size of Runs"), runs_total, nbsp2);
-  fprintf(fout,"<tr><td>%s:</td><td>%d</td>%s</tr>\n",
-          _("Number of Clars"), clars_num, nbsp2);
-  fprintf(fout,"<tr><td>%s:</td><td>%zu</td>%s</tr>\n",
-          _("Total size of Clars"), clars_total, nbsp2);
-  fprintf(fout,"<tr><td>%s:</td><td>%d</td>%s</tr>\n",
-          _("Number of printed pages"), pages_total, nbsp2);
-
-  if (global->contestant_status_num > 0) {
-    // contestant status is editable when OPCAP_EDIT_REG is set
-    allowed_edit = 0;
-    if (opcaps_check(phr->caps, OPCAP_EDIT_REG) >= 0) allowed_edit = 1;
-    if (allowed_edit) {
-      html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-      html_hidden(fout, "user_id", "%d", view_user_id);
-    }
-    fprintf(fout, "<tr><td>%s:</td><td>", _("Status"));
-    init_value = 0;
-    if (!u_extra) {
-      fprintf(fout, "N/A");
-    } else if (u_extra->status < 0
-               || u_extra->status >= global->contestant_status_num) {
-      fprintf(fout, "%d - ???", u_extra->status);
-    } else {
-      fprintf(fout, "%d - %s", u_extra->status,
-              global->contestant_status_legend[u_extra->status]);
-      init_value = u_extra->status;
-    }
-    fprintf(fout, "</td>");
-    if (allowed_edit) {
-      fprintf(fout, "<td><select name=\"status\">\n");
-      for (i = 0; i < global->contestant_status_num; i++) {
-        s = "";
-        if (i == init_value) s = " selected=\"1\"";
-        fprintf(fout, "<option value=\"%d\"%s>%d - %s</option>\n",
-                i, s, i, global->contestant_status_legend[i]);
-      }
-      fprintf(fout, "</select></td>\n");
-      fprintf(fout, "<td>%s</td>\n", BUTTON(NEW_SRV_ACTION_USER_CHANGE_STATUS));
-    } else {
-      fprintf(fout, "%s", nbsp2);
-    }
-    fprintf(fout, "</tr>\n");
-    if (allowed_edit) {
-      fprintf(fout, "</form>");
-    }
-  }
-
-  i = 0;
-  if (u_extra) i = u_extra->warn_u;
-  fprintf(fout,"<tr><td>%s:</td><td>%d</td>%s</tr>\n",
-          _("Number of warnings"), i, nbsp2);
-
-  fprintf(fout, "</table>\n");
-
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  html_hidden(fout, "user_id", "%d", view_user_id);
-  fprintf(fout, "<p>%s</p>\n", BUTTON(NEW_SRV_ACTION_PRINT_USER_PROTOCOL));
-  fprintf(fout, "</form>\n");
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  html_hidden(fout, "user_id", "%d", view_user_id);
-  fprintf(fout, "<p>%s</p>\n", BUTTON(NEW_SRV_ACTION_PRINT_USER_FULL_PROTOCOL));
-  fprintf(fout, "</form>\n");
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  html_hidden(fout, "user_id", "%d", view_user_id);
-  fprintf(fout, "<p>%s</p>\n", BUTTON(NEW_SRV_ACTION_PRINT_UFC_PROTOCOL));
-  fprintf(fout, "</form>\n");
-
-  if (!u_extra || !u_extra->warn_u) {
-    fprintf(fout, "<h2>%s</h2>\n", _("No warnings"));
-  } else {
-    fprintf(fout, "<h2>%s</h2>\n", _("Warnings"));
-    for (i = 0; i < u_extra->warn_u; i++) {
-      if (!(cur_warn = u_extra->warns[i])) continue;
-      fprintf(fout, _("<h3>Warning %d: issued: %s, issued by: %s (%d), issued from: %s</h3>"), i + 1, xml_unparse_date(cur_warn->date), teamdb_get_login(cs->teamdb_state, cur_warn->issuer_id), cur_warn->issuer_id,
-              xml_unparse_ipv6(&cur_warn->issuer_ip));
-      fprintf(fout, "<p>%s:\n<pre>%s</pre>\n", _("Warning text for the user"),
-              ARMOR(cur_warn->text));
-      fprintf(fout, "<p>%s:\n<pre>%s</pre>\n", _("Judge's comment"),
-              ARMOR(cur_warn->comment));
-    }
-  }
-
-  if (opcaps_check(phr->caps, OPCAP_EDIT_REG) >= 0) {
-    fprintf(fout, "<h2>%s</h3>\n", _("Issue a warning"));
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(fout, "user_id", "%d", view_user_id);
-    fprintf(fout, "<p>%s:<br>\n",
-            _("Warning explanation for the user (mandatory)"));
-    fprintf(fout, "<p><textarea name=\"warn_text\" rows=\"5\" cols=\"60\"></textarea></p>\n");
-    fprintf(fout, "<p>%s:<br>\n", _("Comment for other judges (optional)"));
-    fprintf(fout, "<p><textarea name=\"warn_comment\" rows=\"5\" cols=\"60\"></textarea></p>\n");
-    fprintf(fout, "<p>%s</p>\n", BUTTON(NEW_SRV_ACTION_ISSUE_WARNING));
-    fprintf(fout, "</form>\n");
-  }
-
-  if (opcaps_check(phr->caps, OPCAP_EDIT_REG) >= 0) {
-    fprintf(fout, "<h2>%s</h3>\n", _("Disqualify user"));
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    html_hidden(fout, "user_id", "%d", view_user_id);
-    fprintf(fout, "<p>%s:<br>\n",
-            _("Disqualification explanation"));
-    fprintf(fout, "<p><textarea name=\"disq_comment\" rows=\"5\" cols=\"60\">");
-    if (u_extra->disq_comment) {
-      fprintf(fout, "%s", ARMOR(u_extra->disq_comment));
-    }
-    fprintf(fout, "</textarea></p>\n");
-
-    fprintf(fout, "<table class=\"b0\"><tr>");
-    fprintf(fout, "<td class=\"b0\">%s</td>",
-            ns_submit_button(bb, sizeof(bb), 0,
-                             NEW_SRV_ACTION_SET_DISQUALIFICATION,
-                             (flags & TEAM_DISQUALIFIED)?_("Edit comment"):_("Disqualify")));
-    if ((flags & TEAM_DISQUALIFIED))
-      fprintf(fout, "<td class=\"b0\">%s</td>\n",
-              BUTTON(NEW_SRV_ACTION_CLEAR_DISQUALIFICATION));
-    fprintf(fout, "</tr></table>\n");
-    fprintf(fout, "</form>\n");
-  }
-
-  html_armor_free(&ab);
-  return 0;
-}
-
-static int
-fix_prio(int val)
-{
-  if (val < -16) val = -16;
-  if (val > 15) val = 15;
-  return val;
-}
-
-int
-ns_write_judging_priorities(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  const struct section_problem_data *prob;
-  const unsigned char *cl = " class=\"b1\"";
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  int glob_prio, prob_prio, static_prio, local_prio, total_prio;
-  int prob_id;
-  unsigned char varname[64];
-  unsigned char bb[1024];
-
-  glob_prio = fix_prio(global->priority_adjustment);
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<table%s>\n", cl);
-  fprintf(fout, "<tr>"
-          "<th%s>Id</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "</tr>\n",
-          cl, cl, _("Short name"), cl, _("Long name"),
-          cl, _("Contest priority"), cl, _("Problem priority"),
-          cl, _("Static priority"), cl, _("Priority adjustment"),
-          cl, _("Total priority"));
-  for (prob_id = 1;
-       prob_id <= cs->max_prob && prob_id < EJ_SERVE_STATE_TOTAL_PROBS;
-       ++prob_id) {
-    if (!(prob = cs->probs[prob_id])) continue;
-    prob_prio = fix_prio(prob->priority_adjustment);
-    static_prio = fix_prio(glob_prio + prob_prio);
-    local_prio = fix_prio(cs->prob_prio[prob_id]);
-    total_prio = fix_prio(static_prio + local_prio);
-    fprintf(fout, "<tr>");
-    fprintf(fout, "<td%s>%d</td>", cl, prob_id);
-    fprintf(fout, "<td%s>%s</td>", cl, ARMOR(prob->short_name));
-    fprintf(fout, "<td%s>%s</td>", cl, ARMOR(prob->long_name));
-    fprintf(fout, "<td%s>%d</td><td%s>%d</td><td%s>%d</td>",
-            cl, glob_prio, cl, prob_prio, cl, static_prio);
-    snprintf(varname, sizeof(varname), "prio_%d", prob_id);
-    html_input_text(bb, sizeof(bb), varname, 4, 0, "%d", local_prio);
-    fprintf(fout, "<td%s>%s</td>", cl, bb);
-    fprintf(fout, "<td%s>%d</td>", cl, total_prio);
-    fprintf(fout, "</tr>\n");
-  }
-  fprintf(fout, "</table>\n");
-
-  cl = " class=\"b0\"";
-  fprintf(fout, "<table%s><tr>", cl);
-  fprintf(fout, "<td%s>%s%s</a></td>",
-          cl, ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
-          _("Main page"));
-  fprintf(fout, "<td%s>%s</td>",
-          cl, BUTTON(NEW_SRV_ACTION_SET_PRIORITIES));
-  fprintf(fout, "</tr></table>\n");
-  fprintf(fout, "</form>\n");
-
-  fprintf(fout, "<br/><p>%s</p></br>\n",
-          _("Priority value must be in range [-16, 15]. The less the priority value, the more the judging priority."));
-
-  html_armor_free(&ab);
-  return 0;
-}
-
-int
-ns_new_run_form(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  int i;
-  unsigned char bb[1024];
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-
-  fprintf(fout, "<p>%s%s</a></p>",
-          ns_aref(bb, sizeof(bb), phr, 0, 0),
-          _("To main page"));
-
-  html_start_form(fout, 2, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<table>\n");
-
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("User ID"), html_input_text(bb, sizeof(bb), "run_user_id", 10, 0, NULL));
-
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("User login"),
-          html_input_text(bb, sizeof(bb), "run_user_login", 10, 0, NULL));
-
-  fprintf(fout, "<tr><td>%s:</td>", _("Problem"));
-  fprintf(fout, "<td><select name=\"prob_id\"><option value=\"\"></option>\n");
-  for (i = 1; i <= cs->max_prob; i++)
-    if (cs->probs[i]) {
-      fprintf(fout, "<option value=\"%d\">%s - %s</option>\n",
-              i, cs->probs[i]->short_name, ARMOR(cs->probs[i]->long_name));
-    }
-  fprintf(fout, "</select></td></tr>\n");
-
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Variant"),
-          html_input_text(bb, sizeof(bb), "variant", 10, 0, NULL));
-
-  fprintf(fout, "<tr><td>%s:</td>", _("Language"));
-  fprintf(fout,"<td><select name=\"language\"><option value=\"\"></option>\n");
-  for (i = 1; i <= cs->max_lang; i++)
-    if (cs->langs[i]) {
-      fprintf(fout, "<option value=\"%d\">%s - %s</option>\n",
-              i, cs->langs[i]->short_name, ARMOR(cs->langs[i]->long_name));
-    }
-  fprintf(fout, "</select></td></tr>\n");
-
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Imported?"),
-          html_select_yesno(bb, sizeof(bb), "is_imported", 0));
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Hidden?"),
-          html_select_yesno(bb, sizeof(bb), "is_hidden", 0));
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Read-only?"),
-          html_select_yesno(bb, sizeof(bb), "is_readonly", 0));
-
-  fprintf(fout, "<tr><td>%s:</td>", _("Status"));
-  write_change_status_dialog(cs, fout, 0, 0, 0, -1, 0);
-  fprintf(fout, "</tr>\n");
-
-  if (global->score_system == SCORE_KIROV
-      || global->score_system == SCORE_OLYMPIAD) {
-    fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Tests passed"),
-            html_input_text(bb, sizeof(bb), "tests", 10, 0, NULL));
-    fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"),
-            html_input_text(bb, sizeof(bb), "score", 10, 0, NULL));
-  } else if (global->score_system == SCORE_MOSCOW) {
-    fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Failed test"),
-            html_input_text(bb, sizeof(bb), "tests", 10, 0, NULL));
-    fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Score gained"),
-            html_input_text(bb, sizeof(bb), "score", 10, 0, NULL));
-  } else {
-    fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n", _("Failed test"),
-            html_input_text(bb, sizeof(bb), "tests", 10, 0, NULL));
-  }
-
-  fprintf(fout, "<tr><td>%s:</td>"
-          "<td><input type=\"file\" name=\"file\"/></td></tr>\n",
-          _("File"));
-
-  fprintf(fout, "<tr><td>%s</td><td>&nbsp;</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_NEW_RUN));
-  fprintf(fout, "</table></form>\n");
-
-  html_armor_free(&ab);
-  return 0;
-}
-
 static void
 stand_parse_error_func(void *data, unsigned char const *format, ...)
 {
@@ -4739,7 +2451,7 @@ stand_parse_error_func(void *data, unsigned char const *format, ...)
 }
 
 #define READ_PARAM(name) do { \
-  if (ns_cgi_param(phr, #name, &s) <= 0 || !s) return; \
+  if (hr_cgi_param(phr, #name, &s) <= 0 || !s) return; \
   len = strlen(s); \
   if (len > 128 * 1024) return; \
   name = (unsigned char*) alloca(len + 1); \
@@ -4876,79 +2588,6 @@ ns_reset_stand_filter(
   if (!u) return;
 
   serve_state_destroy_stand_expr(u);
-}
-
-void
-ns_write_priv_standings(
-        const serve_state_t state,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        FILE *f,
-        int accepting_mode)
-{
-  struct user_filter_info *u = 0;
-  unsigned char *stand_user_expr = 0;
-  unsigned char *stand_prob_expr = 0;
-  unsigned char *stand_run_expr = 0;
-  unsigned char bb[1024];
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-
-  //write_standings_header(state, cnts, f, 1, 0, 0, 0);
-  u = user_filter_info_allocate(state, phr->user_id, phr->session_id);
-
-  stand_user_expr = u->stand_user_expr;
-  if (!stand_user_expr) stand_user_expr = "";
-  stand_prob_expr = u->stand_prob_expr;
-  if (!stand_prob_expr) stand_prob_expr = "";
-  stand_run_expr = u->stand_run_expr;
-  if (!stand_run_expr) stand_run_expr = "";
-
-  html_start_form(f, 1, phr->self_url, phr->hidden_vars);
-  fprintf(f, "<table border=\"0\">");
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("User filter expression"),
-          html_input_text(bb, sizeof(bb), "stand_user_expr", 64, 0,
-                          "%s", ARMOR(stand_user_expr)));
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("Problem filter expression"),
-          html_input_text(bb, sizeof(bb), "stand_prob_expr", 64, 0,
-                          "%s", ARMOR(stand_prob_expr)));
-  fprintf(f, "<tr><td>%s:</td><td>%s</td></tr>", _("Run filter expression"),
-          html_input_text(bb, sizeof(bb), "stand_run_expr", 64, 0,
-                          "%s", ARMOR(stand_run_expr)));
-  fprintf(f, "<tr><td>&nbsp;</td><td>");
-  fprintf(f, "%s", BUTTON(NEW_SRV_ACTION_SET_STAND_FILTER));
-  fprintf(f, "%s", BUTTON(NEW_SRV_ACTION_RESET_STAND_FILTER));
-  fprintf(f, "</td></tr>");
-  fprintf(f, "<tr><td>&nbsp;</td><td><a href=\"%sfilter_expr.html\" target=\"_blank\">%s</a></td></tr>",
-          CONF_STYLE_PREFIX, _("Help"));
-  fprintf(f, "</table>");
-  fprintf(f, "</form><br/>\n");
-
-  if (u->stand_error_msgs) {
-    fprintf(f, "<h2>Filter expression errors</h2>\n");
-    fprintf(f, "<p><pre><font color=\"red\">%s</font></pre></p>\n",
-            ARMOR(u->stand_error_msgs));
-  }
-
-  const unsigned char *cl = " class=\"b0\"";
-  fprintf(f, "<table%s><tr>", cl);
-  fprintf(f, "<td%s>%s%s</a></td>",
-          cl, ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
-          _("Main page"));
-  fprintf(f, "<td%s>%s%s</a></td>",
-          cl, ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_STANDINGS, 0),
-          _("Refresh"));
-  fprintf(f, "</tr></table>\n");
-
-  if (state->global->score_system == SCORE_KIROV
-      || state->global->score_system == SCORE_OLYMPIAD)
-    do_write_kirov_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0, 0 /*accepting_mode*/, 1, 0, 0, u, 0 /* user_mode */);
-  else if (state->global->score_system == SCORE_MOSCOW)
-    do_write_moscow_standings(state, cnts, f, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0,
-                              u);
-  else
-    do_write_standings(state, cnts, f, 1, 0, 0, 0, 0, 0, 0, 1, 0, u);
-
-  html_armor_free(&ab);
 }
 
 void
@@ -6656,7 +4295,7 @@ ns_get_user_problems_summary(
         int *all_attempts)            /* all attempts count */
 {
   const struct section_global_data *global = cs->global;
-  int total_runs, run_id, cur_score, total_teams;
+  int total_runs, run_id, cur_score = 0, total_teams;
   struct run_entry re;
   struct section_problem_data *cur_prob = 0;
   unsigned char *user_flag = 0;
@@ -7873,35 +5512,20 @@ ns_examiners_page(
   return 0;
 }
 
-struct testing_queue_entry
-{
-  unsigned char *entry_name;
-  int priority;
-  time_t mtime;
-  struct super_run_in_packet *packet;
-};
-
-struct testing_queue_vec
-{
-  int a;
-  int u;
-  struct testing_queue_entry *v;
-};
-
 static int
 scan_run_sort_func(const void *v1, const void *v2)
 {
-  const struct testing_queue_entry *p1 = (const struct testing_queue_entry*)v1;
-  const struct testing_queue_entry *p2 = (const struct testing_queue_entry*)v2;
+  const TestingQueueEntry *p1 = (const TestingQueueEntry*)v1;
+  const TestingQueueEntry *p2 = (const TestingQueueEntry*)v2;
 
   return strcmp(p1->entry_name, p2->entry_name);
 }
 
-static void
-scan_run_queue(
+void
+ns_scan_run_queue(
         const unsigned char *dpath,
         int contest_id,
-        struct testing_queue_vec *vec)
+        struct TestingQueueArray *vec)
 {
   DIR *d = 0;
   struct dirent *dd;
@@ -7963,7 +5587,7 @@ scan_run_queue(
         XCALLOC(vec->v, vec->a);
       } else {
         int new_sz = vec->a * 2;
-        struct testing_queue_entry *new_v = 0;
+        struct TestingQueueEntry *new_v = 0;
         XCALLOC(new_v, new_sz);
         memcpy(new_v, vec->v, vec->a * sizeof(new_v[0]));
         xfree(vec->v);
@@ -7983,321 +5607,1711 @@ scan_run_queue(
 
   qsort(vec->v, vec->u, sizeof(vec->v[0]), scan_run_sort_func);
 }
-        
-int
-ns_write_testing_queue(
-        FILE *fout,
-        FILE *log_f,
+
+void
+new_write_user_runs(
+        const serve_state_t state,
+        FILE *f,
         struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
+        unsigned int show_flags,
+        int prob_id,
+        const unsigned char *table_class)
 {
-  const serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  const unsigned char *table_class = "b1";
-  unsigned char cl[64] = { 0 };
-  struct testing_queue_vec vec;
-  int i, prob_id, user_id;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  unsigned char hbuf[1024];
-  const unsigned char *arch;
-  unsigned char run_queue_dir[PATH_MAX];
-  const unsigned char *queue_dir = NULL;
+  const struct section_global_data *global = state->global;
+  int i, showed, runs_to_show = 0;
+  int attempts, disq_attempts, prev_successes;
+  time_t start_time, time;
+  unsigned char dur_str[64];
+  unsigned char stat_str[128];
+  unsigned char *prob_str;
+  unsigned char *lang_str;
+  unsigned char href[128];
+  struct run_entry re;
+  const unsigned char *run_kind_str = 0;
+  struct section_problem_data *cur_prob;
+  struct section_language_data *lang = 0;
+  unsigned char *cl = "";
+  int status;
+  int enable_src_view = 0;
+  int enable_rep_view = 0;
+  int separate_user_score = 0;
 
-  memset(&vec, 0, sizeof(vec));
-  if(cnts && cnts->run_managed) {
-    if (global->super_run_dir && global->super_run_dir[0]) {
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/var/queue", global->super_run_dir);
-    } else {
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/super-run/var/queue", EJUDGE_CONTESTS_HOME_DIR);
-    }
-    queue_dir = run_queue_dir;
-  } else {
-    queue_dir = global->run_queue_dir;
+  if (table_class && *table_class) {
+    cl = alloca(strlen(table_class) + 16);
+    sprintf(cl, " class=\"%s\"", table_class);
   }
-  scan_run_queue(queue_dir, cnts->id, &vec);
 
-  snprintf(cl, sizeof(cl), " class=\"%s\"", "b0");
-  fprintf(fout, "<table%s><tr>", cl);
-  fprintf(fout, "<td%s>%s%s</a></td>",
-          cl, ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
-          _("Main page"));
-  fprintf(fout, "<td%s>%s%s</a></td>", cl,
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_TESTING_QUEUE,0),
-          _("Refresh"));
-  fprintf(fout, "</tr></table>\n");  
+  if (prob_id < 0 || prob_id > state->max_prob 
+      || !state->probs || !state->probs[prob_id])
+    prob_id = 0;
 
-  if (table_class) {
+  if (global->is_virtual) {
+    start_time = run_get_virtual_start_time(state->runlog_state, phr->user_id);
+  } else {
+    start_time = run_get_start_time(state->runlog_state);
+  }
+  if (prob_id > 0) runs_to_show = state->probs[prob_id]->prev_runs_to_show;
+  if (runs_to_show <= 0) runs_to_show = 15;
+  if (show_flags) runs_to_show = 100000;
+
+  /* write run statistics: show last 15 in the reverse order */
+  fprintf(f,"<table border=\"1\"%s><tr><th%s>%s</th><th%s>%s</th>"
+          "<th%s>%s</th>"
+          "<th%s>%s</th><th%s>%s</th><th%s>%s</th>",
+          cl, cl, _("Run ID"), cl, _("Time"), cl, _("Size"), cl, _("Problem"),
+          cl, _("Language"), cl, _("Result"));
+
+  if (global->score_system == SCORE_KIROV
+      || global->score_system == SCORE_OLYMPIAD) {
+    fprintf(f, "<th%s>%s</th>", cl, _("Tests passed"));
+    fprintf(f, "<th%s>%s</th>", cl, _("Score"));
+  } else if (global->score_system == SCORE_MOSCOW) {
+    fprintf(f, "<th%s>%s</th><th%s>%s</th>", cl, _("Failed test"),
+            cl, _("Score"));
+  } else {
+    fprintf(f, "<th%s>%s</th>", cl, _("Failed test"));
+  }
+
+  enable_src_view = (state->online_view_source > 0 || (!state->online_view_source && global->team_enable_src_view > 0));
+  enable_rep_view = (state->online_view_report > 0 || (!state->online_view_report && global->team_enable_rep_view > 0));
+  separate_user_score = global->separate_user_score > 0 && state->online_view_judge_score <= 0;
+
+  if (enable_src_view)
+    fprintf(f, "<th%s>%s</th>", cl, _("View source"));
+  if (enable_rep_view || global->team_enable_ce_view)
+    fprintf(f, "<th%s>%s</th>", cl, _("View report"));
+  if (global->enable_printing && !state->printing_suspended)
+    fprintf(f, "<th%s>%s</th>", cl, _("Print sources"));
+
+  fprintf(f, "</tr>\n");
+
+  for (showed = 0, i = run_get_user_last_run_id(state->runlog_state, phr->user_id);
+       i >= 0 && showed < runs_to_show;
+       i = run_get_user_prev_run_id(state->runlog_state, i)) {
+    if (run_get_entry(state->runlog_state, i, &re) < 0) continue;
+    if (re.status == RUN_VIRTUAL_START || re.status == RUN_VIRTUAL_STOP
+        || re.status == RUN_EMPTY)
+      continue;
+    if (re.user_id != phr->user_id) continue;
+    if (prob_id > 0 && re.prob_id != prob_id) continue;
+
+    cur_prob = 0;
+    if (re.prob_id > 0 && re.prob_id <= state->max_prob && state->probs)
+      cur_prob = state->probs[re.prob_id];
+    if (!cur_prob) continue;
+
+    showed++;
+
+    lang = 0;
+    if (re.lang_id > 0 && re.lang_id <= state->max_lang)
+      lang = state->langs[re.lang_id];
+
+    if (separate_user_score > 0 && re.is_saved) {
+      status = re.saved_status;
+    } else {
+      status = re.status;
+    }
+
+    if (global->score_system == SCORE_OLYMPIAD
+        && state->accepting_mode) {
+      if (status == RUN_OK || status == RUN_PARTIAL)
+        status = RUN_ACCEPTED;
+    }
+
+    attempts = 0; disq_attempts = 0;
+    if (global->score_system == SCORE_KIROV && !re.is_hidden)
+      run_get_attempts(state->runlog_state, i, &attempts, &disq_attempts,
+                       cur_prob->ignore_compile_errors);
+
+    prev_successes = RUN_TOO_MANY;
+    if (global->score_system == SCORE_KIROV
+        && status == RUN_OK
+        && !re.is_hidden
+        && cur_prob && cur_prob->score_bonus_total > 0) {
+      if ((prev_successes = run_get_prev_successes(state->runlog_state, i)) < 0)
+        prev_successes = RUN_TOO_MANY;
+    }
+
+    run_kind_str = "";
+    if (re.is_imported) run_kind_str = "*";
+    if (re.is_hidden) run_kind_str = "#";
+
+    time = re.time;
+    if (!start_time) time = start_time;
+    if (start_time > time) time = start_time;
+    duration_str(global->show_astr_time, time, start_time, dur_str, 0);
+    run_status_str(status, stat_str, sizeof(stat_str), 0, 0);
+    prob_str = "???";
+    if (cur_prob) {
+      if (cur_prob->variant_num > 0) {
+        int variant = re.variant;
+        if (!variant) variant = find_variant(state, re.user_id, re.prob_id, 0);
+        prob_str = alloca(strlen(cur_prob->short_name) + 10);
+        if (variant > 0) {
+          sprintf(prob_str, "%s-%d", cur_prob->short_name, variant);
+        } else {
+          sprintf(prob_str, "%s-?", cur_prob->short_name);
+        }
+      } else {
+        prob_str = cur_prob->short_name;
+      }
+    }
+    lang_str = "???";
+    if (!re.lang_id) lang_str = "N/A";
+    if (lang) lang_str = lang->short_name;
+
+    fprintf(f, "<tr>\n");
+    fprintf(f, "<td%s>%d%s</td>", cl, i, run_kind_str);
+    fprintf(f, "<td%s>%s</td>", cl, dur_str);
+    fprintf(f, "<td%s>%u</td>", cl, re.size);
+    fprintf(f, "<td%s>%s</td>", cl, prob_str);
+    fprintf(f, "<td%s>%s</td>", cl, lang_str);
+
+    write_html_run_status(state, f, start_time, &re, 1 /* user_mode */,
+                          0, attempts, disq_attempts,
+                          prev_successes, table_class, 0, 0, RUN_VIEW_DEFAULT);
+
+    if (enable_src_view) {
+      fprintf(f, "<td%s>", cl);
+      fprintf(f, "%s", ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_VIEW_SOURCE, "run_id=%d", i));
+      fprintf(f, "%s</a>", _("View"));
+      fprintf(f, "</td>");
+    }
+      /* FIXME: RUN_PRESENTATION_ERR and != standard problem type */
+    if (enable_rep_view) {
+      fprintf(f, "<td%s>", cl);
+      if (status == RUN_CHECK_FAILED || status == RUN_IGNORED
+          || status == RUN_PENDING || status > RUN_MAX_STATUS
+          || (cur_prob && !cur_prob->team_enable_rep_view)) {
+        fprintf(f, "N/A");
+      } else {
+        fprintf(f, "%s%s</a>", ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_VIEW_REPORT, "run_id=%d", i),
+                _("View"));
+      }
+      fprintf(f, "</td>");
+    } else if (global->team_enable_ce_view) {
+      fprintf(f, "<td%s>", cl);
+      if (status != RUN_COMPILE_ERR && status != RUN_STYLE_ERR) {
+        fprintf(f, "N/A");
+      } else {
+        fprintf(f, "%s%s</a>",
+                ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_VIEW_REPORT, "run_id=%d", i),
+                _("View"));
+      }
+      fprintf(f, "</td>");
+    }
+
+    if (global->enable_printing && !state->printing_suspended) {
+      fprintf(f, "<td%s>", cl);
+      if (re.pages > 0) {
+        fprintf(f, "N/A");
+      } else {
+        fprintf(f, "%s%s</a>",
+                ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_PRINT_RUN, "run_id=%d", i),
+                _("Print"));
+      }
+      fprintf(f, "</td>\n");
+    }
+
+    fprintf(f, "\n</tr>\n");
+  }
+  fputs("</table>\n", f);
+}
+
+static unsigned char *
+team_clar_flags(
+        const serve_state_t state,
+        int user_id,
+        int clar_id,
+        int flags,
+        int from,
+        int to)
+{
+  if (from != user_id) {
+    if (!team_extra_get_clar_status(state->team_extra_state, user_id, clar_id))
+      return "N";
+    else return "&nbsp;";
+  }
+  if (!flags) return "U";
+  return clar_flags_html(state->clarlog_state, flags, from, to, 0, 0);
+}
+
+void
+new_write_user_clars(
+        const serve_state_t state,
+        FILE *f,
+        struct http_request_info *phr,
+        unsigned int show_flags,
+        const unsigned char *table_class)
+{
+  const struct section_global_data *global = state->global;
+  int showed, i, clars_to_show, n;
+  time_t start_time, time;
+  int show_astr_time = 0;
+
+  char  dur_str[64];
+  const unsigned char *psubj = 0;
+  char *asubj = 0; /* html armored subj */
+  int   asubj_len = 0; /* html armored subj len */
+  unsigned char href[128];
+  unsigned char *cl = "";
+  struct clar_entry_v1 clar;
+
+  if (table_class && *table_class) {
+    cl = alloca(strlen(table_class) + 16);
+    sprintf(cl, " class=\"%s\"", table_class);
+  }
+
+  start_time = run_get_start_time(state->runlog_state);
+  if (global->is_virtual)
+    start_time = run_get_virtual_start_time(state->runlog_state, phr->user_id);
+  clars_to_show = 15;
+  if (show_flags) clars_to_show = 100000;
+  show_astr_time = global->show_astr_time;
+  if (global->is_virtual) show_astr_time = 1;
+
+  /* write clars statistics for the last 15 in the reverse order */
+  fprintf(f,"<table border=\"1\"%s><tr><th%s>%s</th><th%s>%s</th><th%s>%s</th>"
+          "<th%s>%s</th>"
+          "<th%s>%s</th><th%s>%s</th>"
+          "<th%s>%s</th><th%s>%s</th></tr>\n", cl, cl,
+          _("Clar ID"), cl, _("Flags"), cl, _("Time"), cl, _("Size"),
+          cl, _("From"), cl, _("To"), cl, _("Subject"), cl, _("View"));
+  for (showed = 0, i = clar_get_total(state->clarlog_state) - 1;
+       showed < clars_to_show && i >= 0;
+       i--) {
+    if (clar_get_record(state->clarlog_state, i, &clar) < 0)
+      continue;
+    if (clar.id < 0) continue;
+    if (clar.from > 0 && clar.from != phr->user_id) continue;
+    if (clar.to > 0 && clar.to != phr->user_id) continue;
+    if (start_time <= 0 && clar.hide_flag) continue;
+    showed++;
+
+    psubj = clar_get_subject(state->clarlog_state, i);
+    n = html_armored_strlen(psubj);
+    if (n + 4 > asubj_len) {
+      asubj_len = (n + 7) & ~3;
+      asubj = alloca(asubj_len);
+    }
+    html_armor_string(psubj, asubj);
+    time = clar.time;
+    if (!start_time) time = start_time;
+    if (start_time > time) time = start_time;
+    duration_str(show_astr_time, time, start_time, dur_str, 0);
+
+    fputs("<tr>", f);
+    fprintf(f, "<td%s>%d</td>", cl, i);
+    fprintf(f, "<td%s>%s</td>", cl,
+            team_clar_flags(state, phr->user_id, i, clar.flags, clar.from, clar.to));
+    fprintf(f, "<td%s>%s</td>", cl, dur_str);
+    fprintf(f, "<td%s>%zu</td>", cl, (size_t) clar.size);
+    if (!clar.from) {
+      fprintf(f, "<td%s><b>%s</b></td>", cl, _("judges"));
+    } else {
+      fprintf(f, "<td%s>%s</td>", cl,
+              teamdb_get_login(state->teamdb_state, clar.from));
+    }
+    if (!clar.to && !clar.from) {
+      fprintf(f, "<td%s><b>%s</b></td>", cl, _("all"));
+    } else if (!clar.to) {
+      fprintf(f, "<td%s><b>%s</b></td>", cl, _("judges"));
+    } else {
+      fprintf(f, "<td%s>%s</td>",
+              cl, teamdb_get_login(state->teamdb_state, clar.to));
+    }
+    fprintf(f, "<td%s>%s</td>", cl, asubj);
+    fprintf(f, "<td%s>", cl);
+    fprintf(f, "%s", ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_VIEW_CLAR, "clar_id=%d", i));
+    fprintf(f, "%s</a>", _("View"));
+    fprintf(f, "</td>");
+    fprintf(f, "</tr>\n");
+  }
+  fputs("</table>\n", f);
+}
+
+static const unsigned char *
+html_make_title(unsigned char *buf, size_t size, const unsigned char *title)
+{
+  snprintf(buf, size, " title=\"%s\"", title);
+  return buf;
+}
+
+int
+write_xml_team_testing_report(
+        const serve_state_t state,
+        const struct section_problem_data *prob,
+        FILE *f,
+        struct http_request_info *phr,
+        int output_only,
+        int is_marked,
+        const unsigned char *txt,
+        const unsigned char *table_class)
+{
+  const struct section_global_data *global = state->global;
+  testing_report_xml_t r = 0;
+  struct testing_report_test *t;
+  unsigned char *font_color = 0, *s;
+  int need_comment = 0, need_info = 0, is_kirov = 0, i;
+  unsigned char cl[128] = { 0 };
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  int visibility = 0, serial = 0, has_full = 0, need_links = 0;
+  int status, score, max_score;
+  int run_tests, tests_passed;
+  unsigned char hbuf[1024];
+  unsigned char tbuf[1024];
+
+  if (table_class && *table_class) {
     snprintf(cl, sizeof(cl), " class=\"%s\"", table_class);
   }
 
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<table%s>\n", cl);
-  fprintf(fout, 
-          "<tr>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "<th%s>%s</th>"
-          "</tr>\n",
-          cl, "NN",
-          cl, "ContestId",
-          cl, _("Packet name"),
-          cl, _("Priority"),
-          cl, "RunId",
-          cl, _("Problem"),
-          cl, _("User"),
-          cl, _("Architecture"),
-          cl, "JudgeId",
-          cl, _("Create time"),
-          cl, _("Actions"));
-  for (i = 0; i < vec.u; ++i) {
-    const struct super_run_in_global_packet *srgp = vec.v[i].packet->global;
-    const struct super_run_in_problem_packet *srpp = vec.v[i].packet->problem;
+  if (!(r = testing_report_parse_xml(txt))) {
+    fprintf(f, "<p><big>Cannot parse XML file!</big></p>\n");
+    return 0;
+  }
 
-    arch = srgp->arch;
-    if (!arch) arch = "";
+  status = r->status;
+  score = r->score;
+  max_score = r->max_score;
+  run_tests = r->run_tests;
+  tests_passed = r->tests_passed;
+  if (global->separate_user_score > 0 && state->online_view_judge_score <= 0) {
+    if (r->user_status >= 0) status = r->user_status;
+    if (r->user_score >= 0) score = r->user_score;
+    if (r->user_max_score >= 0) max_score = r->user_max_score;
+    if (r->user_run_tests >= 0) run_tests = r->user_run_tests;
+    if (r->user_tests_passed >= 0) tests_passed = r->user_tests_passed;
+  }
 
-    fprintf(fout, "<tr>");
-    fprintf(fout, "<td%s>%d</td>", cl, i + 1);
-    fprintf(fout, "<td%s>%d</td>", cl, srgp->contest_id);
-    fprintf(fout, "<td%s>%s</td>", cl, vec.v[i].entry_name);
-    fprintf(fout, "<td%s>%d</td>", cl, vec.v[i].priority);
-    fprintf(fout, "<td%s>%d</td>", cl, srgp->run_id);
-    if (srgp->contest_id == cnts->id) {
-      prob_id = srpp->id;
-      if (prob_id > 0 && prob_id <= cs->max_prob && cs->probs[prob_id]) {
-        fprintf(fout, "<td%s>%s</td>", cl, cs->probs[prob_id]->short_name);
-      } else {
-        fprintf(fout, "<td%s>Problem %d</td>", cl, prob_id);
-      }
-      user_id = srgp->user_id;
-      fprintf(fout, "<td%s>%s</td>", cl,
-              ARMOR(teamdb_get_name_2(cs->teamdb_state, user_id)));
+  if (status == RUN_OK || status == RUN_ACCEPTED || status == RUN_PENDING_REVIEW) {
+    font_color = "green";
+  } else {
+    font_color = "red";
+  }
+  fprintf(f, "<h2><font color=\"%s\">%s</font></h2>\n",
+          font_color, run_status_str(status, 0, 0, output_only, 0));
+
+  if (output_only) {
+    if (r->run_tests != 1 || !(t = r->tests[0])) {
+      testing_report_free(r);
+      return 0;
+    }
+    fprintf(f,
+            "<table%s>"
+            "<tr><th%s>N</th><th%s>%s</th>",
+            cl, cl, cl, _("Result"));
+    if (t->score >= 0 && t->nominal_score >= 0)
+      fprintf(f, "<th%s>%s</th>", cl, _("Score"));
+    if (t->status == RUN_PRESENTATION_ERR || prob->show_checker_comment > 0) {
+      fprintf(f, "<th%s>%s</th>", cl, _("Extra info"));
+    }
+    fprintf(f, "</tr>\n");
+
+    fprintf(f, "<tr>");
+    fprintf(f, "<td%s>%d</td>", cl, t->num);
+    if (t->status == RUN_OK || t->status == RUN_ACCEPTED || t->status == RUN_PENDING_REVIEW) {
+      font_color = "green";
     } else {
-      // use packet-provided info
-      if (srpp->short_name && srpp->short_name[0]) {
-        fprintf(fout, "<td%s>%s</td>", cl, srpp->short_name);
-      } else {
-        fprintf(fout, "<td%s>Problem %d</td>", cl, srpp->id);
+      font_color = "red";
+    }
+    fprintf(f, "<td%s><font color=\"%s\">%s</font></td>\n",
+            cl, font_color, run_status_str(t->status, 0, 0, output_only, 0));
+    if (t->score >= 0 && t->nominal_score >= 0)
+      fprintf(f, "<td%s>%d (%d)</td>", cl, t->score, t->nominal_score);
+    if (t->status == RUN_PRESENTATION_ERR || prob->show_checker_comment > 0) {
+      s = html_armor_string_dup(t->checker_comment);
+      fprintf(f, "<td%s>%s</td>", cl, s);
+      xfree(s); s = 0;
+    }
+    fprintf(f, "</table>\n");
+    testing_report_free(r);
+    return 0;
+  }
+
+  if (r->scoring_system == SCORE_KIROV ||
+      (r->scoring_system == SCORE_OLYMPIAD && !r->accepting_mode)) {
+    is_kirov = 1;
+  }
+
+  if (is_kirov) {
+    fprintf(f, _("<big>%d total tests runs, %d passed, %d failed.<br/>\n"),
+            run_tests, tests_passed, run_tests - tests_passed);
+    fprintf(f, _("Score gained: %d (out of %d).<br/><br/></big>\n"),
+            score, max_score);
+  } else {
+    if (status != RUN_OK && status != RUN_ACCEPTED && status != RUN_PENDING_REVIEW) {
+      fprintf(f, _("<big>Failed test: %d.<br/><br/></big>\n"), r->failed_test);
+    }
+  }
+
+  /*
+  if (r->comment) {
+    s = html_armor_string_dup(r->comment);
+    fprintf(f, "<big>Note: %s.<br/><br/></big>\n", s);
+    xfree(s);
+  }
+  */
+
+  if (r->valuer_comment) {
+    fprintf(f, "<p><b>%s</b>:<br/></p><pre>%s</pre>\n", _("Valuer comments"),
+            ARMOR(r->valuer_comment));
+  }
+
+  for (i = 0; i < r->run_tests; ++i) {
+    if (!(t = r->tests[i])) continue;
+    // TV_NORMAL, TV_FULL, TV_FULLIFMARKED, TV_BRIEF, TV_EXISTS, TV_HIDDEN
+    visibility = cntsprob_get_test_visibility(prob, i + 1, state->online_final_visibility);
+    if (visibility == TV_FULLIFMARKED) {
+      visibility = TV_HIDDEN;
+      if (is_marked) visibility = TV_FULL;
+    }
+    if (visibility == TV_EXISTS || visibility == TV_HIDDEN) continue;
+    if (t->team_comment) {
+      need_comment = 1;
+    }
+    // for any visibility of TV_NORMAL, TV_FULL, TV_BRIEF
+    if (global->report_error_code && t->status == RUN_RUN_TIME_ERR) {
+      need_info = 1;
+    }
+    if (visibility == TV_FULL) {
+      if (t->status == RUN_RUN_TIME_ERR) need_info = 1;
+      has_full = 1;
+      if (r->archive_available) need_links = 1;
+    }
+  }
+
+  fprintf(f,
+          "<table%s>"
+          "<tr><th%s>N</th><th%s>%s</th><th%s>%s</th>",
+          cl, cl, cl, _("Result"), cl, _("Time (sec)")/*,
+          cl, _("Real time (sec)")*/);
+  if (need_info) {
+    fprintf(f, "<th%s>%s</th>", cl, _("Extra info"));
+  }
+  if (is_kirov) {
+    fprintf(f, "<th%s>%s</th>", cl, _("Score"));
+  }
+  if (need_comment) {
+    fprintf(f, "<th%s>%s</th>", cl, _("Comment"));
+  }
+  if (need_links) {
+    fprintf(f, "<th%s>%s</th>", cl, _("Links"));
+  }
+
+  fprintf(f, "</tr>\n");
+
+  for (i = 0; i < r->run_tests; i++) {
+    if (!(t = r->tests[i])) continue;
+    // TV_NORMAL, TV_FULL, TV_FULLIFMARKED, TV_BRIEF, TV_EXISTS, TV_HIDDEN
+    visibility = cntsprob_get_test_visibility(prob, i + 1, state->online_final_visibility);
+    if (visibility == TV_FULLIFMARKED) {
+      visibility = TV_HIDDEN;
+      if (is_marked) visibility = TV_FULL;
+    }
+    if (visibility == TV_HIDDEN) continue;
+    ++serial;
+    if (visibility == TV_EXISTS) {
+      fprintf(f, "<tr>");
+      fprintf(f, "<td%s>%d</td>", cl, serial);
+      fprintf(f, "<td%s>&nbsp;</td>", cl); // status
+      fprintf(f, "<td%s>&nbsp;</td>", cl); // time
+      if (need_info) {
+        fprintf(f, "<td%s>&nbsp;</td>", cl); // info
       }
-      if (srgp->user_name && srgp->user_name[0]) {
-        fprintf(fout, "<td%s>%s</td>", cl, srgp->user_name);
-      } else if (srgp->user_login && srgp->user_login[0]) {
-        fprintf(fout, "<td%s>%s</td>", cl, srgp->user_login);
+      if (is_kirov) {
+        fprintf(f, "<td%s>&nbsp;</td>", cl); // score
+      }
+      if (need_comment) {
+        fprintf(f, "<td%s>&nbsp;</td>", cl); // info
+      }
+      fprintf(f, "</tr>\n");
+      continue;
+    }
+
+    fprintf(f, "<tr>");
+    fprintf(f, "<td%s>%d</td>", cl, serial);
+    if (t->status == RUN_OK || t->status == RUN_ACCEPTED || t->status == RUN_PENDING_REVIEW) {
+      font_color = "green";
+    } else {
+      font_color = "red";
+    }
+    fprintf(f, "<td%s><font color=\"%s\">%s</font></td>\n",
+            cl, font_color, run_status_str(t->status, 0, 0, output_only, 0));
+    if ((t->status == RUN_TIME_LIMIT_ERR || t->status == RUN_WALL_TIME_LIMIT_ERR) && r->time_limit_ms > 0) {
+      fprintf(f, "<td%s>&gt;%d.%03d</td>", cl,
+              r->time_limit_ms / 1000, r->time_limit_ms % 1000);
+    } else {
+      fprintf(f, "<td%s>%d.%03d</td>", cl, t->time / 1000, t->time % 1000);
+    }
+    /*
+    if (t->real_time > 0) {
+      disp_time = t->real_time;
+      if (disp_time < t->time) disp_time = t->time;
+      fprintf(f, "<td%s>%d.%03d</td>", cl, disp_time / 1000, disp_time % 1000);
+    } else {
+      fprintf(f, "<td%s>N/A</td>", cl);
+    }
+    */
+    if (need_info) {
+      fprintf(f, "<td%s>", cl);
+      if (t->status == RUN_RUN_TIME_ERR
+          && (global->report_error_code || visibility == TV_FULL)) {
+        if (t->exit_comment) {
+          fprintf(f, "%s", t->exit_comment);
+        } else if (t->term_signal >= 0) {
+          fprintf(f, "%s %d (%s)", _("Signal"), t->term_signal,
+                  os_GetSignalString(t->term_signal));
+        } else {
+          fprintf(f, "%s %d", _("Exit code"), t->exit_code);
+        }
       } else {
-        fprintf(fout, "<td%s>User %d</td>", cl, srgp->user_id);
+        fprintf(f, "&nbsp;");
+      }
+      fprintf(f, "</td>");
+    }
+    if (is_kirov) {
+      fprintf(f, "<td%s>%d (%d)</td>", cl, t->score, t->nominal_score);
+    }
+    if (need_comment) {
+      if (!t->team_comment) {
+        fprintf(f, "<td%s>&nbsp;</td>", cl);
+      } else {
+        s = html_armor_string_dup(t->team_comment);
+        fprintf(f, "<td%s>%s</td>", cl, s);
+        xfree(s);
       }
     }
-    fprintf(fout, "<td%s>%s</td>", cl, arch);
-    fprintf(fout, "<td%s>%d</td>", cl, srgp->judge_id);
-    fprintf(fout, "<td%s>%s</td>", cl, xml_unparse_date(vec.v[i].mtime));
-    fprintf(fout, "<td%s>", cl);
-    fprintf(fout, "&nbsp;&nbsp;<a href=\"%s\">X</a>",
-            ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_TESTING_DELETE,
-                   "packet=%s", vec.v[i].entry_name));
-    fprintf(fout, "&nbsp;&nbsp;<a href=\"%s\">Up</a>",
-            ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_TESTING_UP,
-                   "packet=%s", vec.v[i].entry_name));
-    fprintf(fout, "&nbsp;&nbsp;<a href=\"%s\">Down</a>",
-            ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_TESTING_DOWN,
-                   "packet=%s", vec.v[i].entry_name));
-    fprintf(fout, "</td>");
-    fprintf(fout, "</tr>\n");
+    if (need_links) {
+      fprintf(f, "<td%s>", cl);
+      if (visibility == TV_FULL) {
+        fprintf(f, "&nbsp;%s[I]</a>",
+                ns_aref_2(hbuf, sizeof(hbuf), phr,
+                          html_make_title(tbuf, sizeof(tbuf), _("Test input data")),
+                          NEW_SRV_ACTION_VIEW_TEST_INPUT,
+                          "run_id=%d&test_num=%d",
+                          r->run_id, t->num));
+        if (t->output_available) {
+          fprintf(f, "&nbsp;%s[O]</a>",
+                  ns_aref_2(hbuf, sizeof(hbuf), phr,
+                            html_make_title(tbuf, sizeof(tbuf), _("Program output")),
+                            NEW_SRV_ACTION_VIEW_TEST_OUTPUT,
+                            "run_id=%d&test_num=%d",
+                            r->run_id, t->num));
+        }
+        if (r->correct_available) {
+          fprintf(f, "&nbsp;%s[A]</a>",
+                  ns_aref_2(hbuf, sizeof(hbuf), phr,
+                            html_make_title(tbuf, sizeof(tbuf), _("Correct answer")),
+                            NEW_SRV_ACTION_VIEW_TEST_ANSWER,
+                            "run_id=%d&test_num=%d",
+                            r->run_id, t->num));
+        }
+        if (t->stderr_available) {
+          fprintf(f, "&nbsp;%s[E]</a>",
+                  ns_aref_2(hbuf, sizeof(hbuf), phr,
+                            html_make_title(tbuf, sizeof(tbuf), _("Program stderr output")),
+                            NEW_SRV_ACTION_VIEW_TEST_ERROR,
+                            "run_id=%d&test_num=%d",
+                            r->run_id, t->num));
+        }
+        if (t->checker_output_available) {
+          fprintf(f, "&nbsp;%s[C]</a>",
+                  ns_aref_2(hbuf, sizeof(hbuf), phr,
+                            html_make_title(tbuf, sizeof(tbuf), _("Checker output")),
+                            NEW_SRV_ACTION_VIEW_TEST_CHECKER,
+                            "run_id=%d&test_num=%d",
+                            r->run_id, t->num));
+        }
+        if (r->info_available) {
+          fprintf(f, "&nbsp;%s[F]</a>",
+                  ns_aref_2(hbuf, sizeof(hbuf), phr,
+                            html_make_title(tbuf, sizeof(tbuf), _("Test information")),
+                            NEW_SRV_ACTION_VIEW_TEST_INFO,
+                            "run_id=%d&test_num=%d",
+                            r->run_id, t->num));
+        }
+      }
+      fprintf(f, "</td>");
+    }
+    fprintf(f, "</tr>\n");
   }
-  fprintf(fout, "</table></form>\n");
+  fprintf(f, "</table>\n");
 
-  snprintf(cl, sizeof(cl), " class=\"%s\"", "b0");
-  fprintf(fout, "<table%s><tr>", cl);
-  fprintf(fout, "<td%s>%s%s</a></td>",
-          cl, ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
-          _("Main page"));
-  fprintf(fout, "<td%s><a href=\"%s\">Delete all</a></td>", cl,
-          ns_url(hbuf,sizeof(hbuf), phr, NEW_SRV_ACTION_TESTING_DELETE_ALL,0));
-  fprintf(fout, "<td%s><a href=\"%s\">Up priority all</a></td>", cl,
-          ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_TESTING_UP_ALL, 0));
-  fprintf(fout, "<td%s><a href=\"%s\">Down priority all</a></td>", cl,
-          ns_url(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_TESTING_DOWN_ALL, 0));
-  fprintf(fout, "</tr></table>\n");
-
-  for (i = 0; i < vec.u; ++i) {
-    xfree(vec.v[i].entry_name);
-    super_run_in_packet_free(vec.v[i].packet);
+  if (has_full) {
+    fprintf(f, "<pre>");
+    for (i = 0; i < r->run_tests; i++) {
+      if (!(t = r->tests[i])) continue;
+      if (t->status == RUN_SKIPPED) continue;
+      visibility = cntsprob_get_test_visibility(prob, i + 1, state->online_final_visibility);
+      if (visibility == TV_FULLIFMARKED) {
+        visibility = TV_HIDDEN;
+        if (is_marked) visibility = TV_FULL;
+      }
+      if (visibility != TV_FULL) continue;
+      if (!t->args && !t->args_too_long && !t->input
+          && !t->output && !t->error && !t->correct && !t->checker)
+        continue;
+      fprintf(f, _("<b>====== Test #%d =======</b>\n"), t->num);
+      if (t->args || t->args_too_long) {
+        fprintf(f, "<a name=\"%dL\"></a>", t->num);
+        fprintf(f, _("<u>--- Command line arguments ---</u>\n"));
+        if (t->args_too_long) {
+          fprintf(f, _("<i>Command line is too long</i>\n"));
+        } else {
+          fprintf(f, "%s", ARMOR(t->args));
+        }
+      }
+      if (t->input) {
+        fprintf(f, "<a name=\"%dI\"></a>", t->num);
+        fprintf(f, _("<u>--- Input ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->input));
+      }
+      if (t->output) {
+        fprintf(f, "<a name=\"%dO\"></a>", t->num);
+        fprintf(f, _("<u>--- Output ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->output));
+      }
+      if (t->correct) {
+        fprintf(f, "<a name=\"%dA\"></a>", t->num);
+        fprintf(f, _("<u>--- Correct ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->correct));
+      }
+      if (t->error) {
+        fprintf(f, "<a name=\"%dE\"></a>", t->num);
+        fprintf(f, _("<u>--- Stderr ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->error));
+      }
+      if (t->checker) {
+        fprintf(f, "<a name=\"%dC\"></a>", t->num);
+        fprintf(f, _("<u>--- Checker output ---</u>\n"));
+        fprintf(f, "%s", ARMOR(t->checker));
+      }
+    }
+    fprintf(f, "</pre>");
   }
-  xfree(vec.v); vec.v = 0;
-  vec.a = vec.u = 0;
 
+  html_armor_free(&ab);
+  testing_report_free(r);
+  return 0;
+}
+
+int
+write_xml_team_output_only_acc_report(
+        FILE *f,
+        const unsigned char *txt,
+        int rid,
+        const struct run_entry *re,
+        const struct section_problem_data *prob,
+        const unsigned char *table_class)
+{
+  testing_report_xml_t r = 0;
+  struct testing_report_test *t;
+  unsigned char *font_color = 0, *s;
+  int i, act_status, tests_to_show;
+  unsigned char *cl = "";
+
+  if (!(r = testing_report_parse_xml(txt))) {
+    fprintf(f, "<p><big>Cannot parse XML file!</big></p>\n");
+    return 0;
+  }
+
+  if (table_class && *table_class) {
+    cl = (unsigned char *) alloca(strlen(table_class) + 16);
+    sprintf(cl, " class=\"%s\"", table_class);
+  }
+
+  act_status = r->status;
+  if (act_status == RUN_OK || act_status == RUN_PARTIAL
+      || act_status == RUN_WRONG_ANSWER_ERR)
+    act_status = RUN_ACCEPTED;
+
+  if (act_status == RUN_ACCEPTED) {
+    font_color = "green";
+  } else {
+    font_color = "red";
+  }
+  fprintf(f, "<h2><font color=\"%s\">%s</font></h2>\n",
+          font_color, run_status_str(act_status, 0, 0, 1, 0));
+
+  /*
+  if (act_status != RUN_ACCEPTED) {
+    fprintf(f, _("<big>Failed test: %d.<br/><br/></big>\n"), r->failed_test);
+  }
+  */
+
+  tests_to_show = r->run_tests;
+  if (tests_to_show > 1) tests_to_show = 1;
+
+  fprintf(f,
+          "<table%s>"
+          "<tr><th%s>N</th><th%s>%s</th><th%s>%s</th>",
+          cl, cl, cl, _("Result"), cl, _("Extra info"));
+  fprintf(f, "<th%s>%s</th>", cl, _("Link"));
+  fprintf(f, "</tr>\n");
+  for (i = 0; i < tests_to_show; i++) {
+    if (!(t = r->tests[i])) continue;
+    fprintf(f, "<tr>");
+    fprintf(f, "<td%s>%d</td>", cl, t->num);
+    act_status = t->status;
+    if (act_status == RUN_OK || act_status == RUN_ACCEPTED || act_status == RUN_PENDING_REVIEW
+        || act_status == RUN_WRONG_ANSWER_ERR) {
+      act_status = RUN_OK;
+      font_color = "green";
+    } else {
+      font_color = "red";
+    }
+    fprintf(f, "<td%s><font color=\"%s\">%s</font></td>\n",
+            cl, font_color, run_status_str(act_status, 0, 0, 1, 0));
+    // extra information
+    fprintf(f, "<td%s>", cl);
+    switch (t->status) {
+    case RUN_OK:
+    case RUN_ACCEPTED:
+    case RUN_PENDING_REVIEW:
+    case RUN_WRONG_ANSWER_ERR:
+      fprintf(f, "&nbsp;");
+      break;
+
+    case RUN_RUN_TIME_ERR:
+      if (t->exit_comment) {
+        fprintf(f, "%s", t->exit_comment);
+      } else if (t->term_signal >= 0) {
+        fprintf(f, "%s %d (%s)", _("Signal"), t->term_signal,
+                os_GetSignalString(t->term_signal));
+      } else {
+        fprintf(f, "%s %d", _("Exit code"), t->exit_code);
+      }
+      break;
+
+    case RUN_TIME_LIMIT_ERR:
+    case RUN_WALL_TIME_LIMIT_ERR:
+      fprintf(f, "&nbsp;");
+      break;
+
+    case RUN_PRESENTATION_ERR:
+      if (t->checker_comment) {
+        s = html_armor_string_dup(t->checker_comment);
+        fprintf(f, "%s", s);
+        xfree(s);
+      } else {
+        fprintf(f, "&nbsp;");
+      }
+      break;
+
+    case RUN_CHECK_FAILED: /* what to print here? */
+      fprintf(f, "&nbsp;");
+      break;
+
+    case RUN_MEM_LIMIT_ERR:
+    case RUN_SECURITY_ERR:
+      fprintf(f, "&nbsp;");
+      break;
+
+    default:
+      fprintf(f, "&nbsp;");
+    }
+    fprintf(f, "</td>");
+    fprintf(f, "</tr>\n");
+  }
+  fprintf(f, "</table>\n");
+
+  testing_report_free(r);
+  return 0;
+}
+
+int
+write_xml_team_accepting_report(
+        FILE *f,
+        struct http_request_info *phr,        
+        const unsigned char *txt,
+        int rid,
+        const struct run_entry *re,
+        const struct section_problem_data *prob,
+        int exam_mode,
+        const unsigned char *table_class)
+{
+  testing_report_xml_t r = 0;
+  struct testing_report_test *t;
+  unsigned char *font_color = 0, *s;
+  int need_comment = 0, i, act_status, tests_to_show;
+  unsigned char opening_a[512];
+  unsigned char *closing_a = "";
+  unsigned char cl[128] = { 0 };
+
+  if (table_class && *table_class) {
+    snprintf(cl, sizeof(cl), " class=\"%s\"", table_class);
+  }
+
+  if (prob->type > 0)
+    return write_xml_team_output_only_acc_report(f, txt, rid, re, prob, table_class);
+
+  if (!(r = testing_report_parse_xml(txt))) {
+    fprintf(f, "<p><big>Cannot parse XML file!</big></p>\n");
+    return 0;
+  }
+
+  act_status = r->status;
+  if (act_status == RUN_OK || act_status == RUN_PARTIAL)
+    act_status = RUN_ACCEPTED;
+
+  if (act_status == RUN_ACCEPTED) {
+    font_color = "green";
+  } else {
+    font_color = "red";
+  }
+  fprintf(f, "<h2><font color=\"%s\">%s</font></h2>\n",
+          font_color, run_status_str(act_status, 0, 0, 0, 0));
+
+  if (act_status != RUN_ACCEPTED && act_status != RUN_PENDING_REVIEW) {
+    fprintf(f, _("<big>Failed test: %d.<br/><br/></big>\n"), r->failed_test);
+  }
+
+  tests_to_show = r->run_tests;
+  if (tests_to_show > prob->tests_to_accept)
+    tests_to_show = prob->tests_to_accept;
+
+  for (i = 0; i < tests_to_show; i++) {
+    if (!(t = r->tests[i])) continue;
+    if (t->comment || t->team_comment) {
+      need_comment = 1;
+      break;
+    }
+  }
+
+  fprintf(f, "<table%s><tr><th%s>N</th>", cl, cl);
+  fprintf(f, "<th%s>%s</th>", cl, _("Result"));
+  if (!exam_mode)
+    fprintf(f, "<th%s>%s</th>", cl, _("Time (sec)")/*,
+            cl, _("Real time (sec)")*/);
+  fprintf(f, "<th%s>%s</th>", cl, _("Extra info"));
+  if (need_comment) {
+    fprintf(f, "<th%s>%s</th>", cl, _("Comment"));
+  }
+  if (!exam_mode) fprintf(f, "<th%s>%s</th>", cl, _("Link"));
+  fprintf(f, "</tr>\n");
+  for (i = 0; i < tests_to_show; i++) {
+    if (!(t = r->tests[i])) continue;
+    fprintf(f, "<tr>");
+    fprintf(f, "<td%s>%d</td>", cl, t->num);
+    if (t->status == RUN_OK || t->status == RUN_ACCEPTED || t->status == RUN_PENDING_REVIEW) {
+      font_color = "green";
+    } else {
+      font_color = "red";
+    }
+    fprintf(f, "<td%s><font color=\"%s\">%s</font></td>\n",
+            cl, font_color, run_status_str(t->status, 0, 0, 0, 0));
+    if (!exam_mode) {
+      if ((t->status == RUN_TIME_LIMIT_ERR || t->status == RUN_WALL_TIME_LIMIT_ERR) && r->time_limit_ms > 0) {
+        fprintf(f, "<td%s>&gt;%d.%03d</td>", cl,
+                r->time_limit_ms / 1000, r->time_limit_ms % 1000);
+      } else {
+        fprintf(f, "<td%s>%d.%03d</td>", cl, t->time / 1000, t->time % 1000);
+      }
+      /*
+      if (t->real_time > 0) {
+        fprintf(f, "<td%s>%d.%03d</td>",
+                cl, t->real_time / 1000, t->real_time % 1000);
+      } else {
+        fprintf(f, "<td%s>N/A</td>", cl);
+      }
+      */
+    }
+    // extra information
+    fprintf(f, "<td%s>", cl);
+    switch (t->status) {
+    case RUN_OK:
+    case RUN_ACCEPTED:
+    case RUN_PENDING_REVIEW:
+      if (t->checker_comment) {
+        s = html_armor_string_dup(t->checker_comment);
+        fprintf(f, "%s", s);
+        xfree(s);
+      } else {
+        fprintf(f, "&nbsp;");
+      }
+      break;
+
+    case RUN_RUN_TIME_ERR:
+      if (t->exit_comment) {
+        fprintf(f, "%s", t->exit_comment);
+      } else if (t->term_signal >= 0) {
+        fprintf(f, "%s %d (%s)", _("Signal"), t->term_signal,
+                os_GetSignalString(t->term_signal));
+      } else {
+        fprintf(f, "%s %d", _("Exit code"), t->exit_code);
+      }
+      break;
+
+    case RUN_TIME_LIMIT_ERR:
+    case RUN_WALL_TIME_LIMIT_ERR:
+      fprintf(f, "&nbsp;");
+      break;
+
+    case RUN_PRESENTATION_ERR:
+    case RUN_WRONG_ANSWER_ERR:
+      if (t->checker_comment) {
+        s = html_armor_string_dup(t->checker_comment);
+        fprintf(f, "%s", s);
+        xfree(s);
+      } else {
+        fprintf(f, "&nbsp;");
+      }
+      break;
+
+    case RUN_CHECK_FAILED: /* what to print here? */
+      fprintf(f, "&nbsp;");
+      break;
+
+    case RUN_MEM_LIMIT_ERR:
+    case RUN_SECURITY_ERR:
+      fprintf(f, "&nbsp;");
+      break;
+
+    default:
+      fprintf(f, "&nbsp;");
+    }
+    fprintf(f, "</td>");
+    if (need_comment) {
+      if (t->comment) {
+        s = html_armor_string_dup(t->comment);
+        fprintf(f, "<td%s>%s</td>", cl, s);
+        xfree(s);
+      } else if (t->team_comment) {
+        s = html_armor_string_dup(t->team_comment);
+        fprintf(f, "<td%s>%s</td>", cl, s);
+        xfree(s);
+      } else {
+        fprintf(f, "<td%s>&nbsp;</td>", cl);
+      }
+    }
+    // links to extra information
+    if (exam_mode) {
+      fprintf(f, "</tr>\n");
+      continue;
+    }
+    fprintf(f, "<td%s>", cl);
+    // command line parameters (always inline)
+    if (t->args || t->args_too_long) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dL\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "%sL%s", opening_a, closing_a);
+    // test input
+    if (r->archive_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_INPUT,
+                    "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->input) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dI\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sI%s", opening_a, closing_a);
+    // program output
+    if (r->archive_available && t->output_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_OUTPUT,
+                    "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->output) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dO\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sO%s", opening_a, closing_a);
+    // correct output (answer)
+    if (r->archive_available && r->correct_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_ANSWER,
+                    "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->correct) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dA\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sA%s", opening_a, closing_a);
+    // program stderr
+    if (r->archive_available && t->stderr_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_ERROR,
+                    "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->error) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dE\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sE%s", opening_a, closing_a);
+    // checker output
+    if (r->archive_available && t->checker_output_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_CHECKER,
+                    "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->checker) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dC\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sC%s", opening_a, closing_a);
+    // test info file
+    if (r->archive_available && r->info_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_INFO,
+                    "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sF%s", opening_a, closing_a);
+    fprintf(f, "</td>");
+    fprintf(f, "</tr>\n");
+  }
+  fprintf(f, "</table>\n");
+
+  if (!exam_mode) {
+    fprintf(f,
+            "<br/><table%s><font size=\"-2\">\n"
+            "<tr><td%s>L</td><td%s>%s</td></tr>\n"
+            "<tr><td%s>I</td><td%s>%s</td></tr>\n"
+            "<tr><td%s>O</td><td%s>%s</td></tr>\n"
+            "<tr><td%s>A</td><td%s>%s</td></tr>\n"
+            "<tr><td%s>E</td><td%s>%s</td></tr>\n"
+            "<tr><td%s>C</td><td%s>%s</td></tr>\n"
+            "<tr><td%s>F</td><td%s>%s</td></tr>\n"
+            "</font></table>\n", cl,
+            cl, cl, _("Command-line parameters"),
+            cl, cl, _("Test input"),
+            cl, cl, _("Program output"),
+            cl, cl, _("Correct output"),
+            cl, cl, _("Program output to stderr"),
+            cl, cl, _("Checker output"),
+            cl, cl, _("Additional test information"));
+  }
+
+  // print detailed test information
+  fprintf(f, "<pre>");
+  for (i = 0; i < tests_to_show; i++) {
+    if (!(t = r->tests[i])) continue;
+    if (!t->args && !t->args_too_long && !t->input
+        && !t->output && !t->error && !t->correct && !t->checker) continue;
+
+    fprintf(f, _("<b>====== Test #%d =======</b>\n"), t->num);
+    if (t->args || t->args_too_long) {
+      fprintf(f, "<a name=\"%dL\"></a>", t->num);
+      fprintf(f, _("<u>--- Command line arguments ---</u>\n"));
+      if (t->args_too_long) {
+        fprintf(f, _("<i>Command line is too long</i>\n"));
+      } else {
+        s = html_armor_string_dup(t->args);
+        fprintf(f, "%s", s);
+        xfree(s);
+      }
+    }
+    if (t->input) {
+      fprintf(f, "<a name=\"%dI\"></a>", t->num);
+      fprintf(f, _("<u>--- Input ---</u>\n"));
+      s = html_armor_string_dup(t->input);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+    if (t->output) {
+      fprintf(f, "<a name=\"%dO\"></a>", t->num);
+      fprintf(f, _("<u>--- Output ---</u>\n"));
+      s = html_armor_string_dup(t->output);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+    if (t->correct) {
+      fprintf(f, "<a name=\"%dA\"></a>", t->num);
+      fprintf(f, _("<u>--- Correct ---</u>\n"));
+      s = html_armor_string_dup(t->correct);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+    if (t->error) {
+      fprintf(f, "<a name=\"%dE\"></a>", t->num);
+      fprintf(f, _("<u>--- Stderr ---</u>\n"));
+      s = html_armor_string_dup(t->error);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+    if (t->checker) {
+      fprintf(f, "<a name=\"%dC\"></a>", t->num);
+      fprintf(f, _("<u>--- Checker output ---</u>\n"));
+      s = html_armor_string_dup(t->checker);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+  }
+  fprintf(f, "</pre>");
+
+  testing_report_free(r);
+  return 0;
+}
+
+#define BGCOLOR_CHECK_FAILED " bgcolor=\"#FF80FF\""
+#define BGCOLOR_FAIL         " bgcolor=\"#FF8080\""
+#define BGCOLOR_PASS         " bgcolor=\"#80FF80\""
+
+int
+write_xml_team_tests_report(
+        const serve_state_t state,
+        const struct section_problem_data *prob,
+        FILE *f,
+        const unsigned char *txt,
+        const unsigned char *table_class)
+{
+  testing_report_xml_t r = 0;
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+  unsigned char *cl = 0;
+  const unsigned char *font_color = 0;
+  const unsigned char *comment = 0;
+  const unsigned char *bgcolor = 0;
+  const unsigned char *fail_str = 0;
+  int i;
+  struct testing_report_row *trr = 0;
+
+  if (!(r = testing_report_parse_xml(txt))) {
+    fprintf(f, "<p><big>Cannot parse XML file!</big></p>\n");
+    fprintf(f, "<pre>%s</pre>\n", ARMOR(txt));
+    goto done;
+  }
+
+  if (!r->tests_mode) {
+    fprintf(f, "<p><big>Invalid XML file!</big></p>\n");
+    fprintf(f, "<pre>%s</pre>\n", ARMOR(txt));
+    goto done;
+  }
+
+  if (table_class && *table_class) {
+    cl = (unsigned char *) alloca(strlen(table_class) + 16);
+    sprintf(cl, " class=\"%s\"", table_class);
+  }
+
+  if (r->status == RUN_CHECK_FAILED) {
+    font_color = " color=\"magenta\"";
+  } else if (r->status == RUN_OK || r->status == RUN_ACCEPTED || r->status == RUN_PENDING_REVIEW) {
+    font_color = " color=\"green\"";
+  } else {
+    font_color = " color=\"red\"";
+  }
+  fprintf(f, "<h2><font%s>%s</font></h2>\n",
+          font_color, run_status_str(r->status, 0, 0, 0, 0));
+
+  if (r->status == RUN_CHECK_FAILED) {
+    goto done;
+  }
+
+  if (r->errors && (r->tt_row_count <= 0 || r->tt_column_count <= 0)) {
+    fprintf(f, "<h3>%s</h3>\n", _("Testing messages"));
+    fprintf(f, "<pre>%s</pre>\n", ARMOR(r->errors));
+  }
+
+  if (r->tt_row_count <= 0 || r->tt_column_count <= 0) {
+    goto done;
+  }
+
+  fprintf(f, "<p>%s: %d.</p>\n",
+          _("Total number of sample programs in the test suite"),
+          r->tt_row_count);
+  fprintf(f, "<p>%s: %d.</p>\n",
+          _("Total number of submitted tests"),
+          r->tt_column_count);
+
+  fprintf(f, "<table%s>\n", cl);
+  fprintf(f, "<tr>");
+  fprintf(f, "<td%s>NN</td>", cl);
+  fprintf(f, "<td%s>Pass/fail</td>", cl);
+  fprintf(f, "<td%s>%s</td>", cl, _("Comment"));
+  fprintf(f, "</tr>\n");
+
+  for (i = 0; i < r->tt_row_count; ++i) {
+    fprintf(f, "<tr>");
+    trr = r->tt_rows[i];
+    comment = "&nbsp;";
+    if (trr->status == RUN_CHECK_FAILED) {
+      bgcolor = BGCOLOR_CHECK_FAILED;
+    } else if (trr->status == RUN_OK) {
+      if (trr->must_fail) {
+        bgcolor = BGCOLOR_FAIL;
+        comment = _("This test program is incorrect, but passed all tests");
+      } else {
+        bgcolor = BGCOLOR_PASS;
+      }
+    } else {
+      if (trr->must_fail) {
+        bgcolor = BGCOLOR_PASS;
+      } else {
+        bgcolor = BGCOLOR_FAIL;
+        comment = _("This test program is correct, but failed on some tests");
+      }
+    }
+    fail_str = "pass";
+    if (trr->must_fail) fail_str = "fail";
+    fprintf(f, "<td%s%s>%d</td>", cl, bgcolor, i + 1);
+    fprintf(f, "<td%s%s>%s</td>", cl, bgcolor, fail_str);
+    fprintf(f, "<td%s%s>%s</td>", cl, bgcolor, comment);
+    fprintf(f, "</tr>\n");
+  }
+
+  fprintf(f, "</table>\n");
+
+
+done:
+  testing_report_free(r);
   html_armor_free(&ab);
   return 0;
 }
 
 int
-ns_write_admin_contest_settings(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
+write_xml_testing_report(
+        FILE *f,
+        struct http_request_info *phr,        
+        int user_mode,
+        unsigned char const *txt,
+        const unsigned char *class1,
+        const unsigned char *class2)
 {
-  const serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  unsigned char cl[64] = { 0 };
-  unsigned char hbuf[1024];
+  testing_report_xml_t r = 0;
+  unsigned char *s = 0;
+  unsigned char *font_color = 0;
+  int i, is_kirov = 0, need_comment = 0;
+  struct testing_report_test *t;
+  unsigned char opening_a[512];
+  unsigned char *closing_a = "";
+  unsigned char *cl1 = " border=\"1\"";
+  unsigned char *cl2 = "";
+  int max_cpu_time = -1, max_cpu_time_tl = -1;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  const unsigned char *s = "";
-  unsigned char bb[1024];
 
-  snprintf(cl, sizeof(cl), " class=\"%s\"", "b0");
-  fprintf(fout, "<table%s><tr>", cl);
-  fprintf(fout, "<td%s>%s%s</a></td>",
-          cl, ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
-          _("Main page"));
-  fprintf(fout, "<td%s>%s%s</a></td>", cl,
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS, 0),
-          _("Refresh"));
-  fprintf(fout, "</tr></table>\n");  
-  fprintf(fout, "<hr/>\n");
+  if (class1 && *class1) {
+    cl1 = (unsigned char *) alloca(strlen(class1) + 16);
+    sprintf(cl1, " class=\"%s\"", class1);
+  }
+  if (class2 && *class2) {
+    cl2 = (unsigned char*) alloca(strlen(class2) + 16);
+    sprintf(cl2, " class=\"%s\"", class2);
+  }
 
-  snprintf(cl, sizeof(cl), " class=\"%s\"", "b0");
-  fprintf(fout, "<table%s>", cl);
+  if (!(r = testing_report_parse_xml(txt))) {
+    fprintf(f, "<p><big>Cannot parse XML file!</big></p>\n");
+    s = html_armor_string_dup(txt);
+    fprintf(f, "<pre>%s</pre>\n", s);
+    xfree(s);
+    return 0;
+  }
 
-  fprintf(fout, "<tr><td%s>%s</td>", cl, _("Participants can view their source code"));
-  fprintf(fout, "<td%s>", cl);
-  if (!cs->online_view_source) {
-    fprintf(fout, "Default (");
-    if (global->team_enable_src_view > 0) {
-      fprintf(fout, "Yes");
-    } else {
-      fprintf(fout, "No");
+  // report the testing status
+  if (r->status == RUN_OK || r->status == RUN_ACCEPTED || r->status == RUN_PENDING_REVIEW) {
+    font_color = "green";
+  } else {
+    font_color = "red";
+  }
+  fprintf(f, "<h2><font color=\"%s\">%s</font></h2>\n",
+          font_color, run_status_str(r->status, 0, 0, 0, 0));
+
+  if (r->scoring_system == SCORE_KIROV ||
+      (r->scoring_system == SCORE_OLYMPIAD && !r->accepting_mode)) {
+    is_kirov = 1;
+  }
+
+  if (is_kirov) {
+    fprintf(f, _("<big>%d total tests runs, %d passed, %d failed.<br>\n"),
+            r->run_tests, r->tests_passed, r->run_tests - r->tests_passed);
+    fprintf(f, _("Score gained: %d (out of %d).<br><br></big>\n"),
+            r->score, r->max_score);
+  } else {
+    if (r->status != RUN_OK && r->status != RUN_ACCEPTED && r->status != RUN_PENDING_REVIEW) {
+      fprintf(f, _("<big>Failed test: %d.<br><br></big>\n"), r->failed_test);
     }
-    fprintf(fout, ")");
-  } else if (cs->online_view_source < 0) {
-    fprintf(fout, "No");
-  } else {
-    fprintf(fout, "Yes");
   }
-  fprintf(fout, "</td>");
-  fprintf(fout, "<td%s>", cl);
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<select name=\"param\">");
-  s = "";
-  if (!cs->online_view_source) s = " selected=\"selected\"";
-  fprintf(fout, "<option value=\"%d\"%s>%s</option>", 0, s, _("Default"));
-  s = "";
-  if (cs->online_view_source < 0) s = " selected=\"selected\"";
-  fprintf(fout, "<option value=\"%d\"%s>%s</option>", -1, s, _("No"));
-  s = "";
-  if (cs->online_view_source > 0) s = " selected=\"selected\"";
-  fprintf(fout, "<option value=\"%d\"%s>%s</option>", 1, s, _("Yes"));
-  fprintf(fout, "</select>%s",
-          BUTTON(NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_SOURCE));
-  fprintf(fout, "</form>");
-  fprintf(fout, "</td>");
-  fprintf(fout, "</tr>\n");
 
-  fprintf(fout, "<tr><td%s>%s</td>", cl, _("Participants can view testing reports"));
-  fprintf(fout, "<td%s>", cl);
-  if (!cs->online_view_report) {
-    fprintf(fout, "Default");
-  } else if (cs->online_view_report < 0) {
-    fprintf(fout, "No");
-  } else {
-    fprintf(fout, "Yes");
+  if (r->errors && r->errors[0]) {
+    fprintf(f, "<font color=\"red\"><b><u>%s</u></b><br/><pre>%s</pre></font>\n",
+            "Errors", ARMOR(r->errors));
   }
-  fprintf(fout, "</td>");
-  fprintf(fout, "<td%s>", cl);
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<select name=\"param\">");
-  s = "";
-  if (!cs->online_view_report) s = " selected=\"selected\"";
-  fprintf(fout, "<option value=\"%d\"%s>%s</option>", 0, s, _("Default"));
-  s = "";
-  if (cs->online_view_report < 0) s = " selected=\"selected\"";
-  fprintf(fout, "<option value=\"%d\"%s>%s</option>", -1, s, _("No"));
-  s = "";
-  if (cs->online_view_report > 0) s = " selected=\"selected\"";
-  fprintf(fout, "<option value=\"%d\"%s>%s</option>", 1, s, _("Yes"));
-  fprintf(fout, "</select>%s",
-          BUTTON(NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT));
-  fprintf(fout, "</form>");
-  fprintf(fout, "</td>");
-  fprintf(fout, "</tr>\n");
 
-  if (global->separate_user_score > 0) {
-    fprintf(fout, "<tr><td%s>%s</td>", cl, _("Participants view judge score"));
-    fprintf(fout, "<td%s>", cl);
-    if (cs->online_view_judge_score <= 0) {
-      fprintf(fout, "No");
-    } else {
-      fprintf(fout, "Yes");
+  if (r->valuer_comment || r->valuer_judge_comment || r->valuer_errors) {
+    fprintf(f, "<h3>%s</h3>\n", _("Valuer information"));
+    if (r->valuer_comment) {
+      fprintf(f, "<b><u>%s</u></b><br/><pre>%s</pre>\n",
+              _("Valuer comments"), ARMOR(r->valuer_comment));
     }
-    fprintf(fout, "</td>");
-    fprintf(fout, "<td%s>", cl);
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    fprintf(fout, "<select name=\"param\">");
-    s = "";
-    if (cs->online_view_judge_score <= 0) s = " selected=\"selected\"";
-    fprintf(fout, "<option value=\"%d\"%s>%s</option>", 0, s, _("No"));
-    s = "";
-    if (cs->online_view_judge_score > 0) s = " selected=\"selected\"";
-    fprintf(fout, "<option value=\"%d\"%s>%s</option>", 1, s, _("Yes"));
-    fprintf(fout, "</select>%s",
-            BUTTON(NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE));
-    fprintf(fout, "</form>");
-    fprintf(fout, "</td>");
-    fprintf(fout, "</tr>\n");
+    if (r->valuer_judge_comment) {
+      fprintf(f, "<b><u>%s</u></b><br/><pre>%s</pre>\n",
+              _("Valuer judge comments"), ARMOR(r->valuer_judge_comment));
+    }
+    if (r->valuer_errors) {
+      fprintf(f, "<b><u>%s</u></b><br/><pre><font color=\"red\">%s</font></pre>\n",
+              _("Valuer errors"), ARMOR(r->valuer_errors));
+    }
   }
 
-  fprintf(fout, "<tr><td%s>%s</td>", cl, _("Final test visibility rules"));
-  fprintf(fout, "<td%s>", cl);
-  if (cs->online_final_visibility <= 0) {
-    fprintf(fout, "No");
-  } else {
-    fprintf(fout, "Yes");
+  // calculate max CPU time
+  for (i = 0; i < r->run_tests; i++) {
+    if (!(t = r->tests[i])) continue;
+    switch (t->status) {
+    case RUN_OK:
+    case RUN_RUN_TIME_ERR:
+    case RUN_PRESENTATION_ERR:
+    case RUN_WRONG_ANSWER_ERR:
+    case RUN_MEM_LIMIT_ERR:
+    case RUN_SECURITY_ERR:
+      if (max_cpu_time_tl > 0) break;
+      max_cpu_time_tl = 0;
+      if (max_cpu_time < 0 || max_cpu_time < r->tests[i]->time) {
+        max_cpu_time = r->tests[i]->time;
+      }
+      break;
+    case RUN_TIME_LIMIT_ERR:
+    case RUN_WALL_TIME_LIMIT_ERR:
+      if (max_cpu_time_tl <= 0 || max_cpu_time < 0
+          || max_cpu_time < r->tests[i]->time) {
+        max_cpu_time = r->tests[i]->time;
+      }
+      max_cpu_time_tl = 1;
+      break;
+    }
   }
-  fprintf(fout, "</td>");
-  fprintf(fout, "<td%s>", cl);
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<select name=\"param\">");
-  s = "";
-  if (cs->online_final_visibility <= 0) s = " selected=\"selected\"";
-  fprintf(fout, "<option value=\"%d\"%s>%s</option>", 0, s, _("No"));
-  s = "";
-  if (cs->online_final_visibility > 0) s = " selected=\"selected\"";
-  fprintf(fout, "<option value=\"%d\"%s>%s</option>", 1, s, _("Yes"));
-  fprintf(fout, "</select>%s",
-          BUTTON(NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY));
-  fprintf(fout, "</form>");
-  fprintf(fout, "</td>");
-  fprintf(fout, "</tr>\n");
 
-  fprintf(fout, "</table>\n");
+  if (r->time_limit_ms > 0 && max_cpu_time_tl > 0) {
+    fprintf(f, "<big>Max. CPU time: &gt;%d.%03d (time-limit exceeded)<br><br></big>\n", r->time_limit_ms / 1000, r->time_limit_ms % 1000);
+  } else if (max_cpu_time_tl > 0) {
+    fprintf(f, "<big>Max. CPU time: %d.%03d (time-limit exceeded)<br><br></big>\n", max_cpu_time / 1000, max_cpu_time % 1000);
+  } else if (!max_cpu_time_tl && max_cpu_time >= 0) {
+    fprintf(f, "<big>Max. CPU time: %d.%03d<br><br></big>\n",
+            max_cpu_time / 1000, max_cpu_time % 1000);
+  }
 
-  fprintf(fout, "<hr/>\n");
-  snprintf(cl, sizeof(cl), " class=\"%s\"", "b0");
-  fprintf(fout, "<table%s><tr>", cl);
-  fprintf(fout, "<td%s>%s%s</a></td>",
-          cl, ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
-          _("Main page"));
-  fprintf(fout, "<td%s>%s%s</a></td>", cl,
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS, 0),
-          _("Refresh"));
-  fprintf(fout, "</tr></table>\n");  
+  if (r->host && !user_mode) {
+    fprintf(f, "<big>Tested on host: %s</big><br/><br/>\n", r->host);
+  }
+  if (r->cpu_model && !user_mode) {
+    fprintf(f, "<p>CPU model: %s</p>\n", r->cpu_model);
+  }
+  if (r->cpu_mhz && !user_mode) {
+    fprintf(f, "<p>CPU MHz: %s</p>\n", r->cpu_mhz);
+  }
 
+  if (r->comment) {
+    s = html_armor_string_dup(r->comment);
+    fprintf(f, "<big><u>Testing messages</u>:</big><br/><br/>\n");
+    fprintf(f, "<pre>%s</pre>\n", s);
+    xfree(s);
+  }
+
+  for (i = 0; i < r->run_tests; i++) {
+    if (!(t = r->tests[i])) continue;
+    if (t->comment || t->team_comment) {
+      need_comment = 1;
+      break;
+    }
+  }
+
+  fprintf(f,
+          "<table%s>"
+          "<tr><th%s>N</th><th%s>%s</th><th%s>%s</th>",
+          cl1, cl1, cl1,
+          _("Result"), cl1, _("Time (sec)"));
+  if (r->real_time_available) {
+    fprintf(f, "<th%s>%s</th>", cl1, _("Real time (sec)"));
+  }
+  if (r->max_memory_used_available) {
+    fprintf(f, "<th%s>%s</th>", cl1, _("Max memory used"));
+  }
+  fprintf(f, "<th%s>%s</th>", cl1, _("Extra info"));
+  if (is_kirov) {
+    fprintf(f, "<th%s>%s</th>", cl1, _("Score"));
+  }
+  if (need_comment) {
+    fprintf(f, "<th%s>%s</th>", cl1, _("Comment"));
+  }
+  fprintf(f, "<th%s>%s</th>", cl1, _("Link"));
+  fprintf(f, "</tr>\n");
+  for (i = 0; i < r->run_tests; i++) {
+    if (!(t = r->tests[i])) continue;
+    fprintf(f, "<tr>");
+    fprintf(f, "<td%s>%d</td>", cl1, t->num);
+    if (t->status == RUN_OK || t->status == RUN_ACCEPTED || t->status == RUN_PENDING_REVIEW) {
+      font_color = "green";
+    } else {
+      font_color = "red";
+    }
+    fprintf(f, "<td%s><font color=\"%s\">%s</font></td>\n", cl1,
+            font_color, run_status_str(t->status, 0, 0, 0, 0));
+    if (user_mode && (t->status == RUN_TIME_LIMIT_ERR || t->status == RUN_WALL_TIME_LIMIT_ERR)) {
+      // tell lies about the running time in case of time limit :)
+      if (r->time_limit_ms > 0) {
+        fprintf(f, "<td%s>&gt;%d.%03d</td>", cl1,
+                r->time_limit_ms / 1000, r->time_limit_ms % 1000);
+      } else {
+        fprintf(f, "<td%s>N/A</td>", cl1);
+      }
+      if (r->real_time_available) {
+        fprintf(f, "<td%s>N/A</td>", cl1);
+      }
+    } else {
+      fprintf(f, "<td%s>%d.%03d</td>", cl1, t->time / 1000, t->time % 1000);
+      if (r->real_time_available) {
+        fprintf(f, "<td%s>%d.%03d</td>", cl1,
+                t->real_time / 1000, t->real_time % 1000);
+      }
+    }
+    if (r->max_memory_used_available) {
+      fprintf(f, "<td%s>%lu</td>", cl1, t->max_memory_used);
+    }
+
+    // extra information
+    fprintf(f, "<td%s>", cl1);
+    switch (t->status) {
+    case RUN_OK:
+    case RUN_ACCEPTED:
+    case RUN_PENDING_REVIEW:
+      if (t->checker_comment) {
+        s = html_armor_string_dup(t->checker_comment);
+        fprintf(f, "%s", s);
+        xfree(s);
+      } else {
+        fprintf(f, "&nbsp;");
+      }
+      break;
+
+    case RUN_RUN_TIME_ERR:
+      if (t->exit_comment) {
+        fprintf(f, "%s", t->exit_comment);
+      } else if (t->term_signal >= 0) {
+        fprintf(f, "%s %d (%s)", _("Signal"), t->term_signal,
+                os_GetSignalString(t->term_signal));
+      } else {
+        fprintf(f, "%s %d", _("Exit code"), t->exit_code);
+      }
+      break;
+
+    case RUN_TIME_LIMIT_ERR:
+    case RUN_WALL_TIME_LIMIT_ERR:
+      fprintf(f, "&nbsp;");
+      break;
+
+    case RUN_PRESENTATION_ERR:
+    case RUN_WRONG_ANSWER_ERR:
+      if (t->checker_comment) {
+        s = html_armor_string_dup(t->checker_comment);
+        fprintf(f, "%s", s);
+        xfree(s);
+      } else {
+        fprintf(f, "&nbsp;");
+      }
+      break;
+
+    case RUN_CHECK_FAILED: /* what to print here? */
+      fprintf(f, "&nbsp;");
+      break;
+
+    case RUN_MEM_LIMIT_ERR:
+    case RUN_SECURITY_ERR:
+      fprintf(f, "&nbsp;");
+      break;
+
+    default:
+      fprintf(f, "&nbsp;");
+    }
+    fprintf(f, "</td>");
+    if (is_kirov) {
+      fprintf(f, "<td%s>%d (%d)</td>", cl1, t->score, t->nominal_score);
+    }
+    if (need_comment) {
+      if (t->comment) {
+        s = html_armor_string_dup(t->comment);
+        fprintf(f, "<td%s>%s</td>", cl1, s);
+        xfree(s);
+      } else if (t->team_comment) {
+        s = html_armor_string_dup(t->team_comment);
+        fprintf(f, "<td%s>%s</td>", cl1, s);
+        xfree(s);
+      } else {
+        fprintf(f, "<td%s>&nbsp;</td>", cl1);
+      }
+    }
+    // links to extra information
+    fprintf(f, "<td%s>", cl1);
+    // command line parameters (always inline)
+    if (t->args || t->args_too_long) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dL\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "%sL%s", opening_a, closing_a);
+    // test input
+    if (r->archive_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_INPUT,
+              "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->input) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dI\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sI%s", opening_a, closing_a);
+    // program output
+    if (r->archive_available && t->output_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_OUTPUT,
+              "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->output) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dO\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sO%s", opening_a, closing_a);
+    // correct output (answer)
+    if (r->archive_available && r->correct_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_ANSWER,
+              "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->correct) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dA\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sA%s", opening_a, closing_a);
+    // program stderr
+    if (r->archive_available && t->stderr_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_ERROR,
+              "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->error) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dE\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sE%s", opening_a, closing_a);
+    // checker output
+    if (r->archive_available && t->checker_output_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_CHECKER,
+              "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else if (t->checker) {
+      snprintf(opening_a, sizeof(opening_a), "<a href=\"#%dC\">", t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sC%s", opening_a, closing_a);
+    // test info file
+    if (r->archive_available && r->info_available) {
+      ns_aref(opening_a, sizeof(opening_a), phr, NEW_SRV_ACTION_VIEW_TEST_INFO,
+              "run_id=%d&test_num=%d", r->run_id, t->num);
+      closing_a = "</a>";
+    } else {
+      opening_a[0] = 0;
+      closing_a = "";
+    }
+    fprintf(f, "&nbsp;%sF%s", opening_a, closing_a);
+    fprintf(f, "</td>");
+    fprintf(f, "</tr>\n");
+  }
+  fprintf(f, "</table>\n");
+
+  fprintf(f,
+          "<br><table%s><font size=\"-2\">\n"
+          "<tr><td%s>L</td><td%s>%s</td></tr>\n"
+          "<tr><td%s>I</td><td%s>%s</td></tr>\n"
+          "<tr><td%s>O</td><td%s>%s</td></tr>\n"
+          "<tr><td%s>A</td><td%s>%s</td></tr>\n"
+          "<tr><td%s>E</td><td%s>%s</td></tr>\n"
+          "<tr><td%s>C</td><td%s>%s</td></tr>\n"
+          "<tr><td%s>F</td><td%s>%s</td></tr>\n"
+          "</font></table>\n", cl2,
+          cl2, cl2, _("Command-line parameters"),
+          cl2, cl2, _("Test input"),
+          cl2, cl2, _("Program output"),
+          cl2, cl2, _("Correct output"),
+          cl2, cl2, _("Program output to stderr"),
+          cl2, cl2, _("Checker output"),
+          cl2, cl2, _("Additional test information"));
+
+
+  // print detailed test information
+  fprintf(f, "<pre>");
+  for (i = 0; i < r->run_tests; i++) {
+    if (!(t = r->tests[i])) continue;
+    if (t->status == RUN_SKIPPED) continue;
+    if (!t->args && !t->args_too_long && !t->input
+        && !t->output && !t->error && !t->correct && !t->checker) continue;
+
+    fprintf(f, _("<b>====== Test #%d =======</b>\n"), t->num);
+    if (t->args || t->args_too_long) {
+      fprintf(f, "<a name=\"%dL\"></a>", t->num);
+      fprintf(f, _("<u>--- Command line arguments ---</u>\n"));
+      if (t->args_too_long) {
+        fprintf(f, _("<i>Command line is too long</i>\n"));
+      } else {
+        s = html_armor_string_dup(t->args);
+        fprintf(f, "%s", s);
+        xfree(s);
+      }
+    }
+    if (t->input) {
+      fprintf(f, "<a name=\"%dI\"></a>", t->num);
+      fprintf(f, _("<u>--- Input ---</u>\n"));
+      s = html_armor_string_dup(t->input);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+    if (t->output) {
+      fprintf(f, "<a name=\"%dO\"></a>", t->num);
+      fprintf(f, _("<u>--- Output ---</u>\n"));
+      s = html_armor_string_dup(t->output);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+    if (t->correct) {
+      fprintf(f, "<a name=\"%dA\"></a>", t->num);
+      fprintf(f, _("<u>--- Correct ---</u>\n"));
+      s = html_armor_string_dup(t->correct);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+    if (t->error) {
+      fprintf(f, "<a name=\"%dE\"></a>", t->num);
+      fprintf(f, _("<u>--- Stderr ---</u>\n"));
+      s = html_armor_string_dup(t->error);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+    if (t->checker) {
+      fprintf(f, "<a name=\"%dC\"></a>", t->num);
+      fprintf(f, _("<u>--- Checker output ---</u>\n"));
+      s = html_armor_string_dup(t->checker);
+      fprintf(f, "%s", s);
+      xfree(s);
+    }
+  }
+  fprintf(f, "</pre>");
+
+  testing_report_free(r);
   html_armor_free(&ab);
-
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

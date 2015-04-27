@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 7670 2013-12-11 08:28:55Z cher $ */
+/* $Id: new_server_html.c 8583 2014-09-02 19:36:37Z cher $ */
 
-/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,50 +15,51 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/new-server.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/misctext.h"
+#include "ejudge/copyright.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/errlog.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/contests.h"
+#include "ejudge/nsdb_plugin.h"
+#include "ejudge/l10n.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/userlist.h"
+#include "ejudge/mischtml.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/prepare.h"
+#include "ejudge/runlog.h"
+#include "ejudge/html.h"
+#include "ejudge/watched_file.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/sha.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/curtime.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/team_extra.h"
+#include "ejudge/diff.h"
+#include "ejudge/protocol.h"
+#include "ejudge/printing.h"
+#include "ejudge/sformat.h"
+#include "ejudge/charsets.h"
+#include "ejudge/compat.h"
+#include "ejudge/ej_uuid.h"
+#include "ejudge/prepare_dflt.h"
+#include "ejudge/new_server_match.h"
+#include "ejudge/external_action.h"
 
-#include "new-server.h"
-#include "new_server_proto.h"
-#include "pathutl.h"
-#include "xml_utils.h"
-#include "misctext.h"
-#include "copyright.h"
-#include "userlist_clnt.h"
-#include "ejudge_cfg.h"
-#include "errlog.h"
-#include "userlist_proto.h"
-#include "contests.h"
-#include "nsdb_plugin.h"
-#include "l10n.h"
-#include "fileutl.h"
-#include "userlist.h"
-#include "mischtml.h"
-#include "serve_state.h"
-#include "teamdb.h"
-#include "prepare.h"
-#include "runlog.h"
-#include "html.h"
-#include "watched_file.h"
-#include "mime_type.h"
-#include "sha.h"
-#include "archive_paths.h"
-#include "curtime.h"
-#include "clarlog.h"
-#include "team_extra.h"
-#include "diff.h"
-#include "protocol.h"
-#include "printing.h"
-#include "sformat.h"
-#include "charsets.h"
-#include "compat.h"
-#include "ej_uuid.h"
-#include "prepare_dflt.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -90,27 +91,32 @@ enum { CONTEST_EXPIRE_TIME = 300 };
 static struct contest_extra **extras = 0;
 static size_t extra_a = 0, extra_u = 0;
 
-static struct server_framework_job *job_first, *job_last;
-static int job_count, job_serial;
+extern const unsigned char * const ns_symbolic_action_table[];
+
+static void
+error_page(
+        FILE *out_f,
+        struct http_request_info *phr,
+        int priv_mode,
+        int error_code);
 
 static void unprivileged_page_login(FILE *fout,
-                                    struct http_request_info *phr,
-                                    int orig_locale_id);
-static void
+                                    struct http_request_info *phr);
+void
 unpriv_page_header(FILE *fout,
                    struct http_request_info *phr,
                    const struct contest_desc *cnts,
                    struct contest_extra *extra,
                    time_t start_time, time_t stop_time);
-static void
+void
 do_json_user_state(FILE *fout, const serve_state_t cs, int user_id,
                    int need_reload_check);
-static int
-get_register_url(
+const unsigned char *
+ns_get_register_url(
         unsigned char *buf,
         size_t size,
         const struct contest_desc *cnts,
-        const unsigned char *self_url);
+        const struct http_request_info *phr);
 
 struct contest_extra *
 ns_get_contest_extra(int contest_id)
@@ -272,13 +278,6 @@ do_unload_contest(int idx)
   }
 
   xfree(extra->contest_arm);
-  watched_file_clear(&extra->header);
-  watched_file_clear(&extra->menu_1);
-  watched_file_clear(&extra->menu_2);
-  watched_file_clear(&extra->separator);
-  watched_file_clear(&extra->footer);
-  watched_file_clear(&extra->priv_header);
-  watched_file_clear(&extra->priv_footer);
   watched_file_clear(&extra->copyright);
   watched_file_clear(&extra->welcome);
   watched_file_clear(&extra->reg_welcome);
@@ -356,42 +355,6 @@ ns_unload_expired_contests(time_t cur_time)
   extra_u = j;
 }
 
-void
-ns_add_job(struct server_framework_job *job)
-{
-  if (!job) return;
-  job->id = ++job_serial;
-  job->start_time = time(NULL);
-  ++job_count;
-  job->prev = job_last;
-  job->next = NULL;
-  if (job_last) {
-    job_last->next = job;
-  } else {
-    job_first = job;
-  }
-  job_last = job;
-}
-
-void
-ns_remove_job(struct server_framework_job *job)
-{
-  if (job->next) {
-    job->next->prev = job->prev;
-  } else {
-    job_last = job->prev;
-  }
-  if (job->prev) {
-    job->prev->next = job->next;
-  } else {
-    job_first = job->next;
-  }
-  job->next = NULL;
-  job->prev = NULL;
-  job->vt->destroy(job);
-  --job_count;
-}
-
 static void
 handle_pending_xml_import(const struct contest_desc *cnts, serve_state_t cs)
 {
@@ -450,16 +413,17 @@ ns_loop_callback(struct server_framework_state *state)
   int contest_id, i, eind;
   strarray_t files;
   int count = 0;
+  struct server_framework_job *job = nsf_get_first_job(state);
 
   memset(&files, 0, sizeof(files));
 
-  if (job_first) {
-    if (job_first->contest_id > 0) {
-      e = ns_try_contest_extra(job_first->contest_id);
+  if (job) {
+    if (job->contest_id > 0) {
+      e = ns_try_contest_extra(job->contest_id);
       e->last_access_time = cur_time;
     }
-    if (job_first->vt->run(job_first, &count, MAX_WORK_BATCH)) {
-      ns_remove_job(job_first);
+    if (job->vt->run(job, &count, MAX_WORK_BATCH)) {
+      nsf_remove_job(state, job);
     }
   }
 
@@ -536,152 +500,6 @@ ns_post_select_callback(struct server_framework_state *state)
     e->serve_state->current_time = cur_time;
     ns_check_contest_events(e->serve_state, cnts);
   }
-}
-
-static const unsigned char*
-ns_getenv(const struct http_request_info *phr, const unsigned char *var)
-{
-  int i;
-  size_t var_len;
-
-  if (!var) return 0;
-  var_len = strlen(var);
-  for (i = 0; i < phr->env_num; i++)
-    if (!strncmp(phr->envs[i], var, var_len) && phr->envs[i][var_len] == '=')
-      break;
-  if (i < phr->env_num)
-    return phr->envs[i] + var_len + 1;
-  return 0;
-}
-
-int
-ns_cgi_param(const struct http_request_info *phr, const unsigned char *param,
-             const unsigned char **p_value)
-{
-  int i;
-
-  if (!param) return -1;
-  for (i = 0; i < phr->param_num; i++)
-    if (!strcmp(phr->param_names[i], param))
-      break;
-  if (i >= phr->param_num) return 0;
-  if (strlen(phr->params[i]) != phr->param_sizes[i]) return -1;
-  *p_value = phr->params[i];
-  return 1;
-}
-
-int
-ns_cgi_param_bin(const struct http_request_info *phr,
-                 const unsigned char *param,
-                 const unsigned char **p_value,
-                 size_t *p_size)
-{
-  int i;
-
-  if (!param) return -1;
-  for (i = 0; i < phr->param_num; i++)
-    if (!strcmp(phr->param_names[i], param))
-      break;
-  if (i >= phr->param_num) return 0;
-  *p_value = phr->params[i];
-  *p_size = phr->param_sizes[i];
-  return 1;
-}
-
-static const unsigned char *
-ns_cgi_nname(const struct http_request_info *phr,
-             const unsigned char *prefix, size_t pflen)
-{
-  int i;
-
-  if (!prefix || !pflen) return 0;
-  for (i = 0; i < phr->param_num; i++)
-    if (!strncmp(phr->param_names[i], prefix, pflen))
-      return phr->param_names[i];
-  return 0;
-}
-
-int
-ns_cgi_param_int(
-        struct http_request_info *phr,
-        const unsigned char *name,
-        int *p_val)
-{
-  const unsigned char *s = 0, *p = 0;
-  char *eptr = 0;
-  int x;
-
-  if (ns_cgi_param(phr, name, &s) <= 0) return -1;
-
-  p = s;
-  while (*p && isspace(*p)) p++;
-  if (!*p) return -1;
-
-  errno = 0;
-  x = strtol(s, &eptr, 10);
-  if (errno || *eptr) return -1;
-  if (p_val) *p_val = x;
-  return 0;
-}
-
-int
-ns_cgi_param_int_opt(
-        struct http_request_info *phr,
-        const unsigned char *name,
-        int *p_val,
-        int default_value)
-{
-  const unsigned char *s = 0, *p;
-  char *eptr = 0;
-  int x;
-
-  if (!(x = ns_cgi_param(phr, name, &s))) {
-    if (p_val) *p_val = default_value;
-    return 0;
-  } else if (x < 0) return -1;
-  p = s;
-  while (*p && isspace(*p)) p++;
-  if (!*p) {
-    if (p_val) *p_val = default_value;
-    return 0;
-  }
-  errno = 0;
-  x = strtol(s, &eptr, 10);
-  if (errno || *eptr) return -1;
-  if (p_val) *p_val = x;
-  return 0;
-}
-
-int
-ns_cgi_param_int_opt_2(
-        struct http_request_info *phr,
-        const unsigned char *name,
-        int *p_val,
-        int *p_set_flag)
-{
-  const unsigned char *s = 0, *p;
-  char *eptr = 0;
-  int x;
-
-  ASSERT(p_val);
-  ASSERT(p_set_flag);
-
-  *p_val = 0;
-  *p_set_flag = 0;
-
-  if (!(x = ns_cgi_param(phr, name, &s))) return 0;
-  else if (x < 0) return -1;
-
-  p = s;
-  while (*p && isspace(*p)) p++;
-  if (!*p) return 0;
-
-  errno = 0;
-  x = strtol(s, &eptr, 10);
-  if (errno || *eptr) return -1;
-  *p_val = x;
-  *p_set_flag = 1;
-  return 0;
 }
 
 static void
@@ -893,7 +711,7 @@ ns_unparse_role(int role)
   return gettext(role_strs[role]);
 }
 
-static void
+void
 html_role_select(FILE *fout, int role, int allow_admin,
                  const unsigned char *var_name)
 {
@@ -915,9 +733,13 @@ html_role_select(FILE *fout, int role, int allow_admin,
 }
 
 unsigned char *
-ns_url(unsigned char *buf, size_t size,
-       const struct http_request_info *phr,
-       int action, const char *format, ...)
+ns_url(
+        unsigned char *buf,
+        size_t size,
+        const struct http_request_info *phr,
+        int action,
+        const char *format,
+        ...)
 {
   unsigned char fbuf[1024];
   unsigned char abuf[64];
@@ -930,13 +752,21 @@ ns_url(unsigned char *buf, size_t size,
     vsnprintf(fbuf, sizeof(fbuf), format, args);
     va_end(args);
   }
-  if (fbuf[0]) sep = "&amp;";
 
-  abuf[0] = 0;
-  if (action > 0) snprintf(abuf, sizeof(abuf), "&amp;action=%d", action);
+  if (phr->rest_mode > 0) {
+    if (fbuf[0]) sep = "?";
+    if (action < 0 || action >= NEW_SRV_ACTION_LAST) action = 0;
+    snprintf(buf, size, "%s/%s/S%016llx%s%s", phr->self_url,
+             ns_symbolic_action_table[action],
+             phr->session_id, sep, fbuf);
+  } else {
+    abuf[0] = 0;
+    if (fbuf[0]) sep = "&amp;";
+    if (action > 0) snprintf(abuf, sizeof(abuf), "&amp;action=%d", action);
 
-  snprintf(buf, size, "%s?SID=%016llx%s%s%s", phr->self_url,
-           phr->session_id, abuf, sep, fbuf);
+    snprintf(buf, size, "%s?SID=%016llx%s%s%s", phr->self_url,
+             phr->session_id, abuf, sep, fbuf);
+  }
   return buf;
 }
 
@@ -960,13 +790,21 @@ ns_url_unescaped(
     vsnprintf(fbuf, sizeof(fbuf), format, args);
     va_end(args);
   }
-  if (fbuf[0]) sep = "&";
 
-  abuf[0] = 0;
-  if (action > 0) snprintf(abuf, sizeof(abuf), "&action=%d", action);
+  if (phr->rest_mode > 0) {
+    if (action < 0 || action >= NEW_SRV_ACTION_LAST) action = 0;
+    if (fbuf[0]) sep = "?";
+    snprintf(buf, size, "%s/%s/S%016llx%s%s", phr->self_url,
+             ns_symbolic_action_table[action],
+             phr->session_id, sep, fbuf);
+  } else {
+    abuf[0] = 0;
+    if (fbuf[0]) sep = "&";
+    if (action > 0) snprintf(abuf, sizeof(abuf), "&action=%d", action);
 
-  snprintf(buf, size, "%s?SID=%016llx%s%s%s", phr->self_url,
-           phr->session_id, abuf, sep, fbuf);
+    snprintf(buf, size, "%s?SID=%016llx%s%s%s", phr->self_url,
+             phr->session_id, abuf, sep, fbuf);
+  }
   return buf;
 }
 
@@ -986,13 +824,21 @@ ns_aref(unsigned char *buf, size_t size,
     vsnprintf(fbuf, sizeof(fbuf), format, args);
     va_end(args);
   }
-  if (fbuf[0]) sep = "&amp;";
 
-  abuf[0] = 0;
-  if (action > 0) snprintf(abuf, sizeof(abuf), "&amp;action=%d", action);
+  if (phr->rest_mode > 0) {
+    if (action < 0 || action >= NEW_SRV_ACTION_LAST) action = 0;
+    if (fbuf[0]) sep = "?";
+    snprintf(buf, size, "<a href=\"%s/%s/S%016llx%s%s\">", phr->self_url,
+             ns_symbolic_action_table[action],
+             phr->session_id, sep, fbuf);
+  } else {
+    abuf[0] = 0;
+    if (fbuf[0]) sep = "&amp;";
+    if (action > 0) snprintf(abuf, sizeof(abuf), "&amp;action=%d", action);
 
-  snprintf(buf, size, "<a href=\"%s?SID=%016llx%s%s%s\">", phr->self_url,
-           phr->session_id, abuf, sep, fbuf);
+    snprintf(buf, size, "<a href=\"%s?SID=%016llx%s%s%s\">", phr->self_url,
+             phr->session_id, abuf, sep, fbuf);
+  }
   return buf;
 }
 
@@ -1014,18 +860,26 @@ ns_aref_2(unsigned char *buf, size_t size,
     vsnprintf(fbuf, sizeof(fbuf), format, args);
     va_end(args);
   }
-  if (fbuf[0]) sep = "&amp;";
-
-  abuf[0] = 0;
-  if (action > 0) snprintf(abuf, sizeof(abuf), "&amp;action=%d", action);
 
   stbuf[0] = 0;
   if (style && *style) {
     snprintf(stbuf, sizeof(stbuf), " class=\"%s\"", style);
   }
 
-  snprintf(buf, size, "<a href=\"%s?SID=%016llx%s%s%s\"%s>", phr->self_url,
-           phr->session_id, abuf, sep, fbuf, stbuf);
+  if (phr->rest_mode > 0) {
+    if (action < 0 || action >= NEW_SRV_ACTION_LAST) action = 0;
+    if (fbuf[0]) sep = "?";
+    snprintf(buf, size, "<a href=\"%s/%s/S%016llx%s%s\"%s>", phr->self_url,
+             ns_symbolic_action_table[action],
+             phr->session_id, sep, fbuf, stbuf);
+  } else {
+    abuf[0] = 0;
+    if (fbuf[0]) sep = "&amp;";
+    if (action > 0) snprintf(abuf, sizeof(abuf), "&amp;action=%d", action);
+
+    snprintf(buf, size, "<a href=\"%s?SID=%016llx%s%s%s\"%s>", phr->self_url,
+             phr->session_id, abuf, sep, fbuf, stbuf);
+  }
   return buf;
 }
 
@@ -1128,53 +982,14 @@ ns_check_contest_events(serve_state_t cs, const struct contest_desc *cnts)
   if (cs->event_first) serve_handle_events(ejudge_config, cnts, cs);
 }
 
+static int
+priv_external_action(FILE *out_f, struct http_request_info *phr);
+
 static void
 privileged_page_login_page(FILE *fout, struct http_request_info *phr)
 {
-  const unsigned char *s;
-  int r, n;
-  unsigned char bbuf[1024];
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, ns_fancy_priv_header, 0, 0, 0, 0, phr->locale_id, NULL, NULL_CLIENT_KEY, "Login page");
-  html_start_form(fout, 1, phr->self_url, "");
-  fprintf(fout, "<table>\n");
-  fprintf(fout, "<tr><td>%s:</td><td><input type=\"text\" size=\"32\" name=\"login\"", _("Login"));
-  if (ns_cgi_param(phr, "login", &s) > 0) {
-    fprintf(fout, " value=\"%s\"", ARMOR(s));
-  }
-  fprintf(fout, "/></td></tr>\n");
-  fprintf(fout, "<tr><td>%s:</td><td><input type=\"password\" size=\"32\" name=\"password\"", _("Password"));
-  if (ns_cgi_param(phr, "password", &s) > 0) {
-    fprintf(fout, " value=\"%s\"", ARMOR(s));
-  }
-  fprintf(fout, "/></td></tr>\n");
-  fprintf(fout, "<tr><td>%s:</td><td><input type=\"text\" size=\"32\" name=\"contest_id\"", _("Contest"));
-  if (phr->contest_id > 0) {
-    fprintf(fout, " value=\"%d\"", phr->contest_id);
-  }
-  fprintf(fout, "/></td></tr>\n");
-  if (!phr->role) {
-    phr->role = USER_ROLE_OBSERVER;
-    if (ns_cgi_param(phr, "role", &s) > 0) {
-      if (sscanf(s, "%d%n", &r, &n) == 1 && !s[n]
-          && r >= USER_ROLE_CONTESTANT && r < USER_ROLE_LAST)
-        phr->role = r;
-    }
-  }
-  fprintf(fout, "<tr><td>%s:</td><td>", _("Role"));
-  html_role_select(fout, phr->role, 1, 0);
-  fprintf(fout, "</td></tr>\n");
-  fprintf(fout, "<tr><td>%s:</td><td>", _("Language"));
-  l10n_html_locale_select(fout, phr->locale_id);
-  fprintf(fout, "</td></tr>\n");
-  fprintf(fout, "<tr><td>&nbsp;</td><td>%s</td></tr>\n",
-          ns_submit_button(bbuf, sizeof(bbuf), "submit", 0, _("Submit")));
-  fprintf(fout, "</table></form>\n");
-  ns_footer(fout, 0, 0, phr->locale_id);
-  l10n_setlocale(0);
-  html_armor_free(&ab);
+  phr->action = NEW_SRV_ACTION_LOGIN_PAGE;
+  priv_external_action(fout, phr);
 }
 
 static void
@@ -1241,7 +1056,7 @@ privileged_page_cookie_login(FILE *fout,
     return ns_html_err_inv_param(fout, phr, 1, "contest is not managed");
   if (!phr->role) {
     phr->role = USER_ROLE_OBSERVER;
-    if (ns_cgi_param(phr, "role", &s) > 0) {
+    if (hr_cgi_param(phr, "role", &s) > 0) {
       if (sscanf(s, "%d%n", &r, &n) == 1 && !s[n]
           && r >= USER_ROLE_CONTESTANT && r < USER_ROLE_LAST)
         phr->role = r;
@@ -1326,13 +1141,13 @@ privileged_page_login(FILE *fout,
   const struct contest_desc *cnts = 0;
   opcap_t caps;
 
-  if ((r = ns_cgi_param(phr, "login", &login)) < 0)
+  if ((r = hr_cgi_param(phr, "login", &login)) < 0)
     return ns_html_err_inv_param(fout, phr, 1, "cannot parse login");
   if (!r || phr->action == NEW_SRV_ACTION_LOGIN_PAGE)
     return privileged_page_login_page(fout, phr);
 
   phr->login = xstrdup(login);
-  if ((r = ns_cgi_param(phr, "password", &password)) <= 0)
+  if ((r = hr_cgi_param(phr, "password", &password)) <= 0)
     return ns_html_err_inv_param(fout, phr, 1, "cannot parse password");
   if (phr->contest_id<=0 || contests_get(phr->contest_id, &cnts)<0 || !cnts)
     return ns_html_err_inv_param(fout, phr, 1, "invalid contest_id");
@@ -1341,14 +1156,14 @@ privileged_page_login(FILE *fout,
 
   if (!phr->role) {
     phr->role = USER_ROLE_OBSERVER;
-    if (ns_cgi_param(phr, "role", &s) > 0) {
+    if (hr_cgi_param(phr, "role", &s) > 0) {
       if (sscanf(s, "%d%n", &r, &n) == 1 && !s[n]
           && r >= USER_ROLE_CONTESTANT && r < USER_ROLE_LAST)
         phr->role = r;
     }
   }
   if (phr->role == USER_ROLE_CONTESTANT)
-    return unprivileged_page_login(fout, phr, phr->locale_id);
+    return unprivileged_page_login(fout, phr);
 
   // analyze IP limitations
   if (phr->role == USER_ROLE_ADMIN) {
@@ -1421,8 +1236,8 @@ priv_parse_user_id_range(
 {
   int first = 0, last = -1, x, y;
 
-  if (ns_cgi_param_int_opt(phr, "first_user_id", &x, 0) < 0) goto done;
-  if (ns_cgi_param_int_opt(phr, "last_user_id", &y, -1) < 0) goto done;
+  if (hr_cgi_param_int_opt(phr, "first_user_id", &x, 0) < 0) goto done;
+  if (hr_cgi_param_int_opt(phr, "last_user_id", &y, -1) < 0) goto done;
   if (x <= 0 || y <= 0 || x > y || y - x > 100000) goto done;
 
   first = x;
@@ -1473,7 +1288,7 @@ priv_registration_operation(FILE *fout,
   }
 
   if (phr->action == NEW_SRV_ACTION_USERS_SET_DISQUALIFIED) {
-    if (ns_cgi_param(phr, "disq_comment", &s) < 0) {
+    if (hr_cgi_param(phr, "disq_comment", &s) < 0) {
       ns_html_err_inv_param(fout, phr, 1, "invalid parameter disq_comment");
       retcode = -1;
       goto cleanup;
@@ -1617,7 +1432,7 @@ priv_add_user_by_user_id(FILE *fout,
   int x, n, r;
   int retval = 0;
 
-  if ((r = ns_cgi_param(phr, "add_user_id", &s)) < 0 || !s
+  if ((r = hr_cgi_param(phr, "add_user_id", &s)) < 0 || !s
       || sscanf(s, "%d%n", &x, &n) != 1 || s[n] || x <= 0)
     FAIL(NEW_SRV_ERR_INV_USER_ID);
 
@@ -1651,7 +1466,7 @@ priv_add_user_by_login(FILE *fout,
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   int retval = 0;
 
-  if ((r = ns_cgi_param(phr, "add_login", &s)) < 0 || !s) {
+  if ((r = hr_cgi_param(phr, "add_login", &s)) < 0 || !s) {
     ns_error(log_f, NEW_SRV_ERR_INV_USER_LOGIN);
     goto cleanup;
   }
@@ -1786,12 +1601,12 @@ priv_add_priv_user_by_user_id(FILE *fout,
   const unsigned char *s;
   int user_id, n, r, add_role;
 
-  if ((r = ns_cgi_param(phr, "add_user_id", &s)) < 0 || !s
+  if ((r = hr_cgi_param(phr, "add_user_id", &s)) < 0 || !s
       || sscanf(s, "%d%n", &user_id, &n) != 1 || s[n] || user_id <= 0) {
     ns_error(log_f, NEW_SRV_ERR_INV_USER_ID);
     goto cleanup;
   }
-  if ((r = ns_cgi_param(phr, "add_role_2", &s)) < 0 || !s
+  if ((r = hr_cgi_param(phr, "add_role_2", &s)) < 0 || !s
       || sscanf(s, "%d%n", &add_role, &n) != 1 || s[n]
       || add_role < USER_ROLE_OBSERVER || add_role > USER_ROLE_COORDINATOR) {
     ns_error(log_f, NEW_SRV_ERR_INV_USER_ROLE);
@@ -1820,11 +1635,11 @@ priv_add_priv_user_by_login(FILE *fout,
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   int retval = 0;
 
-  if ((r = ns_cgi_param(phr, "add_login", &login)) < 0 || !s) {
+  if ((r = hr_cgi_param(phr, "add_login", &login)) < 0 || !s) {
     ns_error(log_f, NEW_SRV_ERR_INV_USER_LOGIN);
     goto cleanup;
   }
-  if ((r = ns_cgi_param(phr, "add_role_1", &s)) < 0 || !s
+  if ((r = hr_cgi_param(phr, "add_role_1", &s)) < 0 || !s
       || sscanf(s, "%d%n", &add_role, &n) != 1 || s[n]
       || add_role < USER_ROLE_OBSERVER || add_role > USER_ROLE_COORDINATOR) {
     ns_error(log_f, NEW_SRV_ERR_INV_USER_ROLE);
@@ -1862,14 +1677,14 @@ priv_user_operation(FILE *fout,
   int retval = 0, user_id, n, new_status;
   const struct team_extra *t_extra = 0;
 
-  if (ns_cgi_param(phr, "user_id", &s) <= 0
+  if (hr_cgi_param(phr, "user_id", &s) <= 0
       || sscanf(s, "%d%n", &user_id, &n) != 1 || s[n]
       || user_id <= 0 || !teamdb_lookup(cs->teamdb_state, user_id))
     FAIL(NEW_SRV_ERR_INV_USER_ID);
 
   switch (phr->action) {
   case NEW_SRV_ACTION_USER_CHANGE_STATUS:
-    if (ns_cgi_param(phr, "status", &s) <= 0
+    if (hr_cgi_param(phr, "status", &s) <= 0
         || sscanf(s, "%d%n", &new_status, &n) != 1 || s[n]
         || new_status < 0 || new_status >= cs->global->contestant_status_num)
       FAIL(NEW_SRV_ERR_INV_STATUS);
@@ -1906,18 +1721,18 @@ priv_user_issue_warning(
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
   /* user_id, warn_text, warn_comment */
-  if (ns_cgi_param(phr, "user_id", &s) <= 0
+  if (hr_cgi_param(phr, "user_id", &s) <= 0
       || sscanf(s, "%d%n", &user_id, &n) != 1 || s[n]
       || teamdb_lookup(cs->teamdb_state, user_id) <= 0)
     FAIL(NEW_SRV_ERR_INV_USER_ID);
-  if ((n = ns_cgi_param(phr, "warn_text", &s)) < 0)
+  if ((n = hr_cgi_param(phr, "warn_text", &s)) < 0)
     FAIL(NEW_SRV_ERR_INV_WARN_TEXT);
   if (!n) FAIL(NEW_SRV_ERR_WARN_TEXT_EMPTY);
   warn_len = strlen(warn_txt = dos2unix_str(s));
   while (warn_len > 0 && isspace(warn_txt[warn_len - 1])) warn_len--;
   warn_txt[warn_len] = 0;
   if (!warn_len) FAIL(NEW_SRV_ERR_WARN_TEXT_EMPTY);
-  if ((n = ns_cgi_param(phr, "warn_comment", &s)) < 0)
+  if ((n = hr_cgi_param(phr, "warn_comment", &s)) < 0)
     FAIL(NEW_SRV_ERR_INV_WARN_CMT);
   if (!n) {
     cmt_len = strlen(cmt_txt = xstrdup(""));
@@ -1951,7 +1766,7 @@ priv_user_toggle_flags(
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
   if (opcaps_check(phr->caps, OPCAP_EDIT_REG) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-  if (ns_cgi_param_int(phr, "user_id", &user_id) < 0)
+  if (hr_cgi_param_int(phr, "user_id", &user_id) < 0)
     FAIL(NEW_SRV_ERR_INV_USER_ID);
 
   switch (phr->action) {
@@ -2077,11 +1892,11 @@ priv_user_disqualify(
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
   /* user_id, disq_comment */
-  if (ns_cgi_param(phr, "user_id", &s) <= 0
+  if (hr_cgi_param(phr, "user_id", &s) <= 0
       || sscanf(s, "%d%n", &user_id, &n) != 1 || s[n]
       || teamdb_lookup(cs->teamdb_state, user_id) <= 0)
     FAIL(NEW_SRV_ERR_INV_USER_ID);
-  if ((n = ns_cgi_param(phr, "disq_comment", &s)) < 0)
+  if ((n = hr_cgi_param(phr, "disq_comment", &s)) < 0)
     FAIL(NEW_SRV_ERR_INV_WARN_TEXT);
   warn_txt = text_area_process_string(s, 0, 0);
 
@@ -2117,7 +1932,7 @@ do_schedule(FILE *log_f,
   const unsigned char *s = 0;
   time_t sloc = 0, start_time, stop_time;
 
-  if (ns_cgi_param(phr, "sched_time", &s) <= 0) {
+  if (hr_cgi_param(phr, "sched_time", &s) <= 0) {
     ns_error(log_f, NEW_SRV_ERR_INV_TIME_SPEC);
     return;
   }
@@ -2153,7 +1968,7 @@ do_change_duration(FILE *log_f,
   int dh = 0, dm = 0, n, d;
   time_t start_time, stop_time;
 
-  if (ns_cgi_param(phr, "dur", &s) <= 0) {
+  if (hr_cgi_param(phr, "dur", &s) <= 0) {
     ns_error(log_f, NEW_SRV_ERR_INV_DUR_SPEC);
     return;
   }
@@ -2198,7 +2013,7 @@ do_change_finish_time(
   const unsigned char *s = 0;
   time_t ft = 0, start_time = 0, stop_time = 0;
 
-  if (ns_cgi_param(phr, "finish_time", &s) <= 0) {
+  if (hr_cgi_param(phr, "finish_time", &s) <= 0) {
     ns_error(log_f, NEW_SRV_ERR_INV_TIME_SPEC);
     return;
   }
@@ -2390,7 +2205,7 @@ priv_contest_operation(FILE *fout,
   case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT:
   case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE:
   case NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY:
-    if (ns_cgi_param_int(phr, "param", &param) < 0) {
+    if (hr_cgi_param_int(phr, "param", &param) < 0) {
       ns_error(log_f, NEW_SRV_ERR_INV_PARAM);
       goto cleanup;
     }
@@ -2485,7 +2300,7 @@ priv_change_language(FILE *fout,
   int r, n;
   int new_locale_id;
 
-  if ((r = ns_cgi_param(phr, "locale_id", &s)) < 0) goto invalid_param;
+  if ((r = hr_cgi_param(phr, "locale_id", &s)) < 0) goto invalid_param;
   if (r > 0) {
     if (sscanf(s, "%d%n", &new_locale_id, &n) != 1 || s[n] || new_locale_id < 0)
       goto invalid_param;
@@ -2509,72 +2324,76 @@ priv_change_language(FILE *fout,
 }
 
 static void
-priv_change_password(FILE *fout,
-                     struct http_request_info *phr,
-                     const struct contest_desc *cnts,
-                     struct contest_extra *extra)
+priv_change_password(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
 {
   const unsigned char *p0 = 0, *p1 = 0, *p2 = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
-  FILE *log_f = 0;
   int cmd, r;
   unsigned char url[1024];
   unsigned char login_buf[256];
 
-  if (ns_cgi_param(phr, "oldpasswd", &p0) <= 0)
-    return ns_html_err_inv_param(fout, phr, 1, "cannot parse oldpasswd");
-  if (ns_cgi_param(phr, "newpasswd1", &p1) <= 0)
-    return ns_html_err_inv_param(fout, phr, 1, "cannot parse newpasswd1");
-  if (ns_cgi_param(phr, "newpasswd2", &p2) <= 0)
-    return ns_html_err_inv_param(fout, phr, 1, "cannot parse newpasswd2");
-
-  log_f = open_memstream(&log_txt, &log_len);
+  if (hr_cgi_param(phr, "oldpasswd", &p0) <= 0) {
+    fprintf(phr->log_f, "cannot parse oldpasswd\n");
+    error_page(fout, phr, 1, NEW_SRV_ERR_INV_PARAM);
+    goto cleanup;
+  }
+  if (hr_cgi_param(phr, "newpasswd1", &p1) <= 0) {
+    fprintf(phr->log_f, "cannot parse newpasswd1\n");
+    error_page(fout, phr, 1, NEW_SRV_ERR_INV_PARAM);
+    goto cleanup;
+  }
+  if (hr_cgi_param(phr, "newpasswd2", &p2) <= 0) {
+    fprintf(phr->log_f, "cannot parse newpasswd2\n");
+    error_page(fout, phr, 1, NEW_SRV_ERR_INV_PARAM);
+    goto cleanup;
+  }
 
   if (strlen(p0) >= 256) {
-    ns_error(log_f, NEW_SRV_ERR_OLD_PWD_TOO_LONG);
-    goto done;
+    error_page(fout, phr, 1, NEW_SRV_ERR_OLD_PWD_TOO_LONG);
+    goto cleanup;
   }
   if (strcmp(p1, p2)) {
-    ns_error(log_f, NEW_SRV_ERR_NEW_PWD_MISMATCH);
-    goto done;
+    error_page(fout, phr, 1, NEW_SRV_ERR_NEW_PWD_MISMATCH);
+    goto cleanup;
   }
   if (strlen(p1) >= 256) {
-    ns_error(log_f, NEW_SRV_ERR_NEW_PWD_TOO_LONG);
-    goto done;
+    error_page(fout, phr, 1, NEW_SRV_ERR_NEW_PWD_TOO_LONG);
+    goto cleanup;
   }
 
   cmd = ULS_PRIV_SET_REG_PASSWD;
 
   if (ns_open_ul_connection(phr->fw_state) < 0) {
-    ns_html_err_ul_server_down(fout, phr, 1, 0);
+    error_page(fout, phr, 1, NEW_SRV_ERR_USERLIST_SERVER_DOWN);
     goto cleanup;
   }
-  r = userlist_clnt_set_passwd(ul_conn, cmd, phr->user_id, phr->contest_id,
-                               p0, p1);
+  r = userlist_clnt_set_passwd(ul_conn, cmd, phr->user_id, phr->contest_id, p0, p1);
   if (r < 0) {
-    ns_error(log_f, NEW_SRV_ERR_PWD_UPDATE_FAILED, userlist_strerror(-r));
-    goto done;
+    fprintf(phr->log_f, "%s\n", userlist_strerror(-r));
+    error_page(fout, phr, 1, NEW_SRV_ERR_PWD_UPDATE_FAILED);
+    goto cleanup;
   }
 
- done:;
-  close_memstream(log_f); log_f = 0;
-  if (!log_txt || !*log_txt) {
-    url_armor_string(login_buf, sizeof(login_buf), phr->login);
+  url_armor_string(login_buf, sizeof(login_buf), phr->login);
+  if (phr->rest_mode > 0) {
+    snprintf(url, sizeof(url),
+             "%s/%s?contest_id=%d&role=%d&login=%s&locale_id=%d",
+             phr->self_url, ns_symbolic_action_table[NEW_SRV_ACTION_LOGIN_PAGE],
+             phr->contest_id, phr->role,
+             login_buf, phr->locale_id);
+  } else {
     snprintf(url, sizeof(url),
              "%s?contest_id=%d&role=%d&login=%s&locale_id=%d&action=%d",
              phr->self_url, phr->contest_id, phr->role,
              login_buf, phr->locale_id,
              NEW_SRV_ACTION_LOGIN_PAGE);
-    ns_refresh_page_2(fout, phr->client_key, url);
-  } else {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_MAIN_PAGE, 0);
   }
+  ns_refresh_page_2(fout, phr->client_key, url);
 
  cleanup:;
-  if (log_f) fclose(log_f);
-  xfree(log_txt);
 }
 
 static int
@@ -2634,7 +2453,7 @@ priv_submit_run(FILE *fout,
     goto cleanup;
   }
 
-  if (ns_cgi_param_int(phr, "problem", &prob_id) < 0) {
+  if (hr_cgi_param_int(phr, "problem", &prob_id) < 0) {
     errmsg = "problem is not set or binary";
     goto invalid_param;
   }
@@ -2643,7 +2462,7 @@ priv_submit_run(FILE *fout,
     errmsg = "invalid prob_id";
     goto invalid_param;
   }
-  if (ns_cgi_param_int_opt(phr, "variant", &variant, 0) < 0) {
+  if (hr_cgi_param_int_opt(phr, "variant", &variant, 0) < 0) {
     errmsg = "variant is invalid";
     goto invalid_param;
   }
@@ -2657,7 +2476,7 @@ priv_submit_run(FILE *fout,
   }
 
   /*
-  if (ns_cgi_param(phr, "problem", &s) <= 0) {
+  if (hr_cgi_param(phr, "problem", &s) <= 0) {
     errmsg = "problem is not set or binary";
     goto invalid_param;
   }
@@ -2688,7 +2507,7 @@ priv_submit_run(FILE *fout,
   */
 
   if (prob->type == PROB_TYPE_STANDARD) {
-    if (ns_cgi_param(phr, "lang_id", &s) <= 0) {
+    if (hr_cgi_param(phr, "lang_id", &s) <= 0) {
       errmsg = "lang_id is not set or binary";
       goto invalid_param;
     }
@@ -2701,7 +2520,7 @@ priv_submit_run(FILE *fout,
       goto invalid_param;
     }
     if (cs->global->enable_eoln_select > 0) {
-      ns_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
+      hr_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
       if (eoln_type < 0 || eoln_type > EOLN_CRLF) eoln_type = 0;
     }
   }
@@ -2720,15 +2539,15 @@ priv_submit_run(FILE *fout,
   case PROB_TYPE_OUTPUT_ONLY:
   case PROB_TYPE_TESTS:
     if (prob->enable_text_form > 0) {
-      int r1 = ns_cgi_param_bin(phr, "file", &run_text, &run_size);
-      int r2 = ns_cgi_param_bin(phr, "text_form", &text_form_text,
+      int r1 = hr_cgi_param_bin(phr, "file", &run_text, &run_size);
+      int r2 = hr_cgi_param_bin(phr, "text_form", &text_form_text,
                                 &text_form_size);
       if (!r1 && !r2) {
         errmsg = "neither \"file\" nor \"text\" parameters are set";
         goto invalid_param;
       }
     } else {
-      if (!ns_cgi_param_bin(phr, "file", &run_text, &run_size)) {
+      if (!hr_cgi_param_bin(phr, "file", &run_text, &run_size)) {
         errmsg = "\"file\" parameter is not set";
         goto invalid_param;
       }
@@ -2737,7 +2556,7 @@ priv_submit_run(FILE *fout,
   case PROB_TYPE_TEXT_ANSWER:
   case PROB_TYPE_SHORT_ANSWER:
   case PROB_TYPE_SELECT_ONE:
-    if (!ns_cgi_param_bin(phr, "file", &run_text, &run_size)) {
+    if (!hr_cgi_param_bin(phr, "file", &run_text, &run_size)) {
       errmsg = "\"file\" parameter is not set";
       goto invalid_param;
     }
@@ -2990,7 +2809,8 @@ priv_submit_run(FILE *fout,
                                      lang->compiler_env,
                                      0, prob->style_checker_cmd,
                                      prob->style_checker_env,
-                                     -1, 0, 0, prob, lang, 0, run_uuid, store_flags)) < 0) {
+                                     -1, 0, 0, prob, lang, 0, run_uuid,
+                                     store_flags, 0 /* rejudge_flag */)) < 0) {
         serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       }
     }
@@ -3019,7 +2839,8 @@ priv_submit_run(FILE *fout,
                                   prob, NULL /* lang */,
                                   0 /* no_db_flag */,
                                   run_uuid,
-                                  store_flags);
+                                  store_flags,
+                                  0 /* rejudge_flag*/);
         if (r < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
@@ -3027,7 +2848,8 @@ priv_submit_run(FILE *fout,
         if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid) < 0) {
+                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              0 /* rejudge_flag */) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto cleanup;
         }
@@ -3060,7 +2882,8 @@ priv_submit_run(FILE *fout,
                                   prob, NULL /* lang */,
                                   0 /* no_db_flag */,
                                   run_uuid,
-                                  store_flags);
+                                  store_flags,
+                                  0 /* rejudge_flag */);
         if (r < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
@@ -3068,7 +2891,8 @@ priv_submit_run(FILE *fout,
         if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid) < 0) {
+                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              0 /* rejudge_flag */) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto cleanup;
         }
@@ -3114,7 +2938,7 @@ priv_submit_clar(
   }
 
   // msg_dest_id, msg_dest_login, msg_subj, msg_hide_flag, msg_text
-  if ((n = ns_cgi_param(phr, "msg_dest_id", &s)) < 0) {
+  if ((n = hr_cgi_param(phr, "msg_dest_id", &s)) < 0) {
     errmsg = "msg_dest_id is binary";
     goto invalid_param;
   }
@@ -3130,7 +2954,7 @@ priv_submit_clar(
       goto cleanup;
     }
   }
-  if ((n = ns_cgi_param(phr, "msg_dest_login", &s)) < 0) {
+  if ((n = hr_cgi_param(phr, "msg_dest_login", &s)) < 0) {
     errmsg = "msg_dest_login is binary";
     goto invalid_param;
   }
@@ -3161,17 +2985,17 @@ priv_submit_clar(
     errmsg = "neither user_id nor login are not specified";
     goto invalid_param;
   }
-  if ((n = ns_cgi_param(phr, "msg_subj", &subject)) < 0) {
+  if ((n = hr_cgi_param(phr, "msg_subj", &subject)) < 0) {
     errmsg = "msg_subj is binary";
     goto invalid_param;
   }
   if (!subject) subject = "";
-  if ((n = ns_cgi_param(phr, "msg_text", &text)) < 0) {
+  if ((n = hr_cgi_param(phr, "msg_text", &text)) < 0) {
     errmsg = "msg_text is binary";
     goto invalid_param;
   }
   if (!text) text = "";
-  if ((n = ns_cgi_param(phr, "msg_hide_flag", &s)) < 0) {
+  if ((n = hr_cgi_param(phr, "msg_hide_flag", &s)) < 0) {
     errmsg = "msg_hide_flag is binary";
     goto invalid_param;
   }
@@ -3310,7 +3134,7 @@ priv_set_run_style_error_status(
     ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
     goto cleanup;    
   }
-  if (ns_cgi_param(phr, "msg_text", &text) < 0) {
+  if (hr_cgi_param(phr, "msg_text", &text) < 0) {
     snprintf(errmsg, sizeof(errmsg), "%s", "msg_text is binary");
     goto invalid_param;
   }
@@ -3390,7 +3214,7 @@ priv_submit_run_comment(
     ns_error(log_f, NEW_SRV_ERR_USER_ID_NONEXISTANT, re.user_id);
     goto cleanup;
   }
-  if (ns_cgi_param(phr, "msg_text", &text) < 0) {
+  if (hr_cgi_param(phr, "msg_text", &text) < 0) {
     errmsg = "msg_text is binary";
     goto invalid_param;
   }
@@ -3538,7 +3362,7 @@ priv_clar_reply(
   struct timeval precise_time;
 
   // reply, in_reply_to
-  if (ns_cgi_param(phr, "in_reply_to", &s) <= 0
+  if (hr_cgi_param(phr, "in_reply_to", &s) <= 0
       || sscanf(s, "%d%n", &in_reply_to, &n) != 1 || s[n]
       || in_reply_to < 0 || in_reply_to >= clar_get_total(cs->clarlog_state)) {
     errmsg = "in_reply_to parameter is invalid";
@@ -3548,7 +3372,7 @@ priv_clar_reply(
   switch (phr->action) {
   case NEW_SRV_ACTION_CLAR_REPLY:
   case NEW_SRV_ACTION_CLAR_REPLY_ALL:
-    if (ns_cgi_param(phr, "reply", &reply_txt) <= 0) {
+    if (hr_cgi_param(phr, "reply", &reply_txt) <= 0) {
       errmsg = "reply parameter is invalid";
       goto invalid_param;
     }
@@ -3694,7 +3518,7 @@ parse_run_id(FILE *fout, struct http_request_info *phr,
   const unsigned char *s = 0, *errmsg = 0;
   unsigned char msgbuf[1024];
   
-  if (!(n = ns_cgi_param(phr, "run_id", &s))) {
+  if (!(n = hr_cgi_param(phr, "run_id", &s))) {
     errmsg = ns_strerror_r(msgbuf, sizeof(msgbuf),
                            NEW_SRV_ERR_RUN_ID_UNDEFINED);
     goto failure;
@@ -3735,6 +3559,18 @@ parse_run_id(FILE *fout, struct http_request_info *phr,
   html_error_status_page(fout, phr, cnts, extra, errmsg,
                          ns_priv_prev_state[phr->action], 0);
   return -1;
+}
+
+int
+ns_parse_run_id(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra,
+        int *p_run_id,
+        struct run_entry *pe)
+{
+  return parse_run_id(fout, phr, cnts, extra, p_run_id, pe);
 }
 
 static int
@@ -3784,7 +3620,7 @@ priv_clear_run(FILE *fout, FILE *log_f,
     FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
 
   if (re.store_flags == 1) {
-    uuid_archive_remove(cs, re.run_uuid);
+    uuid_archive_remove(cs, re.run_uuid, 0);
   } else {
     archive_remove(cs, global->run_archive_dir, run_id, 0);
     archive_remove(cs, global->xml_report_archive_dir, run_id, 0);
@@ -3841,7 +3677,7 @@ priv_edit_run(FILE *fout, FILE *log_f,
   new_buf[0] = 0;
 
   if (parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0) return -1;
-  if (ns_cgi_param(phr, "param", &s) <= 0) {
+  if (hr_cgi_param(phr, "param", &s) <= 0) {
     ns_html_err_inv_param(fout, phr, 1, "param is not set");
     return -1;
   }
@@ -4075,7 +3911,7 @@ priv_change_status(
   // run_id, status
   if (parse_run_id(fout, phr, cnts, extra, &run_id, 0) < 0) goto failure;
   snprintf(phr->next_extra, sizeof(phr->next_extra), "run_id=%d", run_id);
-  if (ns_cgi_param(phr, "status", &s) <= 0
+  if (hr_cgi_param(phr, "status", &s) <= 0
       || sscanf(s, "%d%n", &status, &n) != 1 || s[n]
       || status < 0 || status > RUN_LAST) {
     errmsg = "invalid status";
@@ -4232,12 +4068,13 @@ priv_simple_change_status(
   return -1;
 }
 
-static int
-parse_run_mask(struct http_request_info *phr,
-               const unsigned char **p_size_str,
-               const unsigned char **p_mask_str,
-               size_t *p_size,
-               unsigned long **p_mask)
+int
+ns_parse_run_mask(
+        struct http_request_info *phr,
+        const unsigned char **p_size_str,
+        const unsigned char **p_mask_str,
+        size_t *p_size,
+        unsigned long **p_mask)
 {
   const unsigned char *size_str = 0;
   const unsigned char *mask_str = 0;
@@ -4251,7 +4088,7 @@ parse_run_mask(struct http_request_info *phr,
   if (p_size) *p_size = 0;
   if (p_mask) *p_mask = 0;
 
-  if (ns_cgi_param(phr, "run_mask_size", &size_str) <= 0) {
+  if (hr_cgi_param(phr, "run_mask_size", &size_str) <= 0) {
     err("parse_run_mask: `run_mask_size' is not defined or binary");
     goto invalid_param;
   }
@@ -4266,7 +4103,7 @@ parse_run_mask(struct http_request_info *phr,
     return 0;
   }
 
-  if (ns_cgi_param(phr, "run_mask", &mask_str) <= 0) {
+  if (hr_cgi_param(phr, "run_mask", &mask_str) <= 0) {
     err("parse_run_mask: `run_mask' is not defined or binary");
     goto invalid_param;
   }
@@ -4316,7 +4153,7 @@ priv_clear_displayed(FILE *fout,
   size_t mask_size;
   int retval = 0;
 
-  if (parse_run_mask(phr, 0, 0, &mask_size, &mask) < 0) goto invalid_param;
+  if (ns_parse_run_mask(phr, 0, 0, &mask_size, &mask) < 0) goto invalid_param;
   if (!mask_size) FAIL(NEW_SRV_ERR_NO_RUNS_TO_REJUDGE);
   if (opcaps_check(phr->caps, OPCAP_EDIT_RUN) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
@@ -4372,9 +4209,9 @@ priv_rejudge_displayed(FILE *fout,
   int retval = 0;
   int background_mode = 0;
 
-  if (parse_run_mask(phr, 0, 0, &mask_size, &mask) < 0) goto invalid_param;
+  if (ns_parse_run_mask(phr, 0, 0, &mask_size, &mask) < 0) goto invalid_param;
   if (!mask_size) FAIL(NEW_SRV_ERR_NO_RUNS_TO_REJUDGE);
-  ns_cgi_param_int_opt(phr, "background_mode", &background_mode, 0);
+  hr_cgi_param_int_opt(phr, "background_mode", &background_mode, 0);
   if (background_mode != 1) background_mode = 0;
 
   if (opcaps_check(phr->caps, OPCAP_REJUDGE_RUN) < 0)
@@ -4387,10 +4224,10 @@ priv_rejudge_displayed(FILE *fout,
     prio_adj = 10;
   }
 
-  ns_add_job(serve_rejudge_by_mask(ejudge_config, cnts, cs, phr->user_id,
-                                   &phr->ip, phr->ssl_flag,
-                                   mask_size, mask, force_full, prio_adj,
-                                   background_mode));
+  nsf_add_job(phr->fw_state, serve_rejudge_by_mask(ejudge_config, cnts, cs, phr->user_id,
+                                                   &phr->ip, phr->ssl_flag,
+                                                   mask_size, mask, force_full, prio_adj,
+                                                   background_mode));
 
  cleanup:
   xfree(mask);
@@ -4415,13 +4252,13 @@ priv_rejudge_problem(FILE *fout,
   int prob_id, n;
   int background_mode = 0;
 
-  if (ns_cgi_param(phr, "prob_id", &s) <= 0
+  if (hr_cgi_param(phr, "prob_id", &s) <= 0
       || sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]
       || prob_id <= 0 || prob_id > cs->max_prob
       || !(prob = cs->probs[prob_id])
       || prob->disable_testing)
     goto invalid_param;
-  ns_cgi_param_int_opt(phr, "background_mode", &background_mode, 0);
+  hr_cgi_param_int_opt(phr, "background_mode", &background_mode, 0);
   if (background_mode != 1) background_mode = 0;
 
   if (opcaps_check(phr->caps, OPCAP_REJUDGE_RUN) < 0) {
@@ -4429,10 +4266,10 @@ priv_rejudge_problem(FILE *fout,
     goto cleanup;
   }
 
-  ns_add_job(serve_rejudge_problem(ejudge_config, cnts, cs, phr->user_id,
-                                   &phr->ip, phr->ssl_flag, prob_id,
-                                   DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT,
-                                   background_mode));
+  nsf_add_job(phr->fw_state, serve_rejudge_problem(ejudge_config, cnts, cs, phr->user_id,
+                                                   &phr->ip, phr->ssl_flag, prob_id,
+                                                   DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT,
+                                                   background_mode));
 
  cleanup:
   return 0;
@@ -4452,7 +4289,7 @@ priv_rejudge_all(FILE *fout,
   serve_state_t cs = extra->serve_state;
   int background_mode = 0;
 
-  ns_cgi_param_int_opt(phr, "background_mode", &background_mode, 0);
+  hr_cgi_param_int_opt(phr, "background_mode", &background_mode, 0);
   if (background_mode != 1) background_mode = 0;
 
   if (opcaps_check(phr->caps, OPCAP_REJUDGE_RUN) < 0) {
@@ -4462,10 +4299,10 @@ priv_rejudge_all(FILE *fout,
 
   switch (phr->action) {
   case NEW_SRV_ACTION_REJUDGE_SUSPENDED_2:
-    ns_add_job(serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, background_mode));
+    nsf_add_job(phr->fw_state, serve_judge_suspended(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, background_mode));
     break;
   case NEW_SRV_ACTION_REJUDGE_ALL_2:
-    ns_add_job(serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, background_mode));
+    nsf_add_job(phr->fw_state, serve_rejudge_all(ejudge_config, cnts, cs, phr->user_id, &phr->ip, phr->ssl_flag, DFLT_G_REJUDGE_PRIORITY_ADJUSTMENT, background_mode));
     
     break;
   default:
@@ -4509,12 +4346,12 @@ priv_new_run(FILE *fout,
   // run_user_id, run_user_login, prob_id, variant, language,
   // is_imported, is_hidden, is_readonly, status,
   // tests, score, file
-  if (ns_cgi_param(phr, "run_user_id", &s) > 0
+  if (hr_cgi_param(phr, "run_user_id", &s) > 0
       && sscanf(s, "%d%n", &x, &n) == 1 && !s[n]
       && teamdb_lookup(cs->teamdb_state, x))
     user_id = x;
   x = 0;
-  if (ns_cgi_param(phr, "run_user_login", &s) > 0 && *s)
+  if (hr_cgi_param(phr, "run_user_login", &s) > 0 && *s)
     x = teamdb_lookup_login(cs->teamdb_state, s);
   if (user_id <= 0 && x <= 0)
     FAIL(NEW_SRV_ERR_UNDEFINED_USER_ID_LOGIN);
@@ -4522,12 +4359,12 @@ priv_new_run(FILE *fout,
     FAIL(NEW_SRV_ERR_CONFLICTING_USER_ID_LOGIN);
   if (user_id <= 0) user_id = x;
 
-  if (ns_cgi_param(phr, "prob_id", &s) <= 0
+  if (hr_cgi_param(phr, "prob_id", &s) <= 0
       || sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]
       || prob_id <= 0 || prob_id > cs->max_prob
       || !(prob = cs->probs[prob_id]))
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
-  if (ns_cgi_param(phr, "variant", &s) > 0 && *s) {
+  if (hr_cgi_param(phr, "variant", &s) > 0 && *s) {
     if (sscanf(s, "%d%n", &variant, &n) != 1 || s[n]
         || prob->variant_num <= 0 || variant < 0
         || variant > prob->variant_num)
@@ -4536,7 +4373,7 @@ priv_new_run(FILE *fout,
 
   // check language, content-type, binariness and other stuff
   if (prob->type == PROB_TYPE_STANDARD) {
-    if (ns_cgi_param(phr, "language", &s) <= 0
+    if (hr_cgi_param(phr, "language", &s) <= 0
         || sscanf(s, "%d%n", &lang_id, &n) != 1 || s[n]
         || lang_id <= 0 || lang_id > cs->max_lang
         || !(lang = cs->langs[lang_id]))
@@ -4548,7 +4385,7 @@ priv_new_run(FILE *fout,
   case PROB_TYPE_OUTPUT_ONLY:
   case PROB_TYPE_TEXT_ANSWER:
   case PROB_TYPE_SHORT_ANSWER:
-    if (!ns_cgi_param_bin(phr, "file", &run_text, &run_size)) {
+    if (!hr_cgi_param_bin(phr, "file", &run_text, &run_size)) {
       run_text = "";
       run_size = 0;
     }
@@ -4627,26 +4464,26 @@ priv_new_run(FILE *fout,
   }
   sha_buffer(run_text, run_size, shaval);
 
-  if (ns_cgi_param(phr, "is_imported", &s) > 0 && *s) {
+  if (hr_cgi_param(phr, "is_imported", &s) > 0 && *s) {
     if (sscanf(s, "%d%n", &is_imported, &n) != 1 || s[n]
         || is_imported < 0 || is_imported > 1)
       FAIL(NEW_SRV_ERR_INV_PARAM);
     re.is_imported = is_imported;
     re_flags |= RE_IS_IMPORTED;
   }
-  if (ns_cgi_param(phr, "is_hidden", &s) > 0 && *s) {
+  if (hr_cgi_param(phr, "is_hidden", &s) > 0 && *s) {
     if (sscanf(s, "%d%n", &is_hidden, &n) != 1 || s[n]
         || is_hidden < 0 || is_hidden > 1)
       FAIL(NEW_SRV_ERR_INV_PARAM);
   }
-  if (ns_cgi_param(phr, "is_readonly", &s) > 0 && *s) {
+  if (hr_cgi_param(phr, "is_readonly", &s) > 0 && *s) {
     if (sscanf(s, "%d%n", &is_readonly, &n) != 1 || s[n]
         || is_readonly < 0 || is_readonly > 1)
       FAIL(NEW_SRV_ERR_INV_PARAM);
     re.is_readonly = is_readonly;
     re_flags |= RE_IS_READONLY;
   }
-  if (ns_cgi_param(phr, "status", &s) > 0 && *s) {
+  if (hr_cgi_param(phr, "status", &s) > 0 && *s) {
     if (sscanf(s, "%d%n", &status, &n) != 1 || s[n]
         || status < 0 || status > RUN_MAX_STATUS
         || !serve_is_valid_status(cs, status, 1))
@@ -4654,7 +4491,7 @@ priv_new_run(FILE *fout,
     re.status = status;
     re_flags |= RE_STATUS;
   }
-  if (ns_cgi_param(phr, "tests", &s) > 0 && *s) {
+  if (hr_cgi_param(phr, "tests", &s) > 0 && *s) {
     if (sscanf(s, "%d%n", &tests, &n) != 1 || s[n]
         || tests < -1 || tests > 100000)
       FAIL(NEW_SRV_ERR_INV_TEST);
@@ -4662,7 +4499,7 @@ priv_new_run(FILE *fout,
     re.passed_mode = 1;
     re_flags |= RE_TEST | RE_PASSED_MODE;
   }
-  if (ns_cgi_param(phr, "score", &s) > 0 && *s) {
+  if (hr_cgi_param(phr, "score", &s) > 0 && *s) {
     if (sscanf(s, "%d%n", &score, &n) != 1 || s[n]
         || score < 0 || score > 100000)
       FAIL(NEW_SRV_ERR_INV_PARAM);
@@ -4794,12 +4631,12 @@ priv_confirmation_page(FILE *fout,
   case NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_1:
     // run_mask_size, run_mask
     errmsg = "cannot parse run mask";
-    if (parse_run_mask(phr, &run_mask_size_str, &run_mask_str,
+    if (ns_parse_run_mask(phr, &run_mask_size_str, &run_mask_str,
                        &run_mask_size, &run_mask) < 0)
       goto invalid_param;
     break;
   case NEW_SRV_ACTION_REJUDGE_PROBLEM_1:
-    if (ns_cgi_param(phr, "prob_id", &s) <= 0
+    if (hr_cgi_param(phr, "prob_id", &s) <= 0
         || sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]
         || prob_id <= 0 || prob_id > cs->max_prob
         || !(prob = cs->probs[prob_id])
@@ -4997,28 +4834,6 @@ priv_view_runs_dump(FILE *fout,
 }
 
 static int
-priv_view_audit_log(FILE *fout,
-                    FILE *log_f,
-                    struct http_request_info *phr,
-                    const struct contest_desc *cnts,
-                    struct contest_extra *extra)
-{
-  int run_id;
-  int retval = 0;
-
-  if (parse_run_id(fout, phr, cnts, extra, &run_id, 0) < 0) FAIL(1);
-
-  if (opcaps_check(phr->caps, OPCAP_CONTROL_CONTEST) < 0)
-    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  ns_write_audit_log(extra->serve_state, fout, log_f, phr, cnts, extra,
-                     run_id);
-
- cleanup:
-  return retval;
-}
-
-static int
 priv_diff_page(FILE *fout,
                FILE *log_f,
                struct http_request_info *phr,
@@ -5032,7 +4847,7 @@ priv_diff_page(FILE *fout,
 
   total_runs = run_get_total(cs->runlog_state);
   if (parse_run_id(fout, phr, cnts, extra, &run_id1, 0) < 0) goto failure;
-  if (!(n = ns_cgi_param(phr, "run_id2", &s)) || (n > 0 && !*s))
+  if (!(n = hr_cgi_param(phr, "run_id2", &s)) || (n > 0 && !*s))
     FAIL(NEW_SRV_ERR_RUN_TO_COMPARE_UNSPECIFIED);
   if (n < 0 || sscanf(s, "%d%n", &run_id2, &n) != 1 || s[n]
       || run_id2 < 0 || run_id2 >= total_runs)
@@ -5048,66 +4863,6 @@ priv_diff_page(FILE *fout,
 
  failure:
   return -1;
-}
-
-static int
-priv_user_detail_page(FILE *fout,
-                      FILE *log_f,
-                      struct http_request_info *phr,
-                      const struct contest_desc *cnts,
-                      struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  int retval = 0;
-  int user_id, n;
-  const unsigned char *s = 0;
-
-  if (ns_cgi_param(phr, "user_id", &s) <= 0
-      || sscanf(s, "%d%n", &user_id, &n) != 1 || s[n]
-      || !teamdb_lookup(cs->teamdb_state, user_id))
-    FAIL(NEW_SRV_ERR_INV_USER_ID);
-
-  if (opcaps_check(phr->caps, OPCAP_GET_USER) < 0)
-    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s %d", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Details for user "), user_id);
-  ns_user_info_page(fout, log_f, phr, cnts, extra, user_id);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
-}
-
-static int
-priv_new_run_form_page(FILE *fout,
-                       FILE *log_f,
-                       struct http_request_info *phr,
-                       const struct contest_desc *cnts,
-                       struct contest_extra *extra)
-{
-  int retval = 0;
-
-  if (opcaps_check(phr->caps, OPCAP_SUBMIT_RUN) < 0
-      || opcaps_check(phr->caps, OPCAP_EDIT_RUN))
-    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role), phr->name_arm,
-            phr->contest_id, extra->contest_arm, _("Add new run"));
-  ns_new_run_form(fout, log_f, phr, cnts, extra);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
 }
 
 static int
@@ -5155,12 +4910,12 @@ priv_assign_chief_examiner(
   if (phr->role != USER_ROLE_ADMIN && phr->role != USER_ROLE_COORDINATOR)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
-  if (ns_cgi_param_int(phr, "prob_id", &prob_id) < 0
+  if (hr_cgi_param_int(phr, "prob_id", &prob_id) < 0
       || prob_id <= 0 || prob_id > cs->max_prob || !cs->probs[prob_id]
       || cs->probs[prob_id]->manual_checking <= 0)
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
 
-  if (ns_cgi_param_int(phr, "chief_user_id", &user_id) < 0 || user_id < 0)
+  if (hr_cgi_param_int(phr, "chief_user_id", &user_id) < 0 || user_id < 0)
     FAIL(NEW_SRV_ERR_INV_USER_ID);
   if (!user_id) {
     user_id = nsdb_find_chief_examiner(phr->contest_id, prob_id);
@@ -5195,12 +4950,12 @@ priv_assign_examiner(
   if (phr->role != USER_ROLE_ADMIN && phr->role != USER_ROLE_COORDINATOR)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
-  if (ns_cgi_param_int(phr, "prob_id", &prob_id) < 0
+  if (hr_cgi_param_int(phr, "prob_id", &prob_id) < 0
       || prob_id <= 0 || prob_id > cs->max_prob || !cs->probs[prob_id]
       || cs->probs[prob_id]->manual_checking <= 0)
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
 
-  if (ns_cgi_param_int(phr, "exam_add_user_id", &user_id) < 0 || user_id < 0)
+  if (hr_cgi_param_int(phr, "exam_add_user_id", &user_id) < 0 || user_id < 0)
     FAIL(NEW_SRV_ERR_INV_USER_ID);
   if (!user_id) {
     retval = NEW_SRV_ACTION_EXAMINERS_PAGE;
@@ -5231,12 +4986,12 @@ priv_unassign_examiner(
   if (phr->role != USER_ROLE_ADMIN && phr->role != USER_ROLE_COORDINATOR)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
-  if (ns_cgi_param_int(phr, "prob_id", &prob_id) < 0
+  if (hr_cgi_param_int(phr, "prob_id", &prob_id) < 0
       || prob_id <= 0 || prob_id > cs->max_prob || !cs->probs[prob_id]
       || cs->probs[prob_id]->manual_checking <= 0)
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
 
-  if (ns_cgi_param_int(phr, "exam_del_user_id", &user_id) < 0 || user_id < 0)
+  if (hr_cgi_param_int(phr, "exam_del_user_id", &user_id) < 0 || user_id < 0)
     FAIL(NEW_SRV_ERR_INV_USER_ID);
   if (!user_id) {
     retval = NEW_SRV_ACTION_EXAMINERS_PAGE;
@@ -5251,509 +5006,6 @@ priv_unassign_examiner(
 
  cleanup:
   return retval;
-}
-
-static void
-priv_view_users_page(
-        FILE *fout,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  int r;
-  unsigned char *xml_text = 0;
-  struct userlist_list *users = 0;
-  const struct userlist_user *u = 0;
-  const struct userlist_contest *uc = 0;
-  int uid;
-  int row = 1, serial = 1;
-  char url[1024];
-  unsigned char bb[1024];
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  int details_allowed = 0;
-  unsigned char cl[128];
-  unsigned char b1[1024], b2[1024];
-  int new_contest_id = cnts->id;
-  const struct section_global_data *global = extra->serve_state->global;
-  int *run_counts = 0;
-  size_t *run_sizes = 0;
-
-  if (cnts->user_contest_num > 0) new_contest_id = cnts->user_contest_num;
-  if (ns_open_ul_connection(phr->fw_state) < 0)
-    return ns_html_err_ul_server_down(fout, phr, 1, 0);
-  if ((r = userlist_clnt_list_all_users(ul_conn, ULS_LIST_ALL_USERS,
-                                        phr->contest_id, &xml_text)) < 0)
-    return ns_html_err_internal_error(fout, phr, 1,
-                                      "list_all_users failed: %s",
-                                      userlist_strerror(-r));
-  users = userlist_parse_str(xml_text);
-  xfree(xml_text); xml_text = 0;
-  if (!users)
-    return ns_html_err_internal_error(fout, phr, 1, "XML parsing failed");
-
-  if (users->user_map_size > 0) {
-    XCALLOC(run_counts, users->user_map_size);
-    XCALLOC(run_sizes, users->user_map_size);
-    run_get_all_statistics(extra->serve_state->runlog_state,
-                           users->user_map_size, run_counts, run_sizes);
-  }
-
-  if (opcaps_check(phr->caps, OPCAP_GET_USER) >= 0) details_allowed = 1;
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role), phr->name_arm,
-            phr->contest_id, extra->contest_arm, _("Users page"));
-
-  fprintf(fout, "<h2>Registered users</h2>");
-
-  snprintf(cl, sizeof(cl), " class=\"b1\"");
-
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<table%s><tr><th%s>NN</th><th%s>Id</th><th%s>Login</th><th%s>Name</th><th%s>Status</th><th%s>Flags</th><th%s>Reg. date</th><th%s>Login date</th><th%s>No. of submits</th><th%s>Size of submits</th>", cl, cl, cl, cl, cl, cl, cl, cl, cl, cl, cl);
-  if (global->memoize_user_results > 0) {
-    fprintf(fout, "<th%s>Score</th>", cl);
-  }
-  fprintf(fout, "<th%s>Select</th></tr>\n", cl);
-  for (uid = 1; uid < users->user_map_size; uid++) {
-    if (!(u = users->user_map[uid])) continue;
-    if (!(uc = userlist_get_user_contest(u, new_contest_id))) continue;
-
-    fprintf(fout, "<tr%s>", form_row_attrs[row ^= 1]);
-    fprintf(fout, "<td%s>%d</td>", cl, serial++);
-
-    snprintf(b1, sizeof(b1), "uid == %d", uid);
-    url_armor_string(b2, sizeof(b2), b1);
-    fprintf(fout, "<td%s>%s%d</a></td>", cl,
-            ns_aref(bb, sizeof(bb), phr,
-                    NEW_SRV_ACTION_MAIN_PAGE, "filter_expr=%s", b2),
-            uid);
-
-    if (details_allowed) {
-      fprintf(fout, "<td%s>%s%s</a></td>", cl,
-              ns_aref(bb, sizeof(bb), phr,
-                      NEW_SRV_ACTION_VIEW_USER_INFO, "user_id=%d", uid),
-              ARMOR(u->login));
-    } else {
-      fprintf(fout, "<td%s>%s</td>", cl, ARMOR(u->login));
-    }
-    if (u->cnts0 && u->cnts0->name && *u->cnts0->name) {
-      fprintf(fout, "<td%s>%s</td>", cl, ARMOR(u->cnts0->name));
-    } else {
-      fprintf(fout, "<td%s>&nbsp;</td>", cl);
-    }
-    fprintf(fout, "<td%s>%s</td>", cl, userlist_unparse_reg_status(uc->status));
-    if ((uc->flags & USERLIST_UC_ALL)) {
-      r = 0;
-      fprintf(fout, "<td%s>", cl);
-      if ((uc->flags & USERLIST_UC_BANNED))
-        fprintf(fout, "%s%s", r++?",":"", "banned");
-      if ((uc->flags & USERLIST_UC_INVISIBLE))
-        fprintf(fout, "%s%s", r++?",":"", "invisible");
-      if ((uc->flags & USERLIST_UC_LOCKED))
-        fprintf(fout, "%s%s", r++?",":"", "locked");
-      if ((uc->flags & USERLIST_UC_INCOMPLETE))
-        fprintf(fout, "%s%s", r++?",":"", "incomplete");
-      if ((uc->flags & USERLIST_UC_DISQUALIFIED))
-        fprintf(fout, "%s%s", r++?",":"", "disqualified");
-      fprintf(fout, "</td>");
-    } else {
-      fprintf(fout, "<td%s>&nbsp;</td>", cl);
-    }
-    if (uc->create_time > 0) {
-      fprintf(fout, "<td%s>%s</td>", cl, xml_unparse_date(uc->create_time));
-    } else {
-      fprintf(fout, "<td%s>&nbsp;</td>", cl);
-    }
-    if (u->cnts0 && u->cnts0->last_login_time > 0) {
-      fprintf(fout, "<td%s>%s</td>", cl,
-              xml_unparse_date(u->cnts0->last_login_time));
-    } else {
-      fprintf(fout, "<td%s>&nbsp;</td>", cl);
-    }
-    if (run_counts[uid] > 0) {
-      fprintf(fout, "<td%s>%d</td><td%s>%zu</td>", cl, run_counts[uid],
-              cl, run_sizes[uid]);
-    } else {
-      fprintf(fout, "<td%s>&nbsp;</td><td%s>&nbsp;</td>", cl, cl);
-    }
-    if (global->memoize_user_results > 0) {
-      fprintf(fout, "<td%s>%d</td>", cl, 
-              serve_get_user_result_score(extra->serve_state, uid));
-    }
-    fprintf(fout, "<td%s><input type=\"checkbox\" name=\"user_%d\"/></td>",
-            cl, uid);
-    fprintf(fout, "</tr>\n");
-  }
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "<h2>Users range</h2>\n");
-
-  fprintf(fout, "<table>\n");
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("First User_Id"),
-          html_input_text(bb, sizeof(bb), "first_user_id", 16, 0, 0));
-  fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-          _("Last User_Id (incl.)"),
-          html_input_text(bb, sizeof(bb), "last_user_id", 16, 0, 0));
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "<h2>Available actions</h2>\n");
-
-  fprintf(fout, "<table>\n");
-  fprintf(fout, "<tr><td>%s%s</a></td><td>%s</td></tr>\n",
-          ns_aref(url, sizeof(url), phr, 0, 0),
-          _("Back"), _("Return to the main page"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_REMOVE_REGISTRATIONS),
-          _("Remove the selected users from the list"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_SET_PENDING),
-          _("Set the registration status of the selected users to PENDING"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_SET_OK),
-          _("Set the registration status of the selected users to OK"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_SET_REJECTED), 
-          _("Set the registration status of the selected users to REJECTED"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_SET_INVISIBLE),
-          _("Set the INVISIBLE flag for the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_CLEAR_INVISIBLE),
-          _("Clear the INVISIBLE flag for the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_SET_BANNED),
-          _("Set the BANNED flag for the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_CLEAR_BANNED),
-          _("Clear the BANNED flag for the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_SET_LOCKED),
-          _("Set the LOCKED flag for the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_CLEAR_LOCKED),
-          _("Clear the LOCKED flag for the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_SET_INCOMPLETE),
-          _("Set the INCOMPLETE flag for the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_CLEAR_INCOMPLETE),
-          _("Clear the INCOMPLETE flag for the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_CLEAR_DISQUALIFIED),
-          _("Clear the DISQUALIFIED flag for the selected users"));
-  if (global->is_virtual) {
-    fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-            BUTTON(NEW_SRV_ACTION_FORCE_START_VIRTUAL),
-            _("Force virtual contest start for the selected users"));
-  }
-
-  if (global->user_exam_protocol_header_txt)
-    fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-            BUTTON(NEW_SRV_ACTION_PRINT_SELECTED_USER_PROTOCOL),
-            _("Print the user examination protocols for the selected users"));
-  if (global->full_exam_protocol_header_txt)
-    fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-            BUTTON(NEW_SRV_ACTION_PRINT_SELECTED_USER_FULL_PROTOCOL),
-            _("Print the user full examination protocols for the selected users"));
-  if (global->full_exam_protocol_header_txt)
-    fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-            BUTTON(NEW_SRV_ACTION_PRINT_SELECTED_UFC_PROTOCOL),
-            _("Print the user full cyphered examination protocols for the selected users"));
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "<h2>%s</h3>\n", _("Disqualify selected users"));
-  fprintf(fout, "<p>%s:<br>\n",
-          _("Disqualification explanation"));
-  fprintf(fout, "<p><textarea name=\"disq_comment\" rows=\"5\" cols=\"60\">");
-  fprintf(fout, "</textarea></p>\n");
-
-  fprintf(fout, "<table class=\"b0\"><tr>");
-  fprintf(fout, "<td class=\"b0\">%s</td>",
-          BUTTON(NEW_SRV_ACTION_USERS_SET_DISQUALIFIED));
-  fprintf(fout, "</tr></table>\n");
-
-  fprintf(fout, "<h2>%s</h2>\n", _("Add new user"));
-  fprintf(fout, "<table>\n");
-  fprintf(fout, "<tr><td><input type=\"text\" size=\"32\" name=\"add_login\"/></td><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_ADD_BY_LOGIN),
-          _("Add a new user specifying his/her login"));
-  fprintf(fout, "<tr><td><input type=\"text\" size=\"32\" name=\"add_user_id\"/></td><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_USERS_ADD_BY_USER_ID),
-          _("Add a new user specifying his/her User Id"));
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "</form>\n");
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
-  if (users) userlist_free(&users->b);
-  html_armor_free(&ab);
-  xfree(run_counts);
-  xfree(run_sizes);
-}
-
-struct priv_user_info
-{
-  int user_id;
-  unsigned char *login;
-  unsigned char *name;
-  unsigned int role_mask;
-};
-static int
-priv_user_info_sort_func(const void *v1, const void *v2)
-{
-  const struct priv_user_info *p1 = *(const struct priv_user_info**) v1;
-  const struct priv_user_info *p2 = *(const struct priv_user_info**) v2;
-
-  if (v1 == v2) return 0;
-  ASSERT(p1 != p2);
-  if (p1->user_id < p2->user_id) return -1;
-  if (p1->user_id > p2->user_id) return 1;
-  abort();
-}
-
-static void
-priv_view_priv_users_page(FILE *fout,
-                          struct http_request_info *phr,
-                          const struct contest_desc *cnts,
-                          struct contest_extra *extra)
-{
-  struct ptrarray_t
-  {
-    int a, u;
-    struct priv_user_info **v;
-  };
-  struct ptrarray_t users;
-  const struct opcap_list_item *op;
-  int user_id, i;
-  unsigned char *name = 0, *login = 0;
-  struct priv_user_info *pp;
-  int_iterator_t iter;
-  unsigned int role_mask;
-  int row = 1, cnt, r;
-  unsigned char url[1024];
-  unsigned char bb[1024];
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  unsigned char cl[128];
-
-  XMEMZERO(&users, 1);
-
-  if (ns_open_ul_connection(phr->fw_state) < 0) {
-    ns_html_err_ul_server_down(fout, phr, 1, 0);
-    goto cleanup;
-  }
-
-  // collect all information about allowed MASTER and JUDGE logins
-  for (op = CNTS_FIRST_PERM(cnts); op; op = CNTS_NEXT_PERM(op)) {
-    role_mask = 0;
-    if (opcaps_check(op->caps, OPCAP_MASTER_LOGIN) >= 0) {
-      role_mask |= (1 << USER_ROLE_ADMIN);
-    }
-    if (opcaps_check(op->caps, OPCAP_JUDGE_LOGIN) >= 0) {
-      role_mask |= (1 << USER_ROLE_JUDGE);
-    }
-    if (!role_mask) continue;
-    if (userlist_clnt_lookup_user(ul_conn, op->login, 0, &user_id, &name) < 0)
-      continue;
-    for (i = 0; i < users.u; i++)
-      if (users.v[i]->user_id == user_id)
-        break;
-    if (i < users.u) {
-      xfree(name);
-      continue;
-    }
-    XEXPAND2(users);
-    XCALLOC(users.v[users.u], 1);
-    pp = users.v[users.u++];
-    pp->user_id = user_id;
-    pp->login = xstrdup(op->login);
-    pp->name = name;
-    pp->role_mask |= role_mask;
-  }
-
-  // collect information about other roles
-  for (iter = nsdb_get_contest_user_id_iterator(phr->contest_id);
-       iter->has_next(iter);
-       iter->next(iter)) {
-    user_id = iter->get(iter);
-    if (nsdb_get_priv_role_mask_by_iter(iter, &role_mask) < 0) continue;
-    if (userlist_clnt_lookup_user_id(ul_conn, user_id, phr->contest_id,
-                                     &login, &name) < 0)
-      continue;
-    for (i = 0; i < users.u; i++)
-      if (users.v[i]->user_id == user_id)
-        break;
-    if (i < users.u) {
-      xfree(login);
-      xfree(name);
-      users.v[i]->role_mask |= role_mask;
-      continue;
-    }
-    XEXPAND2(users);
-    XCALLOC(users.v[users.u], 1);
-    pp = users.v[users.u++];
-    pp->user_id = user_id;
-    pp->login = login;
-    pp->name = name;
-    pp->role_mask |= role_mask;
-  }
-  iter->destroy(iter); iter = 0;
-
-  qsort(users.v, users.u, sizeof(users.v[0]), priv_user_info_sort_func);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role), phr->name_arm,
-            phr->contest_id, extra->contest_arm, _("Privileged users page"));
-
-  snprintf(cl, sizeof(cl), " class=\"b1\"");
-
-  fprintf(fout, "<h2>Privileged users</h2>");
-
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<table%s><tr><th%s>NN</th><th%s>Id</th><th%s>Login</th><th%s>Name</th><th%s>Roles</th><th%s>Select</th></tr>\n", cl, cl, cl, cl, cl, cl, cl);
-  for (i = 0; i < users.u; i++) {
-    fprintf(fout, "<tr%s><td%s>%d</td>", form_row_attrs[row ^= 1], cl, i + 1);
-    fprintf(fout, "<td%s>%d</td>", cl, users.v[i]->user_id);
-    fprintf(fout, "<td%s>%s</td>", cl, ARMOR(users.v[i]->login));
-    fprintf(fout, "<td%s>%s</td>", cl, ARMOR(users.v[i]->name));
-    if ((role_mask = users.v[i]->role_mask)) {
-      fprintf(fout, "<td%s>", cl);
-      for (cnt = 0, r = USER_ROLE_OBSERVER; r <= USER_ROLE_ADMIN; r++)
-        if ((role_mask & (1 << r)))
-          fprintf(fout, "%s%s", cnt++?",":"", ns_unparse_role(r));
-      fprintf(fout, "</td>");
-    } else {
-      fprintf(fout, "<td%s>&nbsp;</td>", cl);
-    }
-    fprintf(fout, "<td%s><input type=\"checkbox\" name=\"user_%d\"/></td>",
-            cl, users.v[i]->user_id);
-    fprintf(fout, "</tr>\n");
-  }
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "<h2>Available actions</h2>\n");
-
-  fprintf(fout, "<table>\n");
-  fprintf(fout, "<tr><td>%s%s</a></td><td>%s</td></tr>\n",
-          ns_aref(url, sizeof(url), phr, 0, 0),
-          _("Back"), _("Return to the main page"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_REMOVE),
-          _("Remove the selected users from the list (ADMINISTRATORs cannot be removed)"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_ADD_OBSERVER),
-          _("Add the OBSERVER role to the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_DEL_OBSERVER),
-          _("Remove the OBSERVER role from the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_ADD_EXAMINER),
-          _("Add the EXAMINER role to the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_DEL_EXAMINER),
-          _("Remove the EXAMINER role from the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_ADD_CHIEF_EXAMINER),
-          _("Add the CHIEF EXAMINER role to the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_DEL_CHIEF_EXAMINER),
-          _("Remove the CHIEF EXAMINER role from the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_ADD_COORDINATOR),
-          _("Add the COORDINATOR role to the selected users"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_DEL_COORDINATOR),
-          _("Remove the COORDINATOR role from the selected users"));
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "<h2>%s</h2>\n", _("Add new user"));
-  fprintf(fout, "<table>\n");
-  fprintf(fout, "<tr><td><input type=\"text\" size=\"32\" name=\"add_login\"/></td><td>");
-  html_role_select(fout, USER_ROLE_OBSERVER, 0, "add_role_1");
-  fprintf(fout, "</td><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_ADD_BY_LOGIN),
-          _("Add a new user specifying his/her login"));
-  fprintf(fout, "<tr><td><input type=\"text\" size=\"32\" name=\"add_user_id\"/></td><td>");
-  html_role_select(fout, USER_ROLE_OBSERVER, 0, "add_role_2");
-  fprintf(fout, "</td><td>%s</td><td>%s</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_PRIV_USERS_ADD_BY_USER_ID),
-          _("Add a new user specifying his/her User Id"));
-  fprintf(fout, "</table>\n");
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  for (i = 0; i < users.u; i++) {
-    if (users.v[i]) {
-      xfree(users.v[i]->login);
-      xfree(users.v[i]->name);
-    }
-    xfree(users.v[i]);
-  }
-  xfree(users.v);
-  if (iter) iter->destroy(iter);
-  html_armor_free(&ab);
-}
-
-static int
-priv_view_report(FILE *fout,
-                 FILE *log_f,
-                 struct http_request_info *phr,
-                 const struct contest_desc *cnts,
-                 struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  int run_id;
-  int user_mode = 0;
-
-  if (parse_run_id(fout, phr, cnts, extra, &run_id, 0) < 0) goto failure;
-
-  if (opcaps_check(phr->caps, OPCAP_VIEW_REPORT) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto cleanup;
-  }
-  if (phr->action == NEW_SRV_ACTION_VIEW_USER_REPORT) user_mode = 1;
-
-  ns_write_priv_report(cs, fout, log_f, phr, cnts, extra, user_mode, run_id);
-
- cleanup:
-  return 0;
-
- failure:
-  return -1;
-}
-
-static int
-priv_view_source(FILE *fout,
-                 FILE *log_f,
-                 struct http_request_info *phr,
-                 const struct contest_desc *cnts,
-                 struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  int run_id;
-
-  if (parse_run_id(fout, phr, cnts, extra, &run_id, 0) < 0) goto failure;
-
-  if (opcaps_check(phr->caps, OPCAP_VIEW_SOURCE) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto cleanup;
-  }
-
-  ns_write_priv_source(cs, fout, log_f, phr, cnts, extra, run_id);
-
- cleanup:
-  return 0;
-
- failure:
-  return -1;
 }
 
 static int
@@ -5779,7 +5031,7 @@ priv_download_source(
   const unsigned char *content_type = "text/plain";
 
   if (parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0) goto failure;
-  if (ns_cgi_param(phr, "no_disp", &s) > 0
+  if (hr_cgi_param(phr, "no_disp", &s) > 0
       && sscanf(s, "%d%n", &x, &n) == 1 && !s[n]
       && x >= 0 && x <= 1)
     no_disp = x;
@@ -5863,156 +5115,6 @@ priv_download_source(
 }
 
 static int
-priv_view_clar(FILE *fout,
-               FILE *log_f,
-               struct http_request_info *phr,
-               const struct contest_desc *cnts,
-               struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  int clar_id, n;
-  const unsigned char *s;
-
-  if (ns_cgi_param(phr, "clar_id", &s) <= 0
-      || sscanf(s, "%d%n", &clar_id, &n) != 1 || s[n]
-      || clar_id < 0 || clar_id >= clar_get_total(cs->clarlog_state)) {
-    ns_html_err_inv_param(fout, phr, 1, "cannot parse clar_id");
-    return -1;
-  }
-
-  if (opcaps_check(phr->caps, OPCAP_VIEW_CLAR) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto cleanup;
-  }
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s %d", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Viewing clar"), clar_id);
-
-  ns_write_priv_clar(cs, fout, log_f, phr, cnts, extra, clar_id);
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return 0;
-}
-
-static int
-priv_edit_clar_page(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  int clar_id, n;
-  const unsigned char *s;
-
-  if (ns_cgi_param(phr, "clar_id", &s) <= 0
-      || sscanf(s, "%d%n", &clar_id, &n) != 1 || s[n]
-      || clar_id < 0 || clar_id >= clar_get_total(cs->clarlog_state)) {
-    ns_html_err_inv_param(fout, phr, 1, "cannot parse clar_id");
-    return -1;
-  }
-
-  if (opcaps_check(phr->caps, OPCAP_EDIT_RUN) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto cleanup;
-  }
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s %d", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Editing clar"), clar_id);
-
-  ns_priv_edit_clar_page(cs, fout, log_f, phr, cnts, extra, clar_id);
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return 0;
-}
-
-static int
-priv_edit_run_page(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  int run_id, n;
-  const unsigned char *s;
-
-  if (ns_cgi_param(phr, "run_id", &s) <= 0
-      || sscanf(s, "%d%n", &run_id, &n) != 1 || s[n]
-      || run_id < 0 || run_id >= run_get_total(cs->runlog_state)) {
-    ns_html_err_inv_param(fout, phr, 1, "cannot parse run_id");
-    return -1;
-  }
-
-  if (opcaps_check(phr->caps, OPCAP_EDIT_RUN) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto cleanup;
-  }
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s %d", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Editing run"), run_id);
-
-  ns_priv_edit_run_page(cs, fout, log_f, phr, cnts, extra, run_id);
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return 0;
-}
-
-static int
-priv_standings(FILE *fout,
-               FILE *log_f,
-               struct http_request_info *phr,
-               const struct contest_desc *cnts,
-               struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-
-  if (phr->role < USER_ROLE_JUDGE) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto cleanup;
-  }
-  if (opcaps_check(phr->caps, OPCAP_VIEW_STANDINGS) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto cleanup;
-  }
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role), phr->name_arm,
-            phr->contest_id, extra->contest_arm, _("Current standings"));
-  ns_write_priv_standings(cs, phr, cnts, fout, cs->accepting_mode);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-  
- cleanup:
-  return 0;
-}
-
-static int
 priv_view_test(FILE *fout,
                FILE *log_f,
                struct http_request_info *phr,
@@ -6025,7 +5127,7 @@ priv_view_test(FILE *fout,
 
   // run_id, test_num
   if (parse_run_id(fout, phr, cnts, extra, &run_id, 0) < 0) goto failure;
-  if (ns_cgi_param(phr, "test_num", &s) <= 0
+  if (hr_cgi_param(phr, "test_num", &s) <= 0
       || sscanf(s, "%d%n", &test_num, &n) != 1 || s[n]) {
     ns_html_err_inv_param(fout, phr, 1, "cannot parse test_num");
     return -1;
@@ -6110,7 +5212,7 @@ priv_upload_runlog_csv_2(
   if (opcaps_check(phr->caps, OPCAP_IMPORT_XML_RUNS) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);  
 
-  if (!(r = ns_cgi_param(phr, "file", &s)))
+  if (!(r = hr_cgi_param(phr, "file", &s)))
     FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
   else if (r < 0)
     FAIL(NEW_SRV_ERR_BINARY_FILE);
@@ -6122,7 +5224,7 @@ priv_upload_runlog_csv_2(
   //  0 - new submits
   //  1 - existing submits
   //  2 - both
-  if (ns_cgi_param_int(phr, "import_mode", &import_mode) < 0
+  if (hr_cgi_param_int(phr, "import_mode", &import_mode) < 0
       || import_mode < 0 || import_mode > 2)
     FAIL(NEW_SRV_ERR_INV_PARAM);
 
@@ -6231,7 +5333,7 @@ priv_upload_runlog_xml_2(
   if (cs->global->enable_runlog_merge <= 0)
     FAIL(NEW_SRV_ERR_NOT_SUPPORTED);
 
-  if (!(r = ns_cgi_param(phr, "file", &s)))
+  if (!(r = hr_cgi_param(phr, "file", &s)))
     FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
   else if (r < 0)
     FAIL(NEW_SRV_ERR_BINARY_FILE);
@@ -6274,100 +5376,6 @@ priv_upload_runlog_xml_2(
 }
 
 static int
-priv_download_runs_confirmation(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  //const serve_state_t cs = extra->serve_state;
-  int retval = 0;
-  unsigned char bb[1024];
-  unsigned long *mask = 0, mval;
-  size_t mask_size = 0;
-  const unsigned char *mask_size_str = 0;
-  const unsigned char *mask_str = 0;
-  size_t mask_count = 0;
-  int i, j;
-
-  if (opcaps_check(phr->caps, OPCAP_DUMP_RUNS) < 0)
-    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);  
-
-  if (parse_run_mask(phr, &mask_size_str, &mask_str, &mask_size, &mask) < 0)
-    goto invalid_param;
-
-  for (i = 0; i < mask_size; i++) {
-    mval = mask[i];
-    for (j = 0; j < 8 * sizeof(mask[0]); j++, mval >>= 1)
-      if ((mval & 1)) mask_count++;
-  }
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role), phr->name_arm,
-            phr->contest_id, extra->contest_arm, "Download runs configuration");
-
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  html_hidden(fout, "run_mask_size", "%s", mask_size_str);
-  html_hidden(fout, "run_mask", "%s", mask_str);
-  fprintf(fout, "<h2>%s</h2>\n", _("Run selection"));
-  fprintf(fout, "<table>");
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"run_selection\" value=\"0\" checked=\"yes\"/></td><td>%s</td></tr>\n", _("Download all runs"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"run_selection\" value=\"1\"/></td><td>%s (%zu)</td></tr>\n", _("Download selected runs"), mask_count);
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"run_selection\" value=\"2\"/></td><td>%s</td></tr>\n", _("Download OK runs"));
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "<h2>%s</h2>\n", _("File name pattern"));
-  fprintf(fout, "<table>");
-  fprintf(fout, "<tr><td><input type=\"checkbox\" name=\"file_pattern_run\" checked=\"yes\"/></td><td>%s</td></tr>\n", _("Use run number"));
-  fprintf(fout, "<tr><td><input type=\"checkbox\" name=\"file_pattern_uid\"/></td><td>%s</td></tr>\n", _("Use user Id"));
-  fprintf(fout, "<tr><td><input type=\"checkbox\" name=\"file_pattern_login\"/></td><td>%s</td></tr>\n", _("Use user Login"));
-  fprintf(fout, "<tr><td><input type=\"checkbox\" name=\"file_pattern_name\"/></td><td>%s</td></tr>\n", _("Use user Name"));
-  fprintf(fout, "<tr><td><input type=\"checkbox\" name=\"file_pattern_prob\"/></td><td>%s</td></tr>\n", _("Use problem short name"));
-  fprintf(fout, "<tr><td><input type=\"checkbox\" name=\"file_pattern_lang\"/></td><td>%s</td></tr>\n", _("Use programming language short name"));
-  fprintf(fout, "<tr><td><input type=\"checkbox\" name=\"file_pattern_suffix\" checked=\"yes\"/></td><td>%s</td></tr>\n", _("Use source language or content type suffix"));
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "<h2>%s</h2>\n", _("Directory structure"));
-  fprintf(fout, "<table>");
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"0\" checked=\"yes\"/></td><td>%s</td></tr>\n", _("No directory structure"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"1\"/></td><td>%s</td></tr>\n", _("/&lt;Problem&gt;/&lt;File&gt;"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"2\"/></td><td>%s</td></tr>\n", _("/&lt;User_Id&gt;/&lt;File&gt;"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"3\"/></td><td>%s</td></tr>\n", _("/&lt;User_Login&gt;/&lt;File&gt;"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"8\"/></td><td>%s</td></tr>\n", _("/&lt;User_Name&gt;/&lt;File&gt;"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"4\"/></td><td>%s</td></tr>\n", _("/&lt;Problem&gt;/&lt;User_Id&gt;/&lt;File&gt;"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"5\"/></td><td>%s</td></tr>\n", _("/&lt;Problem&gt;/&lt;User_Login&gt;/&lt;File&gt;"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"9\"/></td><td>%s</td></tr>\n", _("/&lt;Problem&gt;/&lt;User_Name&gt;/&lt;File&gt;"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"6\"/></td><td>%s</td></tr>\n", _("/&lt;User_Id&gt;/&lt;Problem&gt;/&lt;File&gt;"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"7\"/></td><td>%s</td></tr>\n", _("/&lt;User_Login&gt;/&lt;Problem&gt;/&lt;File&gt;"));
-  fprintf(fout, "<tr><td><input type=\"radio\" name=\"dir_struct\" value=\"10\"/></td><td>%s</td></tr>\n", _("/&lt;User_Name&gt;/&lt;Problem&gt;/&lt;File&gt;"));
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "<h2>%s</h2>\n", _("Download runs"));
-  fprintf(fout, "<table>");
-  fprintf(fout, "<tr><td>%s</td></tr>",
-          BUTTON(NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_2));
-  fprintf(fout, "<tr><td>%s%s</a></td></tr></table>",
-          ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
-          _("Main page"));
-  fprintf(fout, "</form>\n");
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  xfree(mask);
-  return retval;
-
- invalid_param:
-  ns_html_err_inv_param(fout, phr, 0, 0);
-  xfree(mask);
-  return -1;
-}
-
-static int
 priv_download_runs(
         FILE *fout,
         FILE *log_f,
@@ -6398,37 +5406,37 @@ priv_download_runs(
   // file_pattern_prob
   // file_pattern_lang
   // file_pattern_suffix
-  if (ns_cgi_param(phr, "run_selection", &s) <= 0)
+  if (hr_cgi_param(phr, "run_selection", &s) <= 0)
     FAIL(NEW_SRV_ERR_INV_RUN_SELECTION);
   errno = 0;
   x = strtol(s, &ss, 10);
   if (errno || *ss || x < 0 || x > 2) FAIL(NEW_SRV_ERR_INV_RUN_SELECTION);
   run_selection = x;
 
-  if (ns_cgi_param(phr, "dir_struct", &s) <= 0)
+  if (hr_cgi_param(phr, "dir_struct", &s) <= 0)
     FAIL(NEW_SRV_ERR_INV_DIR_STRUCT);
   errno = 0;
   x = strtol(s, &ss, 10);
   if (errno || *ss || x < 0 || x > 10) FAIL(NEW_SRV_ERR_INV_DIR_STRUCT);
   dir_struct = x;
 
-  if (ns_cgi_param(phr, "file_pattern_run", &s) > 0)
+  if (hr_cgi_param(phr, "file_pattern_run", &s) > 0)
     file_name_mask |= NS_FILE_PATTERN_RUN;
-  if (ns_cgi_param(phr, "file_pattern_uid", &s) > 0)
+  if (hr_cgi_param(phr, "file_pattern_uid", &s) > 0)
     file_name_mask |= NS_FILE_PATTERN_UID;
-  if (ns_cgi_param(phr, "file_pattern_login", &s) > 0)
+  if (hr_cgi_param(phr, "file_pattern_login", &s) > 0)
     file_name_mask |= NS_FILE_PATTERN_LOGIN;
-  if (ns_cgi_param(phr, "file_pattern_name", &s) > 0)
+  if (hr_cgi_param(phr, "file_pattern_name", &s) > 0)
     file_name_mask |= NS_FILE_PATTERN_NAME;
-  if (ns_cgi_param(phr, "file_pattern_prob", &s) > 0)
+  if (hr_cgi_param(phr, "file_pattern_prob", &s) > 0)
     file_name_mask |= NS_FILE_PATTERN_PROB;
-  if (ns_cgi_param(phr, "file_pattern_lang", &s) > 0)
+  if (hr_cgi_param(phr, "file_pattern_lang", &s) > 0)
     file_name_mask |= NS_FILE_PATTERN_LANG;
-  if (ns_cgi_param(phr, "file_pattern_suffix", &s) > 0)
+  if (hr_cgi_param(phr, "file_pattern_suffix", &s) > 0)
     file_name_mask |= NS_FILE_PATTERN_SUFFIX;
   if (!file_name_mask) file_name_mask = NS_FILE_PATTERN_RUN;
 
-  if (parse_run_mask(phr, 0, 0, &mask_size, &mask) < 0)
+  if (ns_parse_run_mask(phr, 0, 0, &mask_size, &mask) < 0)
     goto invalid_param;
 
   ns_download_runs(cs, fout, log_f, run_selection, dir_struct, file_name_mask,
@@ -6441,88 +5449,6 @@ priv_download_runs(
   ns_html_err_inv_param(fout, phr, 0, 0);
   xfree(mask);
   return -1;
-}
-
-static int
-priv_upsolving_configuration_1(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  const serve_state_t cs = extra->serve_state;
-  int retval = 0;
-  unsigned char bb[1024];
-  const unsigned char *freeze_standings = 0;
-  const unsigned char *view_source = 0;
-  const unsigned char *view_protocol = 0;
-  const unsigned char *full_proto = 0;
-  const unsigned char *disable_clars = 0;
-
-  if (opcaps_check(phr->caps, OPCAP_CONTROL_CONTEST) < 0)
-    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);  
-
-  if (cs->upsolving_mode) {
-    ns_cgi_param(phr, "freeze_standings", &freeze_standings);
-    ns_cgi_param(phr, "view_source", &view_source);
-    ns_cgi_param(phr, "view_protocol", &view_protocol);
-    ns_cgi_param(phr, "full_protocol", &full_proto);
-    ns_cgi_param(phr, "disable_clars", &disable_clars);
-  } else {
-    freeze_standings = "1";
-    view_source = "1";
-    view_protocol = "1";
-    full_proto = 0;
-    disable_clars = "1";
-  }
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role), phr->name_arm,
-            phr->contest_id, extra->contest_arm, "Upsolving configuration");
-
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<table>");
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "freeze_standings", NULL,
-                        freeze_standings?1:0, 0),
-          _("Freeze contest standings"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "view_source", NULL,
-                        view_source?1:0, 0),
-          _("Allow viewing source code"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "view_protocol", NULL,
-                        view_protocol?1:0, 0),
-          _("Allow viewing run report"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "full_protocol", NULL,
-                        full_proto?1:0, 0),
-          _("Allow viewing full protocol"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_checkbox(bb, sizeof(bb), "disable_clars", NULL,
-                        disable_clars?1:0, 0),
-          _("Disable clarifications"));
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "<table><tr>");
-  fprintf(fout, "<td>%s</td>",
-          BUTTON(NEW_SRV_ACTION_UPSOLVING_CONFIG_2));
-  fprintf(fout, "<td>%s</td>",
-          BUTTON(NEW_SRV_ACTION_UPSOLVING_CONFIG_3));
-  fprintf(fout, "<td>%s</td>",
-          BUTTON(NEW_SRV_ACTION_UPSOLVING_CONFIG_4));
-  fprintf(fout, "</tr></table>\n");
-
-  fprintf(fout, "</form>\n");
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
 }
 
 static int
@@ -6550,11 +5476,11 @@ priv_upsolving_operation(
   stop_time = run_get_stop_time(cs->runlog_state);
   if (stop_time <= 0 && saved_stop_time <= 0) return 0;
 
-  ns_cgi_param(phr, "freeze_standings", &freeze_standings);
-  ns_cgi_param(phr, "view_source", &view_source);
-  ns_cgi_param(phr, "view_protocol", &view_protocol);
-  ns_cgi_param(phr, "full_protocol", &full_proto);
-  ns_cgi_param(phr, "disable_clars", &disable_clars);
+  hr_cgi_param(phr, "freeze_standings", &freeze_standings);
+  hr_cgi_param(phr, "view_source", &view_source);
+  hr_cgi_param(phr, "view_protocol", &view_protocol);
+  hr_cgi_param(phr, "full_protocol", &full_proto);
+  hr_cgi_param(phr, "disable_clars", &disable_clars);
 
   switch (phr->action) {
   case NEW_SRV_ACTION_UPSOLVING_CONFIG_2: // back to main page
@@ -6600,59 +5526,6 @@ priv_upsolving_operation(
 }
 
 static int
-priv_assign_cyphers_1(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  int retval = 0;
-  unsigned char bb[1024];
-
-  if (opcaps_check(phr->caps, OPCAP_CONTROL_CONTEST) < 0)
-    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);  
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role), phr->name_arm,
-            phr->contest_id, extra->contest_arm, "Assign cyphers");
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-  fprintf(fout, "<table>\n");
-
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_input_text(bb, sizeof(bb), "prefix", 16, 0, 0),
-          _("Cypher prefix"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_input_text(bb, sizeof(bb), "min_num", 16, 0, 0),
-          _("Minimal random number"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_input_text(bb, sizeof(bb), "max_num", 16, 0, 0),
-          _("Maximal random number"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_input_text(bb, sizeof(bb), "seed", 16, 0, 0),
-          _("Random seed"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_input_text(bb, sizeof(bb), "mult", 16, 0, 0),
-          _("Mult parameter"));
-  fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-          html_input_text(bb, sizeof(bb), "shift", 16, 0, 0),
-          _("Shift parameter"));
-  fprintf(fout, "<tr><td>%s</td><td>&nbsp;</td></tr>\n",
-          BUTTON(NEW_SRV_ACTION_ASSIGN_CYPHERS_2));
-
-  fprintf(fout, "</table>\n");
-  fprintf(fout, "</form>\n");
-  fprintf(fout, "<p>The following formula is applied: mult * X + shift.</p>\n");
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
-}
-
-static int
 priv_assign_cyphers_2(
         FILE *fout,
         FILE *log_f,
@@ -6683,17 +5556,17 @@ priv_assign_cyphers_2(
   if (opcaps_check(phr->caps, OPCAP_EDIT_REG) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
-  if (ns_cgi_param(phr, "prefix", &prefix) <= 0)
+  if (hr_cgi_param(phr, "prefix", &prefix) <= 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
-  if (ns_cgi_param_int(phr, "min_num", &min_num) < 0)
+  if (hr_cgi_param_int(phr, "min_num", &min_num) < 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
-  if (ns_cgi_param_int(phr, "max_num", &max_num) < 0)
+  if (hr_cgi_param_int(phr, "max_num", &max_num) < 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
-  if (ns_cgi_param_int(phr, "seed", &seed) < 0)
+  if (hr_cgi_param_int(phr, "seed", &seed) < 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
-  if (ns_cgi_param_int_opt(phr, "mult", &mult, 1) < 0)
+  if (hr_cgi_param_int_opt(phr, "mult", &mult, 1) < 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
-  if (ns_cgi_param_int_opt(phr, "shift", &shift, 1) < 0)
+  if (hr_cgi_param_int_opt(phr, "shift", &shift, 1) < 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
   if (min_num < 0 || max_num < 0 || min_num > max_num || seed < 0)
     FAIL(NEW_SRV_ERR_INV_PARAM);
@@ -6814,204 +5687,11 @@ priv_set_priorities(
     if (!(prob = cs->probs[prob_id])) continue;
     snprintf(varname, sizeof(varname), "prio_%d", prob_id);
     prio = 0;
-    if (ns_cgi_param_int(phr, varname, &prio) < 0) continue;
+    if (hr_cgi_param_int(phr, varname, &prio) < 0) continue;
     if (prio < -16) prio = -16;
     if (prio > 15) prio = 15;
     cs->prob_prio[prob_id] = prio;
   }
-
- cleanup:
-  return retval;
-}
-
-static int
-priv_view_passwords(FILE *fout,
-                    FILE *log_f,
-                    struct http_request_info *phr,
-                    const struct contest_desc *cnts,
-                    struct contest_extra *extra)
-{
-  int retval = 0;
-  const unsigned char *s = 0;
-
-  if (phr->role < USER_ROLE_JUDGE
-      || opcaps_check(phr->caps, OPCAP_EDIT_PASSWD) < 0)
-    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-  if (phr->action == NEW_SRV_ACTION_VIEW_CNTS_PWDS
-      && cnts->disable_team_password)
-    FAIL(NEW_SRV_ERR_TEAM_PWD_DISABLED);
-
-  l10n_setlocale(phr->locale_id);
-  if (phr->action == NEW_SRV_ACTION_VIEW_CNTS_PWDS) {
-    s = _("Contest passwords");
-  } else {
-    s = _("Registration passwords");
-  }
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm, s);
-
-  ns_write_passwords(fout, log_f, phr, cnts, extra);
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
-}
-
-static int
-priv_view_online_users(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  int retval = 0;
-
-  if (phr->role < USER_ROLE_JUDGE) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Online users"));
-  ns_write_online_users(fout, log_f, phr, cnts, extra);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
-}
-
-static int
-priv_view_user_ips(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  int retval = 0;
-
-  if (phr->role < USER_ROLE_JUDGE) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("IP addresses for users"));
-  ns_write_user_ips(fout, log_f, phr, cnts, extra);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
-}
-
-static int
-priv_view_ip_users(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  int retval = 0;
-
-  if (phr->role < USER_ROLE_JUDGE) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Users for IP addresses"));
-  ns_write_ip_users(fout, log_f, phr, cnts, extra);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
-}
-
-static int
-priv_view_exam_info(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  int retval = 0;
-
-  if (phr->role < USER_ROLE_JUDGE) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Examination information"));
-  ns_write_exam_info(fout, log_f, phr, cnts, extra);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
-}
-
-static int
-priv_priority_form(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  int retval = 0;
-
-  if (phr->role != USER_ROLE_ADMIN) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Judging priorities"));
-  ns_write_judging_priorities(fout, log_f, phr, cnts, extra);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  return retval;
-}
-
-static int
-priv_view_testing_queue(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  int retval = 0;
-
-  if (phr->role != USER_ROLE_ADMIN) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Testing queue"));
-  ns_write_testing_queue(fout, log_f, phr, cnts, extra);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
 
  cleanup:
   return retval;
@@ -7031,7 +5711,7 @@ priv_testing_queue_operation(
 
   if (opcaps_check(phr->caps, OPCAP_CONTROL_CONTEST) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-  if (ns_cgi_param(phr, "packet", &packet_name) <= 0 || !packet_name)
+  if (hr_cgi_param(phr, "packet", &packet_name) <= 0 || !packet_name)
     FAIL(NEW_SRV_ERR_INV_PARAM);
   for (s = packet_name; *s; ++s) {
     if (!isalnum(*s)) {
@@ -7134,12 +5814,12 @@ priv_change_run_fields(
   if (phr->role <= 0) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
   const unsigned char *s = NULL;
-  if (ns_cgi_param(phr, "cancel", &s) > 0 && s) goto cleanup;
+  if (hr_cgi_param(phr, "cancel", &s) > 0 && s) goto cleanup;
 
   struct user_filter_info *u = user_filter_info_allocate(cs, phr->user_id, phr->session_id);
   if (!u) goto cleanup;
 
-  if (ns_cgi_param(phr, "reset", &s) > 0 && s) {
+  if (hr_cgi_param(phr, "reset", &s) > 0 && s) {
     if (u->run_fields <= 0) goto cleanup;
     u->run_fields = 0;
     team_extra_set_run_fields(cs->team_extra_state, phr->user_id, 0);
@@ -7151,7 +5831,7 @@ priv_change_run_fields(
   for (int i = 0; i < RUN_VIEW_LAST; ++i) {
     unsigned char nbuf[64];
     snprintf(nbuf, sizeof(nbuf), "field_%d", i);
-    if (ns_cgi_param(phr, nbuf, &s) > 0 && s) {
+    if (hr_cgi_param(phr, nbuf, &s) > 0 && s) {
       new_fields |= 1 << i;
     }
   }
@@ -7161,32 +5841,6 @@ priv_change_run_fields(
   team_extra_flush(cs->team_extra_state);
 
 cleanup:
-  return retval;
-}
-
-static int
-priv_admin_contest_settings(
-        FILE *fout,
-        FILE *log_f,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  int retval = 0;
-
-  if (phr->role != USER_ROLE_ADMIN) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm,
-            _("Contest settings"));
-  ns_write_admin_contest_settings(fout, log_f, phr, cnts, extra);
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
   return retval;
 }
 
@@ -7212,7 +5866,7 @@ priv_print_user_exam_protocol(
 
   if (opcaps_check(phr->caps, OPCAP_PRINT_RUN) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-  if (ns_cgi_param_int(phr, "user_id", &user_id) < 0)
+  if (hr_cgi_param_int(phr, "user_id", &user_id) < 0)
     FAIL(NEW_SRV_ERR_INV_USER_ID);
   if (!teamdb_lookup(cs->teamdb_state, user_id))
     FAIL(NEW_SRV_ERR_INV_USER_ID);
@@ -7391,7 +6045,7 @@ priv_print_problem_exam_protocol(
 
   if (opcaps_check(phr->caps, OPCAP_PRINT_RUN) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-  if (ns_cgi_param_int(phr, "prob_id", &prob_id) < 0)
+  if (hr_cgi_param_int(phr, "prob_id", &prob_id) < 0)
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
   if (prob_id <= 0 || prob_id > cs->max_prob || !cs->probs[prob_id])
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
@@ -7470,223 +6124,6 @@ cleanup:
   return 0;
 }
 
-static void
-unpriv_print_status(
-        FILE *fout,
-        struct http_request_info *phr,
-        const struct contest_desc *cnts,
-        struct contest_extra *extra,
-        time_t start_time,
-        time_t stop_time,
-        time_t duration,
-        time_t sched_time,
-        time_t fog_start_time,
-        time_t finish_time)
-{
-  const serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  const unsigned char *s = 0;
-  unsigned char duration_buf[128];
-  unsigned char bb[1024];
-  time_t tmpt;
-  int enable_virtual_start = 0;
-  const unsigned char *cl = " class=\"b0\"";
-
-  if (!cnts->exam_mode) {
-    fprintf(fout, "<%s>%s</%s>\n",
-            cnts->team_head_style, _("Server status"),
-            cnts->team_head_style);
-    if (stop_time > 0) {
-      if (duration > 0 && global->board_fog_time > 0
-          && global->board_unfog_time > 0
-          && cs->current_time < stop_time + global->board_unfog_time
-          && !cs->standings_updated) {
-        if (cnts->exam_mode) {
-          s = _("The exam is over (standings are frozen)");
-        } else {
-          s = _("The contest is over (standings are frozen)");
-        }
-      } else if (cnts->exam_mode) {
-        s = _("The exam is over");
-      } else {
-        s = _("The contest is over");
-      }
-    } else if (start_time > 0) {
-      if (fog_start_time > 0 && cs->current_time >= fog_start_time) {
-        if (cnts->exam_mode) {
-          s = _("The exam is in progress (standings are frozen)");
-        } else {
-          s = _("The contest is in progress (standings are frozen)");
-        }
-      } else {
-        if (cnts->exam_mode) {
-          s = _("The exam is in progress");
-        } else {
-          s = _("The contest is in progress");
-        }
-      }
-    } else {
-      if (cnts->exam_mode) {
-        s = _("The exam is not started");
-      } else {
-        s = _("The contest is not started");
-      }
-    }
-    fprintf(fout, "<p><b>%s</b></p>\n", s);
-
-    if (cs->upsolving_mode) {
-      fprintf(fout, "<p><b>%s</b></p>\n", _("Upsolving mode"));
-    }
-
-    if (start_time > 0) {
-      if (global->score_system == SCORE_OLYMPIAD && !global->is_virtual) {
-        if (cs->accepting_mode)
-          s = _("Participants' solutions are being accepted");
-        else if (!cs->testing_finished)
-          s = _("Participants' solutions are being judged");
-        else
-          s = _("Participants' solutions are judged");
-        fprintf(fout, "<p><b>%s</b></p>\n", s);
-      }
-    }
-
-    if (cs->clients_suspended) {
-      fprintf(fout, "<p><b>%s</b></p>\n",
-              _("Participants' requests are suspended"));
-    }
-
-    if (start_time > 0) {
-      if (cs->testing_suspended) {
-        fprintf(fout, "<p><b>%s</b></p>\n",
-                _("Testing of participants' submits is suspended"));
-      }
-      if (cs->printing_suspended) {
-        fprintf(fout, "<p><b>%s</b></p>\n",
-                _("Print requests are suspended"));
-      }
-    }
-
-    fprintf(fout, "<table%s>", cl);
-    fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-            cl, _("Server time"), cl, xml_unparse_date(cs->current_time));
-    if (start_time > 0) {
-      if (cnts->exam_mode) {
-        s = _("Exam start time");
-      } else {
-        s = _("Contest start time");
-      }
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, s, cl, xml_unparse_date(start_time));
-    }
-    if (!global->is_virtual && start_time <= 0 && sched_time > 0) {
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Planned start time"), cl, xml_unparse_date(sched_time));
-    }
-    if (stop_time <= 0 && (duration > 0 || finish_time <= 0)) {
-      if (duration > 0) {
-        duration_str(0, duration, 0, duration_buf, 0);
-      } else {
-        snprintf(duration_buf, sizeof(duration_buf), "%s", _("Unlimited"));
-      }
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Duration"), cl, duration_buf);
-    }
-    if (start_time > 0 && stop_time <= 0 && duration > 0) {
-      tmpt = start_time + duration;
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Scheduled end time"), cl, xml_unparse_date(tmpt));
-    } else if (start_time > 0 && stop_time <= 0 && duration <= 0
-               && finish_time > 0) {
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Scheduled end time"), cl, xml_unparse_date(finish_time));
-    } else if (stop_time) {
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("End time"), cl, xml_unparse_date(stop_time));
-    }
-
-    if (start_time > 0 && stop_time <= 0 && fog_start_time > 0) {
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Standings freeze time"), cl, xml_unparse_date(fog_start_time));
-    } else if (stop_time > 0 && duration > 0 && global->board_fog_time > 0
-               && global->board_unfog_time > 0 && !cs->standings_updated
-               && cs->current_time < stop_time + global->board_unfog_time) {
-      tmpt = stop_time + global->board_unfog_time;
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Standings unfreeze time"), cl, xml_unparse_date(tmpt));
-    }
-
-    if (start_time > 0 && stop_time <= 0 && duration > 0) {
-      duration_str(0, cs->current_time, start_time, duration_buf, 0);
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Elapsed time"), cl, duration_buf);
-      duration_str(0, start_time + duration - cs->current_time, 0,
-                   duration_buf, 0);
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Remaining time"), cl, duration_buf);
-    }
-    if (start_time <= 0 && global->is_virtual > 0 && cnts->open_time > 0 && cs->current_time < cnts->open_time) {
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Virtual contest open time"), cl, xml_unparse_date(cnts->open_time));
-    }
-    if (start_time <= 0 && global->is_virtual > 0 && cnts->close_time > 0) {
-      fprintf(fout, "<tr><td%s>%s:</td><td%s>%s</td></tr>\n",
-              cl, _("Virtual contest close time"), cl, xml_unparse_date(cnts->close_time));
-    }
-    fprintf(fout, "</table>\n");
-  }
-
-  if (global->description_file[0]) {
-    watched_file_update(&cs->description, global->description_file,
-                        cs->current_time);
-    if (cs->description.text) {
-      fprintf(fout, "%s", cs->description.text);
-    }
-  }
-
-  if (!cnts->exam_mode) {
-    fprintf(fout, "<p><b>%s: %d</b></p>\n",
-            _("On-line users in this contest"), phr->online_users);
-    if (cs->max_online_count > 0) {
-      fprintf(fout, "<p><b>%s: %d, %s</b></p>\n",
-              _("Max number of users was"), cs->max_online_count,
-              xml_unparse_date(cs->max_online_time));
-    }
-  }
-
-  if (!cnts->exam_mode && global->is_virtual && start_time <= 0) {
-    enable_virtual_start = 1;
-    if (global->disable_virtual_start > 0) {
-      enable_virtual_start = 0;
-    } else if (cnts->open_time > 0 && cs->current_time < cnts->open_time) {
-      enable_virtual_start = 0;
-    } else if (cnts->close_time > 0 && cs->current_time >= cnts->close_time) {
-      enable_virtual_start = 0;
-    }
-    if (enable_virtual_start) {
-      html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-      if (cnts->exam_mode) {
-        fprintf(fout, "<p>%s</p></form>",
-                ns_submit_button(bb, sizeof(bb), 0,
-                                 NEW_SRV_ACTION_VIRTUAL_START,
-                                 _("Start exam")));
-      } else {
-        fprintf(fout, "<p>%s</p></form>",
-                BUTTON(NEW_SRV_ACTION_VIRTUAL_START));
-      }
-    }
-  } else if (!cnts->exam_mode && global->is_virtual && stop_time <= 0) {
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    if (cnts->exam_mode) {
-      fprintf(fout, "<p>%s</p></form>",
-              ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_VIRTUAL_STOP,
-                               _("Stop exam")));
-    } else {
-      fprintf(fout, "<p>%s</p></form>",
-              BUTTON(NEW_SRV_ACTION_VIRTUAL_STOP));
-    }
-  }
-}
-
 typedef int (*action_handler2_t)(FILE *fout,
                                  FILE *log_f,
                                  struct http_request_info *phr,
@@ -7695,10 +6132,6 @@ typedef int (*action_handler2_t)(FILE *fout,
 
 static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
 {
-#if 0
-  [NEW_SRV_ACTION_VIEW_USERS] = priv_view_users_page,
-  [NEW_SRV_ACTION_PRIV_USERS_VIEW] = priv_view_priv_users_page,
-#endif
   /* for priv_generic_operation */
   [NEW_SRV_ACTION_USERS_REMOVE_REGISTRATIONS] = priv_registration_operation,
   [NEW_SRV_ACTION_USERS_SET_PENDING] = priv_registration_operation,
@@ -7828,11 +6261,7 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_PRIV_EDIT_RUN_ACTION] = ns_priv_edit_run_action,
 
   /* for priv_generic_page */
-  [NEW_SRV_ACTION_VIEW_REPORT] = priv_view_report,
-  [NEW_SRV_ACTION_VIEW_SOURCE] = priv_view_source,
   [NEW_SRV_ACTION_PRIV_DOWNLOAD_RUN] = priv_download_source,
-  [NEW_SRV_ACTION_STANDINGS] = priv_standings,
-  [NEW_SRV_ACTION_VIEW_CLAR] = priv_view_clar,
   [NEW_SRV_ACTION_REJUDGE_DISPLAYED_1] = priv_confirmation_page,
   [NEW_SRV_ACTION_FULL_REJUDGE_DISPLAYED_1] = priv_confirmation_page,
   [NEW_SRV_ACTION_REJUDGE_PROBLEM_1] = priv_confirmation_page,
@@ -7845,19 +6274,12 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_VIEW_TEST_OUTPUT] = priv_view_test,
   [NEW_SRV_ACTION_VIEW_TEST_ERROR] = priv_view_test,
   [NEW_SRV_ACTION_VIEW_TEST_CHECKER] = priv_view_test,
-  [NEW_SRV_ACTION_VIEW_AUDIT_LOG] = priv_view_audit_log,
   [NEW_SRV_ACTION_UPDATE_STANDINGS_1] = priv_confirmation_page,
   [NEW_SRV_ACTION_RESET_1] = priv_confirmation_page,
   [NEW_SRV_ACTION_GENERATE_PASSWORDS_1] = priv_confirmation_page,
   [NEW_SRV_ACTION_GENERATE_REG_PASSWORDS_1] = priv_confirmation_page,
   [NEW_SRV_ACTION_CLEAR_PASSWORDS_1] = priv_confirmation_page,
-  [NEW_SRV_ACTION_VIEW_CNTS_PWDS] = priv_view_passwords,
-  [NEW_SRV_ACTION_VIEW_REG_PWDS] = priv_view_passwords,
-  [NEW_SRV_ACTION_VIEW_USER_INFO] = priv_user_detail_page,
-  [NEW_SRV_ACTION_NEW_RUN_FORM] = priv_new_run_form_page,
   [NEW_SRV_ACTION_VIEW_USER_DUMP] = priv_view_user_dump,
-  [NEW_SRV_ACTION_VIEW_USER_REPORT] = priv_view_report,
-  [NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_1] = priv_download_runs_confirmation,
   [NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_2] = priv_download_runs,
   [NEW_SRV_ACTION_UPLOAD_RUNLOG_CSV_1] = priv_upload_runlog_csv_1,
   [NEW_SRV_ACTION_UPLOAD_RUNLOG_CSV_2] = priv_upload_runlog_csv_2,
@@ -7870,9 +6292,7 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_CLEAR_DISPLAYED_1] = priv_confirmation_page,
   [NEW_SRV_ACTION_IGNORE_DISPLAYED_1] = priv_confirmation_page,
   [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_1] = priv_confirmation_page,
-  [NEW_SRV_ACTION_UPSOLVING_CONFIG_1] = priv_upsolving_configuration_1,
   [NEW_SRV_ACTION_EXAMINERS_PAGE] = priv_examiners_page,
-  [NEW_SRV_ACTION_VIEW_ONLINE_USERS] = priv_view_online_users,
   [NEW_SRV_ACTION_PRINT_USER_PROTOCOL] = priv_print_user_exam_protocol,
   [NEW_SRV_ACTION_PRINT_USER_FULL_PROTOCOL] = priv_print_user_exam_protocol,
   [NEW_SRV_ACTION_PRINT_UFC_PROTOCOL] = priv_print_user_exam_protocol,
@@ -7880,17 +6300,8 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_PRINT_SELECTED_USER_FULL_PROTOCOL] =priv_print_users_exam_protocol,
   [NEW_SRV_ACTION_PRINT_SELECTED_UFC_PROTOCOL] =priv_print_users_exam_protocol,
   [NEW_SRV_ACTION_PRINT_PROBLEM_PROTOCOL] = priv_print_problem_exam_protocol,
-  [NEW_SRV_ACTION_ASSIGN_CYPHERS_1] = priv_assign_cyphers_1,
-  [NEW_SRV_ACTION_VIEW_EXAM_INFO] = priv_view_exam_info,
-  [NEW_SRV_ACTION_PRIO_FORM] = priv_priority_form,
-  [NEW_SRV_ACTION_VIEW_USER_IPS] = priv_view_user_ips,
-  [NEW_SRV_ACTION_VIEW_IP_USERS] = priv_view_ip_users,
-  [NEW_SRV_ACTION_VIEW_TESTING_QUEUE] = priv_view_testing_queue,
   [NEW_SRV_ACTION_MARK_DISPLAYED_2] = priv_clear_displayed,
   [NEW_SRV_ACTION_UNMARK_DISPLAYED_2] = priv_clear_displayed,
-  [NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS] = priv_admin_contest_settings,
-  [NEW_SRV_ACTION_PRIV_EDIT_CLAR_PAGE] = priv_edit_clar_page,
-  [NEW_SRV_ACTION_PRIV_EDIT_RUN_PAGE] = priv_edit_run_page,
   [NEW_SRV_ACTION_PING] = ping_page,
   [NEW_SRV_ACTION_SUBMIT_RUN_BATCH] = priv_submit_run_batch_page,
 };
@@ -7901,45 +6312,25 @@ priv_generic_operation(FILE *fout,
                        const struct contest_desc *cnts,
                        struct contest_extra *extra)
 {
-  FILE *log_f = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
   int r, rr;
 
-  log_f = open_memstream(&log_txt, &log_len);
-
-  r = priv_actions_table_2[phr->action](fout, log_f, phr, cnts, extra);
+  r = priv_actions_table_2[phr->action](fout, phr->log_f, phr, cnts, extra);
   if (r == -1) {
-    close_memstream(log_f);
-    xfree(log_txt);
     return;
   }
   if (r < 0) {
-    ns_error(log_f, r);
+    error_page(fout, phr, 1, r);
     r = 0;
   }
   rr = r;
   if (!r) r = ns_priv_next_state[phr->action];
   if (!rr) rr = ns_priv_prev_state[phr->action];
 
-  close_memstream(log_f); log_f = 0;
-  if (!log_txt || !*log_txt) {
-    /*
-    if (r == NEW_SRV_ACTION_VIEW_SOURCE) {
-      if (phr->next_run_id < 0) r = 0;
-      else snprintf(next_extra, sizeof(next_extra), "run_id=%d",
-                    phr->next_run_id);
-    }
-    */
-    if (phr->plain_text) {
-      fprintf(fout, "Content-type: text/plain\n\n%d\n", 0);
-    } else {
-      ns_refresh_page(fout, phr, r, phr->next_extra);
-    }
+  if (phr->plain_text) {
+    fprintf(fout, "Content-type: text/plain\n\n%d\n", 0);
   } else {
-    html_error_status_page(fout, phr, cnts, extra, log_txt, rr, 0);
+    ns_refresh_page(fout, phr, r, phr->next_extra);
   }
-  xfree(log_txt);
 }
 
 static void
@@ -7948,30 +6339,17 @@ priv_generic_page(FILE *fout,
                   const struct contest_desc *cnts,
                   struct contest_extra *extra)
 {
-  FILE *log_f = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
   int r;
 
-  log_f = open_memstream(&log_txt, &log_len);
-
-  r = priv_actions_table_2[phr->action](fout, log_f, phr, cnts, extra);
+  r = priv_actions_table_2[phr->action](fout, phr->log_f, phr, cnts, extra);
   if (r == -1) {
-    close_memstream(log_f);
-    xfree(log_txt);
     return;
   }
   if (r < 0) {
-    ns_error(log_f, r);
+    error_page(fout, phr, 1, r);
     r = 0;
   }
   if (!r) r = ns_priv_prev_state[phr->action];
-
-  close_memstream(log_f); log_f = 0;
-  if (log_txt && *log_txt) {
-    html_error_status_page(fout, phr, cnts, extra, log_txt, r, 0);
-  }
-  xfree(log_txt);
 }
 
 static void
@@ -7996,79 +6374,8 @@ priv_logout(FILE *fout,
   ns_refresh_page_2(fout, phr->client_key, urlbuf);
 }
 
-
-static void
-write_alternatives_file(FILE *fout, int is_radio, const unsigned char *txt,
-                        int last_answer, int prob_id, int next_prob_id,
-                        int enable_js, const unsigned char *class_name)
-{
-  const unsigned char *s, *p;
-  unsigned char *txt2;
-  size_t txt_len, t_len;
-  int line_max_count = 0, line_count = 0, i;
-  unsigned char **lines = 0;
-  unsigned char *t;
-  unsigned char *cl = "";
-  unsigned char jsbuf[1024];
-
-  if (!txt) return;
-
-  if (class_name && *class_name) {
-    cl = (unsigned char *) alloca(strlen(class_name) + 32);
-    sprintf(cl, " class=\"%s\"", class_name);
-  }
-
-  // normalize the file
-  txt_len = strlen(txt);
-  txt2 = (unsigned char*) alloca(txt_len + 2);
-  memcpy(txt2, txt, txt_len + 1);
-  while (txt_len > 0 && isspace(txt2[txt_len - 1])) txt_len--;
-  if (!txt_len) return;
-  txt2[txt_len++] = '\n';
-  txt2[txt_len] = 0;
-
-  // count number of lines
-  for (s = txt2; *s; s++)
-    if (*s == '\n') line_max_count++;
-
-  lines = (unsigned char**) alloca((line_max_count + 1) * sizeof(lines[0]));
-  memset(lines, 0, (line_max_count + 1) * sizeof(lines[0]));
-
-  s = txt2;
-  while (*s) {
-    while (*s != '\n' && isspace(*s)) s++;
-    if (*s == '#') while (*s != '\n') s++;
-    if (*s == '\n') {
-      s++;
-      continue;
-    }
-    p = s;
-    while (*s != '\n') s++;
-    t_len = s - p;
-    t = (unsigned char*) alloca(t_len + 1);
-    memcpy(t, p, t_len);
-    while (t_len > 0 && isspace(t[t_len - 1])) t_len--;
-    t[t_len] = 0;
-    lines[line_count++] = t;
-  }
-
-  for (i = 0; i < line_count; i++) {
-    if (is_radio) {
-      jsbuf[0] = 0;
-      if (prob_id > 0 && enable_js) {
-        snprintf(jsbuf, sizeof(jsbuf), " onclick=\"submitAnswer(%d,%d,%d,%d,%d)\"", NEW_SRV_ACTION_UPDATE_ANSWER, prob_id, i + 1, NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT, next_prob_id);
-      }
-      s = "";
-      if (last_answer == i + 1) s = " checked=\"1\"";
-      fprintf(fout, "<tr><td%s>%d</td><td%s><input type=\"radio\" name=\"file\" value=\"%d\"%s%s/></td><td%s>%s</td></tr>\n", cl, i + 1, cl, i + 1, s, jsbuf, cl, lines[i]);
-    } else {
-      fprintf(fout, "<tr><td%s>%d</td><td%s><input type=\"checkbox\" name=\"ans_%d\"/></td><td%s>%s</td></tr>\n", cl, i + 1, cl, i + 1, cl, lines[i]);
-    }
-  }
-}
-
-static void
-unparse_statement(
+void
+ns_unparse_statement(
         FILE *fout,
         struct http_request_info *phr,
         const struct contest_desc *cnts,
@@ -8078,8 +6385,9 @@ unparse_statement(
         problem_xml_t px,
         const unsigned char *bb,
         int is_submittable);
-static void
-unparse_answers(
+
+void
+ns_unparse_answers(
         FILE *fout,
         struct http_request_info *phr,
         const struct contest_desc *cnts,
@@ -8093,268 +6401,6 @@ unparse_answers(
         int next_prob_id,
         int enable_js,
         const unsigned char *class_name);
-
-static void
-priv_submit_page(
-        FILE *fout,
-        struct http_request_info *phr, 
-        const struct contest_desc *cnts,
-        struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  //const struct section_global_data *global = cs->global;
-  const struct section_problem_data *prob = 0;
-  int prob_id = 0, variant = 0, i;
-  FILE *log_f = 0;
-  char *log_t = 0;
-  size_t log_z = 0;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  unsigned char bb[1024];
-  const unsigned char *sel_flag = 0;
-  unsigned char optval[128];
-  problem_xml_t px = 0;
-  struct watched_file *pw = 0;
-  const unsigned char *pw_path = 0;
-  path_t variant_stmt_file;
-  const unsigned char *alternatives = 0;
-  const unsigned char *cl = " class=\"b0\"";
-
-  log_f = open_memstream(&log_t, &log_z);
-  if (ns_cgi_param_int_opt(phr, "problem", &prob_id, 0) < 0) {
-    fprintf(log_f, "Invalid problem.\n");
-    goto cleanup;
-  }
-  if (prob_id < 0 || prob_id > cs->max_prob) {
-    fprintf(log_f, "Invalid problem.\n");
-    goto cleanup;
-  }
-  if (prob_id > 0 && !(prob = cs->probs[prob_id])) {
-    fprintf(log_f, "Invalid problem.\n");
-    goto cleanup;
-  }
-  if (ns_cgi_param_int_opt(phr, "variant", &variant, 0) < 0) {
-    fprintf(log_f, "Invalid variant.\n");
-    goto cleanup;
-  }
-  if (!prob) variant = 0;
-  if (prob && prob->variant_num <= 0) variant = 0;
-  if (variant < 0
-      || (prob && prob->variant_num <= 0 && variant > 0)
-      || (prob && prob->variant_num > 0 && variant > prob->variant_num)) {
-    fprintf(log_f, "Invalid variant.\n");
-    goto cleanup;
-  }
-  if (opcaps_check(phr->caps, OPCAP_SUBMIT_RUN) < 0) {
-    fprintf(log_f, "Permission denied.\n");
-    goto cleanup;
-  }
-
-  l10n_setlocale(phr->locale_id);
-  if (prob && variant > 0) {
-    snprintf(bb, sizeof(bb), "%s %s-%d", _("Submit a solution for"),
-             prob->short_name, variant);
-  } else if (prob) {
-    snprintf(bb, sizeof(bb), "%s %s", _("Submit a solution for"),
-             prob->short_name);
-  } else {
-    snprintf(bb, sizeof(bb), "%s", _("Submit a solution"));
-  }
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm, bb);
-
-  if (prob) {
-    fprintf(fout, "<h2>%s %s: %s</h2>\n",
-            _("Problem"), prob->short_name, ARMOR(prob->long_name));
-  }
-
-  html_start_form(fout, 2, phr->self_url, phr->hidden_vars);
-
-  /* output the problem selection dialog */
-  fprintf(fout, "<table%s><tr>\n", cl);
-  fprintf(fout, "<tr><td%s>%s:</td><td%s><select name=\"problem\">",
-          cl, _("Problem"), cl);
-  for (i = 1; i <= cs->max_prob; i++) {
-    if (!(cs->probs[i])) continue;
-    sel_flag = "";
-    if (prob_id > 0 && i == prob_id) sel_flag = " selected=\"selected\"";
-    fprintf(fout, "<option value=\"%d\"%s>%s - %s</option>",
-            i, sel_flag, cs->probs[i]->short_name,
-            ARMOR(cs->probs[i]->long_name));
-  }
-  fprintf(fout, "</select></td><td%s>%s</td>\n", cl,
-          ns_submit_button(bb, sizeof(bb), 0,
-                           NEW_SRV_ACTION_PRIV_SUBMIT_PAGE,
-                           _("Select problem")));
-  fprintf(fout, "</tr>\n");
-
-  if (prob && prob->variant_num > 0) {
-    fprintf(fout, "<tr>\n");
-    fprintf(fout, "<td%s>%s:</td><td%s>", cl, _("Variant"), cl);
-    fprintf(fout, "<select name=\"variant\">");
-    for (i = 0; i <= prob->variant_num; i++) {
-      sel_flag = "";
-      if (i == variant) sel_flag = " selected=\"selected\"";
-      optval[0] = 0;
-      if (i > 0) snprintf(optval, sizeof(optval), "%d", i);
-      fprintf(fout, "<option value=\"%d\"%s>%s</option>",
-              i, sel_flag, optval);
-    }
-    fprintf(fout, "</select></td><td%s>%s</td>", cl,
-            ns_submit_button(bb, sizeof(bb), 0,
-                             NEW_SRV_ACTION_PRIV_SUBMIT_PAGE,
-                             _("Select variant")));
-    fprintf(fout, "</tr>\n");
-  }
-  fprintf(fout, "</table>\n");
-
-  /* output the problem statement */
-  px = 0; pw = 0; pw_path = 0;
-  if (prob && prob->variant_num > 0 && variant > 0 && prob->xml.a
-      && prob->xml.a[variant - 1]) {
-    px = prob->xml.a[variant - 1];
-  } else if (prob && prob->variant_num <= 0 && prob->xml.p) {
-    px = prob->xml.p;
-  }
-  if (px && px->stmts) {
-    unparse_statement(fout, phr, cnts, extra, prob, variant, px, NULL, 1);
-  }
-
-  if (!px && prob && prob->statement_file[0]) {
-    if (prob->variant_num > 0 && variant > 0) {
-      prepare_insert_variant_num(variant_stmt_file,
-                                 sizeof(variant_stmt_file),
-                                 prob->statement_file, variant);
-      pw = &cs->prob_extras[prob_id].v_stmts[variant];
-      pw_path = variant_stmt_file;
-    } else if (prob->variant_num <= 0) {
-      pw = &cs->prob_extras[prob_id].stmt;
-      pw_path = prob->statement_file;
-    }
-    watched_file_update(pw, pw_path, cs->current_time);
-    if (!pw->text) {
-      fprintf(fout, "<big><font color=\"red\"><p>%s</p></font></big>\n",
-              _("The problem statement is not available"));
-     } else {
-      fprintf(fout, "%s", pw->text);
-    }
-  }
-
-  /* update the alternatives */
-  alternatives = 0;
-  if (prob && (prob->type == PROB_TYPE_SELECT_ONE
-               || prob->type == PROB_TYPE_SELECT_MANY)
-      && prob->alternatives_file[0]) {
-    if (prob->variant_num > 0 && variant > 0) {
-      prepare_insert_variant_num(variant_stmt_file,
-                                 sizeof(variant_stmt_file),
-                                 prob->alternatives_file, variant);
-      pw = &cs->prob_extras[prob->id].v_alts[variant];
-      pw_path = variant_stmt_file;
-    } else if (prob->variant_num <= 0) {
-      pw = &cs->prob_extras[prob->id].alt;
-      pw_path = prob->alternatives_file;
-    }
-    watched_file_update(pw, pw_path, cs->current_time);
-    alternatives = pw->text;
-  }
-
-  fprintf(fout, "<table%s>\n", cl);
-
-  /* language selection */
-  if (!prob || !prob->type) {
-    fprintf(fout, "<tr>");
-    fprintf(fout, "<td%s>%s:</td>", cl, _("Language"));
-    fprintf(fout, "<td%s><select name=\"lang_id\"><option value=\"\"></option>",
-            cl);
-    for (i = 1; i <= cs->max_lang; i++) {
-      if (cs->langs[i]) {
-        fprintf(fout, "<option value=\"%d\">%s - %s</option>",
-                i, cs->langs[i]->short_name, ARMOR(cs->langs[i]->long_name));
-      }
-    }
-    fprintf(fout, "</td></tr>\n");
-
-    if (cs->global->enable_eoln_select > 0) {
-      fprintf(fout, "<tr><td%s>%s:</td><td%s><select name=\"eoln_type\"%s>",
-              "", "EOLN Type", "", "");
-      fprintf(fout, "<option value=\"0\"></option>");
-      fprintf(fout, "<option value=\"1\"%s>LF (Unix/MacOS)</option>", "");
-      fprintf(fout, "<option value=\"2\"%s>CRLF (Windows/DOS)</option>", "");
-      fprintf(fout, "</select></td></tr>\n");
-    }
-  }
-
-  /* solution/answer form */
-  if (!prob /*|| !prob->type*/) {
-    fprintf(fout, "<tr><td%s>%s</td><td%s><input type=\"file\" name=\"file\"/></td></tr>\n", cl, _("File"), cl);
-   } else {
-    switch (prob->type) {
-    case PROB_TYPE_STANDARD:
-    case PROB_TYPE_OUTPUT_ONLY:
-    case PROB_TYPE_TESTS:
-      if (prob->enable_text_form > 0) {
-        fprintf(fout, "<tr><td colspan=\"2\"%s><textarea name=\"text_form\" rows=\"20\" cols=\"60\"></textarea></td></tr>\n", cl);
-      }
-      fprintf(fout, "<tr><td%s>%s</td><td%s><input type=\"file\" name=\"file\"/></td></tr>\n", cl, _("File"), cl);
-      break;
-    case PROB_TYPE_SHORT_ANSWER:
-      fprintf(fout, "<tr><td%s>%s</td><td%s><input type=\"text\" name=\"file\"/></td></tr>\n", cl, _("Answer"), cl);
-      break;
-    case PROB_TYPE_TEXT_ANSWER:
-      fprintf(fout, "<tr><td colspan=\"2\"%s><textarea name=\"file\" rows=\"20\" cols=\"60\"></textarea></td></tr>\n", cl);
-      break;
-    case PROB_TYPE_SELECT_ONE:
-      if (px) {
-        unparse_answers(fout, phr, cnts, extra, prob, variant,
-                        px, 0 /* lang */, 1 /* is_radio */,
-                        -1, prob_id, 0 /* js_flag */, "b0");
-      } else if (alternatives) {
-        write_alternatives_file(fout, 1, alternatives, -1, 0, 0, 0, "b0");
-      } else if (prob->alternative) {
-        for (i = 0; prob->alternative[i]; i++) {
-          fprintf(fout, "<tr><td%s>%d</td><td%s><input type=\"radio\" name=\"file\" value=\"%d\"/></td><td%s>%s</td></tr>\n", cl, i + 1, cl, i + 1, cl, prob->alternative[i]);
-        }
-      }
-      break;
-    case PROB_TYPE_SELECT_MANY:
-      if (alternatives) {
-        write_alternatives_file(fout, 0, alternatives, -1, 0, 0, 0, "b0");
-      } else if (prob->alternative) {
-        for (i = 0; prob->alternative[i]; i++) {
-          fprintf(fout, "<tr><td%s>%d</td><td%s><input type=\"checkbox\" name=\"ans_%d\"/></td><td%s>%s</td></tr>\n", cl, i + 1, cl, i + 1,
-                  cl, prob->alternative[i]);
-        }
-      }
-      break;
-    case PROB_TYPE_CUSTOM:
-      break;
-
-    default:
-      abort();
-    }
-  }
-
-  fprintf(fout, "<tr><td%s>&nbsp;</td><td%s>%s</td></tr>\n",
-          cl, cl, BUTTON(NEW_SRV_ACTION_SUBMIT_RUN));
-  fprintf(fout, "<tr><td%s>&nbsp;</td><td%s>%s%s</a></td></tr>",
-          cl, cl, ns_aref(bb, sizeof(bb), phr, NEW_SRV_ACTION_MAIN_PAGE, 0),
-          _("Main page"));
-  fprintf(fout, "</table>\n");
-
-  fprintf(fout, "</form>\n");
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
-cleanup:
-  html_armor_free(&ab);
-  close_memstream(log_f); log_f = 0;
-  if (log_t && *log_t) {
-    html_error_status_page(fout, phr, cnts, extra, log_t, 0, 0);
-  }
-  xfree(log_t); log_t = 0;
-}
 
 static void
 priv_get_file(
@@ -8376,12 +6422,12 @@ priv_get_file(
   if (opcaps_check(phr->caps, OPCAP_SUBMIT_RUN) < 0)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
-  if (ns_cgi_param(phr, "prob_id", &s) <= 0
+  if (hr_cgi_param(phr, "prob_id", &s) <= 0
       || sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]
       || prob_id <= 0 || prob_id > cs->max_prob
       || !(prob = cs->probs[prob_id]))
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
-  if (ns_cgi_param_int_opt(phr, "variant", &variant, 0) < 0)
+  if (hr_cgi_param_int_opt(phr, "variant", &variant, 0) < 0)
     FAIL(NEW_SRV_ERR_INV_VARIANT);
   if (prob->variant_num <= 0) {
     variant = 0;
@@ -8390,7 +6436,7 @@ priv_get_file(
       FAIL(NEW_SRV_ERR_INV_VARIANT);
   }
 
-  if (ns_cgi_param(phr, "file", &s) <= 0 || strchr(s, '/'))
+  if (hr_cgi_param(phr, "file", &s) <= 0 || strchr(s, '/'))
     FAIL(NEW_SRV_ERR_INV_FILE_NAME);
 
   os_rGetSuffix(s, sfx, sizeof(sfx));
@@ -8424,770 +6470,6 @@ priv_get_file(
 }
 
 static void
-priv_main_page(FILE *fout,
-               struct http_request_info *phr,
-               const struct contest_desc *cnts,
-               struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  time_t start_time, sched_time, duration, stop_time, fog_start_time = 0, tmpt;
-  time_t finish_time;
-  unsigned char hbuf[1024];
-  unsigned char duration_buf[128];
-  const unsigned char *s;
-  unsigned char bb[1024];
-  int action;
-  long long tdiff;
-  int filter_first_run = 0, filter_last_run = 0, filter_mode_clar = 0;
-  int filter_first_run_set = 0, filter_last_run_set = 0;
-  const unsigned char *filter_expr = 0;
-  int i, x, y, n, variant = 0, need_examiners = 0, online_users = 0;
-  const struct section_problem_data *prob = 0;
-  path_t variant_stmt_file;
-  struct watched_file *pw = 0;
-  const unsigned char *pw_path;
-  const unsigned char *alternatives;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  int skip_start_form = 0;
-  struct last_access_info *pa;
-  const unsigned char *filter_first_clar_str = 0;
-  const unsigned char *filter_last_clar_str = 0;
-
-  if (ns_cgi_param(phr, "filter_expr", &s) > 0) filter_expr = s;
-
-  ns_cgi_param_int_opt_2(phr, "filter_first_run", &filter_first_run, &filter_first_run_set);
-  ns_cgi_param_int_opt_2(phr, "filter_last_run", &filter_last_run, &filter_last_run_set);
-
-  if (ns_cgi_param(phr, "filter_first_clar", &s) > 0 && s)
-    filter_first_clar_str = s;
-  if (ns_cgi_param(phr, "filter_last_clar", &s) > 0 && s)
-    filter_last_clar_str = s;
-  if (ns_cgi_param(phr, "filter_mode_clar", &s) > 0
-      && sscanf(s, "%d%n", &x, &n) == 1 && !s[n] && x >= 1 && x <= 2)
-    filter_mode_clar = x;
-  if (ns_cgi_param(phr, "problem", &s) > 0) {
-    if (sscanf(s, "%d_%d%n", &x, &y, &n) == 2 && !s[n]
-        && x > 0 && x <= cs->max_prob && cs->probs[x]
-        && cs->probs[x]->variant_num > 0 && y > 0
-        && y <= cs->probs[x]->variant_num) {
-      prob = cs->probs[x];
-      variant = y;
-    } else if (sscanf(s, "%d%n", &x, &n) == 1 && !s[n]
-               && x > 0 && x <= cs->max_prob && cs->probs[x]
-               && cs->probs[x]->variant_num <= 0) {
-      prob = cs->probs[x];
-    }
-  }
-
-  run_get_times(cs->runlog_state, &start_time, &sched_time, &duration,
-                &stop_time, &finish_time);
-  if (duration > 0 && start_time && !stop_time && global->board_fog_time > 0)
-    fog_start_time = start_time + duration - global->board_fog_time;
-  if (fog_start_time < 0) fog_start_time = 0;
-
-  for (i = 1; i <= cs->max_prob; i++)
-    if (cs->probs[i] && cs->probs[i]->manual_checking)
-      need_examiners = 1;
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s, %d, %s]: %s", ns_unparse_role(phr->role),
-            phr->name_arm, phr->contest_id, extra->contest_arm, _("Main page"));
-
-  fprintf(fout,
-          "<script language=\"javascript\">\n"
-          "var self_url='%s';\n"
-          "var SID='%016llx';\n"
-          "</script>\n",
-          phr->self_url,
-          phr->session_id);
-
-  fprintf(fout, "<ul>\n");
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_USERS, 0),
-          _("View regular users"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_PRIV_USERS_VIEW, 0),
-          _("View privileged users"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_ONLINE_USERS, 0),
-          _("View who is currently online"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_EXAM_INFO, 0),
-          _("View examination information"));
-  if (need_examiners)
-    fprintf(fout, "<li>%s%s</a></li>\n",
-            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_EXAMINERS_PAGE, 0),
-            _("Examiners assignments"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_STANDINGS, 0),
-          _("View standings"));
-  if (phr->role >= USER_ROLE_JUDGE
-      && opcaps_check(phr->caps, OPCAP_EDIT_PASSWD) >= 0) {
-    fprintf(fout, "<li>%s%s</a></li>\n",
-            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_REG_PWDS, 0),
-            _("View registration passwords"));
-    if (!cnts->disable_team_password) {
-      fprintf(fout, "<li>%s%s</a></li>\n",
-              ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_CNTS_PWDS,0),
-              _("View contest passwords"));
-    }
-  }
-  if (phr->role >= USER_ROLE_JUDGE
-      && opcaps_check(phr->caps, OPCAP_DUMP_USERS) >= 0) {
-    fprintf(fout, "<li>%s%s</a></li>\n",
-            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_USER_DUMP, 0),
-            _("Dump users in CSV format"));
-  }
-  if (phr->role >= USER_ROLE_JUDGE
-      && opcaps_check(phr->caps, OPCAP_DUMP_RUNS) >= 0) {
-    fprintf(fout, "<li>%s%s</a></li>\n",
-            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_RUNS_DUMP, 0),
-            _("Dump runs in CSV format"));
-    fprintf(fout, "<li>%s%s</a></li>\n",
-            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_EXPORT_XML_RUNS, 0),
-            _("Export runs in XML external format"));
-    fprintf(fout, "<li>%s%s</a></li>\n",
-            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_WRITE_XML_RUNS, 0),
-            _("Write runs in XML internal format"));
-    fprintf(fout, "<li>%s%s</a></li>\n",
-            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_WRITE_XML_RUNS_WITH_SRC, 0),
-            _("Write runs in XML internal format with source"));
-  }
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_ASSIGN_CYPHERS_1, 0),
-          _("Assign random cyphers"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_IP_USERS, 0),
-          _("View users for IP addresses"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_USER_IPS, 0),
-          _("View IP addresses for users"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_VIEW_TESTING_QUEUE,0),
-          _("View testing queue"));
-  if (phr->role >= USER_ROLE_ADMIN) {
-    fprintf(fout, "<li>%s%s</a></li>\n",
-            ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS, 0),
-            _("Contest settings"));
-  }
-  if (cnts->problems_url) {
-    fprintf(fout, "<li><a href=\"%s\" target=_blank>%s</a>\n",
-            cnts->problems_url, _("Problems"));
-  }
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_PRIV_SUBMIT_PAGE, 0),
-          _("Submit a solution"));
-  fprintf(fout, "<li>%s%s</a></li>\n",
-          ns_aref(hbuf, sizeof(hbuf), phr, NEW_SRV_ACTION_LOGOUT, 0),
-          _("Logout"));
-
-  fprintf(fout, "</ul>\n");
-
-  /* if role == ADMIN and capability CONTROL_CONTEST */
-
-  fprintf(fout, "<hr><a name=\"status\"></a><%s>%s</%s>\n",
-          /*cnts->priv_head_style*/ "h2", _("Server status"),
-          /*cnts->priv_head_style*/ "h2");
-  if (stop_time > 0 && !global->is_virtual) {
-    if (duration > 0 && global->board_fog_time > 0
-        && global->board_unfog_time > 0
-        && cs->current_time < stop_time + global->board_unfog_time
-        && !cs->standings_updated) {
-      s = _("The contest is over (standings are frozen)");
-    } else {
-      s = _("The contest is over");
-    }
-  } else if (start_time > 0) {
-    if (fog_start_time > 0 && cs->current_time >= fog_start_time)
-      s = _("The contest is in progress (standings are frozen)");
-    else
-      s = _("The contest is in progress");
-  } else {
-    s = _("The contest is not started");
-  }
-  fprintf(fout, "<p><big><b>%s</b></big></p>\n", s);
-
-  if (global->score_system == SCORE_OLYMPIAD && !global->is_virtual) {
-    if (cs->accepting_mode)
-      s = _("Participants' solutions are being accepted");
-    else if (!cs->testing_finished)
-      s = _("Participants' solutions are being judged");
-    else
-      s = _("Participants' solutions are judged");
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n", s);
-  }
-
-  if (cs->upsolving_mode) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n", _("Upsolving mode"));
-  }
-
-  if (cs->clients_suspended) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
-            _("Participants' requests are suspended"));
-  }
-
-  if (cs->testing_suspended) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
-            _("Testing of participants' submits is suspended"));
-  }
-  if (cs->printing_suspended) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
-            _("Print requests are suspended"));
-  }
-  if (cs->online_view_source < 0) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
-            _("Source code is closed"));
-  } else if (cs->online_view_source > 0) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
-            _("Source code is open"));
-  }
-  if (cs->online_view_report < 0) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
-            _("Testing reports are closed"));
-  } else if (cs->online_view_report > 0) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
-            _("Testing reports are open"));
-  }
-  if (cs->online_view_judge_score > 0) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
-            _("Judge scores are opened"));
-  }
-  if (cs->online_final_visibility > 0) {
-    fprintf(fout, "<p><big><b>%s</b></big></p>\n",
-            _("Final visibility rules are active"));
-  }
-
-  // count online users
-  online_users = 0;
-  for (i = 0; i < extra->user_access[USER_ROLE_CONTESTANT].u; i++) {
-    pa = &extra->user_access[USER_ROLE_CONTESTANT].v[i];
-    if (pa->time + 65 >= cs->current_time) online_users++;
-  }
-  fprintf(fout, "<p><big><b>%s: %d</b></big></p>\n",
-          _("On-line users in this contest"), online_users);
-  if (cs->max_online_count > 0) {
-    fprintf(fout, "<p><big><b>%s: %d, %s</b></big></p>\n",
-            _("Max number of users was"), cs->max_online_count,
-            xml_unparse_date(cs->max_online_time));
-  }
-
-  if (job_count > 0) {
-    fprintf(fout, "<p><b>%s: %d</b></p>\n", "Background jobs", job_count);
-    fprintf(fout, "<table class=\"b1\">");
-    for (struct server_framework_job *job = job_first; job; job = job->next) {
-      fprintf(fout, "<tr><td%s>%d</td><td%s>%s</td><td%s>%s</td><td%s>",
-              " class=\"b1\"", job->id,
-              " class=\"b1\"", xml_unparse_date(job->start_time),
-              " class=\"b1\"", job->title,
-              " class=\"b1\"");
-      if (job->vt->get_status) {
-        unsigned char *str = job->vt->get_status(job);
-        if (str && *str) {
-          fprintf(fout, "%s", str);
-        } else {
-          fprintf(fout, "&nbsp;");
-        }
-        xfree(str);
-      } else {
-        fprintf(fout, "&nbsp;");
-      }
-      fprintf(fout, "</td></tr>\n");
-    }
-    fprintf(fout, "</table>\n");
-  }
-
-  if (phr->role == USER_ROLE_ADMIN
-      && opcaps_check(phr->caps, OPCAP_CONTROL_CONTEST) >= 0) {
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    fprintf(fout, "<table border=\"0\">");
-
-    fprintf(fout,
-            "<tr><td>%s:</td><td>%s</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
-            _("Server time"), ctime(&cs->current_time));
-
-    if (start_time <= 0) {
-      fprintf(fout, "<tr><td colspan=\"2\"><b>%s</b></td><td>&nbsp;</td><td>%s</td></tr>\n",
-              _("Contest is not started"),
-              BUTTON(NEW_SRV_ACTION_START_CONTEST));
-    } else {
-      fprintf(fout, "<tr><td>%s:</td><td>%s</td><td>&nbsp;</td>",
-              _("Contest start time"), ctime(&start_time));
-      if (stop_time <= 0) {
-        fprintf(fout, "<td>%s</td></tr>\n",
-                BUTTON(NEW_SRV_ACTION_STOP_CONTEST));
-      } else if (global->enable_continue
-                 && (!duration || stop_time < start_time + duration)) {
-        fprintf(fout, "<td>%s</td></tr>\n",
-                BUTTON(NEW_SRV_ACTION_CONTINUE_CONTEST));
-      }
-    }
-
-    if (!global->is_virtual && start_time <= 0) {
-      fprintf(fout, "<tr><td>%s:</td><td>%s</td>"
-              "<td><input type=\"text\" name=\"sched_time\" size=\"16\"/></td>"
-              "<td>%s</td></tr>\n",
-              _("Planned start time"),
-              sched_time <= 0?_("Not set"):ctime(&sched_time),
-              BUTTON(NEW_SRV_ACTION_SCHEDULE));
-    }
-
-    if (finish_time <= 0) {
-      if (duration > 0) {
-        duration_str(0, duration, 0, duration_buf, 0);
-      } else {
-        snprintf(duration_buf, sizeof(duration_buf), "%s", _("Unlimited"));
-      }
-
-      fprintf(fout, "<tr><td>%s:</td><td>%s</td>",_("Duration"), duration_buf);
-      if ((stop_time <= 0 || global->enable_continue) && !global->is_virtual) {
-        fprintf(fout, "<td><input type=\"text\" name=\"dur\" size=\"16\"/></td>"
-                "<td>%s</td></tr>\n",
-                BUTTON(NEW_SRV_ACTION_CHANGE_DURATION));
-      } else {
-        fprintf(fout, "<td>&nbsp;</td><td>&nbsp;</td></tr>\n");
-      }
-
-      if (duration <= 0 && (stop_time <= 0 || global->enable_continue)
-          && !global->is_virtual) {
-        fprintf(fout,
-                "<tr><td>%s:</td><td>&nbsp;</td>"
-                "<td><input type=\"text\" name=\"finish_time\" size=\"16\" /></td>"
-                "<td>%s</td></tr>\n",
-                _("Finish time"),
-                BUTTON(NEW_SRV_ACTION_CHANGE_FINISH_TIME));
-      }
-    }
-
-    if (!global->is_virtual) {
-      if (start_time > 0 && stop_time <= 0 && duration > 0) {
-        tmpt = start_time + duration;
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Scheduled end time"), ctime(&tmpt));
-      } else if (start_time > 0 && stop_time <= 0 && duration <= 0
-                 && finish_time > 0) {
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td>\n",
-                _("Scheduled end time"), ctime(&finish_time));
-        fprintf(fout,
-                "<td><input type=\"text\" name=\"finish_time\" size=\"16\" /></td>"
-                "<td>%s</td></tr>\n",
-                BUTTON(NEW_SRV_ACTION_CHANGE_FINISH_TIME));
-        fprintf(fout, "</tr>\n");
-      } else if (stop_time) {
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("End time"), ctime(&stop_time));
-      }
-
-      if (start_time > 0 && stop_time <= 0 && fog_start_time > 0) {
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Standings freeze time"), ctime(&fog_start_time));
-      } else if (stop_time > 0 && duration > 0 && global->board_fog_time > 0
-                 && global->board_unfog_time > 0 && !cs->standings_updated
-                 && cs->current_time < stop_time + global->board_unfog_time) {
-        tmpt = stop_time + global->board_unfog_time;
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Standings unfreeze time"), ctime(&tmpt));
-      }
-
-      if (start_time > 0 && stop_time <= 0 && duration > 0) {
-        duration_str(0, cs->current_time, start_time, duration_buf, 0);
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Elapsed time"), duration_buf);
-        duration_str(0, start_time + duration - cs->current_time, 0,
-                     duration_buf, 0);
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Remaining time"), duration_buf);
-      }
-    }
-    fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-            "Contest load time", ctime(&cs->load_time));
-    fprintf(fout, "<tr><td>%s</td><td>%s</td></tr>\n",
-            "Server start time", ctime(&server_start_time));
-
-    fprintf(fout, "</table></form>\n");
-
-    fprintf(fout, "<hr>\n");
-
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    fprintf(fout, "%s\n",  BUTTON(NEW_SRV_ACTION_UPDATE_STANDINGS_1));
-    fprintf(fout, "%s\n", BUTTON(NEW_SRV_ACTION_RESET_1));
-    action = NEW_SRV_ACTION_SUSPEND;
-    if (cs->clients_suspended) action = NEW_SRV_ACTION_RESUME;
-    fprintf(fout, "%s\n", BUTTON(action));
-    action = NEW_SRV_ACTION_TEST_SUSPEND;
-    if (cs->testing_suspended) action = NEW_SRV_ACTION_TEST_RESUME;
-    fprintf(fout, "%s\n", BUTTON(action));
-    if (global->enable_printing) {
-      action = NEW_SRV_ACTION_PRINT_SUSPEND;
-      if (cs->printing_suspended) action = NEW_SRV_ACTION_PRINT_RESUME;
-      fprintf(fout, "%s\n", BUTTON(action));
-    }
-    if (global->score_system == SCORE_OLYMPIAD && !global->is_virtual) {
-      action = NEW_SRV_ACTION_SET_JUDGING_MODE;
-      if (!cs->accepting_mode) action = NEW_SRV_ACTION_SET_ACCEPTING_MODE;
-      fprintf(fout, "%s\n", BUTTON(action));
-    }
-    if (global->score_system == SCORE_OLYMPIAD
-        && ((!global->is_virtual && !cs->accepting_mode)
-            || (global->is_virtual && global->disable_virtual_auto_judge >0))) {
-      action = NEW_SRV_ACTION_SET_TESTING_FINISHED_FLAG;
-      if (cs->testing_finished)
-        action = NEW_SRV_ACTION_CLEAR_TESTING_FINISHED_FLAG;
-      fprintf(fout, "%s\n", BUTTON(action));
-    }
-    if (!cnts->disable_team_password) {
-      fprintf(fout, "%s\n", BUTTON(NEW_SRV_ACTION_GENERATE_PASSWORDS_1));
-      fprintf(fout, "%s\n", BUTTON(NEW_SRV_ACTION_CLEAR_PASSWORDS_1));
-    }
-    fprintf(fout, "%s\n", BUTTON(NEW_SRV_ACTION_GENERATE_REG_PASSWORDS_1));
-    fprintf(fout, "%s\n", BUTTON(NEW_SRV_ACTION_UPSOLVING_CONFIG_1));
-    fprintf(fout, "%s\n", BUTTON(NEW_SRV_ACTION_RELOAD_SERVER));
-    fprintf(fout, "</form>\n");
-  } else {
-    // judge mode
-    fprintf(fout, "<table border=\"0\">");
-
-    fprintf(fout,
-            "<tr><td>%s:</td><td>%s</td><td>&nbsp;</td><td>&nbsp;</td></tr>\n",
-            _("Server time"), ctime(&cs->current_time));
-
-    if (start_time <= 0) {
-      fprintf(fout, "<tr><td colspan=\"2\"><b>%s</b></td></tr>\n",
-              _("Contest is not started"));
-    } else {
-      fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-              _("Contest start time"), ctime(&start_time));
-    }
-
-    if (!global->is_virtual && start_time <= 0) {
-      fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-              _("Planned start time"),
-              sched_time <= 0?_("Not set"):ctime(&sched_time));
-    }
-
-    if (finish_time <= 0) {
-      if (duration > 0) {
-        duration_str(0, duration, 0, duration_buf, 0);
-      } else {
-        snprintf(duration_buf, sizeof(duration_buf), "%s", _("Unlimited"));
-      }
-
-      fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-              _("Duration"), duration_buf);
-    }
-
-    if (!global->is_virtual) {
-      if (start_time > 0 && stop_time <= 0 && duration > 0) {
-        tmpt = start_time + duration;
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Scheduled end time"), ctime(&tmpt));
-      } else if (start_time > 0 && stop_time <= 0 && duration <= 0
-                 && finish_time > 0) {
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Scheduled end time"), ctime(&finish_time));
-      } else if (stop_time) {
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("End time"), ctime(&stop_time));
-      }
-
-      if (start_time > 0 && stop_time <= 0 && fog_start_time > 0) {
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Standings freeze time"), ctime(&fog_start_time));
-      } else if (stop_time > 0 && duration > 0 && global->board_fog_time > 0
-                 && global->board_unfog_time > 0 && !cs->standings_updated
-                 && cs->current_time < stop_time + global->board_unfog_time) {
-        tmpt = stop_time + global->board_unfog_time;
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Standings unfreeze time"), ctime(&tmpt));
-      }
-
-      if (start_time > 0 && stop_time <= 0 && duration > 0) {
-        duration_str(0, cs->current_time, start_time, duration_buf, 0);
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Elapsed time"), duration_buf);
-        duration_str(0, start_time + duration - cs->current_time, 0,
-                     duration_buf, 0);
-        fprintf(fout, "<tr><td>%s:</td><td>%s</td></tr>\n",
-                _("Remaining time"), duration_buf);
-      }
-    }
-    fprintf(fout, "</table>\n");
-  }
-
-  ns_write_priv_all_runs(fout, phr, cnts, extra,
-                         filter_first_run_set, filter_first_run,
-                         filter_last_run_set, filter_last_run,
-                         filter_expr);
-
-  if (opcaps_check(phr->caps, OPCAP_SUBMIT_RUN) >= 0) {
-    if (!prob) {
-      // no problem is selected yet
-      fprintf(fout, "<hr><a name=\"submit\"></a><%s>%s</%s>\n",
-              /*cnts->priv_head_style*/ "h2",
-              _("View the problem statement and send a submission"),
-              /*cnts->priv_head_style*/ "h2");
-      html_start_form(fout, 0, phr->self_url, phr->hidden_vars);
-      fprintf(fout, "<table>\n");
-      fprintf(fout, "<tr><td>%s:</td><td><select name=\"problem\">",
-              _("Problem"));
-      for (x = 1; x <= cs->max_prob; x++) {
-        if (!(prob = cs->probs[x])) continue;
-        fprintf(fout, "<option value=\"%d\">%s - %s</option>",
-                x, prob->short_name, ARMOR(prob->long_name));
-        /*
-        if (prob->variant_num <= 0) {
-        } else {
-          for (y = 1; y <= prob->variant_num; y++) {
-            fprintf(fout, "<option value=\"%d_%d\">%s - %s, %s %d</option>",
-                    x, y, prob->short_name,  ARMOR(prob->long_name),
-                    _("Variant"), y);
-          }
-        }
-        */
-      }
-      fprintf(fout, "</select></td><td>%s</td></tr></table></form>\n",
-              ns_submit_button(bb, sizeof(bb), 0,
-                               NEW_SRV_ACTION_PRIV_SUBMIT_PAGE,
-                               _("Select problem")));
-      prob = 0;
-    } else {
-      // a problem is already selected
-      // prob and variant have correct values
-      if (variant > 0) {
-        fprintf(fout, "<hr><a name=\"submit\"></a><%s>%s %s-%s (%s %d)</%s>\n",
-                /*cnts->team_head_style*/ "h2", _("Submit a solution for"),
-                prob->short_name, ARMOR(prob->long_name), _("Variant"), variant,
-                /*cnts->team_head_style*/ "h2");
-      } else {
-        fprintf(fout, "<hr><a name=\"submit\"></a><%s>%s %s-%s</%s>\n",
-                /*cnts->team_head_style*/ "h2", _("Submit a solution for"),
-                prob->short_name,  ARMOR(prob->long_name),
-                /*cnts->team_head_style*/ "h2");
-      }
-
-      /* FIXME: handle problem XML */
-
-      /* put problem statement */
-      if (prob->statement_file[0]) {
-        if (variant > 0) {
-          prepare_insert_variant_num(variant_stmt_file,
-                                     sizeof(variant_stmt_file),
-                                     prob->statement_file, variant);
-          pw = &cs->prob_extras[prob->id].v_stmts[variant];
-          pw_path = variant_stmt_file;
-        } else {
-          pw = &cs->prob_extras[prob->id].stmt;
-          pw_path = prob->statement_file;
-        }
-        watched_file_update(pw, pw_path, cs->current_time);
-        if (!pw->text) {
-          fprintf(fout, "<big><font color=\"red\"><p>%s</p></font></big>\n",
-                  _("The problem statement is not available"));
-        } else {
-          if (prob->type == PROB_TYPE_CUSTOM) {
-            html_start_form(fout, 2, phr->self_url, phr->hidden_vars);
-            skip_start_form = 1;
-          }
-          fprintf(fout, "%s", pw->text);
-        }
-      }
-      alternatives = 0;
-      if ((prob->type == PROB_TYPE_SELECT_ONE
-           || prob->type == PROB_TYPE_SELECT_MANY)
-          && prob->alternatives_file[0]) {
-        if (variant > 0) {
-          prepare_insert_variant_num(variant_stmt_file,
-                                     sizeof(variant_stmt_file),
-                                     prob->alternatives_file, variant);
-          pw = &cs->prob_extras[prob->id].v_alts[variant];
-          pw_path = variant_stmt_file;
-        } else {
-          pw = &cs->prob_extras[prob->id].alt;
-          pw_path = prob->alternatives_file;
-        }
-        watched_file_update(pw, pw_path, cs->current_time);
-        alternatives = pw->text;
-      }
-
-      if (!skip_start_form) {
-        html_start_form(fout, 2, phr->self_url, phr->hidden_vars);
-      }
-      if (variant <= 0) {
-        html_hidden(fout, "problem", "%d", prob->id);
-      } else {
-        html_hidden(fout, "problem", "%d_%d", prob->id, variant);
-      }
-      fprintf(fout, "<table>\n");
-      if (!prob->type) {
-        fprintf(fout, "<tr><td>%s:</td><td>", _("Language"));
-        fprintf(fout, "<select name=\"lang_id\"><option value=\"\">\n");
-        for (i = 1; i <= cs->max_lang; i++) {
-          if (!cs->langs[i]) continue;
-          fprintf(fout, "<option value=\"%d\">%s - %s</option>\n",
-                  i, cs->langs[i]->short_name, ARMOR(cs->langs[i]->long_name));
-        }
-        fprintf(fout, "</select></td></tr>\n");
-
-        if (global->enable_eoln_select > 0) {
-          fprintf(fout, "<tr><td%s>%s:</td><td%s><select name=\"eoln_type\"%s>",
-                  "", "EOLN Type", "", "");
-          fprintf(fout, "<option value=\"0\"></option>");
-          fprintf(fout, "<option value=\"1\"%s>LF (Unix/MacOS)</option>", "");
-          fprintf(fout, "<option value=\"2\"%s>CRLF (Windows/DOS)</option>", "");
-          fprintf(fout, "</select></td></tr>\n");
-        }
-      }
-
-      switch (prob->type) {
-      case PROB_TYPE_STANDARD:
-      case PROB_TYPE_OUTPUT_ONLY:
-      case PROB_TYPE_TESTS:
-        fprintf(fout, "<tr><td>%s</td><td><input type=\"file\" name=\"file\"/></td></tr>\n", _("File"));
-        break;
-      case PROB_TYPE_SHORT_ANSWER:
-        fprintf(fout, "<tr><td>%s</td><td><input type=\"text\" name=\"file\"/></td></tr>\n", _("Answer"));
-        break;
-      case PROB_TYPE_TEXT_ANSWER:
-        fprintf(fout, "<tr><td colspan=\"2\"><textarea name=\"file\" rows=\"20\" cols=\"60\"></textarea></td></tr>\n");
-        break;
-      case PROB_TYPE_SELECT_ONE:
-        /* FIXME: handle problem XML */
-        if (alternatives) {
-          write_alternatives_file(fout, 1, alternatives, -1, 0, 0, 0, "b0");
-        } else if (prob->alternative) {
-          for (i = 0; prob->alternative[i]; i++) {
-            fprintf(fout, "<tr><td>%d</td><td><input type=\"radio\" name=\"file\" value=\"%d\"/></td><td>%s</td></tr>\n", i + 1, i + 1, prob->alternative[i]);
-          }
-        }
-        break;
-      case PROB_TYPE_SELECT_MANY:
-        if (alternatives) {
-          write_alternatives_file(fout, 0, alternatives, -1, 0, 0, 0, "b0");
-        } else if (prob->alternative) {
-          for (i = 0; prob->alternative[i]; i++) {
-            fprintf(fout, "<tr><td>%d</td><td><input type=\"checkbox\" name=\"ans_%d\"/></td><td>%s</td></tr>\n", i + 1, i + 1, prob->alternative[i]);
-          }
-        }
-        break;
-      case PROB_TYPE_CUSTOM:    /* form is a part of problem statement */
-        break;
-      }
-      fprintf(fout, "<tr><td>%s</td><td>%s</td></tr></table></form>\n",
-              _("Send!"), BUTTON(NEW_SRV_ACTION_SUBMIT_RUN));
-     
-      fprintf(fout, "<hr><a name=\"submit\"></a><%s>%s</%s>\n",
-              /*cnts->team_head_style*/ "h2", _("Select another problem"),
-              /*cnts->team_head_style*/ "h2");
-
-      html_start_form(fout, 0, phr->self_url, phr->hidden_vars);
-      fprintf(fout, "<table>\n");
-      fprintf(fout, "<tr><td>%s:</td><td><select name=\"problem\">",
-              _("Problem"));
-      for (x = 1; x <= cs->max_prob; x++) {
-        if (!(prob = cs->probs[x])) continue;
-        if (prob->variant_num <= 0) {
-          fprintf(fout, "<option value=\"%d\">%s - %s</option>",
-                  x, prob->short_name, ARMOR(prob->long_name));
-        } else {
-          for (y = 1; y <= prob->variant_num; y++) {
-            fprintf(fout, "<option value=\"%d_%d\">%s - %s, %s %d</option>",
-                    x, y, prob->short_name, ARMOR(prob->long_name),
-                    _("Variant"), y);
-          }
-        }
-      }
-      fprintf(fout, "</select></td><td>%s</td></tr></table></form>\n",
-              ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_MAIN_PAGE,
-                               _("Select problem")));
-      prob = 0;
-    }
-  }
-
-  if (opcaps_check(phr->caps, OPCAP_VIEW_CLAR) >= 0) {
-    ns_write_all_clars(fout, phr, cnts, extra, filter_mode_clar,
-                       filter_first_clar_str, filter_last_clar_str);
-  }
-
-  if (opcaps_check(phr->caps, OPCAP_NEW_MESSAGE) >= 0) {
-    fprintf(fout, "<hr><h2>%s</h2>", _("Compose a message to all participants"));
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    fprintf(fout, "<table>\n"
-            "<tr>"
-            "<td>%s:</td>"
-            "<td><input type=\"text\" size=\"16\" name=\"msg_dest_id\"/></td>"
-            "</tr>\n"
-            "<tr>"
-            "<td>%s:</td>"
-            "<td><input type=\"text\" size=\"32\" name=\"msg_dest_login\"/></td>"
-            "</tr>\n"
-            "<tr>"
-            "<td>%s:</td>"
-            "<td><input type=\"text\" size=\"64\" name=\"msg_subj\"/></td>"
-            "</tr>\n",
-            _("To user id"),
-            _("To user login"),
-            _("Subject"));
-    if (start_time <= 0) {
-      fprintf(fout, "<tr><td>%s</td><td><select name=\"msg_hide_flag\"><option value=\"0\">NO</option><option value=\"1\">YES</option></select></td></tr>\n",
-              _("Do not show before the contest starts?"));
-    }
-    fprintf(fout, "</table>\n"
-            "<p><textarea name=\"msg_text\" rows=\"20\" cols=\"60\">"
-            "</textarea></p>"
-            "<p>%s\n</form>\n",
-            BUTTON(NEW_SRV_ACTION_PRIV_SUBMIT_CLAR));
-  }
-
-  /* change the password */
-  fprintf(fout, "<hr><a name=\"chgpasswd\"></a>\n<%s>%s</%s>\n",
-          /*cnts->priv_head_style*/ "h2",
-          _("Change password"),
-          /*cnts->team_head_style*/ "h2");
-  html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-
-  fprintf(fout, "<table>\n"
-          "<tr><td>%s:</td><td><input type=\"password\" name=\"oldpasswd\" size=\"16\"/></td></tr>\n"
-          "<tr><td>%s:</td><td><input type=\"password\" name=\"newpasswd1\" size=\"16\"/></td></tr>\n"
-          "<tr><td>%s:</td><td><input type=\"password\" name=\"newpasswd2\" size=\"16\"/></td></tr>\n"
-          "<tr><td colspan=\"2\">%s</td></tr>\n"
-          "</table></form>",
-          _("Old password"),
-          _("New password"), _("Retype new password"),
-          BUTTON(NEW_SRV_ACTION_CHANGE_PASSWORD));
-
-#if CONF_HAS_LIBINTL - 0 == 1
-  if (cs->global->enable_l10n) {
-    fprintf(fout, "<hr><a name=\"chglanguage\"></a><%s>%s</%s>\n",
-            cnts->team_head_style, _("Change language"),
-            cnts->team_head_style);
-    html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-    fprintf(fout, "<table><tr><td>%s</td><td>", _("Change language"));
-    l10n_html_locale_select(fout, phr->locale_id);
-    fprintf(fout, "</td><td>%s</td></tr></table></form>\n",
-            BUTTON(NEW_SRV_ACTION_CHANGE_LANGUAGE));
-  }
-#endif /* CONF_HAS_LIBINTL */
-
-  if (1 /*cs->global->show_generation_time*/) {
-  gettimeofday(&phr->timestamp2, 0);
-  tdiff = ((long long) phr->timestamp2.tv_sec) * 1000000;
-  tdiff += phr->timestamp2.tv_usec;
-  tdiff -= ((long long) phr->timestamp1.tv_sec) * 1000000;
-  tdiff -= phr->timestamp1.tv_usec;
-  fprintf(fout, "<div class=\"dotted\"><p%s>%s: %lld %s</p></div>",
-          cnts->team_par_style,
-          _("Page generation time"), tdiff / 1000,
-          _("msec"));
-  }
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-  html_armor_free(&ab);
-}
-
-static void
 priv_reload_server_2(
         FILE *fout,
         struct http_request_info *phr,
@@ -9196,6 +6478,14 @@ priv_reload_server_2(
 {
 }
 
+typedef PageInterface *(*external_action_handler_t)(void);
+
+typedef int (*new_action_handler_t)(
+        PageInterface *pg,
+        FILE *log_f,
+        FILE *out_f,
+        struct http_request_info *phr);
+
 typedef void (*action_handler_t)(FILE *fout,
                                  struct http_request_info *phr,
                                  const struct contest_desc *cnts,
@@ -9203,7 +6493,6 @@ typedef void (*action_handler_t)(FILE *fout,
 
 static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
 {
-  [NEW_SRV_ACTION_VIEW_USERS] = priv_view_users_page,
   [NEW_SRV_ACTION_USERS_REMOVE_REGISTRATIONS] = priv_generic_operation,
   [NEW_SRV_ACTION_USERS_SET_PENDING] = priv_generic_operation,
   [NEW_SRV_ACTION_USERS_SET_OK] = priv_generic_operation,
@@ -9220,7 +6509,6 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_USERS_CLEAR_DISQUALIFIED] = priv_generic_operation,
   [NEW_SRV_ACTION_USERS_ADD_BY_LOGIN] = priv_generic_operation,
   [NEW_SRV_ACTION_USERS_ADD_BY_USER_ID] = priv_generic_operation,
-  [NEW_SRV_ACTION_PRIV_USERS_VIEW] = priv_view_priv_users_page,
   [NEW_SRV_ACTION_PRIV_USERS_REMOVE] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_USERS_ADD_OBSERVER] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_USERS_DEL_OBSERVER] = priv_generic_operation,
@@ -9251,10 +6539,7 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_SQUEEZE_RUNS] = priv_generic_operation,
   [NEW_SRV_ACTION_RESET_FILTER] = priv_generic_operation,
   [NEW_SRV_ACTION_RESET_CLAR_FILTER] = priv_generic_operation,
-  [NEW_SRV_ACTION_VIEW_SOURCE] = priv_generic_page,
-  [NEW_SRV_ACTION_VIEW_REPORT] = priv_generic_page,
   [NEW_SRV_ACTION_PRIV_DOWNLOAD_RUN] = priv_generic_page,
-  [NEW_SRV_ACTION_STANDINGS] = priv_generic_page,
   [NEW_SRV_ACTION_CHANGE_LANGUAGE] = priv_generic_operation,
   [NEW_SRV_ACTION_SUBMIT_RUN] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SUBMIT_CLAR] = priv_generic_operation,
@@ -9265,7 +6550,6 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_CLAR_REPLY_NO_COMMENTS] = priv_generic_operation,
   [NEW_SRV_ACTION_CLAR_REPLY_YES] = priv_generic_operation,
   [NEW_SRV_ACTION_CLAR_REPLY_NO] = priv_generic_operation,
-  [NEW_SRV_ACTION_VIEW_CLAR] = priv_generic_page,
   [NEW_SRV_ACTION_RELOAD_SERVER] = priv_generic_operation,
   [NEW_SRV_ACTION_CHANGE_STATUS] = priv_generic_operation,
   [NEW_SRV_ACTION_CHANGE_RUN_STATUS] = priv_generic_operation,
@@ -9286,7 +6570,6 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_VIEW_TEST_OUTPUT] = priv_generic_page,
   [NEW_SRV_ACTION_VIEW_TEST_ERROR] = priv_generic_page,
   [NEW_SRV_ACTION_VIEW_TEST_CHECKER] = priv_generic_page,
-  [NEW_SRV_ACTION_VIEW_AUDIT_LOG] = priv_generic_page,
   [NEW_SRV_ACTION_UPDATE_STANDINGS_2] = priv_generic_operation,
   [NEW_SRV_ACTION_UPDATE_STANDINGS_1] = priv_generic_page,
   [NEW_SRV_ACTION_RESET_2] = priv_generic_operation,
@@ -9299,8 +6582,6 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_CLEAR_PASSWORDS_2] = priv_generic_operation,
   [NEW_SRV_ACTION_VIEW_CNTS_PWDS] = priv_generic_page,
   [NEW_SRV_ACTION_VIEW_REG_PWDS] = priv_generic_page,
-  [NEW_SRV_ACTION_VIEW_USER_INFO] = priv_generic_page,
-  [NEW_SRV_ACTION_NEW_RUN_FORM] = priv_generic_page,
   [NEW_SRV_ACTION_VIEW_USER_DUMP] = priv_generic_page,
   [NEW_SRV_ACTION_USER_CHANGE_STATUS] = priv_generic_operation,
   [NEW_SRV_ACTION_NEW_RUN] = priv_generic_operation,
@@ -9325,7 +6606,6 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_SET_DISQUALIFICATION] = priv_generic_operation,
   [NEW_SRV_ACTION_LOGOUT] = priv_logout,
   [NEW_SRV_ACTION_CHANGE_PASSWORD] = priv_change_password,
-  [NEW_SRV_ACTION_VIEW_USER_REPORT] = priv_generic_page,
   [NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_1] = priv_generic_page,
   [NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_2] = priv_generic_page,
   [NEW_SRV_ACTION_UPLOAD_RUNLOG_CSV_1] = priv_generic_page,
@@ -9342,7 +6622,6 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_IGNORE_DISPLAYED_2] = priv_generic_operation,
   [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_1] = priv_generic_page,
   [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_2] = priv_generic_operation,
-  [NEW_SRV_ACTION_UPSOLVING_CONFIG_1] = priv_generic_page,
   [NEW_SRV_ACTION_UPSOLVING_CONFIG_2] = priv_generic_operation,
   [NEW_SRV_ACTION_UPSOLVING_CONFIG_3] = priv_generic_operation,
   [NEW_SRV_ACTION_UPSOLVING_CONFIG_4] = priv_generic_operation,
@@ -9363,21 +6642,15 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_PRINT_SELECTED_USER_FULL_PROTOCOL] = priv_generic_page,
   [NEW_SRV_ACTION_PRINT_SELECTED_UFC_PROTOCOL] = priv_generic_page,
   [NEW_SRV_ACTION_PRINT_PROBLEM_PROTOCOL] = priv_generic_page,
-  [NEW_SRV_ACTION_ASSIGN_CYPHERS_1] = priv_generic_page,
   [NEW_SRV_ACTION_ASSIGN_CYPHERS_2] = priv_generic_page,
   [NEW_SRV_ACTION_VIEW_EXAM_INFO] = priv_generic_page,
-  [NEW_SRV_ACTION_PRIV_SUBMIT_PAGE] = priv_submit_page,
   [NEW_SRV_ACTION_GET_FILE] = priv_get_file,
-  [NEW_SRV_ACTION_PRIO_FORM] = priv_generic_page,
   [NEW_SRV_ACTION_SET_PRIORITIES] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK] = priv_generic_operation,
-  [NEW_SRV_ACTION_VIEW_USER_IPS] = priv_generic_page,
-  [NEW_SRV_ACTION_VIEW_IP_USERS] = priv_generic_page,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED] = priv_generic_operation,
-  [NEW_SRV_ACTION_VIEW_TESTING_QUEUE] = priv_generic_page,
   [NEW_SRV_ACTION_TESTING_DELETE] = priv_generic_operation,
   [NEW_SRV_ACTION_TESTING_UP] = priv_generic_operation,
   [NEW_SRV_ACTION_TESTING_DOWN] = priv_generic_operation,
@@ -9388,20 +6661,67 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_UNMARK_DISPLAYED_2] = priv_generic_operation,
   [NEW_SRV_ACTION_SET_STAND_FILTER] = priv_generic_operation,
   [NEW_SRV_ACTION_RESET_STAND_FILTER] = priv_generic_operation,
-  [NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS] = priv_generic_page,
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_SOURCE] = priv_generic_operation,
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT] = priv_generic_operation,
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE] = priv_generic_operation,
   [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY] = priv_generic_operation,
   [NEW_SRV_ACTION_RELOAD_SERVER_2] = priv_reload_server_2,
   [NEW_SRV_ACTION_CHANGE_RUN_FIELDS] = priv_generic_operation,
-  [NEW_SRV_ACTION_PRIV_EDIT_CLAR_PAGE] = priv_generic_page,
   [NEW_SRV_ACTION_PRIV_EDIT_CLAR_ACTION] = priv_generic_operation,
-  [NEW_SRV_ACTION_PRIV_EDIT_RUN_PAGE] = priv_generic_page,
   [NEW_SRV_ACTION_PRIV_EDIT_RUN_ACTION] = priv_generic_operation, ///
   [NEW_SRV_ACTION_PING] = priv_generic_page,
   [NEW_SRV_ACTION_SUBMIT_RUN_BATCH] = priv_generic_page,
 };
+
+static const unsigned char * const external_priv_action_names[NEW_SRV_ACTION_LAST] =
+{
+  [NEW_SRV_ACTION_MAIN_PAGE] = "priv_main_page",
+  [NEW_SRV_ACTION_VIEW_USERS] = "priv_users_page",
+  [NEW_SRV_ACTION_PRIV_USERS_VIEW] = "priv_priv_users_page",
+  [NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_1] = "priv_download_runs_confirmation_page",
+  [NEW_SRV_ACTION_VIEW_CLAR] = "priv_clar_page",
+  [NEW_SRV_ACTION_PRIV_EDIT_RUN_PAGE] = "priv_edit_run_page",
+  [NEW_SRV_ACTION_VIEW_EXAM_INFO] = "priv_exam_info_page",
+  [NEW_SRV_ACTION_VIEW_ONLINE_USERS] = "priv_online_users_page",
+  [NEW_SRV_ACTION_VIEW_CNTS_PWDS] = "priv_passwords_page",
+  [NEW_SRV_ACTION_VIEW_USER_IPS] = "priv_user_ips_page",
+  [NEW_SRV_ACTION_VIEW_IP_USERS] = "priv_ip_users_page",
+  [NEW_SRV_ACTION_PRIV_EDIT_CLAR_PAGE] = "priv_edit_clar_page",
+  [NEW_SRV_ACTION_NEW_RUN_FORM] = "priv_new_run_page",
+  [NEW_SRV_ACTION_VIEW_USER_INFO] = "priv_user_info_page",
+  [NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS] = "priv_settings_page",
+  [NEW_SRV_ACTION_PRIO_FORM] = "priv_priorities_page",
+  [NEW_SRV_ACTION_VIEW_SOURCE] = "priv_source_page",
+  [NEW_SRV_ACTION_STANDINGS] = "priv_standings_page",
+  [NEW_SRV_ACTION_ASSIGN_CYPHERS_1] = "priv_assign_cyphers_page",
+  [NEW_SRV_ACTION_PRIV_SUBMIT_PAGE] = "priv_submit_page",
+  [NEW_SRV_ACTION_VIEW_AUDIT_LOG] = "priv_audit_log_page",
+  [NEW_SRV_ACTION_UPSOLVING_CONFIG_1] = "priv_upsolving_page",
+  [NEW_SRV_ACTION_VIEW_REPORT] = "priv_report_page",
+  [NEW_SRV_ACTION_VIEW_TESTING_QUEUE] = "priv_testing_queue_page",
+  [NEW_SRV_ACTION_LOGIN_PAGE] = "priv_login_page",
+};
+
+static const int external_priv_action_aliases[NEW_SRV_ACTION_LAST] =
+{
+  [NEW_SRV_ACTION_VIEW_REG_PWDS] = NEW_SRV_ACTION_VIEW_CNTS_PWDS,
+  [NEW_SRV_ACTION_VIEW_USER_REPORT] = NEW_SRV_ACTION_VIEW_REPORT,
+};
+
+static const unsigned char * const external_priv_error_names[NEW_SRV_ERR_LAST] =
+{
+  [NEW_SRV_ERR_UNKNOWN_ERROR] = "priv_error_unknown",
+};
+
+static ExternalActionState *external_priv_action_states[NEW_SRV_ACTION_LAST];
+static ExternalActionState *external_priv_error_states[NEW_SRV_ERR_LAST];
+
+static const unsigned char * const external_unpriv_error_names[NEW_SRV_ERR_LAST] =
+{
+  [NEW_SRV_ERR_UNKNOWN_ERROR] = "unpriv_error_unknown",
+};
+static ExternalActionState *external_unpriv_action_states[NEW_SRV_ACTION_LAST];
+static ExternalActionState *external_unpriv_error_states[NEW_SRV_ERR_LAST];
 
 static unsigned char *
 read_file_range(
@@ -9431,6 +6751,101 @@ read_file_range(
 }
 
 static void
+error_page(
+        FILE *out_f,
+        struct http_request_info *phr,
+        int priv_mode,
+        int error_code)
+{
+  const unsigned char * const * error_names = external_unpriv_error_names;
+  ExternalActionState **error_states = external_unpriv_error_states;
+
+  if (phr->log_t && !*phr->log_t) {
+    xfree(phr->log_t); phr->log_t = NULL; phr->log_z = 0;
+  }
+
+  if (error_code < 0) error_code = -error_code;
+  if (error_code <= 0 || error_code >= NEW_SRV_ERR_LAST) error_code = NEW_SRV_ERR_UNKNOWN_ERROR;
+  phr->error_code = error_code;
+
+  if (priv_mode) {
+    error_names = external_priv_error_names;
+    error_states = external_priv_error_states;
+  }
+
+  const unsigned char *error_name = error_names[error_code];
+  if (!error_name) error_name = error_names[NEW_SRV_ERR_UNKNOWN_ERROR];
+  if (!error_name) {
+    return ns_html_error(out_f, phr, priv_mode, error_code);
+  }
+  error_states[error_code] = external_action_load(error_states[error_code],
+                                                  "csp/contests",
+                                                  error_name,
+                                                  "csp_get_",
+                                                  phr->current_time);
+  if (!error_states[error_code] || !error_states[error_code]->action_handler) {
+    return ns_html_error(out_f, phr, priv_mode, error_code);
+  }
+  PageInterface *pg = ((external_action_handler_t) error_states[error_code]->action_handler)();
+  if (!pg) {
+    return ns_html_error(out_f, phr, priv_mode, error_code);
+  }
+
+  snprintf(phr->content_type, sizeof(phr->content_type), "text/html; charset=%s", EJUDGE_CHARSET);
+  pg->ops->render(pg, NULL, out_f, phr);
+  xfree(phr->log_t); phr->log_t = NULL;
+  phr->log_z = 0;
+}
+
+static int
+priv_external_action(FILE *out_f, struct http_request_info *phr)
+{
+  int action = phr->action;
+  if (external_priv_action_aliases[action] > 0) action = external_priv_action_aliases[action];
+
+  if (external_priv_action_names[action]) {
+    external_priv_action_states[action] = external_action_load(external_priv_action_states[action],
+                                                               "csp/contests",
+                                                               external_priv_action_names[action],
+                                                               "csp_get_",
+                                                               phr->current_time);
+  }
+
+  if (external_priv_action_states[action] && external_priv_action_states[action]->action_handler) {
+    PageInterface *pg = ((external_action_handler_t) external_priv_action_states[action]->action_handler)();
+    
+    if (pg->ops->execute) {
+      int r = pg->ops->execute(pg, phr->log_f, phr);
+      if (r < 0) {
+        error_page(out_f, phr, 0, -r);
+        goto cleanup;
+      }
+    }
+
+    if (pg->ops->render) {
+      snprintf(phr->content_type, sizeof(phr->content_type), "text/html; charset=%s", EJUDGE_CHARSET);
+      int r = pg->ops->render(pg, phr->log_f, out_f, phr);
+      if (r < 0) {
+        error_page(out_f, phr, 0, -r);
+        goto cleanup;
+      }
+    }
+
+    if (pg->ops->destroy) {
+      pg->ops->destroy(pg);
+      pg = NULL;
+    }
+
+    goto cleanup;
+  }
+
+  return 0;
+
+cleanup:
+  return 1;
+}
+
+static void
 privileged_entry_point(
         FILE *fout,
         struct http_request_info *phr)
@@ -9446,6 +6861,8 @@ privileged_entry_point(
   long long log_file_pos_2 = -1LL;
   unsigned char *msg = NULL;
 
+  phr->log_f = open_memstream(&phr->log_t, &phr->log_z);
+
   if (phr->action == NEW_SRV_ACTION_COOKIE_LOGIN)
     return privileged_page_cookie_login(fout, phr);
 
@@ -9453,8 +6870,10 @@ privileged_entry_point(
     return privileged_page_login(fout, phr);
 
   // validate cookie
-  if (ns_open_ul_connection(phr->fw_state) < 0)
-    return ns_html_err_ul_server_down(fout, phr, 1, 0);
+  if (ns_open_ul_connection(phr->fw_state) < 0) {
+    error_page(fout, phr, 1, NEW_SRV_ERR_USERLIST_SERVER_DOWN);
+    goto cleanup;
+  }
   if ((r = userlist_clnt_get_cookie(ul_conn, ULS_PRIV_GET_COOKIE,
                                     &phr->ip, phr->ssl_flag,
                                     phr->session_id,
@@ -9464,64 +6883,94 @@ privileged_entry_point(
                                     &phr->login, &phr->name)) < 0) {
     switch (-r) {
     case ULS_ERR_NO_COOKIE:
-      return ns_html_err_inv_session(fout, phr, 1,
-                                     "priv_login failed: %s",
-                                     userlist_strerror(-r));
+      fprintf(phr->log_f, "priv_get_cookie failed: %s\n", userlist_strerror(-r));
+      error_page(fout, phr, 1, NEW_SRV_ERR_INV_SESSION);
+      goto cleanup;
     case ULS_ERR_DISCONNECT:
-      return ns_html_err_ul_server_down(fout, phr, 1, 0);
+      error_page(fout, phr, 1, NEW_SRV_ERR_USERLIST_SERVER_DOWN);
+      goto cleanup;
     default:
-      return ns_html_err_internal_error(fout, phr, 1, "priv_login failed: %s",
-                                        userlist_strerror(-r));
+      fprintf(phr->log_f, "priv_get_cookie failed: %s\n", userlist_strerror(-r));
+      error_page(fout, phr, 1, NEW_SRV_ERR_INTERNAL);
+      goto cleanup;
     }
   }
 
-  if (phr->contest_id < 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts)
-    return ns_html_err_no_perm(fout, phr, 1, "invalid contest_id %d",
-                               phr->contest_id);
-  if (!cnts->managed)
-    return ns_html_err_inv_param(fout, phr, 1, "contest is not managed");
+  if (phr->contest_id < 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts) {
+    fprintf(phr->log_f, "invalid contest_id %d", phr->contest_id);
+    error_page(fout, phr, 1, NEW_SRV_ERR_INV_CONTEST_ID);
+    goto cleanup;
+  }
+  if (!cnts->managed) {
+    fprintf(phr->log_f, "contest is not managed");
+    error_page(fout, phr, 1, NEW_SRV_ERR_INV_CONTEST_ID);
+    goto cleanup;
+  }
   extra = ns_get_contest_extra(phr->contest_id);
   ASSERT(extra);
+
+  phr->cnts = cnts;
+  phr->extra = extra;
 
   // analyze IP limitations
   if (phr->role == USER_ROLE_ADMIN) {
     // as for the master program
-    if (!contests_check_master_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
-      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag],
-                                 xml_unparse_ipv6(&phr->ip), phr->contest_id);
+    if (!contests_check_master_ip(phr->contest_id, &phr->ip, phr->ssl_flag)) {
+      fprintf(phr->log_f, "%s://%s is not allowed for MASTER for contest %d",
+              ns_ssl_flag_str[phr->ssl_flag],
+              xml_unparse_ipv6(&phr->ip), phr->contest_id);
+      error_page(fout, phr, 1, NEW_SRV_ERR_PERMISSION_DENIED);
+      goto cleanup;
+    }
   } else {
     // as for judge program
-    if (!contests_check_judge_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
-      return ns_html_err_no_perm(fout, phr, 1, "%s://%s is not allowed for MASTER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
+    if (!contests_check_judge_ip(phr->contest_id, &phr->ip, phr->ssl_flag)) {
+      fprintf(phr->log_f, "%s://%s is not allowed for JUDGE for contest %d",
+              ns_ssl_flag_str[phr->ssl_flag],
+              xml_unparse_ipv6(&phr->ip), phr->contest_id);
+      error_page(fout, phr, 1, NEW_SRV_ERR_PERMISSION_DENIED);
+      goto cleanup;
+    }
   }
 
   // analyze permissions
-  if (phr->role <= 0 || phr->role >= USER_ROLE_LAST)
-    return ns_html_err_no_perm(fout, phr, 1, "invalid role %d", phr->role);
+  if (phr->role <= 0 || phr->role >= USER_ROLE_LAST) {
+    fprintf(phr->log_f, "invalid role %d", phr->role);
+    error_page(fout, phr, 1, NEW_SRV_ERR_PERMISSION_DENIED);
+    goto cleanup;
+  }
   if (phr->role == USER_ROLE_ADMIN) {
     // as for the master program
     if (opcaps_find(&cnts->capabilities, phr->login, &caps) < 0
-        || opcaps_check(caps, OPCAP_MASTER_LOGIN) < 0)
-      return ns_html_err_no_perm(fout, phr, 1, "user %s does not have MASTER_LOGIN bit for contest %d", phr->login, phr->contest_id);
+        || opcaps_check(caps, OPCAP_MASTER_LOGIN) < 0) {
+      fprintf(phr->log_f, "user %s does not have MASTER_LOGIN bit for contest %d",
+              phr->login, phr->contest_id);
+      error_page(fout, phr, 1, NEW_SRV_ERR_PERMISSION_DENIED);
+      goto cleanup;
+    }
   } else if (phr->role == USER_ROLE_JUDGE) {
     // as for the judge program
     if (opcaps_find(&cnts->capabilities, phr->login, &caps) < 0
-        || opcaps_check(caps, OPCAP_JUDGE_LOGIN) < 0)
-      return ns_html_err_no_perm(fout, phr, 1, "user %s does not have JUDGE_LOGIN bit for contest %d", phr->login, phr->contest_id);
+        || opcaps_check(caps, OPCAP_JUDGE_LOGIN) < 0) {
+      fprintf(phr->log_f, "user %s does not have JUDGE_LOGIN bit for contest %d",
+              phr->login, phr->contest_id);
+      error_page(fout, phr, 1, NEW_SRV_ERR_PERMISSION_DENIED);
+      goto cleanup;
+    }
   } else {
     // user privileges checked locally
-    if (nsdb_check_role(phr->user_id, phr->contest_id, phr->role) < 0)
-      return ns_html_err_no_perm(fout, phr, 1, "user %s has no permission to login as role %d for contest %d", phr->login, phr->role, phr->contest_id);
+    if (nsdb_check_role(phr->user_id, phr->contest_id, phr->role) < 0) {
+      fprintf(phr->log_f, "user %s has no permission to login as role %d for contest %d",
+              phr->login, phr->role, phr->contest_id);
+      error_page(fout, phr, 1, NEW_SRV_ERR_PERMISSION_DENIED);
+      goto cleanup;
+    }
   }
 
   if (ejudge_config->new_server_log && ejudge_config->new_server_log[0]) {
     log_file_pos_1 = generic_file_size(NULL, ejudge_config->new_server_log, NULL);
   }
 
-  watched_file_update(&extra->priv_header, cnts->priv_header_file, cur_time);
-  watched_file_update(&extra->priv_footer, cnts->priv_footer_file, cur_time);
-  extra->header_txt = extra->priv_header.text;
-  extra->footer_txt = extra->priv_footer.text;
   if (!extra->header_txt || !extra->footer_txt) {
     extra->header_txt = ns_fancy_priv_header;
     extra->footer_txt = ns_fancy_priv_footer;
@@ -9571,23 +7020,37 @@ privileged_entry_point(
     }
     ns_html_err_cnts_unavailable(fout, phr, 0, msg, 0);
     xfree(msg);
-    return;
+    goto cleanup;
   }
 
   extra->serve_state->current_time = time(0);
   ns_check_contest_events(extra->serve_state, cnts);
   
+  if (phr->action <= 0 || phr->action >= NEW_SRV_ACTION_LAST) {
+    phr->action = NEW_SRV_ACTION_MAIN_PAGE;
+  }
+  if (!external_priv_action_names[phr->action] && !external_priv_action_aliases[phr->action] && !actions_table[phr->action]) {
+    phr->action = NEW_SRV_ACTION_MAIN_PAGE;
+  }
+
+  if (priv_external_action(fout, phr) > 0) goto cleanup;
+
   if (phr->action > 0 && phr->action < NEW_SRV_ACTION_LAST
       && actions_table[phr->action]) {
     actions_table[phr->action](fout, phr, cnts, extra);
   } else {
-    if (phr->action < 0 || phr->action >= NEW_SRV_ACTION_LAST)
-      phr->action = 0;
-    priv_main_page(fout, phr, cnts, extra);
+    html_error_status_page(fout, phr, cnts, extra, "action is undefined", 0, 0);
   }
+
+cleanup:
+  if (phr->log_f) fclose(phr->log_f);
+  free(phr->log_t);
+  phr->log_f = NULL;
+  phr->log_t = NULL;
+  phr->log_z = 0;
 }
 
-static void
+void
 unpriv_load_html_style(struct http_request_info *phr,
                        const struct contest_desc *cnts,
                        struct contest_extra **p_extra,
@@ -9606,15 +7069,7 @@ unpriv_load_html_style(struct http_request_info *phr,
   ASSERT(extra);
 
   cur_time = time(0);
-  watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-  watched_file_update(&extra->menu_1, cnts->team_menu_1_file, cur_time);
-  watched_file_update(&extra->menu_2, cnts->team_menu_2_file, cur_time);
-  watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-  watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
   watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-  extra->header_txt = extra->header.text;
-  extra->footer_txt = extra->footer.text;
-  extra->separator_txt = extra->separator.text;
   extra->copyright_txt = extra->copyright.text;
   if (!extra->header_txt || !extra->footer_txt || !extra->separator_txt) {
     extra->header_txt = ns_fancy_header;
@@ -9681,7 +7136,7 @@ unpriv_parse_run_id(FILE *fout, struct http_request_info *phr,
   const unsigned char *s = 0, *errmsg = 0;
   unsigned char msgbuf[1024];
   
-  if (!(n = ns_cgi_param(phr, "run_id", &s))) {
+  if (!(n = hr_cgi_param(phr, "run_id", &s))) {
     errmsg = ns_strerror_r(msgbuf, sizeof(msgbuf),
                            NEW_SRV_ERR_RUN_ID_UNDEFINED);
     goto failure;
@@ -9711,501 +7166,49 @@ unpriv_parse_run_id(FILE *fout, struct http_request_info *phr,
   return -1;
 }
 
-/* FIXME: this should be moved to `new-register' part */
-static void
-unpriv_page_forgot_password_1(FILE *fout, struct http_request_info *phr,
-                              int orig_locale_id)
+int
+ns_unpriv_parse_run_id(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra,
+        int *p_run_id,
+        struct run_entry *pe)
 {
-  const struct contest_desc *cnts = 0;
-  struct contest_extra *extra = 0;
-  time_t cur_time = 0;
-  unsigned char bb[1024];
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-
-  if (phr->contest_id <= 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest_id is invalid");
-  if (orig_locale_id < 0 && cnts->default_locale_num >= 0)
-    phr->locale_id = cnts->default_locale_num;
-  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
-    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
-  if (cnts->closed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is closed", cnts->id);
-  if (!cnts->managed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is not managed",
-                                             cnts->id);
-  if (!cnts->enable_password_recovery
-      || (cnts->simple_registration && !cnts->send_passwd_email))
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d password recovery disabled",
-                                             cnts->id);
-
-  unpriv_load_html_style(phr, cnts, &extra, &cur_time);
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            _("Lost password recovery [%s]"), extra->contest_arm);
-
-  // change language button
-  fprintf(fout, "<div class=\"user_actions\"><table class=\"menu\"><tr>\n");
-  html_start_form(fout, 1, phr->self_url, "");
-  html_hidden(fout, "contest_id", "%d", phr->contest_id);
-  html_hidden(fout, "action", "%d", NEW_SRV_ACTION_FORGOT_PASSWORD_1);
-  if (cnts->disable_locale_change) 
-    html_hidden(fout, "locale_id", "%d", phr->locale_id);
-
-  if (!cnts->disable_locale_change) {
-    fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s: ",
-            _("language"));
-    l10n_html_locale_select(fout, phr->locale_id);
-    fprintf(fout, "</div></td>\n");
-  }
-
-  fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s</div></td>\n", ns_submit_button(bb, sizeof(bb), "submit", 0, _("Change Language")));
-
-  fprintf(fout, "</tr></table></div>\n"
-          "<div class=\"white_empty_block\">&nbsp;</div>\n"
-          "<div class=\"contest_actions\"><table class=\"menu\"><tr>\n");
-
-  fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td></tr></table></div>\n");
-
-  //fprintf(fout, "<div class=\"l13\">\n");
-  if (extra->separator_txt && *extra->separator_txt)
-    ns_separator(fout, extra->separator_txt, cnts);
-
-  fprintf(fout, _("<p class=\"fixed_width\">Password recovery requires several steps. Now, please, specify the <b>login</b> and the <b>e-mail</b>, which was specified when the login was created.</p>\n<p class=\"fixed_width\">Note, that automatic password recovery is not possible for invisible, banned, locked, or privileged users!</p>\n"));
-
-  html_start_form(fout, 1, phr->self_url, "");
-  html_hidden(fout, "contest_id", "%d", phr->contest_id);
-  fprintf(fout, "<table><tr><td class=\"menu\">%s:</td><td class=\"menu\">%s</td></tr>\n",
-          _("Login"), html_input_text(bb, sizeof(bb), "login", 16, 0, 0));
-  fprintf(fout, "<tr><td class=\"menu\">%s:</td><td class=\"menu\">%s</td></tr>\n",
-          _("E-mail"), html_input_text(bb, sizeof(bb), "email", 16, 0, NULL));
-  fprintf(fout, "<tr><td class=\"menu\">&nbsp;</td><td class=\"menu\">%s</td></tr></table></form>\n",
-          BUTTON(NEW_SRV_ACTION_FORGOT_PASSWORD_2));
-
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-  html_armor_free(&ab);
+  return unpriv_parse_run_id(fout, phr, cnts, extra, p_run_id, pe);
 }
 
-/* FIXME: this should be moved to `new-register' part */
-static void
-unpriv_page_forgot_password_2(FILE *fout, struct http_request_info *phr,
-                              int orig_locale_id)
-{
-  const struct contest_desc *cnts = 0;
-  struct contest_extra *extra = 0;
-  time_t cur_time;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  const unsigned char *login = 0, *email = 0;
-  int r;
-  FILE *log_f = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
-
-  if (phr->contest_id <= 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts)
-    return ns_html_err_service_not_available(fout, phr, 0, "contest_id is invalid");
-  if (orig_locale_id < 0 && cnts->default_locale_num >= 0)
-    phr->locale_id = cnts->default_locale_num;
-  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
-    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
-  if (cnts->closed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is closed", cnts->id);
-  if (!cnts->managed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is not managed",
-                                             cnts->id);
-  if (!cnts->enable_password_recovery
-      || (cnts->simple_registration && !cnts->send_passwd_email))
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d password recovery disabled",
-                                             cnts->id);
-
-  if (ns_cgi_param(phr, "login", &login) <= 0) {
-    return ns_html_err_inv_param(fout, phr, 0, "login is not specified");
-  }
-  if (ns_cgi_param(phr, "email", &email) <= 0) {
-    return ns_html_err_inv_param(fout, phr, 0, "email is not specified");
-  }
-
-  unpriv_load_html_style(phr, cnts, &extra, &cur_time);
-
-  if (ns_open_ul_connection(phr->fw_state) < 0) {
-    ns_html_err_ul_server_down(fout, phr, 0, 0);
-    goto cleanup;
-  }
-  r = userlist_clnt_register_new(ul_conn, ULS_RECOVER_PASSWORD_1,
-                                 &phr->ip, phr->ssl_flag,
-                                 phr->contest_id,
-                                 phr->locale_id,
-                                 NEW_SRV_ACTION_FORGOT_PASSWORD_3,
-                                 login, email, phr->self_url);
-
-  if (r < 0) {
-    log_f = open_memstream(&log_txt, &log_len);
-
-    if (r == -ULS_ERR_EMAIL_FAILED) {
-      fprintf(log_f, "%s",
-              _("The server was unable to send a registration e-mail\n"
-                "to the specified address. This is probably due\n"
-                "to heavy server load rather than to an invalid\n"
-                "e-mail address. You should try to register later.\n"));
-    } else {
-      fprintf(log_f, gettext(userlist_strerror(-r)));
-    }
-
-    close_memstream(log_f); log_f = 0;
-
-    l10n_setlocale(phr->locale_id);
-    ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-              phr->client_key,
-              _("Password recovery error"));
-    fprintf(fout, "%s", ns_fancy_empty_status);
-    if (extra->separator_txt && *extra->separator_txt)
-      ns_separator(fout, extra->separator_txt, cnts);
-    fprintf(fout, "<p>Password recovery is not possible because of the following error.</p>\n");
-    //fprintf(fout, "%s", extra->separator_txt);
-    fprintf(fout, "<font color=\"red\"><pre>%s</pre></font>\n", ARMOR(log_txt));
-    ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-    l10n_setlocale(0);
-    goto cleanup;
-  }
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            _("Password recovery, stage 1 [%s, %s]"),
-            ARMOR(login), extra->contest_arm);
-  fprintf(fout, "%s", ns_fancy_empty_status);
-  if (extra->separator_txt && *extra->separator_txt)
-    ns_separator(fout, extra->separator_txt, cnts);
-
-  fprintf(fout, _("<p class=\"fixed_width\">First stage of password recovery is successful. You should receive an e-mail message with further instructions. <b>Note,</b> that you should confirm password recovery in 24 hours, or operation will be cancelled.</p>"));
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  if (log_f) fclose(log_f);
-  xfree(log_txt);
-  html_armor_free(&ab);
-}
-
-/* FIXME: this should be moved to `new-register' part */
-static void
-unpriv_page_forgot_password_3(FILE *fout, struct http_request_info *phr,
-                              int orig_locale_id)
-{
-  const struct contest_desc *cnts = 0;
-  struct contest_extra *extra = 0;
-  time_t cur_time = 0;
-  int user_id = 0;
-  unsigned char *login = 0, *name = 0, *passwd = 0;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  int r, regstatus = -1, blen;
-  FILE *log_f = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
-  unsigned char bb[1024];
-  const unsigned char *s = 0;
-  unsigned char urlbuf[1024];
-
-  if (phr->contest_id <= 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts)
-    return ns_html_err_service_not_available(fout, phr, 0, "contest_id is invalid");
-  if (orig_locale_id < 0 || cnts->default_locale_num >= 0)
-    phr->locale_id = cnts->default_locale_num;
-  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
-    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
-  if (cnts->closed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is closed", cnts->id);
-  if (!cnts->managed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is not managed",
-                                             cnts->id);
-  if (!cnts->enable_password_recovery
-      || (cnts->simple_registration && !cnts->send_passwd_email))
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d password recovery disabled",
-                                             cnts->id);
-
-  unpriv_load_html_style(phr, cnts, &extra, &cur_time);
-
-  if (ns_open_ul_connection(phr->fw_state) < 0) {
-    ns_html_err_ul_server_down(fout, phr, 0, 0);
-    goto cleanup;
-  }
-  r = userlist_clnt_recover_passwd_2(ul_conn, ULS_RECOVER_PASSWORD_2,
-                                     &phr->ip, phr->ssl_flag,
-                                     phr->contest_id, phr->session_id,
-                                     &user_id, &regstatus, 
-                                     &login, &name, &passwd);
-
-  if (r < 0) {
-    log_f = open_memstream(&log_txt, &log_len);
-
-    if (r == -ULS_ERR_EMAIL_FAILED) {
-      fprintf(log_f, "%s",
-              _("The server was unable to send a registration e-mail\n"
-                "to the specified address. This is probably due\n"
-                "to heavy server load rather than to an invalid\n"
-                "e-mail address. You should try to register later.\n"));
-    } else {
-      fprintf(log_f, gettext(userlist_strerror(-r)));
-    }
-
-    close_memstream(log_f); log_f = 0;
-
-    l10n_setlocale(phr->locale_id);
-    ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-              phr->client_key,
-              _("Password recovery error"));
-    fprintf(fout, "%s", ns_fancy_empty_status);
-    if (extra->separator_txt && *extra->separator_txt)
-      ns_separator(fout, extra->separator_txt, cnts);
-    fprintf(fout, "<p>Password recovery is not possible because of the following error.</p>\n");
-    //fprintf(fout, "%s", extra->separator_txt);
-    fprintf(fout, "<font color=\"red\"><pre>%s</pre></font>\n", ARMOR(log_txt));
-    ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-    l10n_setlocale(0);
-    goto cleanup;
-  }
-
-  s = name;
-  if (!s || !*s) s = login;
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            _("Password recovery completed [%s, %s]"),
-            ARMOR(s), extra->contest_arm);
-  fprintf(fout, "%s", ns_fancy_empty_status);
-  if (extra->separator_txt && *extra->separator_txt)
-    ns_separator(fout, extra->separator_txt, cnts);
-
-  fprintf(fout, _("<p>New password is generated.</p>"));
-  fprintf(fout, "<table><tr><td class=\"menu\">%s</td><td class=\"menu\"><tt>%s</tt></td></tr>\n",
-          _("Login"), ARMOR(login));
-  fprintf(fout, "<tr><td class=\"menu\">%s</td><td class=\"menu\"><tt>%s</tt></td></tr></table>\n", _("Password"), ARMOR(passwd));
-
-  if (regstatus >= 0) {
-    snprintf(urlbuf, sizeof(urlbuf), "%s", phr->self_url);
-  } else if (cnts->register_url) {
-    snprintf(urlbuf, sizeof(urlbuf), "%s", cnts->register_url);
-  } else {
-    snprintf(bb, sizeof(bb), "%s", phr->self_url);
-    blen = strlen(bb);
-    while (blen > 0 && bb[blen - 1] != '/') blen--;
-    bb[blen] = 0;
-    snprintf(urlbuf, sizeof(urlbuf), "%snew-register", bb);
-  }
-
-  html_start_form(fout, 1, urlbuf, "");
-  html_hidden(fout, "contest_id", "%d", phr->contest_id);
-  html_hidden(fout, "role", "%d", 0);
-  html_hidden(fout, "locale_id", "%d", phr->locale_id);
-  if (regstatus < 0) {
-    html_hidden(fout, "action", "%d", NEW_SRV_ACTION_REG_LOGIN);
-  }
-  fprintf(fout, "<table><tr><td class=\"menu\">%s:</td><td class=\"menu\">%s</td></tr>\n",
-          _("Login"), html_input_text(bb, sizeof(bb), "login", 16, 0, "%s", ARMOR(login)));
-  fprintf(fout, "<tr><td class=\"menu\">%s:</td><td class=\"menu\"><input type=\"password\" size=\"16\" name=\"password\" value=\"%s\"/></td></tr>\n",
-          _("Password"), ARMOR(passwd));
-  fprintf(fout, "<tr><td class=\"menu\">&nbsp;</td><td class=\"menu\">%s</td></tr></table></form>\n",
-          ns_submit_button(bb, sizeof(bb), "submit", 0, _("Submit")));
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- cleanup:
-  xfree(login);
-  xfree(name);
-  xfree(passwd);
-  if (log_f) fclose(log_f);
-  xfree(log_txt);
-  html_armor_free(&ab);
-}
+static int
+unpriv_external_action(FILE *out_f, struct http_request_info *phr);
 
 void
-unprivileged_page_login_page(FILE *fout, struct http_request_info *phr,
-                             int orig_locale_id)
+unprivileged_page_login_page(FILE *fout, struct http_request_info *phr)
 {
-  const struct contest_desc *cnts = 0;
-  struct contest_extra *extra = 0;
-  time_t cur_time;
-  const unsigned char *s, *ss;
-  unsigned char bb[1024];
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  int vis_flag = 0;
-
-  if (phr->contest_id <= 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts)
-    return ns_html_err_service_not_available(fout, phr, 0, "contest_id is invalid");
-  if (orig_locale_id < 0 && cnts->default_locale_num >= 0)
-    phr->locale_id = cnts->default_locale_num;
-  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
-    return ns_html_err_service_not_available(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
-  if (cnts->closed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is closed", cnts->id);
-  if (!cnts->managed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is not managed",
-                                             cnts->id);
-
-  extra = ns_get_contest_extra(phr->contest_id);
-  ASSERT(extra);
-
-  cur_time = time(0);
-  watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-  watched_file_update(&extra->menu_1, cnts->team_menu_1_file, cur_time);
-  watched_file_update(&extra->menu_2, cnts->team_menu_2_file, cur_time);
-  watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-  watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
-  watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-  extra->header_txt = extra->header.text;
-  extra->menu_1_txt = extra->menu_1.text;
-  extra->menu_2_txt = extra->menu_2.text;
-  extra->footer_txt = extra->footer.text;
-  extra->separator_txt = extra->separator.text;
-  extra->copyright_txt = extra->copyright.text;
-  if (!extra->header_txt || !extra->footer_txt || !extra->separator_txt) {
-    extra->header_txt = ns_fancy_header;
-    if (extra->copyright_txt) extra->footer_txt = ns_fancy_footer_2;
-    else extra->footer_txt = ns_fancy_footer;
-    extra->separator_txt = ns_fancy_separator;
-  }
-
-  if (extra->contest_arm) xfree(extra->contest_arm);
-  if (phr->locale_id == 0 && cnts->name_en) {
-    extra->contest_arm = html_armor_string_dup(cnts->name_en);
-  } else {
-    extra->contest_arm = html_armor_string_dup(cnts->name);
-  }
-
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
-            phr->client_key,
-            _("User login [%s]"), extra->contest_arm);
-
-
-  html_start_form(fout, 1, phr->self_url, "");
-  fprintf(fout, "<div class=\"user_actions\">");
-  html_hidden(fout, "contest_id", "%d", phr->contest_id);
-  html_hidden(fout, "role", "%s", "0");
-  if (cnts->disable_locale_change)
-    html_hidden(fout, "locale_id", "%d", phr->locale_id);
-  fprintf(fout, "<table class=\"menu\"><tr>\n");
-
-  ss = 0;
-  if (ns_cgi_param(phr, "login", &s) > 0) ss = ARMOR(s);
-  if (!ss) ss = "";
-  fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s: %s</div></td>\n", _("login"),
-          html_input_text(bb, sizeof(bb), "login", 8, 0, "%s", ss));
-
-  ss = 0;
-  if (ns_cgi_param(phr, "password", &s) > 0) ss = ARMOR(s);
-  if (!ss) ss = "";
-  fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s: <input type=\"password\" size=\"8\" name=\"password\" value=\"%s\"/></div></td>\n", _("password"), ss);
-
-  if (!cnts->disable_locale_change) {
-    fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s: ",
-            _("language"));
-    l10n_html_locale_select(fout, phr->locale_id);
-    fprintf(fout, "</div></td>\n");
-  }
-
-  fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s</div></td>\n", ns_submit_button(bb, sizeof(bb), "submit", 0, _("Log in")));
-
-  fprintf(fout, "</tr></table>");
-  fprintf(fout, "</div></form>\n"
-          "<div class=\"white_empty_block\">&nbsp;</div>\n"
-          "<div class=\"contest_actions\"><table class=\"menu\"><tr>\n");
-
-  if (cnts && cnts->assign_logins && cnts->force_registration
-      && cnts->register_url
-      && (cnts->reg_deadline <= 0 || cur_time < cnts->reg_deadline)) {
-    fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">");
-    if (ejudge_config->disable_new_users <= 0) {
-      if (cnts->assign_logins) {
-        fprintf(fout,
-                "<a class=\"menu\" href=\"%s?contest_id=%d&amp;locale_id=%d&amp;action=%d\">%s</a>",
-                cnts->register_url, phr->contest_id, phr->locale_id,
-                NEW_SRV_ACTION_REG_CREATE_ACCOUNT_PAGE,
-                _("Registration"));
-      } else {
-        fprintf(fout,
-                "<a class=\"menu\" href=\"%s?contest_id=%d&amp;locale_id=%d&amp;action=2\">%s</a>",
-                cnts->register_url, phr->contest_id, phr->locale_id,
-                _("Registration"));
-      }
-    }
-    fprintf(fout, "</div></td>\n");
-    vis_flag++;
-  } else if (cnts && cnts->register_url
-             && (cnts->reg_deadline <= 0 || cur_time < cnts->reg_deadline)) {
-    fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">");
-    if (ejudge_config->disable_new_users <= 0) {
-      fprintf(fout,
-              "<a class=\"menu\" href=\"%s?contest_id=%d&amp;locale_id=%d\">%s</a>",
-              cnts->register_url, phr->contest_id, phr->locale_id,
-              _("Registration"));
-    }
-    fprintf(fout, "</div></td>\n");
-    vis_flag++;
-  }
-
-  if (cnts && cnts->enable_password_recovery && cnts->disable_team_password) {
-    fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\"><a class=\"menu\" href=\"%s?contest_id=%d&amp;locale_id=%d&amp;action=%d\">%s</a></div></td>", phr->self_url, phr->contest_id, phr->locale_id, NEW_SRV_ACTION_FORGOT_PASSWORD_1, _("Forgot password?"));
-    vis_flag++;
-  }
-
-  if (!vis_flag) {
-    fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td>");
-  }
-
-  /*
-  fprintf(fout, "<div class=\"search_actions\"><a href=\"\">%s</a>&nbsp;&nbsp;<a href=\"\">%s</a></div>", _("Registration"), _("Forgot the password?"));
-  */
-
-  fprintf(fout, "</tr></table></div>\n");
-  if (extra->separator_txt && *extra->separator_txt)
-    ns_separator(fout, extra->separator_txt, cnts);
-
-  watched_file_update(&extra->welcome, cnts->welcome_file, cur_time);
-  if (extra->welcome.text && extra->welcome.text[0])
-    fprintf(fout, "%s", extra->welcome.text);
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-  html_armor_free(&ab);
+  phr->action = NEW_SRV_ACTION_LOGIN_PAGE;
+  unpriv_external_action(fout, phr);
 }
 
 static void
-unprivileged_page_login(FILE *fout, struct http_request_info *phr,
-                        int orig_locale_id)
+unprivileged_page_login(FILE *fout, struct http_request_info *phr)
 {
   const unsigned char *login = 0;
   const unsigned char *password = 0;
   int r;
   const struct contest_desc *cnts = 0;
 
-  if ((r = ns_cgi_param(phr, "login", &login)) < 0)
+  if ((r = hr_cgi_param(phr, "login", &login)) < 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse login");
   if (!r || phr->action == NEW_SRV_ACTION_LOGIN_PAGE)
-    return unprivileged_page_login_page(fout, phr, orig_locale_id);
+    return unprivileged_page_login_page(fout, phr);
 
   if (phr->contest_id<=0 || contests_get(phr->contest_id, &cnts)<0 || !cnts)
     return ns_html_err_inv_param(fout, phr, 0, "invalid contest_id");
-  if (orig_locale_id < 0 && cnts->default_locale_num >= 0)
+  if (phr->locale_id < 0 && cnts->default_locale_num >= 0)
     phr->locale_id = cnts->default_locale_num;
+  if (phr->locale_id < 0) phr->locale_id = 0;
 
   phr->login = xstrdup(login);
-  if ((r = ns_cgi_param(phr, "password", &password)) <= 0)
+  if ((r = hr_cgi_param(phr, "password", &password)) <= 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse password");
   if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
     return ns_html_err_no_perm(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
@@ -10252,50 +7255,45 @@ unprivileged_page_login(FILE *fout, struct http_request_info *phr,
 }
 
 static void
-unpriv_change_language(FILE *fout,
-                       struct http_request_info *phr,
-                       const struct contest_desc *cnts,
-                       struct contest_extra *extra)
+unpriv_change_language(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
 {
   const unsigned char *s;
   int r, n;
-  char *log_txt = 0;
-  size_t log_len = 0;
-  FILE *log_f = 0;
   int new_locale_id;
 
-  if ((r = ns_cgi_param(phr, "locale_id", &s)) < 0)
-    return ns_html_err_inv_param(fout, phr, 0, "cannot parse locale_id");
+  if ((r = hr_cgi_param(phr, "locale_id", &s)) < 0) {
+    fprintf(phr->log_f, "cannot parse locale_id\n");
+    error_page(fout, phr, 0, NEW_SRV_ERR_INV_PARAM);
+    goto cleanup;
+  }
   if (r > 0) {
-    if (sscanf(s, "%d%n", &new_locale_id, &n) != 1 || s[n] || new_locale_id < 0)
-      return ns_html_err_inv_param(fout, phr, 0, "cannot parse locale_id");
+    if (sscanf(s, "%d%n", &new_locale_id, &n) != 1 || s[n] || new_locale_id < 0) {
+      fprintf(phr->log_f, "cannot parse locale_id\n");
+      error_page(fout, phr, 0, NEW_SRV_ERR_INV_PARAM);
+      goto cleanup;
+    }
   }
 
-  log_f = open_memstream(&log_txt, &log_len);
-
   if (ns_open_ul_connection(phr->fw_state) < 0) {
-    ns_html_err_ul_server_down(fout, phr, 0, 0);
+    error_page(fout, phr, 0, NEW_SRV_ERR_USERLIST_SERVER_DOWN);
     goto cleanup;
   }
   if ((r = userlist_clnt_set_cookie(ul_conn, ULS_SET_COOKIE_LOCALE,
                                     phr->session_id,
                                     phr->client_key,
                                     new_locale_id)) < 0) {
-    fprintf(log_f, "set_cookie failed: %s", userlist_strerror(-r));
+    fprintf(phr->log_f, "set_cookie failed: %s\n", userlist_strerror(-r));
+    error_page(fout, phr, 0, NEW_SRV_ERR_INTERNAL);
+    goto cleanup;
   }
 
-  //done:
-  close_memstream(log_f); log_f = 0;
-  if (!log_txt || !*log_txt) {
-    ns_refresh_page(fout, phr, NEW_SRV_ACTION_MAIN_PAGE, 0);
-  } else {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_MAIN_PAGE, 0);
-  }
+  ns_refresh_page(fout, phr, NEW_SRV_ACTION_MAIN_PAGE, 0);
 
- cleanup:
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
+ cleanup:;
 }
 
 static void
@@ -10305,66 +7303,68 @@ unpriv_change_password(FILE *fout,
                        struct contest_extra *extra)
 {
   const unsigned char *p0 = 0, *p1 = 0, *p2 = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
-  FILE *log_f = 0;
   int cmd, r;
   unsigned char url[1024];
   unsigned char login_buf[256];
 
-  if (ns_cgi_param(phr, "oldpasswd", &p0) <= 0)
-    return ns_html_err_inv_param(fout, phr, 0, "cannot parse oldpasswd");
-  if (ns_cgi_param(phr, "newpasswd1", &p1) <= 0)
-    return ns_html_err_inv_param(fout, phr, 0, "cannot parse newpasswd1");
-  if (ns_cgi_param(phr, "newpasswd2", &p2) <= 0)
-    return ns_html_err_inv_param(fout, phr, 0, "cannot parse newpasswd2");
-
-  log_f = open_memstream(&log_txt, &log_len);
+  if (hr_cgi_param(phr, "oldpasswd", &p0) <= 0) {
+    fprintf(phr->log_f, "cannot parse oldpasswd\n");
+    error_page(fout, phr, 0, NEW_SRV_ERR_INV_PARAM);
+    goto cleanup;
+  }
+  if (hr_cgi_param(phr, "newpasswd1", &p1) <= 0) {
+    fprintf(phr->log_f, "cannot parse newpasswd1\n");
+    error_page(fout, phr, 0, NEW_SRV_ERR_INV_PARAM);
+    goto cleanup;
+  }
+  if (hr_cgi_param(phr, "newpasswd2", &p2) <= 0) {
+    fprintf(phr->log_f, "cannot parse newpasswd2\n");
+    error_page(fout, phr, 0, NEW_SRV_ERR_INV_PARAM);
+    goto cleanup;
+  }
 
   if (strlen(p0) >= 256) {
-    ns_error(log_f, NEW_SRV_ERR_OLD_PWD_TOO_LONG);
-    goto done;
+    error_page(fout, phr, 0, NEW_SRV_ERR_OLD_PWD_TOO_LONG);
+    goto cleanup;
   }
   if (strcmp(p1, p2)) {
-    ns_error(log_f, NEW_SRV_ERR_NEW_PWD_MISMATCH);
-    goto done;
+    error_page(fout, phr, 0, NEW_SRV_ERR_NEW_PWD_MISMATCH);
+    goto cleanup;
   }
   if (strlen(p1) >= 256) {
-    ns_error(log_f, NEW_SRV_ERR_NEW_PWD_TOO_LONG);
-    goto done;
+    error_page(fout, phr, 0, NEW_SRV_ERR_NEW_PWD_TOO_LONG);
+    goto cleanup;
   }
 
   cmd = ULS_PRIV_SET_TEAM_PASSWD;
   if (cnts->disable_team_password) cmd = ULS_PRIV_SET_REG_PASSWD;
 
   if (ns_open_ul_connection(phr->fw_state) < 0) {
-    ns_html_err_ul_server_down(fout, phr, 0, 0);
+    error_page(fout, phr, 0, NEW_SRV_ERR_USERLIST_SERVER_DOWN);
     goto cleanup;
   }
-  r = userlist_clnt_set_passwd(ul_conn, cmd, phr->user_id, phr->contest_id,
-                               p0, p1);
+  r = userlist_clnt_set_passwd(ul_conn, cmd, phr->user_id, phr->contest_id, p0, p1);
   if (r < 0) {
-    ns_error(log_f, NEW_SRV_ERR_PWD_UPDATE_FAILED, userlist_strerror(-r));
-    goto done;
+    fprintf(phr->log_f, "%s\n", userlist_strerror(-r));
+    error_page(fout, phr, 0, NEW_SRV_ERR_PWD_UPDATE_FAILED);
+    goto cleanup;
   }
 
- done:;
-  close_memstream(log_f); log_f = 0;
-  if (!log_txt || !*log_txt) {
-    url_armor_string(login_buf, sizeof(login_buf), phr->login);
+  url_armor_string(login_buf, sizeof(login_buf), phr->login);
+  if (phr->rest_mode > 0) {
+    snprintf(url, sizeof(url),
+             "%s/%s?contest_id=%d&login=%s&locale_id=%d",
+             phr->self_url, ns_symbolic_action_table[NEW_SRV_ACTION_LOGIN_PAGE],
+             phr->contest_id, login_buf, phr->locale_id);
+  } else {
     snprintf(url, sizeof(url),
              "%s?contest_id=%d&login=%s&locale_id=%d&action=%d",
              phr->self_url, phr->contest_id, login_buf, phr->locale_id,
              NEW_SRV_ACTION_LOGIN_PAGE);
-    ns_refresh_page_2(fout, phr->client_key, url);
-  } else {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_MAIN_PAGE, 0);
   }
+  ns_refresh_page_2(fout, phr->client_key, url);
 
  cleanup:;
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
 }
 
 static void
@@ -10374,60 +7374,47 @@ unpriv_print_run(FILE *fout,
                  struct contest_extra *extra)
 {
   serve_state_t cs = extra->serve_state;
-  char *log_txt = 0;
-  size_t log_len = 0;
-  FILE *log_f = 0;
   int run_id, n;
   struct run_entry re;
 
   if (unpriv_parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0)
     goto cleanup;
 
-  log_f = open_memstream(&log_txt, &log_len);
-
   if (!cs->global->enable_printing || cs->printing_suspended) {
-    ns_error(log_f, NEW_SRV_ERR_PRINTING_DISABLED);
-    goto done;
+    error_page(fout, phr, 0, NEW_SRV_ERR_PRINTING_DISABLED);
+    goto cleanup;
   }
 
   if (re.status > RUN_LAST
       || (re.status > RUN_MAX_STATUS && re.status < RUN_TRANSIENT_FIRST)
       || re.user_id != phr->user_id) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto done;
+    error_page(fout, phr, 0, NEW_SRV_ERR_PERMISSION_DENIED);
+    goto cleanup;
   }
 
   if (re.pages > 0) {
-    ns_error(log_f, NEW_SRV_ERR_ALREADY_PRINTED);
-    goto done;
+    error_page(fout, phr, 0, NEW_SRV_ERR_ALREADY_PRINTED);
+    goto cleanup;
   }
 
   if ((n = team_print_run(cs, run_id, phr->user_id)) < 0) {
     switch (-n) {
     case SRV_ERR_PAGES_QUOTA:
-      ns_error(log_f,NEW_SRV_ERR_ALREADY_PRINTED, cs->global->team_page_quota);
-      goto done;
+      fprintf(phr->log_f, "Quota: %d\n", cs->global->team_page_quota);
+      error_page(fout, phr, 0, NEW_SRV_ERR_ALREADY_PRINTED);
+      goto cleanup;
     default:
-      ns_error(log_f, NEW_SRV_ERR_PRINTING_FAILED, -n, protocol_strerror(-n));
-      goto done;
+      fprintf(phr->log_f, "%d (%s)", -n, protocol_strerror(-n));
+      error_page(fout, phr, 0, NEW_SRV_ERR_PRINTING_FAILED);
+      goto cleanup;
     }
   }
 
   serve_audit_log(cs, run_id, &re, phr->user_id, &phr->ip, phr->ssl_flag,
                   "print", "ok", -1, "  %d pages printed\n", n);
-
- done:
-  close_memstream(log_f); log_f = 0;
-  if (!log_txt || !*log_txt) {
-    ns_refresh_page(fout, phr, NEW_SRV_ACTION_MAIN_PAGE, 0);
-  } else {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_MAIN_PAGE, 0);
-  }
+  ns_refresh_page(fout, phr, NEW_SRV_ACTION_MAIN_PAGE, 0);
 
  cleanup:;
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
 }
 
 int
@@ -10469,7 +7456,7 @@ ns_submit_run(
   int eoln_type = 0;
 
   if (!prob_param_name) prob_param_name = "prob_id";
-  if (ns_cgi_param(phr, prob_param_name, &s) <= 0 || !s) {
+  if (hr_cgi_param(phr, prob_param_name, &s) <= 0 || !s) {
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
   }
   for (prob_id = 1; prob_id <= cs->max_prob; ++prob_id) {
@@ -10488,7 +7475,7 @@ ns_submit_run(
   if (prob->type == PROB_TYPE_STANDARD) {
     // "STANDARD" problems need programming language identifier
     if (!lang_param_name) lang_param_name = "lang_id";
-    if (ns_cgi_param(phr, lang_param_name, &s) <= 0 || !s) {
+    if (hr_cgi_param(phr, lang_param_name, &s) <= 0 || !s) {
       FAIL(NEW_SRV_ERR_INV_LANG_ID);
     }
     for (lang_id = 1; lang_id <= cs->max_lang; ++lang_id) {
@@ -10504,7 +7491,7 @@ ns_submit_run(
       }
     }
     if (cs->global->enable_eoln_select > 0) {
-      ns_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
+      hr_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
       if (eoln_type < 0 || eoln_type > EOLN_CRLF) eoln_type = 0;
     }
   }
@@ -10514,18 +7501,18 @@ ns_submit_run(
   case PROB_TYPE_OUTPUT_ONLY:
     if (enable_path > 0) {
       const unsigned char *path = NULL;
-      if (ns_cgi_param(phr, "path", &path) <= 0 || !path) FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
+      if (hr_cgi_param(phr, "path", &path) <= 0 || !path) FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
       if (generic_read_file(&run_file, 0, &tmpsz, 0, NULL, path, NULL) < 0)
         FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
       run_text = run_file;
       run_size = tmpsz;
       r = 1;
     } else {
-      r = ns_cgi_param_bin(phr, "file", &run_text, &tmpsz); run_size = tmpsz;
+      r = hr_cgi_param_bin(phr, "file", &run_text, &tmpsz); run_size = tmpsz;
     }
     if (r <= 0 || !run_text || run_size <= 0) {
       if (prob->enable_text_form > 0) {
-        r = ns_cgi_param_bin(phr, "text_form", &run_text, &tmpsz); run_size = tmpsz;
+        r = hr_cgi_param_bin(phr, "text_form", &run_text, &tmpsz); run_size = tmpsz;
         if (r <= 0 || !run_text || run_size <= 0) {
           FAIL(NEW_SRV_ERR_FILE_EMPTY);
         }
@@ -10545,14 +7532,14 @@ ns_submit_run(
   case PROB_TYPE_SELECT_ONE:
     if (enable_path > 0) {
       const unsigned char *path = NULL;
-      if (ns_cgi_param(phr, "path", &path) <= 0 || !path) FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
+      if (hr_cgi_param(phr, "path", &path) <= 0 || !path) FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
       if (generic_read_file(&run_file, 0, &tmpsz, 0, NULL, path, NULL) < 0)
         FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
       run_text = run_file;
       run_size = tmpsz;
       r = 1;
     } else {
-      r = ns_cgi_param_bin(phr, "file", &run_text, &tmpsz); run_size = tmpsz;
+      r = hr_cgi_param_bin(phr, "file", &run_text, &tmpsz); run_size = tmpsz;
     }
     if (r <= 0 || !run_text || run_size <= 0) {
       FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
@@ -10606,14 +7593,14 @@ ns_submit_run(
     } else {
       if (enable_path > 0) {
         const unsigned char *path = NULL;
-        if (ns_cgi_param(phr, "path", &path) <= 0 || !path) FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
+        if (hr_cgi_param(phr, "path", &path) <= 0 || !path) FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
         if (generic_read_file(&run_file, 0, &tmpsz, 0, NULL, path, NULL) < 0)
           FAIL(NEW_SRV_ERR_FILE_UNSPECIFIED);
         run_text = run_file;
         run_size = tmpsz;
         r = 1;
       } else {
-        r = ns_cgi_param_bin(phr, "file", &run_text, &tmpsz); run_size = tmpsz;
+        r = hr_cgi_param_bin(phr, "file", &run_text, &tmpsz); run_size = tmpsz;
       }
       if (r <= 0 || !run_text || run_size <= 0) {
         run_text = ""; run_size = 0;
@@ -10697,13 +7684,13 @@ ns_submit_run(
   }
 
   if (enable_user_id > 0) {
-    if (ns_cgi_param_int(phr, "user_id", &user_id) < 0 || user_id <= 0)
+    if (hr_cgi_param_int(phr, "user_id", &user_id) < 0 || user_id <= 0)
       FAIL(NEW_SRV_ERR_INV_USER_ID);
   } else {
     user_id = phr->user_id;
   }
   if (enable_status > 0) {
-    if (ns_cgi_param_int(phr, "status", &status) < 0 || status < 0)
+    if (hr_cgi_param_int(phr, "status", &status) < 0 || status < 0)
       FAIL(NEW_SRV_ERR_INV_STATUS);
   }
 
@@ -10797,7 +7784,7 @@ ns_submit_run(
   int variant = 0;
   if (prob->variant_num > 0) {
     if (admin_mode) {
-      if (ns_cgi_param_int_opt(phr, "variant", &variant, 0) < 0) {
+      if (hr_cgi_param_int_opt(phr, "variant", &variant, 0) < 0) {
         FAIL(NEW_SRV_ERR_INV_VARIANT);
       }
       if (!variant && (variant = find_variant(cs, user_id, prob_id, 0)) <= 0) {
@@ -10818,7 +7805,7 @@ ns_submit_run(
 
   if (enable_uuid) {
     const unsigned char *uuid_str = NULL;
-    if (ns_cgi_param(phr, "uuid", &uuid_str) > 0 && uuid_str && *uuid_str) {
+    if (hr_cgi_param(phr, "uuid", &uuid_str) > 0 && uuid_str && *uuid_str) {
       if (ej_uuid_parse(uuid_str, run_uuid) < 0) {
         FAIL(NEW_SRV_ERR_INV_PARAM);
       }
@@ -10969,7 +7956,8 @@ ns_submit_run(
                               prob->style_checker_env,
                               -1 /* accepting_mode */, 0 /* priority_adjustment */,
                               1 /* notify_flag */, prob, lang,
-                              0 /* no_db_flag */, run_uuid, store_flags);
+                              0 /* no_db_flag */, run_uuid, store_flags,
+                              0 /* rejudge_flag */);
     if (r < 0) {
       serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       goto cleanup;
@@ -11002,7 +7990,8 @@ ns_submit_run(
                                 0 /* priority_adjustment */,
                                 0 /* notify flag */,
                                 prob, NULL /* lang */,
-                                0 /* no_db_flag */, run_uuid, store_flags);
+                                0 /* no_db_flag */, run_uuid, store_flags,
+                                0 /* rejudge_flag */);
       if (r < 0) {
         serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         goto cleanup;
@@ -11015,7 +8004,8 @@ ns_submit_run(
     r = serve_run_request(cs, cnts, log_f, run_text, run_size,
                           global->contest_id, run_id,
                           user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                          mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid);
+                          mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                          0 /* rejudge_flag */);
     if (r < 0) {
       serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       goto cleanup;
@@ -11055,7 +8045,8 @@ ns_submit_run(
                               0 /* priority_adjustment */,
                               0 /* notify flag */,
                               prob, NULL /* lang */,
-                              0 /* no_db_flag */, run_uuid, store_flags);
+                              0 /* no_db_flag */, run_uuid, store_flags,
+                              0 /* rejudge_flag */);
     if (r < 0) {
       serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       goto cleanup;
@@ -11066,7 +8057,8 @@ ns_submit_run(
   r = serve_run_request(cs, cnts, log_f, run_text, run_size,
                         global->contest_id, run_id,
                         user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                        mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid);
+                        mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                        0 /* rejudge_flag */);
   if (r < 0) {
     serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
     goto cleanup;
@@ -11095,19 +8087,19 @@ cleanup:
   return retval;
 }
 
+#define FAIL2(err) do { retval = -(err); goto fail; } while (0)
+
 static void
-unpriv_submit_run(FILE *fout,
-                  struct http_request_info *phr,
-                  const struct contest_desc *cnts,
-                  struct contest_extra *extra)
+unpriv_submit_run(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
 {
   serve_state_t cs = extra->serve_state;
   const struct section_global_data *global = cs->global;
   const struct section_problem_data *prob = 0, *prob2;
   const struct section_language_data *lang = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
-  FILE *log_f = 0;
   int prob_id, n, lang_id = 0, i, ans, max_ans, j, r;
   const unsigned char *s, *run_text = 0, *text_form_text = 0;
   size_t run_size = 0, ans_size, text_form_size = 0;
@@ -11132,29 +8124,27 @@ unpriv_submit_run(FILE *fout,
   unsigned char *utf8_str = 0;
   int utf8_len = 0;
   int eoln_type = 0;
+  int retval = 0;
 
   l10n_setlocale(phr->locale_id);
-  log_f = open_memstream(&log_txt, &log_len);
 
-  if (ns_cgi_param(phr, "prob_id", &s) <= 0
+  if (hr_cgi_param(phr, "prob_id", &s) <= 0
       || sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]
       || prob_id <= 0 || prob_id > cs->max_prob
       || !(prob = cs->probs[prob_id])) {
-    ns_error(log_f, NEW_SRV_ERR_INV_PROB_ID);
-    goto done;
+    FAIL2(NEW_SRV_ERR_INV_PROB_ID);
   }
 
   // "STANDARD" problems need programming language identifier
   if (prob->type == PROB_TYPE_STANDARD) {
-    if (ns_cgi_param(phr, "lang_id", &s) <= 0
+    if (hr_cgi_param(phr, "lang_id", &s) <= 0
         || sscanf(s, "%d%n", &lang_id, &n) != 1 || s[n]
         || lang_id <= 0 || lang_id > cs->max_lang
         || !(lang = cs->langs[lang_id])) {
-      ns_error(log_f, NEW_SRV_ERR_INV_LANG_ID);
-      goto done;
+      FAIL2(NEW_SRV_ERR_INV_LANG_ID);
     }
     if (global->enable_eoln_select > 0) {
-      ns_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
+      hr_cgi_param_int_opt(phr, "eoln_type", &eoln_type, 0);
       if (eoln_type < 0 || eoln_type > EOLN_CRLF) eoln_type = 0;
     }
   }
@@ -11172,25 +8162,22 @@ unpriv_submit_run(FILE *fout,
   case PROB_TYPE_OUTPUT_ONLY:
   case PROB_TYPE_TESTS:
     if (prob->enable_text_form > 0) {
-      int r1 = ns_cgi_param_bin(phr, "file", &run_text, &run_size);
-      int r2 =ns_cgi_param_bin(phr,"text_form",&text_form_text,&text_form_size);
+      int r1 = hr_cgi_param_bin(phr, "file", &run_text, &run_size);
+      int r2 =hr_cgi_param_bin(phr,"text_form",&text_form_text,&text_form_size);
       if (!r1 && !r2) {
-        ns_error(log_f, NEW_SRV_ERR_FILE_UNSPECIFIED);
-        goto done;
+        FAIL2(NEW_SRV_ERR_FILE_UNSPECIFIED);
       }
     } else {
-      if (!ns_cgi_param_bin(phr, "file", &run_text, &run_size)) {
-        ns_error(log_f, NEW_SRV_ERR_FILE_UNSPECIFIED);
-        goto done;
+      if (!hr_cgi_param_bin(phr, "file", &run_text, &run_size)) {
+        FAIL2(NEW_SRV_ERR_FILE_UNSPECIFIED);
       }
     }
     break;
   case PROB_TYPE_TEXT_ANSWER:
   case PROB_TYPE_SHORT_ANSWER:
   case PROB_TYPE_SELECT_ONE:
-    if (!ns_cgi_param_bin(phr, "file", &run_text, &run_size)) {
-      ns_error(log_f, NEW_SRV_ERR_ANSWER_UNSPECIFIED);
-      goto done;
+    if (!hr_cgi_param_bin(phr, "file", &run_text, &run_size)) {
+      FAIL2(NEW_SRV_ERR_ANSWER_UNSPECIFIED);
     }
     break;
   case PROB_TYPE_SELECT_MANY:   // "ans_*"
@@ -11199,8 +8186,7 @@ unpriv_submit_run(FILE *fout,
         if (sscanf(phr->param_names[i] + 4, "%d%n", &ans, &n) != 1
             || phr->param_names[i][4 + n]
             || ans < 0 || ans > 65535) {
-          ns_error(log_f, NEW_SRV_ERR_INV_ANSWER);
-          goto done;
+          FAIL2(NEW_SRV_ERR_INV_ANSWER);
         }
         if (ans > max_ans) max_ans = ans;
         ans_size += 7;
@@ -11230,11 +8216,10 @@ unpriv_submit_run(FILE *fout,
     // invoke problem plugin
     load_problem_plugin(cs, prob_id);
     if (!(plg = cs->prob_extras[prob_id].plugin) || !plg->parse_form) {
-      ns_error(log_f, NEW_SRV_ERR_PLUGIN_NOT_AVAIL);
-      goto done;
+      FAIL2(NEW_SRV_ERR_PLUGIN_NOT_AVAIL);
     }
     ans_tmp = (*plg->parse_form)(cs->prob_extras[prob_id].plugin_data,
-                                 log_f, phr, cnts, extra);
+                                 phr->log_f, phr, cnts, extra);
     if (!ans_tmp) goto done;
     run_size = strlen(ans_tmp);
     ans_buf = (unsigned char*) alloca(run_size + 1);
@@ -11252,21 +8237,18 @@ unpriv_submit_run(FILE *fout,
       // guess utf-16/ucs-2
       if (((int) run_size) < 0
           || (utf8_len = ucs2_to_utf8(&utf8_str, run_text, run_size)) < 0) {
-        ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
-        goto done;
+        FAIL2(NEW_SRV_ERR_BINARY_FILE);
       }
       run_text = utf8_str;
       run_size = (size_t) utf8_len;
     }
     if (prob->enable_text_form > 0 && text_form_text
         && strlen(text_form_text) != text_form_size) {
-      ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
-      goto done;
+      FAIL2(NEW_SRV_ERR_BINARY_FILE);
     }
     if (prob->enable_text_form) {
       if (!run_size && !text_form_size) {
-        ns_error(log_f, NEW_SRV_ERR_SUBMIT_EMPTY);
-        goto done;
+        FAIL2(NEW_SRV_ERR_SUBMIT_EMPTY);
       }
       if (!run_size) {
         run_text = text_form_text;
@@ -11277,29 +8259,24 @@ unpriv_submit_run(FILE *fout,
         text_form_size = 0;
       }
     } else if (!run_size) {
-      ns_error(log_f, NEW_SRV_ERR_SUBMIT_EMPTY);
-      goto done;
+      FAIL2(NEW_SRV_ERR_SUBMIT_EMPTY);
     }
     if (prob->disable_ctrl_chars > 0 && has_control_characters(run_text)) {
-      ns_error(log_f, NEW_SRV_ERR_INV_CHAR);
-      goto done;
+      FAIL2(NEW_SRV_ERR_INV_CHAR);
     }
     break;
   case PROB_TYPE_OUTPUT_ONLY:
   case PROB_TYPE_TESTS:
     if (!prob->binary_input && !prob->binary && strlen(run_text) != run_size) {
-      ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
-      goto done;
+      FAIL2(NEW_SRV_ERR_BINARY_FILE);
     }
     if (prob->enable_text_form > 0 && text_form_text
         && strlen(text_form_text) != text_form_size) {
-      ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
-      goto done;
+      FAIL2(NEW_SRV_ERR_BINARY_FILE);
     }
     if (prob->enable_text_form > 0) {
       if (!run_size && !text_form_size) {
-        ns_error(log_f, NEW_SRV_ERR_SUBMIT_EMPTY);
-        goto done;
+        FAIL2(NEW_SRV_ERR_SUBMIT_EMPTY);
       }
       if (!run_size) {
         run_text = text_form_text;
@@ -11316,19 +8293,16 @@ unpriv_submit_run(FILE *fout,
   case PROB_TYPE_SHORT_ANSWER:
   case PROB_TYPE_SELECT_ONE:
     if (strlen(run_text) != run_size) {
-      ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
-      goto done;
+      FAIL2(NEW_SRV_ERR_BINARY_FILE);
     }
     if (!run_size) {
-      ns_error(log_f, NEW_SRV_ERR_SUBMIT_EMPTY);
-      goto done;
+      FAIL2(NEW_SRV_ERR_SUBMIT_EMPTY);
     }
     break;
 
   case PROB_TYPE_SELECT_MANY:
     if (strlen(run_text) != run_size) {
-      ns_error(log_f, NEW_SRV_ERR_BINARY_FILE);
-      goto done;
+      FAIL2(NEW_SRV_ERR_BINARY_FILE);
     }
     break;
 
@@ -11354,30 +8328,24 @@ unpriv_submit_run(FILE *fout,
   }
 
   if (cs->clients_suspended) {
-    ns_error(log_f, NEW_SRV_ERR_CLIENTS_SUSPENDED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLIENTS_SUSPENDED);
   }
   if (!start_time) {
-    ns_error(log_f, NEW_SRV_ERR_CONTEST_NOT_STARTED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CONTEST_NOT_STARTED);
   }
   if (stop_time) {
-    ns_error(log_f, NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
   }
   if (serve_check_user_quota(cs, phr->user_id, run_size) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_RUN_QUOTA_EXCEEDED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_RUN_QUOTA_EXCEEDED);
   }
   // problem submit start time
   if (!serve_is_problem_started(cs, phr->user_id, prob)) {
-    ns_error(log_f, NEW_SRV_ERR_PROB_UNAVAILABLE);
-    goto done;
+    FAIL2(NEW_SRV_ERR_PROB_UNAVAILABLE);
   }
   if (serve_is_problem_deadlined(cs, phr->user_id, phr->login, prob,
                                  &user_deadline)) {
-    ns_error(log_f, NEW_SRV_ERR_PROB_DEADLINE_EXPIRED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_PROB_DEADLINE_EXPIRED);
   }
 
   if (prob->max_user_run_count > 0) {
@@ -11385,16 +8353,14 @@ unpriv_submit_run(FILE *fout,
     if (prob->ignore_compile_errors > 0) ignored_set |= 1 << RUN_COMPILE_ERR;
     ignored_set |= 1 << RUN_IGNORED;
     if (run_count_all_attempts_2(cs->runlog_state, phr->user_id, prob_id, ignored_set) >= prob->max_user_run_count) {
-      ns_error(log_f, NEW_SRV_ERR_PROB_TOO_MANY_ATTEMPTS);
-      goto done;
+      FAIL2(NEW_SRV_ERR_PROB_TOO_MANY_ATTEMPTS);
     }
   }
 
   /* check for disabled languages */
   if (lang_id > 0) {
     if (lang->disabled || (lang->insecure > 0 && global->secure_run)) {
-      ns_error(log_f, NEW_SRV_ERR_LANG_DISABLED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_LANG_DISABLED);
     }
 
     if (prob->enable_language) {
@@ -11403,8 +8369,7 @@ unpriv_submit_run(FILE *fout,
         if (!strcmp(lang_list[i], lang->short_name))
           break;
       if (!lang_list[i]) {
-        ns_error(log_f, NEW_SRV_ERR_LANG_NOT_AVAIL_FOR_PROBLEM);
-        goto done;
+        FAIL2(NEW_SRV_ERR_LANG_NOT_AVAIL_FOR_PROBLEM);
       }
     } else if (prob->disable_language) {
       lang_list = prob->disable_language;
@@ -11412,8 +8377,7 @@ unpriv_submit_run(FILE *fout,
         if (!strcmp(lang_list[i], lang->short_name))
           break;
       if (lang_list[i]) {
-        ns_error(log_f, NEW_SRV_ERR_LANG_DISABLED_FOR_PROBLEM);
-        goto done;
+        FAIL2(NEW_SRV_ERR_LANG_DISABLED_FOR_PROBLEM);
       }
     }
   } else if (skip_mime_type_test) {
@@ -11423,8 +8387,7 @@ unpriv_submit_run(FILE *fout,
     // guess the content-type and check it against the list
     if ((mime_type = mime_type_guess(cs->global->diff_work_dir,
                                      run_text, run_size)) < 0) {
-      ns_error(log_f, NEW_SRV_ERR_CANNOT_DETECT_CONTENT_TYPE);
-      goto done;
+      FAIL2(NEW_SRV_ERR_CANNOT_DETECT_CONTENT_TYPE);
     }
     mime_type_str = mime_type_get_type(mime_type);
     if (prob->enable_language) {
@@ -11433,8 +8396,7 @@ unpriv_submit_run(FILE *fout,
         if (!strcmp(lang_list[i], mime_type_str))
           break;
       if (!lang_list[i]) {
-        ns_error(log_f, NEW_SRV_ERR_CONTENT_TYPE_NOT_AVAILABLE, mime_type_str);
-        goto done;
+        FAIL2(NEW_SRV_ERR_CONTENT_TYPE_NOT_AVAILABLE);
       }
     } else if (prob->disable_language) {
       lang_list = prob->disable_language;
@@ -11442,16 +8404,14 @@ unpriv_submit_run(FILE *fout,
         if (!strcmp(lang_list[i], mime_type_str))
           break;
       if (lang_list[i]) {
-        ns_error(log_f, NEW_SRV_ERR_CONTENT_TYPE_DISABLED, mime_type_str);
-        goto done;
+        FAIL2(NEW_SRV_ERR_CONTENT_TYPE_DISABLED);
       }
     }
   }
 
   if (prob->variant_num > 0) {
     if ((variant = find_variant(cs, phr->user_id, prob_id, 0)) <= 0) {
-      ns_error(log_f, NEW_SRV_ERR_VARIANT_UNASSIGNED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_VARIANT_UNASSIGNED);
     }
   }
 
@@ -11459,8 +8419,7 @@ unpriv_submit_run(FILE *fout,
   if (global->ignore_duplicated_runs != 0) {
     if ((run_id = run_find_duplicate(cs->runlog_state, phr->user_id, prob_id,
                                      lang_id, variant, run_size, shaval)) >= 0){
-      ns_error(log_f, NEW_SRV_ERR_DUPLICATE_SUBMIT, run_id);
-      goto done;
+      FAIL2(NEW_SRV_ERR_DUPLICATE_SUBMIT);
     }
   }
 
@@ -11470,8 +8429,7 @@ unpriv_submit_run(FILE *fout,
     run_get_accepted_set(cs->runlog_state, phr->user_id,
                          cs->accepting_mode, cs->max_prob, acc_probs);
     if (acc_probs[prob_id]) {
-      ns_error(log_f, NEW_SRV_ERR_PROB_ALREADY_SOLVED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_PROB_ALREADY_SOLVED);
     }
   }
 
@@ -11488,8 +8446,7 @@ unpriv_submit_run(FILE *fout,
       if (j > cs->max_prob || !acc_probs[j]) break;
     }
     if (prob->require[i]) {
-      ns_error(log_f, NEW_SRV_ERR_NOT_ALL_REQ_SOLVED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_NOT_ALL_REQ_SOLVED);
     }
   }
 
@@ -11504,8 +8461,7 @@ unpriv_submit_run(FILE *fout,
     ans_val = strtol(tmp_run, &tmp_ptr, 10);
     if (errno || *tmp_ptr || tmp_run + run_size != (unsigned char*) tmp_ptr
         || ans_val < 0) {
-      ns_error(log_f, NEW_SRV_ERR_INV_ANSWER);
-      goto done;
+      FAIL2(NEW_SRV_ERR_INV_ANSWER);
     }
 
     // add this run and if we're in olympiad accepting mode mark
@@ -11530,8 +8486,7 @@ unpriv_submit_run(FILE *fout,
                           phr->locale_id, phr->user_id,
                           prob_id, lang_id, eoln_type, 0, 0, mime_type, store_flags);
   if (run_id < 0) {
-    ns_error(log_f, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
   }
   serve_move_files_to_insert_run(cs, run_id);
 
@@ -11547,14 +8502,12 @@ unpriv_submit_run(FILE *fout,
   }
   if (arch_flags < 0) {
     run_undo_add_record(cs->runlog_state, run_id);
-    ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-    goto done;
+    FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
   }
 
   if (generic_write_file(run_text, run_size, arch_flags, 0, run_path, "") < 0) {
     run_undo_add_record(cs->runlog_state, run_id);
-    ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-    goto done;
+    FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
   }
 
   if (prob->type == PROB_TYPE_STANDARD) {
@@ -11577,7 +8530,8 @@ unpriv_submit_run(FILE *fout,
                                      lang->compiler_env,
                                      0, prob->style_checker_cmd,
                                      prob->style_checker_env,
-                                     -1, 0, 1, prob, lang, 0, run_uuid, store_flags)) < 0) {
+                                     -1, 0, 1, prob, lang, 0, run_uuid, store_flags,
+                                     0 /* rejudge_flag */)) < 0) {
         serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       }
     }
@@ -11604,17 +8558,18 @@ unpriv_submit_run(FILE *fout,
                                   0 /* priority_adjustment */,
                                   0 /* notify flag */,
                                   prob, NULL /* lang */,
-                                  0 /* no_db_flag */, run_uuid, store_flags);
+                                  0 /* no_db_flag */, run_uuid, store_flags,
+                                  0 /* rejudge_flag */);
         if (r < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
       } else {
-        if (serve_run_request(cs, cnts, log_f, run_text, run_size,
+        if (serve_run_request(cs, cnts, phr->log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid) < 0) {
-          ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-          goto done;
+                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              0 /* rejudge_flag */) < 0) {
+          FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
         }
       }
     }
@@ -11662,7 +8617,8 @@ unpriv_submit_run(FILE *fout,
                                   0 /* priority_adjustment */,
                                   0 /* notify flag */,
                                   prob, NULL /* lang */,
-                                  0 /* no_db_flag */, run_uuid, store_flags);
+                                  0 /* no_db_flag */, run_uuid, store_flags,
+                                  0 /* rejudge_flag */);
         if (r < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
@@ -11670,52 +8626,47 @@ unpriv_submit_run(FILE *fout,
         serve_audit_log(cs, run_id, NULL, phr->user_id, &phr->ip, phr->ssl_flag,
                         "submit", "ok", RUN_RUNNING, NULL);
 
-        if (serve_run_request(cs, cnts, log_f, run_text, run_size,
+        if (serve_run_request(cs, cnts, phr->log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid) < 0) {
-          ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-          goto done;
+                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              0 /* rejudge_flag */) < 0) {
+          FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
         }
       }
     }
   }
 
  done:;
-  l10n_setlocale(0);
-  close_memstream(log_f); log_f = 0;
-  if (!log_txt || !*log_txt) {
-    i = 0;
-    if (global->problem_navigation) {
-      i = prob->id;
-      if (prob->advance_to_next > 0) {
-        for (i++; i <= cs->max_prob; i++) {
-          if (!(prob2 = cs->probs[i])) continue;
-          if (!serve_is_problem_started(cs, phr->user_id, prob2))
-            continue;
-          // FIXME: standard applicability checks
-          break;
-        }
-        if (i > cs->max_prob) i = 0;
+  i = 0;
+  if (global->problem_navigation) {
+    i = prob->id;
+    if (prob->advance_to_next > 0) {
+      for (i++; i <= cs->max_prob; i++) {
+        if (!(prob2 = cs->probs[i])) continue;
+        if (!serve_is_problem_started(cs, phr->user_id, prob2))
+          continue;
+        // FIXME: standard applicability checks
+        break;
       }
+      if (i > cs->max_prob) i = 0;
     }
-    if (i > 0) {
-      snprintf(bb, sizeof(bb), "prob_id=%d", i);
-      ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT, bb);
-    }  else {
-      ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_SUBMISSIONS, 0);
-    }
-  } else {
-    unpriv_load_html_style(phr, cnts, 0, 0);
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                           "prob_id=%d", prob_id);
+  }
+  if (i > 0) {
+    snprintf(bb, sizeof(bb), "prob_id=%d", i);
+    ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT, bb);
+  }  else {
+    ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_SUBMISSIONS, 0);
   }
 
-  //cleanup:;
-  if (log_f) fclose(log_f);
-  xfree(log_txt);
+cleanup:;
+  l10n_setlocale(0);
   xfree(utf8_str);
+  return;
+
+fail:
+  error_page(fout, phr, 0, -retval);
+  goto cleanup;
 }
 
 static void
@@ -11730,29 +8681,33 @@ unpriv_submit_clar(FILE *fout,
   const unsigned char *s, *subject = 0, *text = 0;
   int prob_id = 0, n;
   time_t start_time, stop_time;
-  FILE *log_f = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
   size_t subj_len, text_len, subj3_len, text3_len;
   unsigned char *subj2, *text2, *subj3, *text3;
   struct timeval precise_time;
   int clar_id;
+  int retval = 0;
 
   // parameters: prob_id, subject, text,  
 
-  if ((n = ns_cgi_param(phr, "prob_id", &s)) < 0)
-    return ns_html_err_inv_param(fout, phr, 0, "prob_id is binary");
-  if (n > 0 && *s) {
-    if (sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n])
-      return ns_html_err_inv_param(fout, phr, 0, "cannot parse prob_id");
-    if (prob_id <= 0 || prob_id > cs->max_prob || !(prob = cs->probs[prob_id]))
-      return ns_html_err_inv_param(fout, phr, 0, "prob_id is invalid");
+  if ((n = hr_cgi_param(phr, "prob_id", &s)) < 0) {
+    FAIL2(NEW_SRV_ERR_INV_PROB_ID);
   }
-  if (ns_cgi_param(phr, "subject", &subject) < 0)
-    return ns_html_err_inv_param(fout, phr, 0, "subject is binary");
-  if (ns_cgi_param(phr, "text", &text) <= 0)
-    return ns_html_err_inv_param(fout, phr, 0,
-                                 "text is not set or binary");
+  if (n > 0 && *s) {
+    if (sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]) {
+      FAIL2(NEW_SRV_ERR_INV_PROB_ID);
+    }
+    if (prob_id <= 0 || prob_id > cs->max_prob || !(prob = cs->probs[prob_id])) {
+      FAIL2(NEW_SRV_ERR_INV_PROB_ID);
+    }
+  }
+  if (hr_cgi_param(phr, "subject", &subject) < 0) {
+    fprintf(phr->log_f, "subject is binary\n");
+    FAIL2(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (hr_cgi_param(phr, "text", &text) <= 0) {
+    fprintf(phr->log_f, "text is not set or binary\n");
+    FAIL2(NEW_SRV_ERR_INV_PARAM);
+  }
 
   if (global->is_virtual) {
     start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
@@ -11763,30 +8718,23 @@ unpriv_submit_clar(FILE *fout,
     stop_time = run_get_stop_time(cs->runlog_state);
   }
 
-  log_f = open_memstream(&log_txt, &log_len);
-
   if (cs->clients_suspended) {
-    ns_error(log_f, NEW_SRV_ERR_CLIENTS_SUSPENDED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLIENTS_SUSPENDED);
   }
   if (global->disable_team_clars) {
-    ns_error(log_f, NEW_SRV_ERR_CLARS_DISABLED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLARS_DISABLED);
   }
   if (!start_time) {
-    ns_error(log_f, NEW_SRV_ERR_CONTEST_NOT_STARTED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CONTEST_NOT_STARTED);
   }
   if (stop_time) {
-    ns_error(log_f, NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
   }
 
   if (!subject) subject = "";
   subj_len = strlen(subject);
   if (subj_len > 128 * 1024 * 1024) {
-    ns_error(log_f, NEW_SRV_ERR_SUBJECT_TOO_LONG, subj_len);
-    goto done;
+    FAIL2(NEW_SRV_ERR_SUBJECT_TOO_LONG);
   }
   subj2 = alloca(subj_len + 1);
   strcpy(subj2, subject);
@@ -11799,15 +8747,13 @@ unpriv_submit_clar(FILE *fout,
   if (!text) text = "";
   text_len = strlen(text);
   if (text_len > 128 * 1024 * 1024) {
-    ns_error(log_f, NEW_SRV_ERR_MESSAGE_TOO_LONG, text_len);
-    goto done;
+    FAIL2(NEW_SRV_ERR_MESSAGE_TOO_LONG);
   }
   text2 = alloca(text_len + 1);
   strcpy(text2, text);
   while (text_len > 0 && isspace(text2[text_len - 1])) text2[--text_len] = 0;
   if (!text_len) {
-    ns_error(log_f, NEW_SRV_ERR_MESSAGE_EMPTY);
-    goto done;
+    FAIL2(NEW_SRV_ERR_MESSAGE_EMPTY);
   }
 
   if (prob) {
@@ -11822,8 +8768,7 @@ unpriv_submit_clar(FILE *fout,
   text3_len = sprintf(text3, "Subject: %s\n\n%s\n", subj3, text2);
 
   if (serve_check_clar_quota(cs, phr->user_id, text3_len) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_CLAR_QUOTA_EXCEEDED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLAR_QUOTA_EXCEEDED);
   }
 
   gettimeofday(&precise_time, 0);
@@ -11836,29 +8781,22 @@ unpriv_submit_clar(FILE *fout,
                                  phr->user_id, 0, 0, 0, 0,
                                  phr->locale_id, 0, 0, 0,
                                  utf8_mode, NULL, subj3)) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_CLARLOG_UPDATE_FAILED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLARLOG_UPDATE_FAILED);
   }
 
   if (clar_add_text(cs->clarlog_state, clar_id, text3, text3_len) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-    goto done;
+    FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
   }
 
   serve_send_clar_notify_email(ejudge_config, cs, cnts, phr->user_id, phr->name, subj3, text2);
+  ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_CLARS, 0);
 
- done:;
-  close_memstream(log_f); log_f = 0;
-  if (!log_txt || !*log_txt) {
-    ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_CLARS, 0);
-  } else {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_VIEW_CLAR_SUBMIT, 0);
-  }
+cleanup:;
+  return;
 
-  //cleanup:;
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
+fail:
+  error_page(fout, phr, 0, -retval);
+  goto cleanup;
 }
 
 static void
@@ -11873,29 +8811,33 @@ unpriv_submit_appeal(FILE *fout,
   const unsigned char *s, *text = 0;
   int prob_id = 0, n;
   time_t start_time, stop_time;
-  FILE *log_f = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
   size_t text_len, subj3_len, text3_len;
   unsigned char *text2, *subj3, *text3;
   struct timeval precise_time;
   int clar_id, test;
+  int retval = 0;
 
   // parameters: prob_id, subject, text,  
 
-  if ((n = ns_cgi_param(phr, "prob_id", &s)) < 0)
-    return ns_html_err_inv_param(fout, phr, 0, "prob_id is binary");
-  if (n > 0 && *s) {
-    if (sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n])
-      return ns_html_err_inv_param(fout, phr, 0, "cannot parse prob_id");
-    if (prob_id <= 0 || prob_id > cs->max_prob || !(prob = cs->probs[prob_id]))
-      return ns_html_err_inv_param(fout, phr, 0, "prob_id is invalid");
+  if ((n = hr_cgi_param(phr, "prob_id", &s)) < 0) {
+    FAIL2(NEW_SRV_ERR_INV_PROB_ID);
   }
-  if ((n = ns_cgi_param(phr, "test", &s)) < 0)
-    return ns_html_err_inv_param(fout, phr, 0, "test is binary");
-  if (ns_cgi_param(phr, "text", &text) <= 0)
-    return ns_html_err_inv_param(fout, phr, 0,
-                                 "text is not set or binary");
+  if (n > 0 && *s) {
+    if (sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]) {
+      FAIL2(NEW_SRV_ERR_INV_PROB_ID);
+    }
+    if (prob_id <= 0 || prob_id > cs->max_prob || !(prob = cs->probs[prob_id])) {
+      FAIL2(NEW_SRV_ERR_INV_PROB_ID);
+    }
+  }
+  if ((n = hr_cgi_param(phr, "test", &s)) < 0) {
+    fprintf(phr->log_f, "test is binary\n");
+    FAIL2(NEW_SRV_ERR_INV_PARAM);
+  }
+  if (hr_cgi_param(phr, "text", &text) <= 0) {
+    fprintf(phr->log_f, "text is not set or binary\n");
+    FAIL2(NEW_SRV_ERR_INV_PARAM);
+  }
 
   if (global->is_virtual) {
     start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
@@ -11906,55 +8848,43 @@ unpriv_submit_appeal(FILE *fout,
     stop_time = run_get_stop_time(cs->runlog_state);
   }
 
-  log_f = open_memstream(&log_txt, &log_len);
-
   if (cs->clients_suspended) {
-    ns_error(log_f, NEW_SRV_ERR_CLIENTS_SUSPENDED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLIENTS_SUSPENDED);
   }
   if (global->disable_team_clars) {
-    ns_error(log_f, NEW_SRV_ERR_CLARS_DISABLED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLARS_DISABLED);
   }
   if (!start_time) {
-    ns_error(log_f, NEW_SRV_ERR_CONTEST_NOT_STARTED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CONTEST_NOT_STARTED);
   }
   if (!stop_time) {
-    ns_error(log_f, NEW_SRV_ERR_CONTEST_NOT_FINISHED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CONTEST_NOT_FINISHED);
   }
   if (global->appeal_deadline <= 0) {
-    ns_error(log_f, NEW_SRV_ERR_APPEALS_DISABLED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_APPEALS_DISABLED);
   }
   if (cs->current_time >= global->appeal_deadline) {
-    ns_error(log_f, NEW_SRV_ERR_APPEALS_FINISHED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_APPEALS_FINISHED);
   }
-  if (ns_cgi_param(phr, "test", &s) <= 0
+  if (hr_cgi_param(phr, "test", &s) <= 0
       || sscanf(s, "%d%n", &test, &n) != 1 || s[n]
       || test <= 0 || test > 100000) {
-    ns_error(log_f, NEW_SRV_ERR_INV_TEST);
-    goto done;
+    FAIL2(NEW_SRV_ERR_INV_TEST);
   }
   if (!prob) {
-    ns_error(log_f, NEW_SRV_ERR_INV_PROB_ID);
-    goto done;
+    FAIL2(NEW_SRV_ERR_INV_PROB_ID);
   }
 
   if (!text) text = "";
   text_len = strlen(text);
   if (text_len > 128 * 1024 * 1024) {
-    ns_error(log_f, NEW_SRV_ERR_MESSAGE_TOO_LONG, text_len);
-    goto done;
+    FAIL2(NEW_SRV_ERR_MESSAGE_TOO_LONG);
   }
   text2 = alloca(text_len + 1);
   strcpy(text2, text);
   while (text_len > 0 && isspace(text2[text_len - 1])) text2[--text_len] = 0;
   if (!text_len) {
-    ns_error(log_f, NEW_SRV_ERR_MESSAGE_EMPTY);
-    goto done;
+    FAIL2(NEW_SRV_ERR_MESSAGE_EMPTY);
   }
 
   subj3 = alloca(strlen(prob->short_name) + 128);
@@ -11964,8 +8894,7 @@ unpriv_submit_appeal(FILE *fout,
   text3_len = sprintf(text3, "Subject: %s\n\n%s\n", subj3, text2);
 
   if (serve_check_clar_quota(cs, phr->user_id, text3_len) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_CLAR_QUOTA_EXCEEDED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLAR_QUOTA_EXCEEDED);
   }
 
   gettimeofday(&precise_time, 0);
@@ -11978,29 +8907,22 @@ unpriv_submit_appeal(FILE *fout,
                                  phr->user_id, 0, 0, 0, 0,
                                  phr->locale_id, 0, 0, 1,
                                  utf8_mode, NULL, subj3)) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_CLARLOG_UPDATE_FAILED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLARLOG_UPDATE_FAILED);
   }
 
   if (clar_add_text(cs->clarlog_state, clar_id, text3, text3_len) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
-    goto done;
+    FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
   }
 
   serve_send_clar_notify_email(ejudge_config, cs, cnts, phr->user_id, phr->name, subj3, text2);
+  ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_CLARS, 0);
 
- done:;
-  close_memstream(log_f); log_f = 0;
-  if (!log_txt || !*log_txt) {
-    ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_CLARS, 0);
-  } else {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_VIEW_CLAR_SUBMIT, 0);
-  }
+cleanup:;
+  return;
 
-  //cleanup:;
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
+fail:
+  error_page(fout, phr, 0, -retval);
+  goto cleanup;
 }
 
 static void
@@ -12037,60 +8959,49 @@ unpriv_command(FILE *fout,
   serve_state_t cs = extra->serve_state;
   const struct section_global_data *global = cs->global;
   const struct section_problem_data *prob;
-  char *log_txt = 0;
-  size_t log_size = 0;
-  FILE *log_f = 0;
   time_t start_time, stop_time;
   struct timeval precise_time;
   int run_id, i;
   unsigned char bb[1024];
+  int retval = 0;
 
   l10n_setlocale(phr->locale_id);
-  log_f = open_memstream(&log_txt, &log_size);
 
   switch (phr->action) {
   case NEW_SRV_ACTION_VIRTUAL_START:
   case NEW_SRV_ACTION_VIRTUAL_STOP:
     if (global->is_virtual <= 0) {
-      ns_error(log_f, NEW_SRV_ERR_NOT_VIRTUAL);
-      goto done;
+      FAIL2(NEW_SRV_ERR_NOT_VIRTUAL);
     }
     if (run_get_start_time(cs->runlog_state) <= 0) {
-      ns_error(log_f, NEW_SRV_ERR_VIRTUAL_NOT_STARTED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_VIRTUAL_NOT_STARTED);
     }
     break;
   default:
-    ns_error(log_f, NEW_SRV_ERR_UNHANDLED_ACTION, phr->action);
-    goto done;
+    FAIL2(NEW_SRV_ERR_UNHANDLED_ACTION);
   }
 
   switch (phr->action) {
   case NEW_SRV_ACTION_VIRTUAL_START:
     if (global->disable_virtual_start) {
-      ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
     }
     if (cnts->open_time > 0 && cs->current_time < cnts->open_time) {
-      ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
     }
     if (cnts->close_time > 0 && cs->current_time >= cnts->close_time) {
-      ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
     }
     start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
     if (start_time > 0) {
-      ns_error(log_f, NEW_SRV_ERR_CONTEST_ALREADY_STARTED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_CONTEST_ALREADY_STARTED);
     }
     gettimeofday(&precise_time, 0);
     run_id = run_virtual_start(cs->runlog_state, phr->user_id,
                                precise_time.tv_sec, &phr->ip, phr->ssl_flag,
                                precise_time.tv_usec * 1000);
     if (run_id < 0) {
-      ns_error(log_f, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
     }
     serve_move_files_to_insert_run(cs, run_id);
     serve_event_add(cs,
@@ -12101,22 +9012,19 @@ unpriv_command(FILE *fout,
   case NEW_SRV_ACTION_VIRTUAL_STOP:
     start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
     if (start_time <= 0) {
-      ns_error(log_f, NEW_SRV_ERR_CONTEST_NOT_STARTED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_CONTEST_NOT_STARTED);
     }
     stop_time = run_get_virtual_stop_time(cs->runlog_state, phr->user_id,
                                           cs->current_time);
     if (stop_time > 0) {
-      ns_error(log_f, NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
     }
     gettimeofday(&precise_time, 0);
     run_id = run_virtual_stop(cs->runlog_state, phr->user_id,
                               precise_time.tv_sec, &phr->ip, phr->ssl_flag,
                               precise_time.tv_usec * 1000);
     if (run_id < 0) {
-      ns_error(log_f, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
-      goto done;
+      FAIL2(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
     }
     serve_move_files_to_insert_run(cs, run_id);
     if (global->score_system == SCORE_OLYMPIAD && global->is_virtual > 0) {
@@ -12147,95 +9055,80 @@ unpriv_command(FILE *fout,
     break;
   }
 
- done:;
-  l10n_setlocale(0);
-  close_memstream(log_f); log_f = 0;
-  if (!log_txt || !*log_txt) {
-    i = 0;
-    if (phr->action == NEW_SRV_ACTION_VIRTUAL_START
-        && global->problem_navigation) {
-      for (i = 1; i <= cs->max_prob; i++) {
-        if (!(prob = cs->probs[i])) continue;
-        if (!serve_is_problem_started(cs, phr->user_id, prob))
-          continue;
-        // FIXME: standard applicability checks
-        break;
-      }
-      if (i > cs->max_prob) i = 0;
+  i = 0;
+  if (phr->action == NEW_SRV_ACTION_VIRTUAL_START
+      && global->problem_navigation) {
+    for (i = 1; i <= cs->max_prob; i++) {
+      if (!(prob = cs->probs[i])) continue;
+      if (!serve_is_problem_started(cs, phr->user_id, prob))
+        continue;
+      // FIXME: standard applicability checks
+      break;
     }
-    if (i > 0) {
-      snprintf(bb, sizeof(bb), "prob_id=%d", i);
-      ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT, bb);
-    } else if (phr->action == NEW_SRV_ACTION_VIRTUAL_STOP) {
-      ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY, 0);
-    } else {
-      ns_refresh_page(fout, phr, NEW_SRV_ACTION_MAIN_PAGE, 0);
-    }
+    if (i > cs->max_prob) i = 0;
+  }
+  if (i > 0) {
+    snprintf(bb, sizeof(bb), "prob_id=%d", i);
+    ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT, bb);
+  } else if (phr->action == NEW_SRV_ACTION_VIRTUAL_STOP) {
+    ns_refresh_page(fout, phr, NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY, 0);
   } else {
-    unpriv_load_html_style(phr, cnts, 0, 0);
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_MAIN_PAGE, 0);
+    ns_refresh_page(fout, phr, NEW_SRV_ACTION_MAIN_PAGE, 0);
   }
 
-  //cleanup:;
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
+cleanup:;
+  l10n_setlocale(0);
+  return;
+
+fail:
+  error_page(fout, phr, 0, -retval);
+  goto cleanup;
 }
 
 static void
-unpriv_view_source(FILE *fout,
-                   struct http_request_info *phr,
-                   const struct contest_desc *cnts,
-                   struct contest_extra *extra)
+unpriv_view_source(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
 {
   serve_state_t cs = extra->serve_state;
   const struct section_global_data *global = cs->global;
   int run_id, src_flags;
-  char *log_txt = 0;
-  size_t log_len = 0;
-  FILE *log_f = 0;
   struct run_entry re;
   const struct section_language_data *lang = 0;
   const struct section_problem_data *prob = 0;
   char *run_text = 0;
   size_t run_size = 0;
   path_t src_path;
+  int retval = 0;
 
   if (unpriv_parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0)
     goto cleanup;
 
-  log_f = open_memstream(&log_txt, &log_len);
-
   if (cs->clients_suspended) {
-    ns_error(log_f, NEW_SRV_ERR_CLIENTS_SUSPENDED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLIENTS_SUSPENDED);
   }
   if (cs->online_view_source < 0 || (!cs->online_view_source && global->team_enable_src_view <= 0)) {
-    ns_error(log_f, NEW_SRV_ERR_SOURCE_VIEW_DISABLED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_SOURCE_VIEW_DISABLED);
   }
   if (re.user_id != phr->user_id) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
   }
   if (re.prob_id <= 0 || re.prob_id > cs->max_prob ||
       !(prob = cs->probs[re.prob_id])) {
-    ns_error(log_f, NEW_SRV_ERR_INV_PROB_ID);
-    goto done;
+    FAIL2(NEW_SRV_ERR_INV_PROB_ID);
   }
   if (re.status > RUN_LAST
       || (re.status > RUN_MAX_STATUS && re.status < RUN_TRANSIENT_FIRST)) {
-    ns_error(log_f, NEW_SRV_ERR_SOURCE_UNAVAILABLE);
-    goto done;
+    FAIL2(NEW_SRV_ERR_SOURCE_UNAVAILABLE);
   }
 
   if ((src_flags = serve_make_source_read_path(cs, src_path, sizeof(src_path), &re)) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_SOURCE_NONEXISTANT);
-    goto done;
+    FAIL2(NEW_SRV_ERR_SOURCE_NONEXISTANT);
   }
   if (generic_read_file(&run_text, 0, &run_size, src_flags, 0, src_path, 0)<0) {
-    ns_error(log_f, NEW_SRV_ERR_DISK_READ_ERROR);
-    goto done;
+    FAIL2(NEW_SRV_ERR_DISK_READ_ERROR);
   }
 
   if (prob->type > 0) {
@@ -12248,8 +9141,7 @@ unpriv_view_source(FILE *fout,
   } else {
     if(re.lang_id <= 0 || re.lang_id > cs->max_lang ||
        !(lang = cs->langs[re.lang_id])) {
-      ns_error(log_f, NEW_SRV_ERR_INV_LANG_ID);
-      goto done;
+      FAIL2(NEW_SRV_ERR_INV_LANG_ID);
     }
 
     if (lang->content_type) {
@@ -12266,46 +9158,39 @@ unpriv_view_source(FILE *fout,
   }
   fwrite(run_text, 1, run_size, fout);
 
- done:;
-  close_memstream(log_f); log_f = 0;
-  if (log_txt && *log_txt) {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_MAIN_PAGE, 0);
-  }
-
- cleanup:
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
+cleanup:
   xfree(run_text);
+  return;
+
+fail:
+  error_page(fout, phr, 0, -retval);
+  goto cleanup;
 }
 
 static void
-unpriv_view_test(FILE *fout,
-                 struct http_request_info *phr,
-                 const struct contest_desc *cnts,
-                 struct contest_extra *extra)
+unpriv_view_test(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
 {
   const serve_state_t cs = extra->serve_state;
   const struct section_problem_data *prob = 0;
   int run_id, test_num, n;
   const unsigned char *s = 0;
   struct run_entry re;
-  FILE *log_f = 0;
-  char *log_txt = 0;
-  size_t log_len = 0;
   int enable_rep_view = -1;
+  int retval = 0;
 
   // run_id, test_num
   if (unpriv_parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0)
     goto cleanup;
-  if (ns_cgi_param(phr, "test_num", &s) <= 0
+  if (hr_cgi_param(phr, "test_num", &s) <= 0
       || sscanf(s, "%d%n", &test_num, &n) != 1 || s[n] || test_num <= 0) {
-    ns_html_err_inv_param(fout, phr, 0, "cannot parse test_num");
-    goto cleanup;
+    FAIL2(NEW_SRV_ERR_INV_TEST);
   }
   if (re.prob_id <= 0 || re.prob_id > cs->max_prob || !(prob = cs->probs[re.prob_id])) {
-    ns_html_err_inv_param(fout, phr, 0, "invalid problem");
-    goto cleanup;
+    FAIL2(NEW_SRV_ERR_INV_PROB_ID);
   }
 
   // report view is explicitly disabled by the current contest setting
@@ -12327,19 +9212,14 @@ unpriv_view_test(FILE *fout,
 
   if (enable_rep_view < 0) enable_rep_view = 0;
 
-  log_f = open_memstream(&log_txt, &log_len);
-
   if (cs->clients_suspended) {
-    ns_error(log_f, NEW_SRV_ERR_CLIENTS_SUSPENDED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_CLIENTS_SUSPENDED);
   }
   if (enable_rep_view <= 0) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
   }
   if (re.user_id != phr->user_id) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
   }
   switch (re.status) {
   case RUN_OK:
@@ -12355,514 +9235,21 @@ unpriv_view_test(FILE *fout,
   case RUN_SECURITY_ERR:
     break;
   default:
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto done;
+    FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
   }    
 
-  ns_write_tests(cs, fout, log_f, phr->action, run_id, test_num);
+  // FIXME: report errors...
+  ns_write_tests(cs, fout, phr->log_f, phr->action, run_id, test_num);
 
- done:;
-  close_memstream(log_f); log_f = 0;
-  if (log_txt && *log_txt) {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_MAIN_PAGE, 0);
-  }
+cleanup:
+  return;
 
- cleanup:
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
+fail:
+  error_page(fout, phr, 0, -retval);
+  goto cleanup;
 }
 
-static void
-unpriv_view_report(FILE *fout,
-                   struct http_request_info *phr,
-                   const struct contest_desc *cnts,
-                   struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  const struct section_problem_data *prob;
-  int run_id, flags, content_type;
-  const unsigned char *rep_start = 0;
-  FILE *log_f = 0;
-  char *log_txt = 0, *rep_text = 0;
-  size_t log_len = 0, rep_size = 0, html_len;
-  struct run_entry re;
-  path_t rep_path;
-  unsigned char *html_report;
-  time_t start_time, stop_time;
-  int accepting_mode = 0;
-  int enable_rep_view = 0;
-
-  static const int new_actions_vector[] =
-  {
-    NEW_SRV_ACTION_VIEW_TEST_INPUT,
-    NEW_SRV_ACTION_VIEW_TEST_OUTPUT,
-    NEW_SRV_ACTION_VIEW_TEST_ANSWER,
-    NEW_SRV_ACTION_VIEW_TEST_ERROR,
-    NEW_SRV_ACTION_VIEW_TEST_CHECKER,
-    NEW_SRV_ACTION_VIEW_TEST_INFO,
-  };
-
-  start_time = run_get_start_time(cs->runlog_state);
-  stop_time = run_get_stop_time(cs->runlog_state);
-  if (global->is_virtual) {
-    start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
-    stop_time = run_get_virtual_stop_time(cs->runlog_state, phr->user_id,
-                                          cs->current_time);
-    if (global->score_system == SCORE_OLYMPIAD) {
-      if (global->disable_virtual_auto_judge <= 0 && stop_time <= 0)
-        accepting_mode = 1;
-      else if (global->disable_virtual_auto_judge > 0
-               && cs->testing_finished <= 0)
-        accepting_mode = 1;
-    }
-  } else {
-    accepting_mode = cs->accepting_mode;
-  }
-
-  if (unpriv_parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0)
-    goto cleanup;
-
-  enable_rep_view = (cs->online_view_report > 0 || (!cs->online_view_report && global->team_enable_rep_view > 0));
-
-  log_f = open_memstream(&log_txt, &log_len);
-
-  if (cs->clients_suspended) {
-    ns_error(log_f, NEW_SRV_ERR_CLIENTS_SUSPENDED);
-    goto done;
-  }
-
-  if (re.user_id != phr->user_id) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto done;
-  }
-  if (re.prob_id <= 0 || re.prob_id > cs->max_prob ||
-      !(prob = cs->probs[re.prob_id])) {
-    ns_error(log_f, NEW_SRV_ERR_INV_PROB_ID);
-    goto done;
-  }
-  // check viewable statuses
-  switch (re.status) {
-  case RUN_OK:
-  case RUN_COMPILE_ERR:
-  case RUN_RUN_TIME_ERR:
-  case RUN_TIME_LIMIT_ERR:
-  case RUN_WALL_TIME_LIMIT_ERR:
-  case RUN_PRESENTATION_ERR:
-  case RUN_WRONG_ANSWER_ERR:
-  case RUN_PARTIAL:
-  case RUN_ACCEPTED:
-  case RUN_PENDING_REVIEW:
-  case RUN_MEM_LIMIT_ERR:
-  case RUN_SECURITY_ERR:
-  case RUN_STYLE_ERR:
-  case RUN_REJECTED:
-    // these statuses have viewable reports
-    break;
-  default:
-    ns_error(log_f, NEW_SRV_ERR_REPORT_UNAVAILABLE);
-    goto done;
-  }
-
-  if (accepting_mode && prob->type != PROB_TYPE_STANDARD) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto done;
-  }
-
-  if (enable_rep_view) enable_rep_view = prob->team_enable_rep_view;
-  if (!enable_rep_view
-      && (!prob->team_enable_ce_view
-          || (re.status != RUN_COMPILE_ERR
-              && re.status != RUN_STYLE_ERR
-              && re.status != RUN_REJECTED))) {
-    ns_error(log_f, NEW_SRV_ERR_REPORT_VIEW_DISABLED);
-    goto done;
-  }
-
-  flags = serve_make_xml_report_read_path(cs, rep_path, sizeof(rep_path), &re);
-  if (flags >= 0) {
-    if (generic_read_file(&rep_text, 0, &rep_size, flags, 0, rep_path, 0) < 0) {
-      ns_error(log_f, NEW_SRV_ERR_DISK_READ_ERROR);
-      goto done;
-    }
-    content_type = get_content_type(rep_text, &rep_start);
-    if (content_type != CONTENT_TYPE_XML
-        && re.status != RUN_COMPILE_ERR
-        && re.status != RUN_STYLE_ERR
-        && re.status != RUN_REJECTED) {
-      ns_error(log_f, NEW_SRV_ERR_REPORT_UNAVAILABLE);
-      goto done;
-    }
-  } else {
-    int user_mode = 0;
-    if (prob->team_enable_ce_view
-        && (re.status == RUN_COMPILE_ERR
-            || re.status == RUN_STYLE_ERR
-            || re.status == RUN_REJECTED)) {
-    } else if (prob->team_show_judge_report) {
-    } else {
-      user_mode = 1;
-    }
-
-    if (user_mode) {
-      flags = archive_make_read_path(cs, rep_path, sizeof(rep_path),
-                                     global->team_report_archive_dir, run_id, 0, 1);
-    } else {
-      flags = serve_make_report_read_path(cs, rep_path, sizeof(rep_path), &re);
-      
-    }
-    if (flags < 0) {
-      ns_error(log_f, NEW_SRV_ERR_REPORT_NONEXISTANT);
-      goto done;
-    }
-
-    if (generic_read_file(&rep_text,0,&rep_size,flags,0,rep_path, 0) < 0) {
-      ns_error(log_f, NEW_SRV_ERR_DISK_READ_ERROR);
-      goto done;
-    }
-    content_type = get_content_type(rep_text, &rep_start);
-  }
-
-  unpriv_load_html_style(phr, cnts, 0, 0);
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, phr->script_part, phr->body_attr,
-            phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s]: %s %d",
-            phr->name_arm, extra->contest_arm, _("Report for run"),
-            run_id);
-  unpriv_page_header(fout, phr, cnts, extra, start_time, stop_time);
-
-  switch (content_type) {
-  case CONTENT_TYPE_TEXT:
-    html_len = html_armored_memlen(rep_text, rep_size);
-    if (html_len > 2 * 1024 * 1024) {
-      html_report = xmalloc(html_len + 16);
-      html_armor_text(rep_text, rep_size, html_report);
-      html_report[html_len] = 0;
-      fprintf(fout, "<pre>%s</pre>", html_report);
-      xfree(html_report);
-    } else {
-      html_report = alloca(html_len + 16);
-      html_armor_text(rep_text, rep_size, html_report);
-      html_report[html_len] = 0;
-      fprintf(fout, "<pre>%s</pre>", html_report);
-    }
-    break;
-  case CONTENT_TYPE_HTML:
-    fprintf(fout, "%s", rep_start);
-    break;
-  case CONTENT_TYPE_XML:
-    if (prob->type == PROB_TYPE_TESTS) {
-      if (prob->team_show_judge_report) {
-        write_xml_tests_report(fout, 1, rep_start, phr->session_id,
-                                 phr->self_url, "", "b1", "b0"); 
-      } else {
-        write_xml_team_tests_report(cs, prob, fout, rep_start, "b1");
-      }
-    } else {
-      if (global->score_system == SCORE_OLYMPIAD && accepting_mode) {
-        write_xml_team_accepting_report(fout, rep_start, run_id, &re, prob,
-                                        new_actions_vector,
-                                        phr->session_id, cnts->exam_mode,
-                                        phr->self_url, "", "b1");
-      } else if (prob->team_show_judge_report) {
-        write_xml_testing_report(fout, 1, rep_start, phr->session_id,
-                                 phr->self_url, "", new_actions_vector, "b1",
-                                 "b0");
-      } else {
-        write_xml_team_testing_report(cs, prob, fout,
-                                      prob->type != PROB_TYPE_STANDARD,
-                                      re.is_marked,
-                                      rep_start, "b1", phr->session_id, phr->self_url, "", new_actions_vector);
-      }
-    }
-    break;
-  default:
-    abort();
-  }
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- done:;
-  close_memstream(log_f); log_f = 0;
-  if (log_txt && *log_txt) {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_MAIN_PAGE, 0);
-  }
-
- cleanup:
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
-  xfree(rep_text);
-}
-
-static void
-unpriv_view_clar(FILE *fout,
-                 struct http_request_info *phr,
-                 const struct contest_desc *cnts,
-                 struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  int n, clar_id, show_astr_time;
-  const unsigned char *s;
-  FILE *log_f = 0;
-  char *log_txt = 0;
-  size_t log_len = 0, clar_size = 0, html_subj_len, html_text_len;
-  struct clar_entry_v1 ce;
-  time_t start_time, clar_time, stop_time;
-  unsigned char *clar_text = 0;
-  unsigned char *html_subj, *html_text;
-  unsigned char dur_str[64];
-  const unsigned char *clar_subj = 0;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-
-  if ((n = ns_cgi_param(phr, "clar_id", &s)) <= 0)
-    return ns_html_err_inv_param(fout, phr, 0, "clar_id is binary or not set");
-  if (sscanf(s, "%d%n", &clar_id, &n) != 1 || s[n])
-    return ns_html_err_inv_param(fout, phr, 0, "cannot parse clar_id");
-
-  log_f = open_memstream(&log_txt, &log_len);
-
-  if (cs->clients_suspended) {
-    ns_error(log_f, NEW_SRV_ERR_CLIENTS_SUSPENDED);
-    goto done;
-  }
-  if (global->disable_clars) {
-    ns_error(log_f, NEW_SRV_ERR_CLARS_DISABLED);
-    goto done;
-  }
-  if (clar_id < 0 || clar_id >= clar_get_total(cs->clarlog_state)
-      || clar_get_record(cs->clarlog_state, clar_id, &ce) < 0
-      || ce.id < 0) {
-    ns_error(log_f, NEW_SRV_ERR_INV_CLAR_ID);
-    goto done;
-  }
-
-  show_astr_time = global->show_astr_time;
-  if (global->is_virtual) show_astr_time = 1;
-  start_time = run_get_start_time(cs->runlog_state);
-  stop_time = run_get_stop_time(cs->runlog_state);
-  if (global->is_virtual) {
-    start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
-    stop_time = run_get_virtual_stop_time(cs->runlog_state, phr->user_id,
-                                          cs->current_time);
-  }
-
-  if ((ce.from > 0 && ce.from != phr->user_id)
-      || (ce.to > 0 && ce.to != phr->user_id)
-      || (start_time <= 0 && ce.hide_flag)) {
-    ns_error(log_f, NEW_SRV_ERR_PERMISSION_DENIED);
-    goto done;
-  }
-
-  if (ce.from != phr->user_id) {
-    team_extra_set_clar_status(cs->team_extra_state, phr->user_id, clar_id);
-  }
-
-  if (clar_get_text(cs->clarlog_state, clar_id, &clar_text, &clar_size) < 0) {
-    ns_error(log_f, NEW_SRV_ERR_DISK_READ_ERROR);
-    goto done;
-  }
-
-  clar_subj = clar_get_subject(cs->clarlog_state, clar_id);
-  html_subj_len = html_armored_strlen(clar_subj);
-  html_subj = alloca(html_subj_len + 1);
-  html_armor_string(clar_subj, html_subj);
-  html_text_len = html_armored_strlen(clar_text);
-  html_text = alloca(html_text_len + 1);
-  html_armor_string(clar_text, html_text);
-
-  clar_time = ce.time;
-  if (start_time < 0) start_time = 0;
-  if (!start_time) clar_time = start_time;
-  if (clar_time < start_time) clar_time = start_time;
-  duration_str(show_astr_time, clar_time, start_time, dur_str, 0);
-
-  unpriv_load_html_style(phr, cnts, 0, 0);
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, extra->header_txt, 0, 0, phr->script_part, phr->body_attr, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s]: %s %d",
-            phr->name_arm, extra->contest_arm, _("Clarification"),
-            clar_id);
-  unpriv_page_header(fout, phr, cnts, extra, start_time, stop_time);
-
-  fprintf(fout, "<%s>%s #%d</%s>\n", cnts->team_head_style,
-          _("Message"), clar_id, cnts->team_head_style);
-  fprintf(fout, "<table class=\"b0\">\n");
-  fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%d</td></tr>\n", _("Number"), clar_id);
-  fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>\n", _("Time"), dur_str);
-  fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%u</td></tr>\n", _("Size"), ce.size);
-  fprintf(fout, "<tr><td class=\"b0\">%s:</td>", _("Sender"));
-  if (!ce.from) {
-    fprintf(fout, "<td class=\"b0\"><b>%s</b></td>", _("judges"));
-  } else {
-    fprintf(fout, "<td class=\"b0\">%s</td>", ARMOR(teamdb_get_name(cs->teamdb_state, ce.from)));
-  }
-  fprintf(fout, "</tr>\n<tr><td class=\"b0\">%s:</td>", _("To"));
-  if (!ce.to && !ce.from) {
-    fprintf(fout, "<td class=\"b0\"><b>%s</b></td>", _("all"));
-  } else if (!ce.to) {
-    fprintf(fout, "<td class=\"b0\"><b>%s</b></td>", _("judges"));
-  } else {
-    fprintf(fout, "<td class=\"b0\">%s</td>", ARMOR(teamdb_get_name(cs->teamdb_state, ce.to)));
-  }
-  fprintf(fout, "</tr>\n");
-  fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s</td></tr>", _("Subject"), html_subj);
-  fprintf(fout, "</table>\n");
-  fprintf(fout, "<hr><pre>");
-  fprintf(fout, "%s", html_text);
-  fprintf(fout, "</pre><hr>");
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-
- done:;
-  close_memstream(log_f); log_f = 0;
-  if (log_txt && *log_txt) {
-    html_error_status_page(fout, phr, cnts, extra, log_txt,
-                           NEW_SRV_ACTION_MAIN_PAGE, 0);
-  }
-
-  if (log_f) close_memstream(log_f);
-  xfree(log_txt);
-  xfree(clar_text);
-  html_armor_free(&ab);
-}
-
-static void
-unpriv_view_standings(FILE *fout,
-                      struct http_request_info *phr,
-                      const struct contest_desc *cnts,
-                      struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  const struct section_global_data *global = cs->global;
-  time_t start_time, stop_time, cur_time, fog_start_time = 0, fog_stop_time = 0;
-  time_t sched_time = 0, duration = 0;
-  long long tdiff;
-  unsigned char comment[1024] = { 0 };
-  unsigned char dur_buf[128];
-
-  if (global->is_virtual) {
-    start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
-    stop_time = run_get_virtual_stop_time(cs->runlog_state, phr->user_id,
-                                          cs->current_time);
-  } else {
-    start_time = run_get_start_time(cs->runlog_state);
-    stop_time = run_get_stop_time(cs->runlog_state);
-  }
-  run_get_times(cs->runlog_state, 0, &sched_time, &duration, 0, 0);
-  if (duration > 0 && start_time > 0 && global->board_fog_time > 0)
-    fog_start_time = start_time + duration - global->board_fog_time;
-  if (fog_start_time < 0) fog_start_time = 0;
-  if (fog_start_time > 0 && stop_time > 0) {
-    if (global->board_unfog_time > 0)
-      fog_stop_time = stop_time + global->board_unfog_time;
-    else
-      fog_stop_time = stop_time;
-  }
-  /* FIXME: if a virtual contest is over, display the final
-   * standings at the current time! */
-
-  unpriv_load_html_style(phr, cnts, 0, 0);
-  l10n_setlocale(phr->locale_id);
-  if (start_time <= 0) {
-    ns_header(fout, extra->header_txt, 0, 0, phr->script_part, phr->body_attr, phr->locale_id, cnts,
-              phr->client_key,
-              "%s [%s]: %s",
-              phr->name_arm, extra->contest_arm, _("Standings [not started]"));
-    unpriv_page_header(fout, phr, cnts, extra, start_time, stop_time);
-    goto done;
-  }
-
-  cur_time = cs->current_time;
-  if (cur_time < start_time) cur_time = start_time;
-  if (duration <= 0) {
-    if (stop_time > 0 && cur_time >= stop_time)
-      snprintf(comment, sizeof(comment), _(" [over]"));
-    else if (global->stand_ignore_after > 0
-             && cur_time >= global->stand_ignore_after) {
-      cur_time = global->stand_ignore_after;
-      snprintf(comment, sizeof(comment), " [%s, frozen]",
-               xml_unparse_date(cur_time));
-    } else
-      snprintf(comment, sizeof(comment), " [%s]", xml_unparse_date(cur_time));
-  } else {
-    if (stop_time > 0 && cur_time >= stop_time) {
-      if (fog_stop_time > 0 && cur_time < fog_stop_time) {
-        cur_time = fog_start_time;
-        snprintf(comment, sizeof(comment), _(" [over, frozen]"));
-      }
-      else
-        snprintf(comment, sizeof(comment), _(" [over]"));
-    } else {
-      if (fog_start_time > 0 && cur_time >= fog_start_time) {
-        cur_time = fog_start_time;
-        snprintf(comment, sizeof(comment), _(" [%s, frozen]"),
-                 duration_str(global->show_astr_time, cur_time, start_time,
-                              dur_buf, sizeof(dur_buf)));
-      } else
-        snprintf(comment, sizeof(comment), " [%s]",
-                 duration_str(global->show_astr_time, cur_time, start_time,
-                              dur_buf, sizeof(dur_buf)));
-    }
-  }
-
-  ns_header(fout, extra->header_txt, 0, 0, phr->script_part, phr->body_attr, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s]: %s%s",
-            phr->name_arm, extra->contest_arm, _("Standings"), comment);
-
-  unpriv_page_header(fout, phr, cnts, extra, start_time, stop_time);
-  fprintf(fout, "<%s>%s%s</%s>\n",
-          cnts->team_head_style, _("Standings"), comment,
-          cnts->team_head_style);
-
-  if (global->disable_user_standings > 0) {
-    fprintf(fout, _("<p>Information is not available.</p>"));
-  } else if (global->is_virtual) {
-    do_write_standings(cs, cnts, fout, 1, 1, phr->user_id, 0, 0, 0, 0, 1,
-                       cur_time, NULL);
-  } else if (global->score_system == SCORE_ACM) {
-    do_write_standings(cs, cnts, fout, 1, 1, phr->user_id, 0, 0, 0, 0, 1,
-                       cur_time, NULL);
-  } else if (global->score_system == SCORE_OLYMPIAD && cs->accepting_mode) {
-    fprintf(fout, _("<p>Information is not available.</p>"));
-  } else if (global->score_system == SCORE_OLYMPIAD) {
-    //fprintf(fout, _("<p>Information is not available.</p>"));
-    do_write_kirov_standings(cs, cnts, fout, 0, 1, 1, phr->user_id, 0, 0, 0, 0, 1, cur_time,
-                             0, NULL, 1 /* user_mode */);
-  } else if (global->score_system == SCORE_KIROV) {
-    do_write_kirov_standings(cs, cnts, fout, 0, 1, 1, phr->user_id, 0, 0, 0, 0, 1, cur_time,
-                             0, NULL, 1 /* user_mode */);
-  } else if (global->score_system == SCORE_MOSCOW) {
-    do_write_moscow_standings(cs, cnts, fout, 0, 1, 1, phr->user_id,
-                              0, 0, 0, 0, 1, cur_time, 0, NULL);
-  }
-
- done:
-  if (1 /*cs->global->show_generation_time*/) {
-  gettimeofday(&phr->timestamp2, 0);
-  tdiff = ((long long) phr->timestamp2.tv_sec) * 1000000;
-  tdiff += phr->timestamp2.tv_usec;
-  tdiff -= ((long long) phr->timestamp1.tv_sec) * 1000000;
-  tdiff -= phr->timestamp1.tv_usec;
-  fprintf(fout, "<div class=\"dotted\"><p%s>%s: %lld %s</p></div>",
-          cnts->team_par_style,
-          _("Page generation time"), tdiff / 1000,
-          _("msec"));
-  }
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-}
-
-static void
+void
 html_problem_selection(serve_state_t cs,
                        FILE *fout,
                        struct http_request_info *phr,
@@ -12952,7 +9339,7 @@ html_problem_selection(serve_state_t cs,
 }
 
 // for "Statements" section
-static void
+void
 html_problem_selection_2(serve_state_t cs,
                          FILE *fout,
                          struct http_request_info *phr,
@@ -13007,356 +9394,7 @@ html_problem_selection_2(serve_state_t cs,
   fprintf(fout, "</select>");
 }
 
-static unsigned char *
-brief_time(unsigned char *buf, size_t size, time_t time)
-{
-  struct tm *ptm = localtime(&time);
-  snprintf(buf, size, "%02d:%02d:%02d",
-           ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
-  return buf;
-}
-
-static void
-unpriv_page_header(FILE *fout,
-                   struct http_request_info *phr,
-                   const struct contest_desc *cnts,
-                   struct contest_extra *extra,
-                   time_t start_time, time_t stop_time)
-{
-  static int top_action_list[] =
-  {
-    NEW_SRV_ACTION_VIEW_SETTINGS,
-    NEW_SRV_ACTION_REG_DATA_EDIT,
-    NEW_SRV_ACTION_LOGOUT,
-
-    -1,
-  };
-
-  static const unsigned char *top_action_names[] =
-  {
-    __("Settings"),
-    __("Registration data"),
-    __("Logout"),
-  };
-
-  static int action_list[] =
-  {
-    NEW_SRV_ACTION_MAIN_PAGE,
-    NEW_SRV_ACTION_VIEW_STARTSTOP,
-    NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY,
-    NEW_SRV_ACTION_VIEW_PROBLEM_STATEMENTS,
-    NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-    NEW_SRV_ACTION_VIEW_SUBMISSIONS,
-    NEW_SRV_ACTION_STANDINGS,
-    NEW_SRV_ACTION_VIEW_CLAR_SUBMIT,
-    NEW_SRV_ACTION_VIEW_CLARS,
-
-    -1,
-  };
-
-  static const unsigned char *action_names[] =
-  {
-    __("Info"),
-    0,
-    __("Summary"),
-    __("Statements"),
-    __("Submit"),
-    __("Submissions"),
-    __("Standings"),
-    __("Submit clar"),
-    __("Clars"),
-    __("Settings"),
-    __("Logout"),
-  };
-
-  int i, prob_id, has_prob_stmt = 0;
-  serve_state_t cs = extra->serve_state;
-  const unsigned char *forced_url = 0;
-  const unsigned char *target = 0;
-  const unsigned char *forced_text = 0;
-  const struct section_global_data *global = cs->global;
-  int unread_clars = 0;
-  const unsigned char *status_style = "", *s;
-  unsigned char time_buf[64];
-  time_t duration = 0, sched_time = 0, fog_start_time = 0;
-  int shown_items = 0;
-  const unsigned char *template_ptr;
-  unsigned char stand_url_buf[1024];
-  struct teamdb_export tdb;
-  struct sformat_extra_data fe;
-  const unsigned char *visibility;
-
-  template_ptr = extra->menu_2_txt;
-  if (!template_ptr || !*template_ptr)
-    template_ptr = ns_fancy_unpriv_content_header;
-
-  if (!phr->action) phr->action = NEW_SRV_ACTION_MAIN_PAGE;
-
-  while (*template_ptr) {
-    if (*template_ptr != '%') {
-      putc(*template_ptr, fout);
-      template_ptr++;
-      continue;
-    }
-    template_ptr++;
-    if (!*template_ptr) {
-      putc('%', fout);
-      break;
-    } else if (*template_ptr == '%') {
-      putc('%', fout);
-      template_ptr++;
-      continue;
-    }
-
-    switch (*template_ptr++) {
-    case '1':
-      for (i = 0; top_action_list[i] != -1; i++) {
-        // phew ;)
-        if (cnts->exam_mode) continue;
-        if (phr->action == top_action_list[i]) {
-          fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">%s</div></td>", gettext(top_action_names[i]));
-          shown_items++;
-        } else if (top_action_list[i] == NEW_SRV_ACTION_REG_DATA_EDIT) {
-          if (!cnts->allow_reg_data_edit) continue;
-          if (!contests_check_register_ip_2(cnts, &phr->ip, phr->ssl_flag))
-            continue;
-          if (cnts->reg_deadline > 0 && cs->current_time >= cnts->reg_deadline)
-            continue;
-          get_register_url(stand_url_buf, sizeof(stand_url_buf), cnts,
-                           phr->self_url);
-          fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\"><a class=\"menu\" href=\"%s?SID=%016llx\">%s</a></div></td>",
-                  stand_url_buf, phr->session_id,
-                  gettext(top_action_names[i]));
-          shown_items++;
-        } else if (top_action_list[i] == NEW_SRV_ACTION_LOGOUT) {
-          forced_text = 0;
-          if (cnts->exam_mode) forced_text = _("Finish session");
-          if (!forced_text) forced_text = gettext(top_action_names[i]);
-          fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\"><a class=\"menu\" href=\"%s?SID=%016llx&amp;action=%d\">%s [%s]</a></div></td>",
-                  phr->self_url, phr->session_id, top_action_list[i],
-                  forced_text, phr->login);
-          shown_items++;
-        } else {
-          fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\"><a class=\"menu\" href=\"%s?SID=%016llx&amp;action=%d\">%s</a></div></td>",
-                  phr->self_url, phr->session_id, top_action_list[i],
-                  gettext(top_action_names[i]));
-          shown_items++;
-        }
-      }
-      if (!shown_items)
-        fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td>");
-      break;
-    case '2':
-      for (i = 0; action_list[i] != -1; i++) {
-        forced_url = 0;
-        forced_text = 0;
-        target = "";
-        // conditions when the corresponding menu item is shown
-        switch (action_list[i]) {
-        case NEW_SRV_ACTION_MAIN_PAGE:
-          if (cnts->exam_mode) forced_text = _("Instructions");
-          break;
-        case NEW_SRV_ACTION_VIEW_STARTSTOP:
-          if (!global->is_virtual) continue;
-          if (start_time <= 0) {
-            if (global->disable_virtual_start > 0) continue;
-            if (cnts->exam_mode) forced_text = _("Start exam");
-            else forced_text = _("Start virtual contest");
-          } else if (stop_time <= 0) {
-            if (cnts->exam_mode) forced_text = _("Stop exam");
-            else forced_text = _("Stop virtual contest");
-          } else {
-            continue;
-          }
-          break;
-        case NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY:
-          if (start_time <= 0) continue;
-          if (cnts->exam_mode && stop_time <= 0) continue;
-          break;      
-        case NEW_SRV_ACTION_VIEW_PROBLEM_STATEMENTS:
-          if (start_time <= 0) continue;
-          if (stop_time > 0 && !cnts->problems_url) continue;
-          for (prob_id = 1; prob_id <= cs->max_prob; prob_id++)
-            if (cs->probs[prob_id] && cs->probs[prob_id]->statement_file[0])
-              break;
-          if (prob_id <= cs->max_prob)
-            has_prob_stmt = 1;
-          if (!has_prob_stmt && !cnts->problems_url) continue;
-          if (cnts->problems_url && (stop_time > 0 || !has_prob_stmt)) {
-            forced_url = cnts->problems_url;
-            target = " target=\"_blank\"";
-          }
-          if (global->problem_navigation && !cnts->problems_url) continue;
-          break;
-        case NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT:
-          if (start_time <= 0 || stop_time > 0) continue;
-          if (global->problem_navigation > 0) continue;
-          break;
-        case NEW_SRV_ACTION_VIEW_SUBMISSIONS:
-          if (start_time <= 0) continue;
-          if (cnts->exam_mode && stop_time <= 0) continue;
-          break;
-        case NEW_SRV_ACTION_STANDINGS:
-          if (start_time <= 0) continue;
-          if (global->disable_user_standings > 0) continue;
-          //if (global->score_system == SCORE_OLYMPIAD) continue;
-          if (cnts->standings_url) {
-            memset(&tdb, 0, sizeof(tdb));
-            teamdb_export_team(cs->teamdb_state, phr->user_id, &tdb);
-            memset(&fe, 0, sizeof(fe));
-            fe.locale_id = phr->locale_id;
-            fe.sid = phr->session_id;
-            sformat_message(stand_url_buf, sizeof(stand_url_buf), 0,
-                            cnts->standings_url, global, 0, 0, 0, &tdb,
-                            tdb.user, cnts, &fe);
-            forced_url = stand_url_buf;
-            target = " target=\"_blank\"";
-          }
-          if (cnts->personal) forced_text = _("User standings");
-          break;
-        case NEW_SRV_ACTION_VIEW_CLAR_SUBMIT:
-          if (global->disable_team_clars) continue;
-          if (global->disable_clars) continue;
-          if (start_time <= 0) continue;
-          if (stop_time > 0
-              && (global->appeal_deadline <= 0
-                  || cs->current_time >= global->appeal_deadline))
-            continue;
-          break;
-        case NEW_SRV_ACTION_VIEW_CLARS:
-          if (global->disable_clars) continue;
-          break;
-        case NEW_SRV_ACTION_VIEW_SETTINGS:
-          break;
-        }
-        if (!forced_text) forced_text = gettext(action_names[i]);
-        if (phr->action == action_list[i]) {
-          fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">%s</div></td>", forced_text);
-        } else if (forced_url) {
-          fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\"><a class=\"menu\" href=\"%s\"%s>%s</a></div></td>",
-                  forced_url, target, forced_text);
-        } else {
-          fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\"><a class=\"menu\" href=\"%s?SID=%016llx&amp;action=%d\">%s</a></div></td>",
-                  phr->self_url, phr->session_id, action_list[i], forced_text);
-        }
-      }
-      break;
-
-    case '3':
-      if (extra->separator_txt && *extra->separator_txt) {
-        ns_separator(fout, extra->separator_txt, cnts);
-      }
-      break;
-
-    case '4':
-      run_get_times(cs->runlog_state, 0, &sched_time, &duration, 0, 0);
-      if (duration > 0 && start_time && !stop_time
-          && global->board_fog_time > 0)
-        fog_start_time = start_time + duration - global->board_fog_time;
-      if (fog_start_time < 0) fog_start_time = 0;
-      if (!cs->global->disable_clars || !cs->global->disable_team_clars)
-        unread_clars = serve_count_unread_clars(cs, phr->user_id, start_time);
-      if (cs->clients_suspended) {
-        status_style = "server_status_off";
-      } else if (unread_clars > 0) {
-        status_style = "server_status_alarm";
-      } else {
-        status_style = "server_status_on";
-      }
-      fprintf(fout, "<div class=\"%s\" id=\"statusLine\">\n", status_style);
-      fprintf(fout, "<div id=\"currentTime\">%s</div>",
-              brief_time(time_buf, sizeof(time_buf), cs->current_time));
-      if (unread_clars > 0) {
-        fprintf(fout, _(" / <b>%d unread message(s)</b>"),
-                unread_clars);
-      }
-
-      if (stop_time > 0) {
-        if (duration > 0 && global->board_fog_time > 0
-            && global->board_unfog_time > 0
-            && cs->current_time < stop_time + global->board_unfog_time
-            && !cs->standings_updated) {
-          s = _("OVER (frozen)");
-        } else {
-          s = _("OVER");
-        }
-      } else if (start_time > 0) {
-        if (fog_start_time > 0 && cs->current_time >= fog_start_time) {
-          if (cnts->exam_mode)
-            s = _("EXAM IS RUNNING (frozen)");
-          else
-            s = _("RUNNING (frozen)");
-        } else {
-          if (cnts->exam_mode)
-            s = _("EXAM IS RUNNING");
-          else
-            s = _("RUNNING");
-        }
-      } else {
-        s = _("NOT STARTED");
-      }
-      fprintf(fout, " / <b>%s</b>", s);
-
-      if (start_time > 0) {
-        if (global->score_system == SCORE_OLYMPIAD && !global->is_virtual) {
-          if (cs->accepting_mode)
-            s = _("accepting");
-          else if (!cs->testing_finished)
-            s = _("judging");
-          else
-            s = _("judged");
-          fprintf(fout, " / <b>%s</b>", s);
-        }
-      }
-
-      if (cs->upsolving_mode) {
-        fprintf(fout, " / <b>%s</b>", _("UPSOLVING"));
-      }
-
-      if (cs->clients_suspended) {
-        fprintf(fout, " / <b><font color=\"red\">%s</font></b>",
-                _("clients suspended"));
-      }
-
-      if (start_time > 0) {
-        if (cs->testing_suspended) {
-          fprintf(fout, " / <b><font color=\"red\">%s</font></b>",
-                  _("testing suspended"));
-        }
-        if (cs->printing_suspended) {
-          fprintf(fout, " / <b><font color=\"red\">%s</font></b>",
-                  _("printing suspended"));
-        }
-      }
-
-      if (!global->is_virtual && start_time <= 0 && sched_time > 0) {
-        fprintf(fout, " / %s: %s",
-                _("Start at"),
-                brief_time(time_buf, sizeof(time_buf), sched_time));
-      }
-
-      if (start_time > 0 && stop_time <= 0 && duration > 0) {
-        duration_str(0, start_time + duration - cs->current_time, 0,
-                     time_buf, 0);
-        fprintf(fout, " / %s: <div id=\"remainingTime\">%s</div>",
-                _("Remaining"), time_buf);
-      }
-
-      visibility = "hidden";
-      if (global->disable_auto_refresh > 0) {
-        visibility = "visible";
-      }
-
-      fprintf(fout, "<div id=\"reloadButton\" style=\"visibility: %s\">/ <a class=\"menu\" onclick=\"reloadPage()\"><b>[ %s ]</b></a></div><div id=\"statusString\" style=\"visibility: hidden\"></div></div>\n", visibility, _("REFRESH"));
-      break;
-
-    default:
-      break;
-    }
-  }
-}
-
-static int
+int
 get_last_language(serve_state_t cs, int user_id, int *p_last_eoln_type)
 {
   int total_runs = run_get_total(cs->runlog_state), run_id;
@@ -13375,7 +9413,7 @@ get_last_language(serve_state_t cs, int user_id, int *p_last_eoln_type)
   return 0;
 }
 
-static unsigned char *
+unsigned char *
 get_last_source(serve_state_t cs, int user_id, int prob_id)
 {
   int total_runs = run_get_total(cs->runlog_state), run_id;
@@ -13406,7 +9444,7 @@ get_last_source(serve_state_t cs, int user_id, int prob_id)
   return s;
 }
 
-static int
+int
 get_last_answer_select_one(serve_state_t cs, int user_id, int prob_id)
 {
   unsigned char *s = get_last_source(cs, user_id, prob_id);
@@ -13421,7 +9459,7 @@ get_last_answer_select_one(serve_state_t cs, int user_id, int prob_id)
   return val;
 }
 
-static int
+int
 is_judged_virtual_olympiad(serve_state_t cs, int user_id)
 {
   struct run_entry vs, ve;
@@ -13429,16 +9467,6 @@ is_judged_virtual_olympiad(serve_state_t cs, int user_id)
   if (run_get_virtual_info(cs->runlog_state, user_id, &vs, &ve) < 0) return 0;
   return (vs.judge_id > 0);
 }
-
-// problem status flags
-enum
-{
-  PROB_STATUS_VIEWABLE = 1,
-  PROB_STATUS_SUBMITTABLE = 2,
-  PROB_STATUS_TABABLE = 4,
-
-  PROB_STATUS_GOOD = PROB_STATUS_VIEWABLE | PROB_STATUS_SUBMITTABLE,
-};
 
 /*
   *PROBLEM_PARAM(disable_user_submit, "d"),
@@ -13451,15 +9479,17 @@ enum
   *PROBLEM_PARAM(personal_deadline, "x"),
 */
 
-static void
-get_problem_status(serve_state_t cs, int user_id,
-                   const unsigned char *user_login,
-                   int accepting_mode,
-                   time_t start_time,
-                   time_t stop_time,
-                   const unsigned char *solved_flag,
-                   const unsigned char *accepted_flag,
-                   unsigned char *pstat)
+void
+ns_get_problem_status(
+        serve_state_t cs,
+        int user_id,
+        const unsigned char *user_login,
+        int accepting_mode,
+        time_t start_time,
+        time_t stop_time,
+        const unsigned char *solved_flag,
+        const unsigned char *accepted_flag,
+        unsigned char *pstat)
 {
   const struct section_problem_data *prob;
   int prob_id, is_deadlined, k, j;
@@ -13527,8 +9557,8 @@ write_row(
           row_label, buf);
 }
 
-static void
-unparse_statement(
+void
+ns_unparse_statement(
         FILE *fout,
         struct http_request_info *phr,
         const struct contest_desc *cnts,
@@ -13656,8 +9686,8 @@ unparse_statement(
   html_armor_free(&ab);
 }
 
-static void
-unparse_answers(
+void
+ns_unparse_answers(
         FILE *fout,
         struct http_request_info *phr,
         const struct contest_desc *cnts,
@@ -13721,1054 +9751,6 @@ unparse_answers(
   }
 }
 
-static const unsigned char *main_page_headers[NEW_SRV_ACTION_LAST] =
-{
-  [NEW_SRV_ACTION_MAIN_PAGE] = __("Contest status"),
-  [NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY] = __("Problem summary"),
-  [NEW_SRV_ACTION_VIEW_PROBLEM_STATEMENTS] = __("Statements"),
-  [NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT] = __("Submit a solution"),
-  [NEW_SRV_ACTION_VIEW_SUBMISSIONS] = __("Submissions"),
-  [NEW_SRV_ACTION_VIEW_CLAR_SUBMIT] = __("Send a message"),
-  [NEW_SRV_ACTION_VIEW_CLARS] = __("Messages"),
-  [NEW_SRV_ACTION_VIEW_SETTINGS] = __("Settings"),
-};
-
-static void
-unpriv_main_page(FILE *fout,
-                 struct http_request_info *phr,
-                 const struct contest_desc *cnts,
-                 struct contest_extra *extra)
-{
-  serve_state_t cs = extra->serve_state;
-  struct section_global_data *global = cs->global;
-  //long long tdiff;
-  time_t start_time, stop_time, duration, sched_time, fog_start_time = 0;
-  time_t finish_time = 0;
-  const unsigned char *s;
-  int all_runs = 0, all_clars = 0;
-  unsigned char *solved_flag = 0;
-  unsigned char *accepted_flag = 0;
-  unsigned char *pending_flag = 0;
-  unsigned char *trans_flag = 0;
-  unsigned char *pr_flag = NULL;
-  unsigned char *prob_status = 0;
-  time_t *prob_deadline = 0;
-  int *best_run = 0;
-  int *attempts = 0;
-  int *disqualified = 0;
-  int *best_score = 0;
-  int *prev_successes = 0;
-  int *all_attempts = 0;
-  int n, v, prob_id = 0, i, j, variant = 0;
-  char **lang_list;
-  path_t variant_stmt_file;
-  struct watched_file *pw = 0;
-  const unsigned char *pw_path;
-  const struct section_problem_data *prob = 0, *prob2;
-  unsigned char bb[1024];
-  const unsigned char *alternatives = 0, *header = 0;
-  int lang_count = 0, lang_id = 0;
-  int first_prob_id, last_prob_id;
-  int accepting_mode = 0;
-  const unsigned char *hh = 0;
-  const unsigned char *cc = 0;
-  int last_answer = -1, last_lang_id, skip_start_form = 0;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  unsigned char *last_source = 0;
-  unsigned char dbuf[1024];
-  int upper_tab_id = 0, next_prob_id;
-  problem_xml_t px;
-  unsigned char prev_group_name[256] = { 0 };
-  const unsigned char *li_attr;
-  const unsigned char *div_class;
-
-  if (ns_cgi_param(phr, "all_runs", &s) > 0
-      && sscanf(s, "%d%n", &v, &n) == 1 && !s[n] && v >= 0 && v <= 1) {
-    phr->session_extra->user_view_all_runs = v;
-  }
-  all_runs = phr->session_extra->user_view_all_runs;
-  if (ns_cgi_param(phr, "all_clars", &s) > 0
-      && sscanf(s, "%d%n", &v, &n) == 1 && !s[n] && v >= 0 && v <= 1) {
-    phr->session_extra->user_view_all_clars = v;
-  }
-  all_clars = phr->session_extra->user_view_all_clars;
-  if (ns_cgi_param(phr, "prob_id", &s) > 0
-      && sscanf(s, "%d%n", &v, &n) == 1 && !s[n] && v >= -1)
-    prob_id = v;
-  
-  XALLOCAZ(solved_flag, cs->max_prob + 1);
-  XALLOCAZ(accepted_flag, cs->max_prob + 1);
-  XALLOCAZ(pending_flag, cs->max_prob + 1);
-  XALLOCAZ(trans_flag, cs->max_prob + 1);
-  XALLOCAZ(pr_flag, cs->max_prob + 1);
-  XALLOCA(best_run, cs->max_prob + 1);
-  memset(best_run, -1, (cs->max_prob + 1) * sizeof(best_run[0]));
-  XALLOCAZ(attempts, cs->max_prob + 1);
-  XALLOCAZ(disqualified, cs->max_prob + 1);
-  XALLOCAZ(best_score, cs->max_prob + 1);
-  XALLOCAZ(prev_successes, cs->max_prob + 1);
-  XALLOCAZ(all_attempts, cs->max_prob + 1);
-  XALLOCAZ(prob_status, cs->max_prob + 1);
-  XALLOCAZ(prob_deadline, cs->max_prob + 1);
-
-  if (global->is_virtual) {
-    start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
-    stop_time = run_get_virtual_stop_time(cs->runlog_state, phr->user_id,
-                                          cs->current_time);
-    if (stop_time <= 0) accepting_mode = 1;
-  } else {
-    start_time = run_get_start_time(cs->runlog_state);
-    stop_time = run_get_stop_time(cs->runlog_state);
-    accepting_mode = cs->accepting_mode;
-  }
-  run_get_times(cs->runlog_state, 0, &sched_time, &duration, 0, &finish_time);
-  if (duration > 0 && start_time && !stop_time && global->board_fog_time > 0)
-    fog_start_time = start_time + duration - global->board_fog_time;
-  if (fog_start_time < 0) fog_start_time = 0;
-
-  hh = main_page_headers[phr->action];
-  if (phr->action == NEW_SRV_ACTION_MAIN_PAGE && cnts->exam_mode) {
-    hh = __("Exam status");
-  }
-  l10n_setlocale(phr->locale_id);
-  header = gettext(hh);
-  if (!header) header = _("Main page");
-  unpriv_load_html_style(phr, cnts, 0, 0);
-  ns_header(fout, extra->header_txt, 0, 0, phr->script_part, phr->body_attr, phr->locale_id, cnts,
-            phr->client_key,
-            "%s [%s]: %s",
-            phr->name_arm, extra->contest_arm, header);
-
-  unpriv_page_header(fout, phr, cnts, extra, start_time, stop_time);
-
-  ns_get_user_problems_summary(cs, phr->user_id, accepting_mode,
-                               solved_flag, accepted_flag, pending_flag,
-                               trans_flag, pr_flag,
-                               best_run, attempts, disqualified,
-                               best_score, prev_successes, all_attempts);
-  get_problem_status(cs, phr->user_id, phr->login, accepting_mode,
-                     start_time, stop_time,
-                     solved_flag, accepted_flag, prob_status);
-
-  if (global->problem_navigation > 0 && start_time > 0 && stop_time <= 0) {
-    if (prob_id > cs->max_prob) prob_id = 0;
-    if (prob_id > 0 && !(prob = cs->probs[prob_id])) prob_id = 0;
-    if (prob_id > 0 && !(prob_status[prob_id] & PROB_STATUS_GOOD))
-      prob_id = 0;
-    if (prob_id > 0 && prob->variant_num > 0
-        && (variant = find_variant(cs, phr->user_id, prob_id, 0)) <= 0)
-      prob_id = 0;
-
-    fprintf(fout, "<br/>\n");
-    fprintf(fout, "<table class=\"probNav\">");
-    upper_tab_id = prob_id;
-    if (global->vertical_navigation <= 0) {
-      fprintf(fout, "<tr id=\"probNavTopList\"><td width=\"100%%\" class=\"nTopNavList\"><ul class=\"nTopNavList\">");
-      for (i = 1; i <= cs->max_prob; i++) {
-        if (!(prob = cs->probs[i])) continue;
-        if (!(prob_status[i] & PROB_STATUS_TABABLE)) continue;
-
-        li_attr = "";
-        div_class = "nProbBad";
-        if (i == prob_id) {
-          li_attr = "  id=\"nTopNavSelected\"";
-          div_class = "nProbCurrent";
-        } else if (!all_attempts[i]) {
-          div_class = "nProbEmpty";
-        } else if (pending_flag[i] || trans_flag[i]) {
-          div_class = "nProbTrans";
-        } else if (accepted_flag[i] || solved_flag[i] || pr_flag[i]) {
-          div_class = "nProbOk";
-        } else if (prob->disable_user_submit > 0) {
-          div_class = "nProbDisabled";
-        } else {
-          div_class = "nProbBad";
-        }
-        /*
-        if (global->problem_tab_size > 0)
-          snprintf(wbuf, sizeof(wbuf), " width=\"%dpx\"",
-                   global->problem_tab_size);
-        */
-        fprintf(fout, "<li%s><div class=\"%s\">", li_attr, div_class);
-
-      /*
-      if (accepting_mode && accepted_flag[i]) {
-        fprintf(fout, "<s>");
-      }
-      */
-        fprintf(fout, "%s%s</a>",
-                ns_aref(bb, sizeof(bb), phr,
-                        NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                        "prob_id=%d", i), prob->short_name);
-      /*
-      if (accepting_mode && accepted_flag[i]) {
-        fprintf(fout, "</s>");
-      }
-      */
-        fprintf(fout, "</div></li>");
-      }
-      fprintf(fout, "</ul></td></tr>");
-      fprintf(fout, "<tr><td id=\"probNavTaskArea\" valign=\"top\"><div id=\"probNavTaskArea\">");
-    } else {
-      fprintf(fout, "<tr><td class=\"b0\" id=\"probNavTaskArea\" valign=\"top\"><div id=\"probNavTaskArea\">");
-    }
-  }
-
-  if (phr->action == NEW_SRV_ACTION_MAIN_PAGE) {
-    unpriv_print_status(fout, phr, cnts, extra,
-                        start_time, stop_time, duration, sched_time,
-                        fog_start_time, finish_time);
-  }
-
-  if (phr->action == NEW_SRV_ACTION_VIEW_STARTSTOP) {
-    if (global->is_virtual && start_time <= 0) {
-      if (global->disable_virtual_start <= 0) {
-        html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-        if (cnts->exam_mode) {
-          fprintf(fout, "<p>%s</p></form>",
-                  ns_submit_button(bb, sizeof(bb), 0,
-                                   NEW_SRV_ACTION_VIRTUAL_START,
-                                   _("Start exam")));
-        } else {
-          fprintf(fout, "<p>%s</p></form>",
-                  BUTTON(NEW_SRV_ACTION_VIRTUAL_START));
-        }
-      }
-    } else if (global->is_virtual && stop_time <= 0) {
-      if (cnts->exam_mode) {
-        fprintf(fout, "<h2>%s</h2>\n", _("Finish the exam"));
-        fprintf(fout, "<p>%s</p>\n",
-                _("Press \"Stop exam\" button to finish the exam. Your answers will be checked shortly after that."));
-      }
-
-      html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-      if (cnts->exam_mode) {
-        fprintf(fout, "<p>%s</p></form>",
-                ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_VIRTUAL_STOP,
-                                 _("Stop exam")));
-      } else {
-        fprintf(fout, "<p>%s</p></form>",
-                BUTTON(NEW_SRV_ACTION_VIRTUAL_STOP));
-      }
-    }
-  }
-
-  if (start_time && phr->action == NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY) {
-    if (cnts->exam_mode && global->score_system == SCORE_OLYMPIAD
-        && global->is_virtual && stop_time > 0
-        && global->disable_virtual_auto_judge > 0
-        && !cs->testing_finished) {
-      char *ff_txt = 0, *fl_txt = 0;
-      size_t ff_len = 0, fl_len = 0;
-      FILE *ff = open_memstream(&ff_txt, &ff_len);
-      FILE *fl = open_memstream(&fl_txt, &fl_len);
-      int rr = ns_olympiad_final_user_report(ff, fl, cnts, cs,
-                                             phr->user_id, phr->locale_id);
-      if (rr < 0) {
-        fprintf(fout, "<%s>%s</%s>\n<p>%s %d</p>",
-                cnts->team_head_style,
-                _("Problem status summary"),
-                cnts->team_head_style, _("Error"), -rr);
-        close_memstream(fl); fl = 0; xfree(fl_txt); fl_txt = 0; fl_len = 0;
-        close_memstream(ff); ff = 0; xfree(ff_txt); ff_txt = 0; ff_len = 0;
-      } else {
-        close_memstream(fl); fl = 0;
-        if (fl_txt && *fl_txt) {
-          fprintf(fout,
-                  "<%s>%s</%s>\n<pre><font color=\"red\">%s</font></pre>\n",
-                  cnts->team_head_style,
-                  _("Problem status summary"),
-                  cnts->team_head_style, ARMOR(fl_txt));
-          xfree(fl_txt); fl_txt = 0; fl_len = 0;
-          close_memstream(ff); ff = 0; xfree(ff_txt); ff_txt = 0; ff_len = 0;
-        } else {
-          close_memstream(ff); ff = 0; 
-          fprintf(fout,
-                  "<%s>%s</%s>\n%s\n",
-                  cnts->team_head_style,
-                  _("Problem status summary"),
-                  cnts->team_head_style, ff_txt);
-          xfree(fl_txt); fl_txt = 0; fl_len = 0;
-          xfree(ff_txt); ff_txt = 0; ff_len = 0;
-        }
-      }
-    } else if (cnts->exam_mode && global->score_system == SCORE_OLYMPIAD
-               && global->is_virtual && stop_time > 0
-               && (run_has_transient_user_runs(cs->runlog_state, phr->user_id)
-                   || (global->disable_virtual_auto_judge <= 0
-                       && !is_judged_virtual_olympiad(cs, phr->user_id)))) {
-      fprintf(fout, "<%s>%s</%s>\n",
-              cnts->team_head_style,
-              _("Testing is in progress..."),
-              cnts->team_head_style);
-    } else {
-      fprintf(fout, "<%s>%s</%s>\n",
-              cnts->team_head_style,
-              _("Problem status summary"),
-              cnts->team_head_style);
-      if (global->score_system == SCORE_OLYMPIAD
-          && global->is_virtual
-          && cs->testing_finished)
-        accepting_mode = 0;
-      if (cs->contest_plugin
-          && cs->contest_plugin->generate_html_user_problems_summary) {
-        // FIXME: return code and logging stream is not used now
-        char *us_text = 0;
-        size_t us_size = 0;
-        FILE *us_file = open_memstream(&us_text, &us_size);
-        (*cs->contest_plugin->generate_html_user_problems_summary)(cs->contest_plugin_data, us_file, fout, cnts, cs, phr->user_id, accepting_mode, "b1", solved_flag, accepted_flag, pending_flag, trans_flag, best_run, attempts, disqualified, best_score, prev_successes);
-        close_memstream(us_file); us_file = 0;
-        xfree(us_text); us_text = 0;
-      } else {
-        ns_write_user_problems_summary(cnts, cs, fout, phr->user_id,
-                                       accepting_mode, "b1",
-                                       solved_flag, accepted_flag, pr_flag, pending_flag,
-                                       trans_flag, best_run, attempts,
-                                       disqualified, best_score);
-      }
-    }
-  }
-
-  if (phr->action == NEW_SRV_ACTION_VIEW_PROBLEM_STATEMENTS
-      && start_time > 0) {
-    if (cnts->problems_url) {
-      fprintf(fout, "<p><a href=\"%s\">%s</a></p>\n",
-              cnts->problems_url, _("Problem statements"));
-    }
-    // if prob_id == -1, show all available problem statements
-    if (prob_id == -1) {
-      first_prob_id = 1;
-      last_prob_id = cs->max_prob;
-    } else {
-      first_prob_id = prob_id;
-      last_prob_id = prob_id;
-    }
-    for (prob_id = first_prob_id; prob_id <= last_prob_id; prob_id++) {
-      variant = 0;
-      if (prob_id <= 0 || prob_id > cs->max_prob) continue;
-      if (!(prob = cs->probs[prob_id])) continue;
-      if (!serve_is_problem_started(cs, phr->user_id, prob)) continue;
-      if (serve_is_problem_deadlined(cs, phr->user_id, phr->login,
-                                     prob, &prob_deadline[prob_id]))
-        continue;
-      if (prob->variant_num > 0
-          && (variant = find_variant(cs, phr->user_id, prob_id, 0)) <= 0)
-        continue;
-      if (!prob->statement_file[0]) continue;
-      if (variant > 0) {
-        prepare_insert_variant_num(variant_stmt_file, sizeof(variant_stmt_file),
-                                   prob->statement_file, variant);
-        pw = &cs->prob_extras[prob_id].v_stmts[variant];
-        pw_path = variant_stmt_file;
-      } else {
-        pw = &cs->prob_extras[prob_id].stmt;
-        pw_path = prob->statement_file;
-      }
-      watched_file_update(pw, pw_path, cs->current_time);
-      if (!pw->text) continue;
-
-      fprintf(fout, "%s", pw->text);
-    }
-
-    fprintf(fout, "<%s>%s</%s>\n",
-            cnts->team_head_style, _("Select another problem"),
-            cnts->team_head_style);
-    html_start_form(fout, 0, phr->self_url, phr->hidden_vars);
-    fprintf(fout, "<table class=\"b0\">");
-    fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Problem"));
-
-    html_problem_selection_2(cs, fout, phr, 0, start_time);
-
-    fprintf(fout, "</td><td class=\"b0\">%s</td></tr></table></form>",
-            ns_submit_button(bb, sizeof(bb), 0,
-                             NEW_SRV_ACTION_VIEW_PROBLEM_STATEMENTS,
-                             _("Select problem")));
-  }
-
-  if (phr->action == NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT
-      && !cs->clients_suspended) {
-    if (prob_id > cs->max_prob) prob_id = 0;
-    if (prob_id > 0 && !(prob = cs->probs[prob_id])) prob_id = 0;
-    if (prob_id > 0 && !serve_is_problem_started(cs, phr->user_id, prob))
-      prob_id = 0;
-    if (prob_id > 0 && serve_is_problem_deadlined(cs, phr->user_id, phr->login,
-                                                  prob,
-                                                  &prob_deadline[prob_id]))
-      prob_id = 0;
-    //if (prob_id > 0 && prob->disable_user_submit > 0) prob_id = 0;
-    if (prob_id > 0 && prob->variant_num > 0
-        && (variant = find_variant(cs, phr->user_id, prob_id, 0)) <= 0)
-      prob_id = 0;
-
-    if (start_time > 0 && stop_time <= 0 && !prob_id) {
-      fprintf(fout, "<%s>%s</%s>\n",
-              cnts->team_head_style,
-              _("View the problem statement and send a submission"),
-              cnts->team_head_style);
-      html_start_form(fout, 0, phr->self_url, phr->hidden_vars);
-      fprintf(fout, "<table class=\"b0\">");
-      fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Problem"));
-
-      html_problem_selection(cs, fout, phr, solved_flag, accepted_flag, 0, 0,
-                             start_time);
-
-      fprintf(fout, "</td><td class=\"b0\">%s</td></tr></table></form>",
-              ns_submit_button(bb, sizeof(bb), 0, NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                               _("Select problem")));
-    } else if (start_time > 0 && stop_time <= 0 && prob_id > 0) {
-      prob = cs->probs[prob_id];
-
-      dbuf[0] = 0;
-      if ((prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)
-          && prob_deadline[prob_id] > 0) {
-        snprintf(dbuf, sizeof(dbuf), "<h3>%s: %s</h3>",
-                 _("Problem deadline"),
-                 xml_unparse_date(prob_deadline[prob_id]));
-      }
-
-      bb[0] = 0;
-      if (variant > 0) {
-        snprintf(bb, sizeof(bb), "<%s>%s %s-%s (%s %d)</%s>%s\n",
-                 cnts->team_head_style,
-                 (prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)?_("Submit a solution for"):_("Problem"),
-                 prob->short_name, prob->long_name, _("Variant"), variant,
-                 cnts->team_head_style, dbuf);
-      } else {
-        if (cnts->exam_mode) {
-          /*
-          if (prob->disable_user_submit > 0) {
-            snprintf(bb, sizeof(bb), "<%s>%s</%s>\n",
-                     cnts->team_head_style,
-                     prob->long_name, cnts->team_head_style);
-          } else {
-            snprintf(bb, sizeof(bb), "<%s>%s %s</%s>\n",
-                     cnts->team_head_style, _("Submit a solution for"),
-                     prob->long_name, cnts->team_head_style);
-          }
-          */
-          snprintf(bb, sizeof(bb), "<%s>%s %s</%s>%s\n",
-                   cnts->team_head_style, _("Problem"),
-                   prob->long_name, cnts->team_head_style, dbuf);
-        } else {
-          if (1 /*!(prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)*/) {
-            if (prob->long_name[0]) {
-              snprintf(bb, sizeof(bb), "<%s>%s %s-%s</%s>%s\n",
-                       cnts->team_head_style, _("Problem"),
-                       prob->short_name, prob->long_name, cnts->team_head_style,
-                       dbuf);
-            } else {
-              snprintf(bb, sizeof(bb), "<%s>%s %s</%s>%s\n",
-                       cnts->team_head_style, _("Problem"),
-                       prob->short_name, cnts->team_head_style, dbuf);
-            }
-          } else {
-            if (prob->long_name[0]) {
-              snprintf(bb, sizeof(bb), "<%s>%s %s-%s</%s>%s\n",
-                       cnts->team_head_style, _("Submit a solution for"),
-                       prob->short_name, prob->long_name, cnts->team_head_style,
-                       dbuf);
-            } else {
-              snprintf(bb, sizeof(bb), "<%s>%s %s</%s>%s\n",
-                       cnts->team_head_style, _("Submit a solution for"),
-                       prob->short_name, cnts->team_head_style, dbuf);
-            }
-          }
-        }
-      }
-
-      if (prob->max_user_run_count > 0) {
-        int ignored_set = 0;
-        if (prob->ignore_compile_errors > 0) ignored_set |= 1 << RUN_COMPILE_ERR;
-        ignored_set |= 1 << RUN_IGNORED;
-        int remain_count = prob->max_user_run_count - run_count_all_attempts_2(cs->runlog_state, phr->user_id, prob_id, ignored_set);
-        if (remain_count < 0) remain_count = 0;
-        fprintf(fout, "<h3>%s: %d</h3>\n", _("Remaining attempts"), remain_count);
-        if (remain_count <= 0) prob_status[prob_id] &= ~PROB_STATUS_SUBMITTABLE;
-      }
-
-      px = 0;
-      if (variant > 0 && prob->xml.a && prob->xml.a[variant - 1]) {
-        px = prob->xml.a[variant - 1];
-      } else if (variant <= 0 && prob->xml.p) {
-        px = prob->xml.p;
-      }
-
-      /* put problem statement */
-      if (px && px->stmts) {
-        unparse_statement(fout, phr, cnts, extra, prob, 0, px, bb,
-                          prob_status[prob_id] & PROB_STATUS_SUBMITTABLE);
-      } else if (prob->statement_file[0]
-          && (prob_status[prob_id] & PROB_STATUS_VIEWABLE)) {
-        if (variant > 0) {
-          prepare_insert_variant_num(variant_stmt_file,
-                                     sizeof(variant_stmt_file),
-                                     prob->statement_file, variant);
-          pw = &cs->prob_extras[prob_id].v_stmts[variant];
-          pw_path = variant_stmt_file;
-        } else {
-          pw = &cs->prob_extras[prob_id].stmt;
-          pw_path = prob->statement_file;
-        }
-        watched_file_update(pw, pw_path, cs->current_time);
-        if (!pw->text) {
-          fprintf(fout, "%s<big><font color=\"red\"><p>%s</p></font></big>\n",
-                  bb, _("The problem statement is not available"));
-        } else {
-          if (cnts->exam_mode) bb[0] = 0;
-          fprintf(fout, "%s", bb);
-          if ((prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)
-              && prob->type == PROB_TYPE_CUSTOM) {
-            html_start_form(fout, 2, phr->self_url, phr->hidden_vars);
-            skip_start_form = 1;
-          }
-          fprintf(fout, "%s", pw->text);
-        }
-      } else {
-        fprintf(fout, "%s", bb);
-      }
-
-      if ((prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)) {
-        alternatives = 0;
-        if ((prob->type == PROB_TYPE_SELECT_ONE
-             || prob->type == PROB_TYPE_SELECT_MANY)
-            && prob->alternatives_file[0]) {
-          if (variant > 0) {
-            prepare_insert_variant_num(variant_stmt_file,
-                                       sizeof(variant_stmt_file),
-                                       prob->alternatives_file, variant);
-            pw = &cs->prob_extras[prob->id].v_alts[variant];
-            pw_path = variant_stmt_file;
-          } else {
-            pw = &cs->prob_extras[prob->id].alt;
-            pw_path = prob->alternatives_file;
-          }
-          watched_file_update(pw, pw_path, cs->current_time);
-          alternatives = pw->text;
-        }
-
-        if (!skip_start_form) {
-          html_start_form(fout, 2, phr->self_url, phr->hidden_vars);
-        }
-        fprintf(fout, "<input type=\"hidden\" name=\"prob_id\" value=\"%d\"/>",
-                prob_id);
-        fprintf(fout, "<table class=\"b0\">");
-        if (!prob->type) {
-          int last_eoln_type = 0;
-          for (i = 1; i <= cs->max_lang; i++) {
-            if (!cs->langs[i] || cs->langs[i]->disabled
-                || (cs->langs[i]->insecure && global->secure_run)) continue;
-            if ((lang_list = prob->enable_language)) {
-              for (j = 0; lang_list[j]; j++)
-                if (!strcmp(lang_list[j], cs->langs[i]->short_name))
-                  break;
-              if (!lang_list[j]) continue;
-            } else if ((lang_list = prob->disable_language)) {
-              for (j = 0; lang_list[j]; j++)
-                if (!strcmp(lang_list[j], cs->langs[i]->short_name))
-                  break;
-              if (lang_list[j]) continue;
-            }
-            lang_count++;
-            lang_id = i;
-          }
-
-          if (lang_count == 1) {
-            html_hidden(fout, "lang_id", "%d", lang_id);
-            fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">%s - %s</td></tr>",
-                    _("Language"),
-                    cs->langs[lang_id]->short_name,
-                    cs->langs[lang_id]->long_name);
-          } else {
-            last_lang_id = get_last_language(cs, phr->user_id, &last_eoln_type);
-            fprintf(fout, "<tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Language"));
-            fprintf(fout, "<select name=\"lang_id\"><option value=\"\">");
-            for (i = 1; i <= cs->max_lang; i++) {
-              if (!cs->langs[i] || cs->langs[i]->disabled
-                  || (cs->langs[i]->insecure && global->secure_run)) continue;
-              if ((lang_list = prob->enable_language)) {
-                for (j = 0; lang_list[j]; j++)
-                  if (!strcmp(lang_list[j], cs->langs[i]->short_name))
-                    break;
-                if (!lang_list[j]) continue;
-              } else if ((lang_list = prob->disable_language)) {
-                for (j = 0; lang_list[j]; j++)
-                  if (!strcmp(lang_list[j], cs->langs[i]->short_name))
-                    break;
-                if (lang_list[j]) continue;
-              }
-              cc = "";
-              if (last_lang_id == i) cc = " selected=\"selected\"";
-              fprintf(fout, "<option value=\"%d\"%s>%s - %s</option>",
-                      i, cc, cs->langs[i]->short_name, cs->langs[i]->long_name);
-            }
-            fprintf(fout, "</select></td></tr>");
-          }
-
-          if (cs->global->enable_eoln_select > 0) {
-            fprintf(fout, "<tr><td%s>%s:</td><td%s><select name=\"eoln_type\"%s>",
-                    " class=\"b0\"", _("Desired EOLN Type"), " class=\"b0\"", "");
-            fprintf(fout, "<option value=\"0\"></option>");
-            cc = "";
-            if (last_eoln_type == 1) cc = " selected=\"selected=\"";
-            fprintf(fout, "<option value=\"1\"%s>LF (Unix/MacOS)</option>", cc);
-            cc = "";
-            if (last_eoln_type == 2) cc = " selected=\"selected=\"";
-            fprintf(fout, "<option value=\"2\"%s>CRLF (Windows/DOS)</option>", cc);
-            fprintf(fout, "</select></td></tr>\n");
-          }
-        }
-        switch (prob->type) {
-          /*
-        case PROB_TYPE_STANDARD:
-          fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"file\" name=\"file\"/></td></tr>", _("File"));
-          break;
-          */
-        case PROB_TYPE_STANDARD:
-        case PROB_TYPE_OUTPUT_ONLY:
-        case PROB_TYPE_TESTS:
-          if (prob->enable_text_form > 0) {
-            fprintf(fout, "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"text_form\" rows=\"20\" cols=\"60\"></textarea></td></tr>");
-          }
-          fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"file\" name=\"file\"/></td></tr>", _("File"));
-          break;
-        case PROB_TYPE_SHORT_ANSWER:
-          last_source = 0;
-          if (cnts->exam_mode) {
-            last_source = get_last_source(cs, phr->user_id, prob->id);
-          }
-          if (last_source) {
-            fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"text\" name=\"file\" value=\"%s\"/></td></tr>", _("Answer"), ARMOR(last_source));
-          } else {
-            fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\"><input type=\"text\" name=\"file\"/></td></tr>", _("Answer"));
-          }
-        xfree(last_source); last_source = 0;
-          break;
-        case PROB_TYPE_TEXT_ANSWER:
-          fprintf(fout, "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"file\" rows=\"20\" cols=\"60\"></textarea></td></tr>");
-          break;
-        case PROB_TYPE_SELECT_ONE:
-          last_answer = -1;
-          if (cnts->exam_mode) {
-            last_answer = get_last_answer_select_one(cs, phr->user_id,
-                                                     prob->id);
-          }
-
-          if (px) {
-            next_prob_id = prob->id;
-            if (cnts->exam_mode) {
-              if (prob->advance_to_next > 0) {
-                next_prob_id++;
-                for (; next_prob_id <= cs->max_prob; next_prob_id++) {
-                  if (!(prob2 = cs->probs[next_prob_id])) continue;
-                  if (!serve_is_problem_started(cs, phr->user_id, prob2))
-                    continue;
-                  break;
-                }
-                if (next_prob_id > cs->max_prob) next_prob_id = prob->id;
-              }
-              unparse_answers(fout, phr, cnts, extra, prob, variant,
-                              px, 0 /* lang */, 1 /* is_radio */,
-                              last_answer, next_prob_id,
-                              1 /* js_flag */, "b0");
-            } else {
-              unparse_answers(fout, phr, cnts, extra, prob, variant,
-                              px, 0 /* lang */, 1 /* is_radio */,
-                              last_answer, next_prob_id,
-                              0 /* js_flag */, "b0");
-            }
-          } else if (alternatives) {
-            if (cnts->exam_mode) {
-              next_prob_id = prob->id;
-              if (prob->advance_to_next > 0) {
-                next_prob_id++;
-                for (; next_prob_id <= cs->max_prob; next_prob_id++) {
-                  if (!(prob2 = cs->probs[next_prob_id])) continue;
-                  if (!serve_is_problem_started(cs, phr->user_id, prob2))
-                    continue;
-                  break;
-                }
-                if (next_prob_id > cs->max_prob) next_prob_id = prob->id;
-              }
-              write_alternatives_file(fout, 1, alternatives, last_answer,
-                                      prob->id, next_prob_id, 1, "b0");
-            } else {
-              write_alternatives_file(fout, 1, alternatives, last_answer,
-                                      0, 0, 0, "b0");
-            }
-          } else if (prob->alternative) {
-            for (i = 0; prob->alternative[i]; i++) {
-              cc = "";
-              if (i + 1 == last_answer) cc = " checked=\"1\"";
-              fprintf(fout, "<tr><td class=\"b0\">%d</td><td class=\"b0\"><input type=\"radio\" name=\"file\" value=\"%d\"%s/></td><td>%s</td></tr>", i + 1, i + 1, cc, prob->alternative[i]);
-            }
-          }
-          break;
-        case PROB_TYPE_SELECT_MANY:
-          if (alternatives) {
-            write_alternatives_file(fout, 0, alternatives, -1, 0, 0, 0, "b0");
-          } else if (prob->alternative) {
-            for (i = 0; prob->alternative[i]; i++) {
-              fprintf(fout, "<tr><td class=\"b0\">%d</td><td class=\"b0\"><input type=\"checkbox\" name=\"ans_%d\"/></td><td>%s</td></tr>", i + 1, i + 1, prob->alternative[i]);
-            }
-          }
-          break;
-        case PROB_TYPE_CUSTOM:
-          break;
-        }
-        if (cnts->exam_mode) {
-          if (prob->type != PROB_TYPE_SELECT_ONE) {
-            cc = "";
-            if (prob && (prob->type == PROB_TYPE_SELECT_MANY || prob->type == PROB_TYPE_SELECT_ONE)) cc = "<td class=\"b0\">&nbsp;</td>";
-            fprintf(fout, "<tr>%s<td class=\"b0\">&nbsp;</td><td class=\"b0\">%s</td></tr></table></form>", cc,
-                    ns_submit_button(bb, sizeof(bb), 0,
-                                     NEW_SRV_ACTION_SUBMIT_RUN,
-                                     _("Submit solution!")));
-          } else {
-            fprintf(fout, "</tr></table></form>");
-          }
-        } else {
-          fprintf(fout, "<tr><td class=\"b0\">%s</td><td class=\"b0\">%s</td></tr></table></form>",
-                  _("Send!"),
-                  BUTTON(NEW_SRV_ACTION_SUBMIT_RUN));
-        }
-      } /* prob->disable_user_submit <= 0 */
-
-      if (global->problem_navigation
-          //&& !prob->disable_user_submit
-          && prob->type != PROB_TYPE_SELECT_ONE
-          && all_attempts[prob->id]) {
-        if (all_attempts[prob->id] <= 15) {
-          fprintf(fout, "<%s>%s</%s>\n",
-                  cnts->team_head_style,
-                  _("Previous submissions of this problem"),
-                  cnts->team_head_style);
-        } else {
-          fprintf(fout, "<%s>%s (%s)</%s>\n",
-                  cnts->team_head_style,
-                  _("Previous submissions of this problem"),
-                  /*all_runs?_("all"):*/_("last 15"),
-                  cnts->team_head_style);
-        }
-        if (cs->contest_plugin && cs->contest_plugin->generate_html_user_runs){
-          // FIXME: logged output is also ignored
-          // FIXME: return code is ignored for now
-          char *ur_text = 0;
-          size_t ur_size = 0;
-          FILE *ur_file = open_memstream(&ur_text, &ur_size);
-          (*cs->contest_plugin->generate_html_user_runs)(cs->contest_plugin_data, ur_file, fout, cnts, cs, phr, phr->user_id, prob_id, all_runs, "b1");
-          close_memstream(ur_file); ur_file = 0;
-          xfree(ur_text); ur_text = 0;
-        } else if (global->score_system == SCORE_OLYMPIAD) {
-          ns_write_olympiads_user_runs(phr, fout, cnts, extra, all_runs,
-                                       prob_id, "b1");
-        } else {
-          new_write_user_runs(cs, fout, phr->user_id, all_runs, prob->id,
-                              NEW_SRV_ACTION_VIEW_SOURCE,
-                              NEW_SRV_ACTION_VIEW_REPORT,
-                              NEW_SRV_ACTION_PRINT_RUN,
-                              phr->session_id, phr->self_url,
-                              phr->hidden_vars, "", "b1");
-        }
-      }
-
-      if (!cnts->exam_mode) {
-        if (global->problem_navigation <= 0) {
-          fprintf(fout, "<%s>%s</%s>\n",
-                  cnts->team_head_style, _("Select another problem"),
-                  cnts->team_head_style);
-        } else {
-          /*
-          fprintf(fout, "<%s>%s</%s>\n",
-                  cnts->team_head_style, _("Problem navigation"),
-                  cnts->team_head_style);
-          */
-        }
-        html_start_form(fout, 0, phr->self_url, phr->hidden_vars);
-        fprintf(fout, "<table class=\"b0\">");
-        fprintf(fout, "<tr>");
-
-        if (global->problem_navigation > 0) {
-          for (i = prob_id - 1; i > 0; i--) {
-            if (!(prob_status[i] & PROB_STATUS_GOOD)) continue;
-            break;
-          }
-          if (i > 0) {
-            fprintf(fout, "<td class=\"b0\">%s%s</a></td>",
-                    ns_aref(bb, sizeof(bb), phr,
-                            NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                            "prob_id=%d", i), _("Previous problem"));
-          }
-        }
-
-        if (global->problem_navigation <= 0) {
-          fprintf(fout, "<td class=\"b0\">%s:</td><td class=\"b0\">", _("Problem"));
-          html_problem_selection(cs, fout, phr, solved_flag, accepted_flag, 0,
-                                 0, start_time);
-          fprintf(fout, "</td><td class=\"b0\">%s</td>",
-                  ns_submit_button(bb, sizeof(bb), 0,
-                                   NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                                   _("Select problem")));
-        }
-
-        if (global->problem_navigation > 0) {
-          for (i = prob_id + 1; i <= cs->max_prob; i++) {
-            if (!(prob_status[i] & PROB_STATUS_GOOD)) continue;
-            break;
-          }
-          if (i <= cs->max_prob) {
-            fprintf(fout, "<td class=\"b0\">%s%s</a></td>",
-                    ns_aref(bb, sizeof(bb), phr,
-                            NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                            "prob_id=%d", i), _("Next problem"));
-          }
-        }
-
-      fprintf(fout, "</tr></table></form>");
-      }
-    }
-  }
-
-  if (phr->action == NEW_SRV_ACTION_VIEW_SUBMISSIONS && start_time > 0) {
-    fprintf(fout, "<%s>%s (%s)</%s>\n",
-            cnts->team_head_style,
-            _("Sent submissions"),
-            all_runs?_("all"):_("last 15"),
-            cnts->team_head_style);
-
-    if (cs->contest_plugin && cs->contest_plugin->generate_html_user_runs){
-      // FIXME: logged output is also ignored
-      // FIXME: return code is ignored for now
-      char *ur_text = 0;
-      size_t ur_size = 0;
-      FILE *ur_file = open_memstream(&ur_text, &ur_size);
-      (*cs->contest_plugin->generate_html_user_runs)(cs->contest_plugin_data, ur_file, fout, cnts, cs, phr, phr->user_id, 0, all_runs, "b1");
-      close_memstream(ur_file); ur_file = 0;
-      xfree(ur_text); ur_text = 0;
-    } else if (global->score_system == SCORE_OLYMPIAD) {
-      ns_write_olympiads_user_runs(phr, fout, cnts, extra, all_runs,
-                                   0, "b1");
-    } else {
-      new_write_user_runs(cs, fout, phr->user_id, all_runs, 0,
-                          NEW_SRV_ACTION_VIEW_SOURCE,
-                          NEW_SRV_ACTION_VIEW_REPORT,
-                          NEW_SRV_ACTION_PRINT_RUN,
-                          phr->session_id, phr->self_url,
-                          phr->hidden_vars, "", "b1");
-    }
-    if (all_runs) s = _("View last 15");
-    else s = _("View all");
-    fprintf(fout, "<p><a href=\"%s?SID=%016llx&amp;all_runs=%d&amp;action=%d\">%s</a></p>\n", phr->self_url, phr->session_id, !all_runs, NEW_SRV_ACTION_VIEW_SUBMISSIONS, s);
-  }
-
-
-  if (phr->action == NEW_SRV_ACTION_VIEW_CLAR_SUBMIT
-      && !cs->clients_suspended) {
-    if (!global->disable_clars && !global->disable_team_clars
-        && start_time > 0 && stop_time <= 0) {
-      fprintf(fout, "<%s>%s</%s>\n",
-              cnts->team_head_style, _("Send a message to judges"),
-              cnts->team_head_style);
-      html_start_form(fout, 2, phr->self_url, phr->hidden_vars);
-      fprintf(fout, "<table class=\"b0\"><tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Problem"));
-      html_problem_selection(cs, fout, phr, solved_flag, accepted_flag, 0, 1,
-                             start_time);
-      fprintf(fout, "</td></tr><tr><td class=\"b0\">%s:</td>"
-              "<td class=\"b0\"><input type=\"text\" name=\"subject\"/></td></tr>"
-              "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"text\" rows=\"20\" cols=\"60\"></textarea></td></tr>"
-              "<tr><td colspan=\"2\" class=\"b0\">%s</td></tr>"
-              "</table></form>",
-              _("Subject"), BUTTON(NEW_SRV_ACTION_SUBMIT_CLAR));
-    }
-    if (!global->disable_clars && !global->disable_team_clars
-        && start_time > 0 && stop_time > 0
-        && global->appeal_deadline > 0
-        && cs->current_time < global->appeal_deadline) {
-      fprintf(fout, "<%s>%s</%s>\n",
-              cnts->team_head_style, _("Send an appeal"),
-              cnts->team_head_style);
-      html_start_form(fout, 2, phr->self_url, phr->hidden_vars);
-      fprintf(fout, "<table class=\"b0\"><tr><td class=\"b0\">%s:</td><td class=\"b0\">", _("Problem"));
-      html_problem_selection(cs, fout, phr, solved_flag, accepted_flag, 0, 1,
-                             start_time);
-      fprintf(fout, "</td></tr><tr><td class=\"b0\">%s:</td>"
-              "<td class=\"b0\"><input type=\"text\" name=\"test\"/></td></tr>"
-              "<tr><td colspan=\"2\" class=\"b0\"><textarea name=\"text\" rows=\"20\" cols=\"60\"></textarea></td></tr>"
-              "<tr><td colspan=\"2\" class=\"b0\">%s</td></tr>"
-              "</table></form>",
-              _("Test number"), BUTTON(NEW_SRV_ACTION_SUBMIT_APPEAL));
-    }
-  }
-
-  if (phr->action == NEW_SRV_ACTION_VIEW_CLARS && !global->disable_clars) {
-    fprintf(fout, "<%s>%s (%s)</%s>\n",
-            cnts->team_head_style, _("Messages"),
-            all_clars?_("all"):_("last 15"), cnts->team_head_style);
-
-    new_write_user_clars(cs, fout, phr->user_id, all_clars,
-                         NEW_SRV_ACTION_VIEW_CLAR,
-                         phr->session_id,
-                         phr->self_url, phr->hidden_vars, "", "b1");
-
-    if (all_clars) s = _("View last 15");
-    else s = _("View all");
-    fprintf(fout, "<p><a href=\"%s?SID=%016llx&amp;all_clars=%d&amp;action=%d\">%s</a></p>\n", phr->self_url, phr->session_id, !all_clars, NEW_SRV_ACTION_VIEW_CLARS, s);
-  }
-
-  if (phr->action == NEW_SRV_ACTION_VIEW_SETTINGS) {
-    /* change the password */
-    if (!cs->clients_suspended && !cnts->disable_password_change) {
-      fprintf(fout, "<%s>%s</%s>\n",
-              cnts->team_head_style,
-              _("Change password"),
-              cnts->team_head_style);
-      html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-
-      fprintf(fout, "<table class=\"b0\">"
-              "<tr><td class=\"b0\">%s:</td><td class=\"b0\"><input type=\"password\" name=\"oldpasswd\" size=\"16\"/></td></tr>"
-              "<tr><td class=\"b0\">%s:</td><td class=\"b0\"><input type=\"password\" name=\"newpasswd1\" size=\"16\"/></td></tr>"
-              "<tr><td class=\"b0\">%s:</td><td class=\"b0\"><input type=\"password\" name=\"newpasswd2\" size=\"16\"/></td></tr>"
-              "<tr><td class=\"b0\" colspan=\"2\"><input type=\"submit\" name=\"action_%d\" value=\"%s\"/></td></tr>"
-              "</table></form>",
-              _("Old password"),
-              _("New password"), _("Retype new password"),
-              NEW_SRV_ACTION_CHANGE_PASSWORD, _("Change!"));
-    }
-
-#if CONF_HAS_LIBINTL - 0 == 1
-    if (global->enable_l10n && !cs->clients_suspended
-        && !cnts->disable_locale_change) {
-      fprintf(fout, "<%s>%s</%s>\n",
-              cnts->team_head_style, _("Change language"),
-              cnts->team_head_style);
-      html_start_form(fout, 1, phr->self_url, phr->hidden_vars);
-      fprintf(fout, "<table class=\"b0\"><tr><td class=\"b0\">%s</td><td class=\"b0\">", _("Change language"));
-      l10n_html_locale_select(fout, phr->locale_id);
-      fprintf(fout, "</td><td class=\"b0\"><input type=\"submit\" name=\"action_%d\" value=\"%s\"/></td></tr></table></form>",
-              NEW_SRV_ACTION_CHANGE_LANGUAGE, _("Change"));
-    }
-#endif /* CONF_HAS_LIBINTL */
-  }
-
-  /* new problem navigation */
-  if (global->problem_navigation > 0 && global->vertical_navigation > 0
-      && start_time > 0 && stop_time <= 0) {
-    fprintf(fout, "</div></td><td class=\"b0\" id=\"probNavRightList\" valign=\"top\">");
-    prev_group_name[0] = 0;
-
-    for (i = 1, j = 0; i <= cs->max_prob; i++) {
-      if (!(prob = cs->probs[i])) continue;
-      if (!(prob_status[i] & PROB_STATUS_TABABLE)) continue;
-
-      if (prob->group_name[0] && strcmp(prob->group_name, prev_group_name)) {
-        fprintf(fout, "<div class=\"%s\">", "probDisabled");
-        fprintf(fout, "%s", prob->group_name);
-        fprintf(fout, "</div>");
-        snprintf(prev_group_name, sizeof(prev_group_name),
-                 "%s", prob->group_name);
-      }
-
-      if (i == prob_id) {
-        cc = "probCurrent";
-      } else if (!all_attempts[i]) {
-        cc = "probEmpty";
-      } else if (pending_flag[i] || trans_flag[i]) {
-        cc = "probTrans";
-      } else if (accepted_flag[i] || solved_flag[i] || pr_flag[i]) {
-        cc = "probOk";
-      } else if (prob->disable_user_submit > 0) {
-        cc = "probDisabled";
-      } else {
-        cc = "probBad";
-      }
-      fprintf(fout, "<div class=\"%s\">", cc);
-      /*
-      if (accepting_mode && accepted_flag[i]) {
-        fprintf(fout, "<s>");
-      }
-      */
-      fprintf(fout, "%s%s</a>",
-              ns_aref_2(bb, sizeof(bb), phr, "tab",
-                        NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                        "prob_id=%d", i), prob->short_name);
-      /*
-      if (accepting_mode && accepted_flag[i]) {
-        fprintf(fout, "</s>");
-      }
-      */
-      fprintf(fout, "</div>");
-      j++;
-    }
-    fprintf(fout, "</td></tr></table>");
-  } else if (global->problem_navigation > 0
-             && start_time > 0 && stop_time <= 0) {
-    fprintf(fout, "</div></td></tr>");
-
-    fprintf(fout, "<tr id=\"probNavBottomList\"><td width=\"100%%\" class=\"nBottomNavList\"><ul class=\"nBottomNavList\">");
-    for (i = 1; i <= cs->max_prob; i++) {
-      if (!(prob = cs->probs[i])) continue;
-      if (!(prob_status[i] & PROB_STATUS_TABABLE)) continue;
-
-      div_class = "nProbBad";
-      li_attr = "";
-      if (i == upper_tab_id) {
-        div_class = "nProbCurrent";
-        li_attr = " id=\"nBottomNavSelected\"";
-      } else if (!all_attempts[i]) {
-        div_class = "nProbEmpty";
-      } else if (pending_flag[i] || trans_flag[i]) {
-        div_class = "nProbTrans";
-      } else if (accepted_flag[i] || solved_flag[i] || pr_flag[i]) {
-        div_class = "nProbOk";
-      } else if (prob->disable_user_submit > 0) {
-        div_class = "nProbDisabled";
-      } else {
-        div_class = "nProbBad";
-      }
-      /*
-      if (global->problem_tab_size > 0)
-        snprintf(wbuf, sizeof(wbuf), " width=\"%dpx\"",
-                 global->problem_tab_size);
-      */
-
-      fprintf(fout, "<li%s><div class=\"%s\">", li_attr, div_class);
-
-      /*
-      if (accepting_mode && accepted_flag[i]) {
-        fprintf(fout, "<s>");
-      }
-      */
-      fprintf(fout, "%s%s</a>",
-              ns_aref(bb, sizeof(bb), phr,
-                      NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT,
-                      "prob_id=%d", i), prob->short_name);
-      /*
-      if (accepting_mode && accepted_flag[i]) {
-        fprintf(fout, "</s>");
-      }
-      */
-      fprintf(fout, "</div></li>");
-    }
-    fprintf(fout, "</ul></td></tr></table>");
-  }
-
-#if 0
-  if (!cnts->exam_mode /*&& global->show_generation_time*/) {
-    gettimeofday(&phr->timestamp2, 0);
-    tdiff = ((long long) phr->timestamp2.tv_sec) * 1000000;
-    tdiff += phr->timestamp2.tv_usec;
-    tdiff -= ((long long) phr->timestamp1.tv_sec) * 1000000;
-    tdiff -= phr->timestamp1.tv_usec;
-    fprintf(fout, "<div class=\"dotted\"><p class=\"dotted\">%s: %lld %s</p></div>",
-            _("Page generation time"), tdiff / 1000,
-            _("msec"));
-  }
-#endif
-
-  ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
-  html_armor_free(&ab);
-}
-
 static void
 unpriv_logout(FILE *fout,
               struct http_request_info *phr,
@@ -14790,7 +9772,7 @@ unpriv_logout(FILE *fout,
   ns_refresh_page_2(fout, phr->client_key, urlbuf);
 }
 
-static void
+void
 do_json_user_state(
         FILE *fout,
         const serve_state_t cs,
@@ -14854,7 +9836,7 @@ unpriv_json_user_state(
   const serve_state_t cs = extra->serve_state;
   int need_reload_check = 0;
 
-  ns_cgi_param_int_opt(phr, "x", &need_reload_check, 0);
+  hr_cgi_param_int_opt(phr, "x", &need_reload_check, 0);
 
   fprintf(fout, "Content-type: text/plain; charset=%s\n"
           "Cache-Control: no-cache\n\n", EJUDGE_CHARSET);
@@ -14890,14 +9872,14 @@ unpriv_xml_update_answer(
   if (global->score_system != SCORE_OLYMPIAD
       || !cs->accepting_mode) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
-  if (ns_cgi_param(phr, "prob_id", &s) <= 0
+  if (hr_cgi_param(phr, "prob_id", &s) <= 0
       || sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]
       || prob_id <= 0 || prob_id > cs->max_prob
       || !(prob = cs->probs[prob_id]))
     FAIL(NEW_SRV_ERR_INV_PROB_ID);
   if (prob->type != PROB_TYPE_SELECT_ONE)
     FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
-  if (!ns_cgi_param_bin(phr, "file", &run_text, &run_size))
+  if (!hr_cgi_param_bin(phr, "file", &run_text, &run_size))
     FAIL(NEW_SRV_ERR_ANSWER_UNSPECIFIED);
   if (strlen(run_text) != run_size)
     FAIL(NEW_SRV_ERR_BINARY_FILE);
@@ -15043,7 +10025,7 @@ unpriv_get_file(
   size_t file_size = 0;
   const unsigned char *content_type = 0;
 
-  if (ns_cgi_param(phr, "prob_id", &s) <= 0
+  if (hr_cgi_param(phr, "prob_id", &s) <= 0
       || sscanf(s, "%d%n", &prob_id, &n) != 1 || s[n]
       || prob_id <= 0 || prob_id > cs->max_prob
       || !(prob = cs->probs[prob_id]))
@@ -15097,7 +10079,7 @@ unpriv_get_file(
       && (variant = find_variant(cs, phr->user_id, prob_id, 0)) <= 0)
       FAIL(NEW_SRV_ERR_VARIANT_UNASSIGNED);
 
-  if (ns_cgi_param(phr, "file", &s) <= 0 || strchr(s, '/'))
+  if (hr_cgi_param(phr, "file", &s) <= 0 || strchr(s, '/'))
     FAIL(NEW_SRV_ERR_INV_FILE_NAME);
 
   os_rGetSuffix(s, sfx, sizeof(sfx));
@@ -15130,91 +10112,6 @@ unpriv_get_file(
   xfree(file_bytes);
 }
 
-static void
-anon_select_contest_page(FILE *fout, struct http_request_info *phr)
-  __attribute__((unused));
-static void
-anon_select_contest_page(FILE *fout, struct http_request_info *phr)
-{
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  const int *cntslist = 0;
-  int cntsnum = 0;
-  const unsigned char *cl;
-  const struct contest_desc *cnts;
-  time_t curtime = time(0);
-  int row = 0, i, orig_locale_id, j;
-  const unsigned char *s;
-  const unsigned char *login = 0;
-  unsigned char bb[1024];
-
-  ns_cgi_param(phr, "login", &login);
-
-  // defaulting to English as we have no contest chosen
-  orig_locale_id = phr->locale_id;
-  if (phr->locale_id < 0) phr->locale_id = 0;
-
-  // even don't know about the contest specific settings
-  l10n_setlocale(phr->locale_id);
-  ns_header(fout, ns_fancy_header, 0, 0, 0, 0, phr->locale_id, NULL,
-            NULL_CLIENT_KEY,
-            _("Contest selection"));
-
-  html_start_form(fout, 1, phr->self_url, "");
-  fprintf(fout, "<div class=\"user_actions\"><table class=\"menu\"><tr>\n");
-  html_hidden(fout, "action", "%d", NEW_SRV_ACTION_CHANGE_LANGUAGE);
-  fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s: ",
-          _("language"));
-  l10n_html_locale_select(fout, phr->locale_id);
-  fprintf(fout, "</div></td>\n");
-  fprintf(fout, "<td class=\"menu\"><div class=\"user_action_item\">%s</div></td>\n", ns_submit_button(bb, sizeof(bb), "submit", 0, _("Change Language")));
-  fprintf(fout, "</tr></table></div></form>\n");
-
-  fprintf(fout,
-          "<div class=\"white_empty_block\">&nbsp;</div>\n"
-          "<div class=\"contest_actions\"><table class=\"menu\"><tr>\n");
-
-  fprintf(fout, "<td class=\"menu\"><div class=\"contest_actions_item\">&nbsp;</div></td></tr></table></div>\n");
-
-  ns_separator(fout, ns_fancy_separator, NULL);
-
-  fprintf(fout, "<h2>%s</h2>\n", _("Select one of available contests"));
-
-  cntsnum = contests_get_list(&cntslist);
-  cl = " class=\"b1\"";
-  fprintf(fout, "<table%s><tr>"
-          "<td%s>N</td><td%s>%s</td></tr>\n",
-          cl, cl, cl, _("Contest name"));
-  for (j = 0; j < cntsnum; j++) {
-    i = cntslist[j];
-    cnts = 0;
-    if (contests_get(i, &cnts) < 0 || !cnts) continue;
-    if (cnts->closed) continue;
-    if (!contests_check_register_ip_2(cnts, &phr->ip, phr->ssl_flag)) continue;
-    if (cnts->reg_deadline > 0 && curtime >= cnts->reg_deadline) continue;
-
-    fprintf(fout, "<tr%s><td%s>%d</td>", form_row_attrs[(row++) & 1], cl, i);
-    fprintf(fout, "<td%s><a href=\"%s?contest_id=%d", cl, phr->self_url, i);
-
-    if (orig_locale_id >= 0 && cnts->default_locale_num >= 0
-        && orig_locale_id != cnts->default_locale_num) {
-      fprintf(fout, "&amp;locale_id=%d", phr->locale_id);
-    }
-
-    if (login && *login) fprintf(fout, "&amp;login=%s", URLARMOR(login));
-    s = 0;
-    if (phr->locale_id == 0 && cnts->name_en) s = cnts->name_en;
-    if (!s) s = cnts->name;
-    fprintf(fout, "\">%s</a></td>", ARMOR(s));
-    fprintf(fout, "</tr>\n");
-  }
-  fprintf(fout, "</table>\n");
-
-  ns_footer(fout, ns_fancy_footer, 0, phr->locale_id);
-  l10n_setlocale(0);
-
-  html_armor_free(&ab);
-}
-
 static action_handler_t user_actions_table[NEW_SRV_ACTION_LAST] =
 {
   [NEW_SRV_ACTION_CHANGE_LANGUAGE] = unpriv_change_language,
@@ -15223,8 +10120,6 @@ static action_handler_t user_actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_SUBMIT_CLAR] = unpriv_submit_clar,
   [NEW_SRV_ACTION_LOGOUT] = unpriv_logout,
   [NEW_SRV_ACTION_VIEW_SOURCE] = unpriv_view_source,
-  [NEW_SRV_ACTION_VIEW_REPORT] = unpriv_view_report,
-  [NEW_SRV_ACTION_VIEW_CLAR] = unpriv_view_clar,
   [NEW_SRV_ACTION_PRINT_RUN] = unpriv_print_run,
   [NEW_SRV_ACTION_VIEW_TEST_INPUT] = unpriv_view_test,
   [NEW_SRV_ACTION_VIEW_TEST_ANSWER] = unpriv_view_test,
@@ -15233,7 +10128,6 @@ static action_handler_t user_actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_VIEW_TEST_ERROR] = unpriv_view_test,
   [NEW_SRV_ACTION_VIEW_TEST_CHECKER] = unpriv_view_test,
   [NEW_SRV_ACTION_SUBMIT_APPEAL] = unpriv_submit_appeal,
-  [NEW_SRV_ACTION_STANDINGS] = unpriv_view_standings,
   [NEW_SRV_ACTION_VIRTUAL_START] = unpriv_command,
   [NEW_SRV_ACTION_VIRTUAL_STOP] = unpriv_command,
   [NEW_SRV_ACTION_JSON_USER_STATE] = unpriv_json_user_state,
@@ -15241,11 +10135,83 @@ static action_handler_t user_actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_GET_FILE] = unpriv_get_file,
 };
 
+static const unsigned char * const external_unpriv_action_names[NEW_SRV_ACTION_LAST] =
+{
+  [NEW_SRV_ACTION_LOGIN_PAGE] = "unpriv_login_page",
+  [NEW_SRV_ACTION_VIEW_CLAR] = "unpriv_clar_page",
+  [NEW_SRV_ACTION_STANDINGS] = "unpriv_standings_page",
+  [NEW_SRV_ACTION_CONTESTS_PAGE] = "unpriv_contests_page",
+  [NEW_SRV_ACTION_VIEW_REPORT] = "unpriv_report_page",
+  [NEW_SRV_ACTION_MAIN_PAGE] = "unpriv_main_page",
+  [NEW_SRV_ACTION_FORGOT_PASSWORD_1] = "unpriv_recover_1_page",
+  [NEW_SRV_ACTION_FORGOT_PASSWORD_2] = "unpriv_recover_2_page",
+  [NEW_SRV_ACTION_FORGOT_PASSWORD_3] = "unpriv_recover_3_page",
+};
+
+static int external_unpriv_action_aliases[NEW_SRV_ACTION_LAST] =
+{
+  [NEW_SRV_ACTION_VIEW_STARTSTOP] = NEW_SRV_ACTION_MAIN_PAGE,
+  [NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY] = NEW_SRV_ACTION_MAIN_PAGE,
+  [NEW_SRV_ACTION_VIEW_PROBLEM_STATEMENTS] = NEW_SRV_ACTION_MAIN_PAGE,
+  [NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT] = NEW_SRV_ACTION_MAIN_PAGE,
+  [NEW_SRV_ACTION_VIEW_SUBMISSIONS] = NEW_SRV_ACTION_MAIN_PAGE,
+  [NEW_SRV_ACTION_VIEW_CLAR_SUBMIT] = NEW_SRV_ACTION_MAIN_PAGE,
+  [NEW_SRV_ACTION_VIEW_CLARS] = NEW_SRV_ACTION_MAIN_PAGE,
+  [NEW_SRV_ACTION_VIEW_SETTINGS] = NEW_SRV_ACTION_MAIN_PAGE,
+};
+
+static int
+unpriv_external_action(FILE *out_f, struct http_request_info *phr)
+{
+  int action = phr->action;
+  if (external_unpriv_action_aliases[action] > 0) action = external_unpriv_action_aliases[action];
+
+  if (external_unpriv_action_names[action]) {
+    external_unpriv_action_states[action] = external_action_load(external_unpriv_action_states[action],
+                                                                 "csp/contests",
+                                                                 external_unpriv_action_names[action],
+                                                                 "csp_get_",
+                                                                 phr->current_time);
+  }
+
+  if (external_unpriv_action_states[action] && external_unpriv_action_states[action]->action_handler) {
+    PageInterface *pg = ((external_action_handler_t) external_unpriv_action_states[action]->action_handler)();
+
+    if (pg->ops->execute) {
+      int r = pg->ops->execute(pg, phr->log_f, phr);
+      if (r < 0) {
+        error_page(out_f, phr, 0, -r);
+        goto cleanup;
+      }
+    }
+
+    if (pg->ops->render) {
+      snprintf(phr->content_type, sizeof(phr->content_type), "text/html; charset=%s", EJUDGE_CHARSET);
+      int r = pg->ops->render(pg, phr->log_f, out_f, phr);
+      if (r < 0) {
+        error_page(out_f, phr, 0, -r);
+        goto cleanup;
+      }
+    }
+
+    if (pg->ops->destroy) {
+      pg->ops->destroy(pg);
+      pg = NULL;
+    }
+
+    goto cleanup;
+  }
+
+  return 0;
+
+cleanup:
+  return 1;
+}
+
 static void
 unprivileged_entry_point(
         FILE *fout,
-        struct http_request_info *phr,
-        int orig_locale_id)
+        struct http_request_info *phr)
 {
   int r, i;
   const struct contest_desc *cnts = 0;
@@ -15257,81 +10223,105 @@ unprivileged_entry_point(
   int online_users = 0;
   serve_state_t cs = 0;
   const unsigned char *s = 0;
+  int cookie_locale_id = -1;
 
-  if (phr->action == NEW_SRV_ACTION_FORGOT_PASSWORD_1)
-    return unpriv_page_forgot_password_1(fout, phr, orig_locale_id);
-  if (phr->action == NEW_SRV_ACTION_FORGOT_PASSWORD_2)
-    return unpriv_page_forgot_password_2(fout, phr, orig_locale_id);
-  if (phr->action == NEW_SRV_ACTION_FORGOT_PASSWORD_3)
-    return unpriv_page_forgot_password_3(fout, phr, orig_locale_id);
+  phr->log_f = open_memstream(&phr->log_t, &phr->log_z);
+
+  if (phr->action == NEW_SRV_ACTION_FORGOT_PASSWORD_1) {
+    unpriv_external_action(fout, phr);
+    return;
+  }
+  if (phr->action == NEW_SRV_ACTION_FORGOT_PASSWORD_2) {
+    unpriv_external_action(fout, phr);
+    return;
+  }
+  if (phr->action == NEW_SRV_ACTION_FORGOT_PASSWORD_3) {
+    unpriv_external_action(fout, phr);
+    return;
+  }
 
   if ((phr->contest_id < 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts)
       && !phr->session_id && ejudge_config->enable_contest_select){
-    return anon_select_contest_page(fout, phr);
+    phr->action = NEW_SRV_ACTION_CONTESTS_PAGE;
+    unpriv_external_action(fout, phr);
+    return;
   }
 
+  phr->cnts = cnts;
+
   if (!phr->session_id || phr->action == NEW_SRV_ACTION_LOGIN_PAGE)
-    return unprivileged_page_login(fout, phr, orig_locale_id);
+    return unprivileged_page_login(fout, phr);
 
   // validate cookie
-  if (ns_open_ul_connection(phr->fw_state) < 0)
-    return ns_html_err_ul_server_down(fout, phr, 0, 0);
+  if (ns_open_ul_connection(phr->fw_state) < 0) {
+    error_page(fout, phr, 0, -NEW_SRV_ERR_USERLIST_SERVER_DOWN);
+    goto cleanup;
+  }
   if ((r = userlist_clnt_get_cookie(ul_conn, ULS_TEAM_GET_COOKIE,
                                     &phr->ip, phr->ssl_flag,
                                     phr->session_id,
                                     phr->client_key,
                                     &phr->user_id, &phr->contest_id,
-                                    &phr->locale_id, 0, &phr->role, 0, 0, 0,
+                                    &cookie_locale_id, 0, &phr->role, 0, 0, 0,
                                     &phr->login, &phr->name)) < 0) {
-    if (r < 0 && orig_locale_id < 0 && cnts && cnts->default_locale_num >= 0) {
+    if (phr->locale_id < 0 && cookie_locale_id >= 0) phr->locale_id = cookie_locale_id;
+    if (phr->locale_id < 0 && cnts && cnts->default_locale_num >= 0) {
       phr->locale_id = cnts->default_locale_num;
     }
+    if (phr->locale_id < 0) phr->locale_id = 0;
     switch (-r) {
     case ULS_ERR_NO_COOKIE:
     case ULS_ERR_CANNOT_PARTICIPATE:
     case ULS_ERR_NOT_REGISTERED:
-      return ns_html_err_inv_session(fout, phr, 0,
-                                     "get_cookie failed: %s",
-                                     userlist_strerror(-r));
+      error_page(fout, phr, 0, -NEW_SRV_ERR_INV_SESSION);
+      goto cleanup;
     case ULS_ERR_INCOMPLETE_REG:
-      return ns_html_err_registration_incomplete(fout, phr);
+      error_page(fout, phr, 0, -NEW_SRV_ERR_REGISTRATION_INCOMPLETE);
+      goto cleanup;
     case ULS_ERR_DISCONNECT:
-      return ns_html_err_ul_server_down(fout, phr, 0, 0);
+      error_page(fout, phr, 0, -NEW_SRV_ERR_USERLIST_SERVER_DOWN);
+      goto cleanup;
     default:
-      return ns_html_err_internal_error(fout, phr, 0, "get_cookie failed: %s",
-                                        userlist_strerror(-r));
+      fprintf(phr->log_f, "get_cookie failed: %s\n", userlist_strerror(-r));
+      error_page(fout, phr, 0, -NEW_SRV_ERR_INTERNAL);
+      goto cleanup;
     }
   }
 
+  if (phr->locale_id < 0 && cookie_locale_id >= 0) phr->locale_id = cookie_locale_id;
+  if (phr->locale_id < 0 && cnts && cnts->default_locale_num >= 0) {
+    phr->locale_id = cnts->default_locale_num;
+  }
+  if (phr->locale_id < 0) phr->locale_id = 0;
+
   if (phr->contest_id < 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts){
-    //return anon_select_contest_page(fout, phr);
-    return ns_html_err_no_perm(fout, phr, 1, "invalid contest_id %d",
-                               phr->contest_id);
+    fprintf(phr->log_f, "invalid contest_id %d\n", phr->contest_id);
+    error_page(fout, phr, 0, -NEW_SRV_ERR_INV_CONTEST_ID);
+    goto cleanup;
   }
   extra = ns_get_contest_extra(phr->contest_id);
   ASSERT(extra);
+  phr->cnts = cnts;
+  phr->extra = extra;
 
-  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag))
-    return ns_html_err_no_perm(fout, phr, 0, "%s://%s is not allowed for USER for contest %d", ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
-  if (cnts->closed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is closed", cnts->id);
-  if (!cnts->managed)
-    return ns_html_err_service_not_available(fout, phr, 0,
-                                             "contest %d is not managed",
-                                             cnts->id);
+  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag)) {
+    fprintf(phr->log_f, "%s://%s is not allowed for USER for contest %d\n",
+            ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
+    error_page(fout, phr, 0, -NEW_SRV_ERR_PERMISSION_DENIED);
+    goto cleanup;
+  }
+  if (cnts->closed) {
+    fprintf(phr->log_f, "contest %d is closed\n", cnts->id);
+    error_page(fout, phr, 0, -NEW_SRV_ERR_SERVICE_NOT_AVAILABLE);
+    goto cleanup;
+  }
+  if (!cnts->managed) {
+    fprintf(phr->log_f, "contest %d is not managed", cnts->id);
+    error_page(fout, phr, 0, -NEW_SRV_ERR_SERVICE_NOT_AVAILABLE);
+    goto cleanup;
+  }
 
-  watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-  watched_file_update(&extra->menu_1, cnts->team_menu_1_file, cur_time);
-  watched_file_update(&extra->menu_2, cnts->team_menu_2_file, cur_time);
-  watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-  watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
   watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-  extra->header_txt = extra->header.text;
-  extra->menu_1_txt = extra->menu_1.text;
-  extra->menu_2_txt = extra->menu_2.text;
-  extra->separator_txt = extra->separator.text;
-  extra->footer_txt = extra->footer.text;
   extra->copyright_txt = extra->copyright.text;
   //if (!extra->header_txt) extra->header_txt = ns_fancy_header;
   //if (!extra->footer_txt) extra->footer_txt = ns_fancy_footer;
@@ -15422,312 +10412,64 @@ unprivileged_entry_point(
     return ns_html_err_disqualified(fout, phr, cnts, extra);
 
   /* FIXME: redirect just logged in user to an appropriate page */
-  if (ns_cgi_param(phr, "lt", &s) > 0) {
+  if (hr_cgi_param(phr, "lt", &s) > 0) {
     // contest is not started: no nothing
     // contest finished, not olympiad, standings enabled -> standings
   }
 
-  if (phr->action > 0 && phr->action < NEW_SRV_ACTION_LAST
-      && user_actions_table[phr->action]) {
-    user_actions_table[phr->action](fout, phr, cnts, extra);
-  } else {
-    if (phr->action < 0 || phr->action >= NEW_SRV_ACTION_LAST)
-      phr->action = 0;
-    unpriv_main_page(fout, phr, cnts, extra);
+  if (phr->action <= 0 || phr->action >= NEW_SRV_ACTION_LAST) {
+    phr->action = NEW_SRV_ACTION_MAIN_PAGE;
   }
+  if (external_unpriv_action_aliases[phr->action] > 0 || external_unpriv_action_names[phr->action]) {
+    if (unpriv_external_action(fout, phr)) goto cleanup;
+  }
+  /*
+  if (!external_unpriv_action_names[phr->action] && !user_actions_table[phr->action]) {
+    phr->action = NEW_SRV_ACTION_MAIN_PAGE;
+  }
+  */
+
+  //if (unpriv_external_action(fout, phr)) goto cleanup;
+  if (!user_actions_table[phr->action]) {
+    phr->action = NEW_SRV_ACTION_MAIN_PAGE;
+    if (unpriv_external_action(fout, phr)) goto cleanup;
+    error_page(fout, phr, 0, NEW_SRV_ERR_INV_ACTION);
+  }
+  user_actions_table[phr->action](fout, phr, cnts, extra);
+
+cleanup:
+  if (phr->log_f) close_memstream(phr->log_f);
+  phr->log_f = 0;
+  xfree(phr->log_t); phr->log_t = NULL; phr->log_z = 0;
 }
 
-static int
-get_register_url(
+const unsigned char *
+ns_get_register_url(
         unsigned char *buf,
         size_t size,
         const struct contest_desc *cnts,
-        const unsigned char *self_url)
+        const struct http_request_info *phr)
 {
-  int i, len;
-
-  if (cnts->register_url)
-    return snprintf(buf, size, "%s", cnts->register_url);
-
-  if (!self_url) return snprintf(buf, size, "%s", "/new-register");
-  len = strlen(self_url);
-  for (i = len - 1; i >= 0 && self_url[i] != '/'; i--);
-  if (i < 0) return snprintf(buf, size, "%s", "/new-register");
+  if (phr->rest_mode > 0) {
+    snprintf(buf, size, "%s/register", phr->context_url);
+  } else if (cnts->register_url) {
+    snprintf(buf, size, "%s", cnts->register_url);
+  } else {
 #if defined CGI_PROG_SUFFIX
-  return snprintf(buf, size, "%.*s/new-register%s", i, self_url,
-                  CGI_PROG_SUFFIX);
+    snprintf(buf, size, "%s/new-register%s", phr->context_url, CGI_PROG_SUFFIX);
 #else
-  return snprintf(buf, size, "%.*s/new-register", i, self_url);
+    snprintf(buf, size, "%s/new-register", phr->contest_url);
 #endif
+  }
+  return buf;
 }
 
-static const unsigned char * const symbolic_action_table[NEW_SRV_ACTION_LAST] =
-{
-  [NEW_SRV_ACTION_LOGIN_PAGE] = "LOGIN_PAGE",
-  [NEW_SRV_ACTION_MAIN_PAGE] = "MAIN_PAGE",
-  [NEW_SRV_ACTION_COOKIE_LOGIN] = "COOKIE_LOGIN",
-  [NEW_SRV_ACTION_VIEW_USERS] = "VIEW_USERS",
-  [NEW_SRV_ACTION_VIEW_ONLINE_USERS] = "VIEW_ONLINE_USERS",
-  [NEW_SRV_ACTION_USERS_REMOVE_REGISTRATIONS] = "USERS_REMOVE_REGISTRATIONS",
-  [NEW_SRV_ACTION_USERS_SET_PENDING] = "USERS_SET_PENDING",
-  [NEW_SRV_ACTION_USERS_SET_OK] = "USERS_SET_OK",
-  [NEW_SRV_ACTION_USERS_SET_REJECTED] = "USERS_SET_REJECTED",
-  [NEW_SRV_ACTION_USERS_SET_INVISIBLE] = "USERS_SET_INVISIBLE",
-  [NEW_SRV_ACTION_USERS_CLEAR_INVISIBLE] = "USERS_CLEAR_INVISIBLE",
-  [NEW_SRV_ACTION_USERS_SET_BANNED] = "USERS_SET_BANNED",
-  [NEW_SRV_ACTION_USERS_CLEAR_BANNED] = "USERS_CLEAR_BANNED",
-  [NEW_SRV_ACTION_USERS_SET_LOCKED] = "USERS_SET_LOCKED",
-  [NEW_SRV_ACTION_USERS_CLEAR_LOCKED] = "USERS_CLEAR_LOCKED",
-  [NEW_SRV_ACTION_USERS_SET_INCOMPLETE] = "USERS_SET_INCOMPLETE",
-  [NEW_SRV_ACTION_USERS_CLEAR_INCOMPLETE] = "USERS_CLEAR_INCOMPLETE",
-  [NEW_SRV_ACTION_USERS_SET_DISQUALIFIED] = "USERS_SET_DISQUALIFIED",
-  [NEW_SRV_ACTION_USERS_CLEAR_DISQUALIFIED] = "USERS_CLEAR_DISQUALIFIED",
-  [NEW_SRV_ACTION_USERS_ADD_BY_LOGIN] = "USERS_ADD_BY_LOGIN",
-  [NEW_SRV_ACTION_USERS_ADD_BY_USER_ID] = "USERS_ADD_BY_USER_ID",
-  [NEW_SRV_ACTION_PRIV_USERS_VIEW] = "PRIV_USERS_VIEW",
-  [NEW_SRV_ACTION_PRIV_USERS_REMOVE] = "PRIV_USERS_REMOVE",
-  [NEW_SRV_ACTION_PRIV_USERS_ADD_OBSERVER] = "PRIV_USERS_ADD_OBSERVER",
-  [NEW_SRV_ACTION_PRIV_USERS_DEL_OBSERVER] = "PRIV_USERS_DEL_OBSERVER",
-  [NEW_SRV_ACTION_PRIV_USERS_ADD_EXAMINER] = "PRIV_USERS_ADD_EXAMINER",
-  [NEW_SRV_ACTION_PRIV_USERS_DEL_EXAMINER] = "PRIV_USERS_DEL_EXAMINER",
-  [NEW_SRV_ACTION_PRIV_USERS_ADD_CHIEF_EXAMINER] = "PRIV_USERS_ADD_CHIEF_EXAMINER",
-  [NEW_SRV_ACTION_PRIV_USERS_DEL_CHIEF_EXAMINER] = "PRIV_USERS_DEL_CHIEF_EXAMINER",
-  [NEW_SRV_ACTION_PRIV_USERS_ADD_COORDINATOR] = "PRIV_USERS_ADD_COORDINATOR",
-  [NEW_SRV_ACTION_PRIV_USERS_DEL_COORDINATOR] = "PRIV_USERS_DEL_COORDINATOR",
-  [NEW_SRV_ACTION_PRIV_USERS_ADD_BY_LOGIN] = "PRIV_USERS_ADD_BY_LOGIN",
-  [NEW_SRV_ACTION_PRIV_USERS_ADD_BY_USER_ID] = "PRIV_USERS_ADD_BY_USER_ID",
-  [NEW_SRV_ACTION_CHANGE_LANGUAGE] = "CHANGE_LANGUAGE",
-  [NEW_SRV_ACTION_CHANGE_PASSWORD] = "CHANGE_PASSWORD",
-  [NEW_SRV_ACTION_VIEW_SOURCE] = "VIEW_SOURCE",
-  [NEW_SRV_ACTION_VIEW_REPORT] = "VIEW_REPORT",
-  [NEW_SRV_ACTION_PRINT_RUN] = "PRINT_RUN",
-  [NEW_SRV_ACTION_VIEW_CLAR] = "VIEW_CLAR",
-  [NEW_SRV_ACTION_SUBMIT_RUN] = "SUBMIT_RUN",
-  [NEW_SRV_ACTION_SUBMIT_CLAR] = "SUBMIT_CLAR",
-  [NEW_SRV_ACTION_START_CONTEST] = "START_CONTEST",
-  [NEW_SRV_ACTION_STOP_CONTEST] = "STOP_CONTEST",
-  [NEW_SRV_ACTION_CONTINUE_CONTEST] = "CONTINUE_CONTEST",
-  [NEW_SRV_ACTION_SCHEDULE] = "SCHEDULE",
-  [NEW_SRV_ACTION_CHANGE_DURATION] = "CHANGE_DURATION",
-  [NEW_SRV_ACTION_UPDATE_STANDINGS_1] = "UPDATE_STANDINGS_1",
-  [NEW_SRV_ACTION_RESET_1] = "RESET_1",
-  [NEW_SRV_ACTION_SUSPEND] = "SUSPEND",
-  [NEW_SRV_ACTION_RESUME] = "RESUME",
-  [NEW_SRV_ACTION_TEST_SUSPEND] = "TEST_SUSPEND",
-  [NEW_SRV_ACTION_TEST_RESUME] = "TEST_RESUME",
-  [NEW_SRV_ACTION_PRINT_SUSPEND] = "PRINT_SUSPEND",
-  [NEW_SRV_ACTION_PRINT_RESUME] = "PRINT_RESUME",
-  [NEW_SRV_ACTION_SET_JUDGING_MODE] = "SET_JUDGING_MODE",
-  [NEW_SRV_ACTION_SET_ACCEPTING_MODE] = "SET_ACCEPTING_MODE",
-  [NEW_SRV_ACTION_SET_TESTING_FINISHED_FLAG] = "SET_TESTING_FINISHED_FLAG",
-  [NEW_SRV_ACTION_CLEAR_TESTING_FINISHED_FLAG] = "CLEAR_TESTING_FINISHED_FLAG",
-  [NEW_SRV_ACTION_GENERATE_PASSWORDS_1] = "GENERATE_PASSWORDS_1",
-  [NEW_SRV_ACTION_CLEAR_PASSWORDS_1] = "CLEAR_PASSWORDS_1",
-  [NEW_SRV_ACTION_GENERATE_REG_PASSWORDS_1] = "GENERATE_REG_PASSWORDS_1",
-  [NEW_SRV_ACTION_RELOAD_SERVER] = "RELOAD_SERVER",
-  [NEW_SRV_ACTION_PRIV_SUBMIT_CLAR] = "PRIV_SUBMIT_CLAR",
-  [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT] = "PRIV_SUBMIT_RUN_COMMENT",
-  [NEW_SRV_ACTION_RESET_FILTER] = "RESET_FILTER",
-  [NEW_SRV_ACTION_CLEAR_RUN] = "CLEAR_RUN",
-  [NEW_SRV_ACTION_CHANGE_STATUS] = "CHANGE_STATUS",
-  [NEW_SRV_ACTION_REJUDGE_ALL_1] = "REJUDGE_ALL_1",
-  [NEW_SRV_ACTION_REJUDGE_SUSPENDED_1] = "REJUDGE_SUSPENDED_1",
-  [NEW_SRV_ACTION_REJUDGE_DISPLAYED_1] = "REJUDGE_DISPLAYED_1",
-  [NEW_SRV_ACTION_FULL_REJUDGE_DISPLAYED_1] = "FULL_REJUDGE_DISPLAYED_1",
-  [NEW_SRV_ACTION_SQUEEZE_RUNS] = "SQUEEZE_RUNS",
-  [NEW_SRV_ACTION_RESET_CLAR_FILTER] = "RESET_CLAR_FILTER",
-  [NEW_SRV_ACTION_LOGOUT] = "LOGOUT",
-  [NEW_SRV_ACTION_CHANGE_RUN_USER_ID] = "CHANGE_RUN_USER_ID",
-  [NEW_SRV_ACTION_CHANGE_RUN_USER_LOGIN] = "CHANGE_RUN_USER_LOGIN",
-  [NEW_SRV_ACTION_CHANGE_RUN_PROB_ID] = "CHANGE_RUN_PROB_ID",
-  [NEW_SRV_ACTION_CHANGE_RUN_VARIANT] = "CHANGE_RUN_VARIANT",
-  [NEW_SRV_ACTION_CHANGE_RUN_LANG_ID] = "CHANGE_RUN_LANG_ID",
-  [NEW_SRV_ACTION_CHANGE_RUN_IS_IMPORTED] = "CHANGE_RUN_IS_IMPORTED",
-  [NEW_SRV_ACTION_CHANGE_RUN_IS_HIDDEN] = "CHANGE_RUN_IS_HIDDEN",
-  [NEW_SRV_ACTION_CHANGE_RUN_IS_EXAMINABLE] = "CHANGE_RUN_IS_EXAMINABLE",
-  [NEW_SRV_ACTION_CHANGE_RUN_IS_READONLY] = "CHANGE_RUN_IS_READONLY",
-  [NEW_SRV_ACTION_CHANGE_RUN_IS_MARKED] = "CHANGE_RUN_IS_MARKED",
-  [NEW_SRV_ACTION_CHANGE_RUN_IS_SAVED] = "CHANGE_RUN_IS_SAVED",
-  [NEW_SRV_ACTION_CHANGE_RUN_STATUS] = "CHANGE_RUN_STATUS",
-  [NEW_SRV_ACTION_CHANGE_RUN_TEST] = "CHANGE_RUN_TEST",
-  [NEW_SRV_ACTION_CHANGE_RUN_SCORE] = "CHANGE_RUN_SCORE",
-  [NEW_SRV_ACTION_CHANGE_RUN_SCORE_ADJ] = "CHANGE_RUN_SCORE_ADJ",
-  [NEW_SRV_ACTION_CHANGE_RUN_PAGES] = "CHANGE_RUN_PAGES",
-  [NEW_SRV_ACTION_PRIV_DOWNLOAD_RUN] = "PRIV_DOWNLOAD_RUN",
-  [NEW_SRV_ACTION_COMPARE_RUNS] = "COMPARE_RUNS",
-  [NEW_SRV_ACTION_UPLOAD_REPORT] = "UPLOAD_REPORT",
-  [NEW_SRV_ACTION_STANDINGS] = "STANDINGS",
-  [NEW_SRV_ACTION_REJUDGE_PROBLEM_1] = "REJUDGE_PROBLEM_1",
-  [NEW_SRV_ACTION_CLAR_REPLY] = "CLAR_REPLY",
-  [NEW_SRV_ACTION_CLAR_REPLY_ALL] = "CLAR_REPLY_ALL",
-  [NEW_SRV_ACTION_CLAR_REPLY_READ_PROBLEM] = "CLAR_REPLY_READ_PROBLEM",
-  [NEW_SRV_ACTION_CLAR_REPLY_NO_COMMENTS] = "CLAR_REPLY_NO_COMMENTS",
-  [NEW_SRV_ACTION_CLAR_REPLY_YES] = "CLAR_REPLY_YES",
-  [NEW_SRV_ACTION_CLAR_REPLY_NO] = "CLAR_REPLY_NO",
-  [NEW_SRV_ACTION_REJUDGE_DISPLAYED_2] = "REJUDGE_DISPLAYED_2",
-  [NEW_SRV_ACTION_FULL_REJUDGE_DISPLAYED_2] = "FULL_REJUDGE_DISPLAYED_2",
-  [NEW_SRV_ACTION_REJUDGE_PROBLEM_2] = "REJUDGE_PROBLEM_2",
-  [NEW_SRV_ACTION_REJUDGE_ALL_2] = "REJUDGE_ALL_2",
-  [NEW_SRV_ACTION_REJUDGE_SUSPENDED_2] = "REJUDGE_SUSPENDED_2",
-  [NEW_SRV_ACTION_VIEW_TEST_INPUT] = "VIEW_TEST_INPUT",
-  [NEW_SRV_ACTION_VIEW_TEST_ANSWER] = "VIEW_TEST_ANSWER",
-  [NEW_SRV_ACTION_VIEW_TEST_INFO] = "VIEW_TEST_INFO",
-  [NEW_SRV_ACTION_VIEW_TEST_OUTPUT] = "VIEW_TEST_OUTPUT",
-  [NEW_SRV_ACTION_VIEW_TEST_ERROR] = "VIEW_TEST_ERROR",
-  [NEW_SRV_ACTION_VIEW_TEST_CHECKER] = "VIEW_TEST_CHECKER",
-  [NEW_SRV_ACTION_VIEW_AUDIT_LOG] = "VIEW_AUDIT_LOG",
-  [NEW_SRV_ACTION_UPDATE_STANDINGS_2] = "UPDATE_STANDINGS_2",
-  [NEW_SRV_ACTION_RESET_2] = "RESET_2",
-  [NEW_SRV_ACTION_GENERATE_PASSWORDS_2] = "GENERATE_PASSWORDS_2",
-  [NEW_SRV_ACTION_CLEAR_PASSWORDS_2] = "CLEAR_PASSWORDS_2",
-  [NEW_SRV_ACTION_GENERATE_REG_PASSWORDS_2] = "GENERATE_REG_PASSWORDS_2",
-  [NEW_SRV_ACTION_VIEW_CNTS_PWDS] = "VIEW_CNTS_PWDS",
-  [NEW_SRV_ACTION_VIEW_REG_PWDS] = "VIEW_REG_PWDS",
-  [NEW_SRV_ACTION_TOGGLE_VISIBILITY] = "TOGGLE_VISIBILITY",
-  [NEW_SRV_ACTION_TOGGLE_BAN] = "TOGGLE_BAN",
-  [NEW_SRV_ACTION_TOGGLE_LOCK] = "TOGGLE_LOCK",
-  [NEW_SRV_ACTION_TOGGLE_INCOMPLETENESS] = "TOGGLE_INCOMPLETENESS",
-  [NEW_SRV_ACTION_SET_DISQUALIFICATION] = "SET_DISQUALIFICATION",
-  [NEW_SRV_ACTION_CLEAR_DISQUALIFICATION] = "CLEAR_DISQUALIFICATION",
-  [NEW_SRV_ACTION_USER_CHANGE_STATUS] = "USER_CHANGE_STATUS",
-  [NEW_SRV_ACTION_VIEW_USER_INFO] = "VIEW_USER_INFO",
-  [NEW_SRV_ACTION_ISSUE_WARNING] = "ISSUE_WARNING",
-  [NEW_SRV_ACTION_NEW_RUN_FORM] = "NEW_RUN_FORM",
-  [NEW_SRV_ACTION_NEW_RUN] = "NEW_RUN",
-  [NEW_SRV_ACTION_VIEW_USER_DUMP] = "VIEW_USER_DUMP",
-  [NEW_SRV_ACTION_FORGOT_PASSWORD_1] = "FORGOT_PASSWORD_1",
-  [NEW_SRV_ACTION_FORGOT_PASSWORD_2] = "FORGOT_PASSWORD_2",
-  [NEW_SRV_ACTION_FORGOT_PASSWORD_3] = "FORGOT_PASSWORD_3",
-  [NEW_SRV_ACTION_SUBMIT_APPEAL] = "SUBMIT_APPEAL",
-  [NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY] = "VIEW_PROBLEM_SUMMARY",
-  [NEW_SRV_ACTION_VIEW_PROBLEM_STATEMENTS] = "VIEW_PROBLEM_STATEMENTS",
-  [NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT] = "VIEW_PROBLEM_SUBMIT",
-  [NEW_SRV_ACTION_VIEW_SUBMISSIONS] = "VIEW_SUBMISSIONS",
-  [NEW_SRV_ACTION_VIEW_CLAR_SUBMIT] = "VIEW_CLAR_SUBMIT",
-  [NEW_SRV_ACTION_VIEW_CLARS] = "VIEW_CLARS",
-  [NEW_SRV_ACTION_VIEW_SETTINGS] = "VIEW_SETTINGS",
-  [NEW_SRV_ACTION_VIRTUAL_START] = "VIRTUAL_START",
-  [NEW_SRV_ACTION_VIRTUAL_STOP] = "VIRTUAL_STOP",
-  [NEW_SRV_ACTION_VIEW_USER_REPORT] = "VIEW_USER_REPORT",
-  [NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_1] = "DOWNLOAD_ARCHIVE_1",
-  [NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_2] = "DOWNLOAD_ARCHIVE_2",
-  [NEW_SRV_ACTION_UPLOAD_RUNLOG_CSV_1] = "UPLOAD_RUNLOG_CSV_1",
-  [NEW_SRV_ACTION_UPLOAD_RUNLOG_CSV_2] = "UPLOAD_RUNLOG_CSV_2",
-  [NEW_SRV_ACTION_VIEW_RUNS_DUMP] = "VIEW_RUNS_DUMP",
-  [NEW_SRV_ACTION_EXPORT_XML_RUNS] = "EXPORT_XML_RUNS",
-  [NEW_SRV_ACTION_WRITE_XML_RUNS] = "WRITE_XML_RUNS",
-  [NEW_SRV_ACTION_WRITE_XML_RUNS_WITH_SRC] = "WRITE_XML_RUNS_WITH_SRC",
-  [NEW_SRV_ACTION_UPLOAD_RUNLOG_XML_1] = "UPLOAD_RUNLOG_XML_1",
-  [NEW_SRV_ACTION_UPLOAD_RUNLOG_XML_2] = "UPLOAD_RUNLOG_XML_2",
-  [NEW_SRV_ACTION_LOGIN] = "LOGIN",
-  [NEW_SRV_ACTION_DUMP_PROBLEMS] = "DUMP_PROBLEMS",
-  [NEW_SRV_ACTION_DUMP_LANGUAGES] = "DUMP_LANGUAGES",
-  [NEW_SRV_ACTION_SOFT_UPDATE_STANDINGS] = "SOFT_UPDATE_STANDINGS",
-  [NEW_SRV_ACTION_HAS_TRANSIENT_RUNS] = "HAS_TRANSIENT_RUNS",
-  [NEW_SRV_ACTION_DUMP_RUN_STATUS] = "DUMP_RUN_STATUS",
-  [NEW_SRV_ACTION_DUMP_SOURCE] = "DUMP_SOURCE",
-  [NEW_SRV_ACTION_DUMP_CLAR] = "DUMP_CLAR",
-  [NEW_SRV_ACTION_GET_CONTEST_NAME] = "GET_CONTEST_NAME",
-  [NEW_SRV_ACTION_GET_CONTEST_TYPE] = "GET_CONTEST_TYPE",
-  [NEW_SRV_ACTION_GET_CONTEST_STATUS] = "GET_CONTEST_STATUS",
-  [NEW_SRV_ACTION_GET_CONTEST_SCHED] = "GET_CONTEST_SCHED",
-  [NEW_SRV_ACTION_GET_CONTEST_DURATION] = "GET_CONTEST_DURATION",
-  [NEW_SRV_ACTION_GET_CONTEST_DURATION] = "GET_CONTEST_DESCRIPTION",
-  [NEW_SRV_ACTION_DUMP_MASTER_RUNS] = "DUMP_MASTER_RUNS",
-  [NEW_SRV_ACTION_DUMP_REPORT] = "DUMP_REPORT",
-  [NEW_SRV_ACTION_FULL_UPLOAD_RUNLOG_XML] = "FULL_UPLOAD_RUNLOG_XML",
-  [NEW_SRV_ACTION_JSON_USER_STATE] = "JSON_USER_STATE",
-  [NEW_SRV_ACTION_VIEW_STARTSTOP] = "VIEW_STARTSTOP",
-  [NEW_SRV_ACTION_CLEAR_DISPLAYED_1] = "CLEAR_DISPLAYED_1",
-  [NEW_SRV_ACTION_CLEAR_DISPLAYED_2] = "CLEAR_DISPLAYED_2",
-  [NEW_SRV_ACTION_IGNORE_DISPLAYED_1] = "IGNORE_DISPLAYED_1",
-  [NEW_SRV_ACTION_IGNORE_DISPLAYED_2] = "IGNORE_DISPLAYED_2",
-  [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_1] = "DISQUALIFY_DISPLAYED_1",
-  [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_2] = "DISQUALIFY_DISPLAYED_2",
-  [NEW_SRV_ACTION_UPDATE_ANSWER] = "UPDATE_ANSWER",
-  [NEW_SRV_ACTION_UPSOLVING_CONFIG_1] = "UPSOLVING_CONFIG_1",
-  [NEW_SRV_ACTION_UPSOLVING_CONFIG_2] = "UPSOLVING_CONFIG_2",
-  [NEW_SRV_ACTION_UPSOLVING_CONFIG_3] = "UPSOLVING_CONFIG_3",
-  [NEW_SRV_ACTION_UPSOLVING_CONFIG_4] = "UPSOLVING_CONFIG_4",
-  [NEW_SRV_ACTION_EXAMINERS_PAGE] = "EXAMINERS_PAGE",
-  [NEW_SRV_ACTION_ASSIGN_CHIEF_EXAMINER] = "ASSIGN_CHIEF_EXAMINER",
-  [NEW_SRV_ACTION_ASSIGN_EXAMINER] = "ASSIGN_EXAMINER",
-  [NEW_SRV_ACTION_UNASSIGN_EXAMINER] = "UNASSIGN_EXAMINER",
-  [NEW_SRV_ACTION_GET_FILE] = "GET_FILE",
-  [NEW_SRV_ACTION_PRINT_USER_PROTOCOL] = "PRINT_USER_PROTOCOL",
-  [NEW_SRV_ACTION_PRINT_USER_FULL_PROTOCOL] = "PRINT_USER_FULL_PROTOCOL",
-  [NEW_SRV_ACTION_PRINT_UFC_PROTOCOL] = "PRINT_UFC_PROTOCOL",
-  [NEW_SRV_ACTION_FORCE_START_VIRTUAL] = "FORCE_START_VIRTUAL",
-  [NEW_SRV_ACTION_PRINT_SELECTED_USER_PROTOCOL] = "PRINT_SELECTED_USER_PROTOCOL",
-  [NEW_SRV_ACTION_PRINT_SELECTED_USER_FULL_PROTOCOL] = "PRINT_SELECTED_USER_FULL_PROTOCOL",
-  [NEW_SRV_ACTION_PRINT_SELECTED_UFC_PROTOCOL] = "PRINT_SELECTED_UFC_PROTOCOL",
-  [NEW_SRV_ACTION_PRINT_PROBLEM_PROTOCOL] = "PRINT_PROBLEM_PROTOCOL",
-  [NEW_SRV_ACTION_ASSIGN_CYPHERS_1] = "ASSIGN_CYPHERS_1",
-  [NEW_SRV_ACTION_ASSIGN_CYPHERS_2] = "ASSIGN_CYPHERS_2",
-  [NEW_SRV_ACTION_VIEW_EXAM_INFO] = "VIEW_EXAM_INFO",
-  [NEW_SRV_ACTION_PRIV_SUBMIT_PAGE] = "PRIV_SUBMIT_PAGE",
-  [NEW_SRV_ACTION_REG_CREATE_ACCOUNT_PAGE] = "REG_CREATE_ACCOUNT_PAGE",
-  [NEW_SRV_ACTION_REG_CREATE_ACCOUNT] = "REG_CREATE_ACCOUNT",
-  [NEW_SRV_ACTION_REG_ACCOUNT_CREATED_PAGE] = "REG_ACCOUNT_CREATED_PAGE",
-  [NEW_SRV_ACTION_REG_LOGIN_PAGE] = "REG_LOGIN_PAGE",
-  [NEW_SRV_ACTION_REG_LOGIN] = "REG_LOGIN",
-  [NEW_SRV_ACTION_REG_VIEW_GENERAL] = "REG_VIEW_GENERAL",
-  [NEW_SRV_ACTION_REG_VIEW_CONTESTANTS] = "REG_VIEW_CONTESTANTS",
-  [NEW_SRV_ACTION_REG_VIEW_RESERVES] = "REG_VIEW_RESERVES",
-  [NEW_SRV_ACTION_REG_VIEW_COACHES] = "REG_VIEW_COACHES",
-  [NEW_SRV_ACTION_REG_VIEW_ADVISORS] = "REG_VIEW_ADVISORS",
-  [NEW_SRV_ACTION_REG_VIEW_GUESTS] = "REG_VIEW_GUESTS",
-  [NEW_SRV_ACTION_REG_ADD_MEMBER_PAGE] = "REG_ADD_MEMBER_PAGE",
-  [NEW_SRV_ACTION_REG_EDIT_GENERAL_PAGE] = "REG_EDIT_GENERAL_PAGE",
-  [NEW_SRV_ACTION_REG_EDIT_MEMBER_PAGE] = "REG_EDIT_MEMBER_PAGE",
-  [NEW_SRV_ACTION_REG_MOVE_MEMBER] = "REG_MOVE_MEMBER",
-  [NEW_SRV_ACTION_REG_REMOVE_MEMBER] = "REG_REMOVE_MEMBER",
-  [NEW_SRV_ACTION_REG_SUBMIT_GENERAL_EDITING] = "REG_SUBMIT_GENERAL_EDITING",
-  [NEW_SRV_ACTION_REG_CANCEL_GENERAL_EDITING] = "REG_CANCEL_GENERAL_EDITING",
-  [NEW_SRV_ACTION_REG_SUBMIT_MEMBER_EDITING] = "REG_SUBMIT_MEMBER_EDITING",
-  [NEW_SRV_ACTION_REG_CANCEL_MEMBER_EDITING] = "REG_CANCEL_MEMBER_EDITING",
-  [NEW_SRV_ACTION_REG_REGISTER] = "REG_REGISTER",
-  [NEW_SRV_ACTION_REG_DATA_EDIT] = "REG_DATA_EDIT",
-  [NEW_SRV_ACTION_PRIO_FORM] = "PRIO_FORM",
-  [NEW_SRV_ACTION_SET_PRIORITIES] = "SET_PRIORITIES",
-  [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE] = "PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE",
-  [NEW_SRV_ACTION_VIEW_USER_IPS] = "VIEW_USER_IPS",
-  [NEW_SRV_ACTION_VIEW_IP_USERS] = "VIEW_IP_USERS",
-  [NEW_SRV_ACTION_CHANGE_FINISH_TIME] = "CHANGE_FINISH_TIME",
-  [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK] = "PRIV_SUBMIT_RUN_COMMENT_AND_OK",
-  [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE] = "PRIV_SUBMIT_RUN_JUST_IGNORE",
-  [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK] = "PRIV_SUBMIT_RUN_JUST_OK",
-  [NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED] = "PRIV_SET_RUN_REJECTED",
-  [NEW_SRV_ACTION_VIEW_TESTING_QUEUE] = "VIEW_TESTING_QUEUE",
-  [NEW_SRV_ACTION_TESTING_DELETE] = "TESTING_DELETE",
-  [NEW_SRV_ACTION_TESTING_UP] = "TESTING_UP",
-  [NEW_SRV_ACTION_TESTING_DOWN] = "TESTING_DOWN",
-  [NEW_SRV_ACTION_TESTING_DELETE_ALL] = "TESTING_DELETE_ALL",
-  [NEW_SRV_ACTION_TESTING_UP_ALL] = "TESTING_UP_ALL",
-  [NEW_SRV_ACTION_TESTING_DOWN_ALL] = "TESTING_DOWN_ALL",
-  [NEW_SRV_ACTION_MARK_DISPLAYED_2] = "MARK_DISPLAYED_2",
-  [NEW_SRV_ACTION_UNMARK_DISPLAYED_2] = "UNMARK_DISPLAYED_2",
-  [NEW_SRV_ACTION_SET_STAND_FILTER] = "SET_STAND_FILTER",
-  [NEW_SRV_ACTION_RESET_STAND_FILTER] = "RESET_STAND_FILTER",
-  [NEW_SRV_ACTION_ADMIN_CONTEST_SETTINGS] = "ADMIN_CONTEST_SETTINGS",
-  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_SOURCE] = "ADMIN_CHANGE_ONLINE_VIEW_SOURCE",
-  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_REPORT] = "ADMIN_CHANGE_ONLINE_VIEW_REPORT",
-  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE] = "ADMIN_CHANGE_ONLINE_VIEW_JUDGE_SCORE",
-  [NEW_SRV_ACTION_ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY] = "ADMIN_CHANGE_ONLINE_FINAL_VISIBILITY",
-  [NEW_SRV_ACTION_RELOAD_SERVER_2] = "RELOAD_SERVER_2",
-  [NEW_SRV_ACTION_CHANGE_RUN_FIELDS] = "CHANGE_RUN_FIELDS",
-  [NEW_SRV_ACTION_PRIV_EDIT_CLAR_PAGE] = "PRIV_EDIT_CLAR_PAGE",
-  [NEW_SRV_ACTION_PRIV_EDIT_CLAR_ACTION] = "PRIV_EDIT_CLAR_ACTION",
-  [NEW_SRV_ACTION_PRIV_EDIT_RUN_PAGE] = "PRIV_EDIT_RUN_PAGE",
-  [NEW_SRV_ACTION_PRIV_EDIT_RUN_ACTION] = "PRIV_EDIT_RUN_ACTION",
-  [NEW_SRV_ACTION_PING] = "PING",
-  [NEW_SRV_ACTION_SUBMIT_RUN_BATCH] = "SUBMIT_RUN_BATCH",
-};
+#include "new_server_at.c"
 
 static void
 parse_cookie(struct http_request_info *phr)
 {
-  const unsigned char *cookies = ns_getenv(phr, "HTTP_COOKIE");
+  const unsigned char *cookies = hr_getenv(phr, "HTTP_COOKIE");
   if (!cookies) return;
   const unsigned char *s = cookies;
   ej_cookie_t client_key = 0;
@@ -15752,11 +10494,18 @@ parse_cookie(struct http_request_info *phr)
   }
 }
 
+// forced linking
+static void *forced_linking[] =
+{
+  userlist_clnt_recover_passwd_2,
+};
+
 void
-ns_handle_http_request(struct server_framework_state *state,
-                       struct client_state *p,
-                       FILE *fout,
-                       struct http_request_info *phr)
+ns_handle_http_request(
+        struct server_framework_state *state,
+        struct client_state *p,
+        FILE *fout,
+        struct http_request_info *phr)
 {
   const unsigned char *script_filename = 0;
   path_t last_name;
@@ -15766,36 +10515,106 @@ ns_handle_http_request(struct server_framework_state *state,
   const unsigned char *remote_addr;
   const unsigned char *s;
   path_t self_url;
-  int r, n, orig_locale_id = -1;
+  path_t context_url;
+  int r, n;
+  unsigned char *rest_args = NULL;
+  unsigned char *rest_action = NULL;
+
+  (void) forced_linking;
 
   // make a self-referencing URL
-  if (ns_getenv(phr, "SSL_PROTOCOL") || ns_getenv(phr, "HTTPS")) {
+  if (hr_getenv(phr, "SSL_PROTOCOL") || hr_getenv(phr, "HTTPS")) {
     phr->ssl_flag = 1;
     protocol = "https";
   }
-  if (!(http_host = ns_getenv(phr, "HTTP_HOST"))) http_host = "localhost";
-  if (!(script_name = ns_getenv(phr, "SCRIPT_NAME")))
+  if (!(http_host = hr_getenv(phr, "HTTP_HOST"))) http_host = "localhost";
+  if (!(script_name = hr_getenv(phr, "SCRIPT_NAME")))
     script_name = "/cgi-bin/new-client";
+
+#if defined EJUDGE_REST_PREFIX
+  if (!strncmp(script_name, EJUDGE_REST_PREFIX, EJUDGE_REST_PREFIX_LEN)) {
+    // extract second part
+    s = script_name + EJUDGE_REST_PREFIX_LEN;
+    while (*s && *s != '/') ++s;
+    n = (int)(s - script_name - EJUDGE_REST_PREFIX_LEN);
+    if (n > (int)sizeof(phr->role_name) - 1) n = (int)sizeof(phr->role_name) - 1;
+    *(char*) mempcpy(phr->role_name, script_name + EJUDGE_REST_PREFIX_LEN, n) = 0;
+
+    int nlen = strlen(script_name);
+    rest_args = alloca(nlen + 1);
+    rest_args[0] = 0;
+    if (*s == '/') {
+      memcpy(rest_args, s + 1, nlen - (n + EJUDGE_REST_PREFIX_LEN));
+    }
+    if (rest_args[0]) {
+      unsigned char *ss = strchr(rest_args, '/');
+      if (ss) {
+        rest_action = rest_args;
+        rest_args = alloca(nlen + 1);
+        strcpy(rest_args, ss + 1);
+        *ss = 0;
+      } else {
+        rest_action = rest_args;
+        rest_args = NULL;
+      }
+    }
+
+    // update script_name
+    unsigned char *tmp = alloca(nlen + 1);
+    memcpy(tmp, script_name, nlen);
+    tmp[n + EJUDGE_REST_PREFIX_LEN] = 0;
+    script_name = tmp;
+
+    if (rest_args && rest_args[0] == 'S') {
+      // SID
+      unsigned char *ss = strchr(rest_args, '/');
+      if (ss) *ss = 0;
+      unsigned long long v1 = 0, v2 = 0;
+      if (xml_parse_full_cookie(rest_args + 1, &v1, &v2) >= 0) {
+        phr->session_id = v1;
+        phr->client_key = v2;
+      }
+      if (ss) rest_args = ss + 1;
+      else rest_args = NULL;
+    }
+
+    phr->rest_mode = 1;
+
+    /*
+    fprintf(stderr, "role_name: %s\n", role_name);
+    fprintf(stderr, "rest_action: %s\n", rest_action);
+    fprintf(stderr, "rest_args: %s\n", rest_args);
+    fprintf(stderr, "script_name: %s\n", script_name);
+    */
+  }
+#endif
+
   phr->script_name = script_name;
   snprintf(self_url, sizeof(self_url), "%s://%s%s", protocol,
            http_host, script_name);
   phr->self_url = self_url;
+  snprintf(context_url, sizeof(context_url), "%s", self_url);
+  unsigned char *rs = strrchr(context_url, '/');
+  if (rs) *rs = 0;
+  phr->context_url = context_url;
 
-  if (ns_cgi_param(phr, "json", &s) > 0) {
+  if (hr_cgi_param(phr, "json", &s) > 0) {
     phr->json_reply = 1;
   }
 
   // parse the client IP address
-  if (!(remote_addr = ns_getenv(phr, "REMOTE_ADDR")))
+  if (!(remote_addr = hr_getenv(phr, "REMOTE_ADDR")))
     return ns_html_err_inv_param(fout, phr, 0, "REMOTE_ADDR does not exist");
   if (!strcmp(remote_addr, "::1")) remote_addr = "127.0.0.1";
   if (xml_parse_ipv6(NULL, 0, 0, 0, remote_addr, &phr->ip) < 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse REMOTE_ADDR");
 
-  parse_cookie(phr);
+  if (!phr->client_key) {
+    parse_cookie(phr);
+  }
 
   // parse the contest_id
-  if ((r = ns_cgi_param(phr, "contest_id", &s)) < 0)
+  if ((r = hr_cgi_param(phr, "contest_id", &s)) < 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse contest_id");
   if (r > 0) {
     if (sscanf(s, "%d%n", &phr->contest_id, &n) != 1
@@ -15803,41 +10622,45 @@ ns_handle_http_request(struct server_framework_state *state,
       return ns_html_err_inv_param(fout, phr, 0, "cannot parse contest_id");
   }
 
-  if (ns_cgi_param(phr, "plain_text", &s) > 0) {
+  if (hr_cgi_param(phr, "plain_text", &s) > 0) {
     phr->plain_text = 1;
   }
 
   // parse the session_id
-  if ((r = ns_cgi_param(phr, "SID", &s)) < 0)
-    return ns_html_err_inv_param(fout, phr, 0, "cannot parse SID");
-  if (r > 0) {
-    if (sscanf(s, "%llx%n", &phr->session_id, &n) != 1
-        || s[n] || !phr->session_id)
+  if (!phr->session_id) {
+    if ((r = hr_cgi_param(phr, "SID", &s)) < 0)
       return ns_html_err_inv_param(fout, phr, 0, "cannot parse SID");
+    if (r > 0) {
+      if (sscanf(s, "%llx%n", &phr->session_id, &n) != 1
+          || s[n] || !phr->session_id)
+        return ns_html_err_inv_param(fout, phr, 0, "cannot parse SID");
+    }
   }
 
   // parse the locale_id
-  if ((r = ns_cgi_param(phr, "locale_id", &s)) < 0)
+  if ((r = hr_cgi_param(phr, "locale_id", &s)) < 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse locale_id");
   if (r > 0) {
     if (sscanf(s, "%d%n", &phr->locale_id, &n) != 1 || s[n]
         || phr->locale_id < 0)
       return ns_html_err_inv_param(fout, phr, 0, "cannot parse locale_id");
-    orig_locale_id = phr->locale_id;
   }
 
   // parse the action
-  if ((s = ns_cgi_nname(phr, "action_", 7))) {
+  if (rest_action && *rest_action) {
+    phr->action = ns_match_action(rest_action);
+    if (phr->action < 0) return ns_html_err_inv_param(fout, phr, 0, "invalid action");
+  } else if ((s = hr_cgi_nname(phr, "action_", 7))) {
     if (sscanf(s, "action_%d%n", &phr->action, &n) != 1 || s[n]
         || phr->action <= 0)
       return ns_html_err_inv_param(fout, phr, 0, "cannot parse action");
-  } else if ((r = ns_cgi_param(phr, "action", &s)) < 0) {
+  } else if ((r = hr_cgi_param(phr, "action", &s)) < 0) {
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse action");
   } else if (r > 0) {
     if (sscanf(s, "%d%n", &phr->action, &n) != 1 || s[n] || phr->action <= 0) {
       for (r = 0; r < NEW_SRV_ACTION_LAST; ++r)
-        if (symbolic_action_table[r]
-            && !strcasecmp(symbolic_action_table[r], s))
+        if (ns_symbolic_action_table[r]
+            && !strcasecmp(ns_symbolic_action_table[r], s))
           break;
       if (r == NEW_SRV_ACTION_LAST)
         return ns_html_err_inv_param(fout, phr, 0, "cannot parse action");
@@ -15845,8 +10668,33 @@ ns_handle_http_request(struct server_framework_state *state,
     }
   }
 
+  if (*phr->role_name) {
+    if (!strcmp(phr->role_name, "master")) {
+      phr->role = USER_ROLE_ADMIN;
+      privileged_entry_point(fout, phr);
+      return;
+    } else if (!strcmp(phr->role_name, "judge")) {
+      phr->role = USER_ROLE_JUDGE;
+      privileged_entry_point(fout, phr);
+      return;
+    } else if (!strcmp(phr->role_name, "observer")) {
+      phr->role = USER_ROLE_OBSERVER;
+      privileged_entry_point(fout, phr);
+      return;
+    } else if (!strcmp(phr->role_name, "user")) {
+      unprivileged_entry_point(fout, phr);
+      return;
+    } else if (!strcmp(phr->role_name, "register")) {
+      ns_register_pages(fout, phr);
+      return;
+    } else if (!strcmp(phr->role_name, "rest")) {
+      phr->protocol_reply = new_server_cmd_handler(fout, phr);
+      return;
+    }
+  }
+
   // check how we've been called
-  script_filename = ns_getenv(phr, "SCRIPT_FILENAME");
+  script_filename = hr_getenv(phr, "SCRIPT_FILENAME");
   if (!script_filename && phr->arg_num > 0) script_filename = phr->args[0];
   if (!script_filename)
     return ns_html_err_inv_param(fout, phr, 0, "cannot get script filename");
@@ -15867,27 +10715,26 @@ ns_handle_http_request(struct server_framework_state *state,
   }
 #endif /* CGI_PROG_SUFFIX */
 
-  if (!strcmp(last_name, "priv-client"))
+  if (!strcmp(last_name, "priv-client")) {
+    strcpy(phr->role_name, "priv");
     privileged_entry_point(fout, phr);
-  else if (!strcmp(last_name, "new-master") || !strcmp(last_name, "master")) {
+  } else if (!strcmp(last_name, "new-master") || !strcmp(last_name, "master")) {
     phr->role = USER_ROLE_ADMIN;
+    strcpy(phr->role_name, "master");
     privileged_entry_point(fout, phr);
   } else if (!strcmp(last_name, "new-judge") || !strcmp(last_name, "judge")) {
     phr->role = USER_ROLE_JUDGE;
+    strcpy(phr->role_name, "judge");
     privileged_entry_point(fout, phr);
-  } else if (!strcmp(last_name, "new-register")
-             || !strcmp(last_name, "register")) {
+  } else if (!strcmp(last_name, "new-register") || !strcmp(last_name, "register")) {
     // FIXME: temporary hack
-    phr->locale_id = orig_locale_id;
+    strcpy(phr->role_name, "register");
     ns_register_pages(fout, phr);
   } else if (!strcmp(last_name, "ejudge-contests-cmd")) {
+    strcpy(phr->role_name, "cmd");
     phr->protocol_reply = new_server_cmd_handler(fout, phr);
-  } else
-    unprivileged_entry_point(fout, phr, orig_locale_id);
+  } else {
+    strcpy(phr->role_name, "user");
+    unprivileged_entry_point(fout, phr);
+  }
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

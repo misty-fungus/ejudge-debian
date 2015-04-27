@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cpu.c 7054 2012-10-17 04:17:09Z cher $ */
+/* $Id: cpu.c 8189 2014-05-14 19:15:57Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "cpu.h"
-#include "errlog.h"
+#include "ejudge/cpu.h"
+#include "ejudge/errlog.h"
 
 #include <stdlib.h>
 

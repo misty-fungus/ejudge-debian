@@ -1,13 +1,12 @@
 // This is an auto-generated file, do not edit
-// Generated 2013/11/25 14:41:48
 
-#include "super-serve_meta.h"
-#include "super-serve.h"
-#include "meta_generic.h"
+#include "ejudge/meta/super-serve_meta.h"
+#include "ejudge/super-serve.h"
+#include "ejudge/meta_generic.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 #include <string.h>
 #include <stdlib.h>
 

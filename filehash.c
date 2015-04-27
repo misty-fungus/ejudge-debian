@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: filehash.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: filehash.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,16 +15,15 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_types.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/filehash.h"
+#include "ejudge/timestamp.h"
+#include "ejudge/sha.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
 
-#include "filehash.h"
-#include "timestamp.h"
-#include "sha.h"
-#include "pathutl.h"
-#include "errlog.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -220,10 +219,3 @@ filehash_get(const unsigned char *path, unsigned char *val)
   add_hash_item(p);
   return 0;
 }
-
-/**
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: reuse_xrealloc.c 6122 2011-03-26 06:54:03Z cher $ */
+/* $Id: reuse_xrealloc.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This library is free software; you can redistribute it and/or
@@ -15,7 +15,7 @@
  * Lesser General Public License for more details.
  */
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 void reuse_null_size(void);
 void reuse_out_of_mem(void);

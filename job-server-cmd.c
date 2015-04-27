@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: job-server-cmd.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: job-server-cmd.c 8219 2014-05-16 05:21:59Z cher $ */
 
-/* Copyright (C) 2006-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "version.h"
-
-#include "job_packet.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/version.h"
+#include "ejudge/job_packet.h"
 
 #include <stdio.h>
 

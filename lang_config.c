@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: lang_config.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: lang_config.c 8217 2014-05-15 14:02:12Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-
-#include "prepare.h"
-#include "shellcfg_parse.h"
+#include "ejudge/config.h"
+#include "ejudge/prepare.h"
+#include "ejudge/shellcfg_parse.h"
 
 #include <string.h>
 #include <dirent.h>

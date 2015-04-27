@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: zip_utils.c 6135 2011-03-26 09:30:42Z cher $ */
+/* $Id: zip_utils.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,12 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/zip_utils.h"
 
-#include "zip_utils.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <zlib.h>
 #include <string.h>
@@ -106,9 +105,3 @@ gzip_uncompress_to_memory(
   xfree(wb);
   return retval;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

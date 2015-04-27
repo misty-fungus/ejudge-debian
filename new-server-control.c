@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new-server-control.c 6634 2012-02-07 14:54:16Z cher $ */
+/* $Id: new-server-control.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,18 +15,16 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/new_server_clnt.h"
+#include "ejudge/startstop.h"
 
-#include "ejudge_cfg.h"
-#include "new_server_proto.h"
-#include "new_server_clnt.h"
-#include "new_server_proto.h"
-#include "startstop.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>

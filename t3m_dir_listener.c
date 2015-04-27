@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: t3m_dir_listener.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: t3m_dir_listener.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,14 +15,13 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/t3m_dir_listener.h"
+#include "ejudge/list_ops.h"
 
-#include "t3m_dir_listener.h"
-#include "list_ops.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -108,9 +107,3 @@ dir_listener_find(
 
   return -1;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

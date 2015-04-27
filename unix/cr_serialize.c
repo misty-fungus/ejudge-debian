@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cr_serialize.c 6161 2011-03-27 07:01:28Z cher $ */
+/* $Id: cr_serialize.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,12 @@
  * GNU General Public License for more details.
  */
 
-#include "cr_serialize.h"
-#include "prepare.h"
-#include "errlog.h"
-#include "serve_state.h"
-#include "serve_state.h"
+#include "ejudge/cr_serialize.h"
+#include "ejudge/prepare.h"
+#include "ejudge/errlog.h"
+#include "ejudge/serve_state.h"
 
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -119,6 +118,5 @@ cr_serialize_unlock(const serve_state_t state)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

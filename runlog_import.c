@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: runlog_import.c 7587 2013-11-11 16:53:34Z cher $ */
+/* $Id: runlog_import.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,18 +15,18 @@
  * GNU General Public License for more details.
  */
 
-#include "runlog.h"
-#include "misctext.h"
-#include "prepare.h"
-#include "teamdb.h"
-#include "archive_paths.h"
-#include "serve_state.h"
-#include "fileutl.h"
-#include "compat.h"
+#include "ejudge/runlog.h"
+#include "ejudge/misctext.h"
+#include "ejudge/prepare.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/compat.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdlib.h>
 
@@ -812,9 +812,3 @@ runlog_import_xml(
   }
   xfree(in_data);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: meta_generic.c 6978 2012-08-10 14:44:59Z cher $ */
+/* $Id: meta_generic.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,14 +15,13 @@
  * GNU General Public License for more details.
  */
 
-#include "meta_generic.h"
+#include "ejudge/meta_generic.h"
+#include "ejudge/misctext.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/charsets.h"
 
-#include "misctext.h"
-#include "xml_utils.h"
-#include "charsets.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 #include <string.h>

@@ -1,0 +1,34 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html><head>
+<meta http-equiv="Content-type" content="text/html; charset=<s:config name="charset" />"/>
+<script type="text/javascript" src="<s:config name="style-prefix" />dojo/dojo.js" djConfig="isDebug: false, parseOnLoad: true, dojoIframeHistoryUrl:'<s:config name="style-prefix" />dojo/resources/iframe_history.html'"></script>
+<script type="text/javascript" src="<s:config name="style-prefix" />unpriv.js"></script>
+<script type="text/javascript">
+  var SID="<s:v value="phr->session_id" />";
+  var NEW_SRV_ACTION_JSON_USER_STATE=<s:ac ac="json-user-state" />;
+  var NEW_SRV_ACTION_VIEW_PROBLEM_SUMMARY=<s:ac ac="view-problem-summary" />;
+  var self_url="<s:v value="phr->self_url" escape="false" />";
+  var script_name="<s:v value="phr->script_name" escape="false" />";
+  dojo.require("dojo.parser");
+<%
+#if defined CONF_ENABLE_AJAX && CONF_ENABLE_AJAX
+  if (cs && phr->user_id > 0 ) {
+%>  var jsonState = <%
+    do_json_user_state(out_f, cs, phr->user_id, 0);
+%>;
+<% }
+#endif
+%>  var updateFailedMessage = "<s:tr>STATUS UPDATE FAILED!</s:tr>";
+  var testingInProgressMessage = "<s:tr>TESTING IN PROGRESS...</s:tr>";
+  var testingCompleted = "<s:tr>TESTING COMPLETED</s:tr>";
+  var waitingTooLong = "<s:tr>REFRESH PAGE MANUALLY!</s:tr>";
+</script>
+<link rel="stylesheet" href="<s:config name="style-prefix" />unpriv.css" type="text/css" />
+<link rel="stylesheet" href="<s:config name="style-prefix" />unpriv3.css" type="text/css" />
+<title><% if (phr) { %><s:v checkExpr="" value="phr->name_arm" escape="false" /><% } %> [<% if (extra) { %><s:v checkExpr="" value="extra->contest_arm" escape="false" /><% } %>]: <s:v value="title" escape="false" /></title></head>
+<body<%
+#if defined CONF_ENABLE_AJAX && CONF_ENABLE_AJAX
+%> onload="startClock()"<%
+#endif
+%>><div id="main-cont"><div id="container"><div id="l12-col"><div id="l12">
+<div class="main_phrase"><% if (phr) { %><s:v checkExpr="" value="phr->name_arm" escape="false" /><% } %> [<% if (extra) { %><s:v checkExpr="" value="extra->contest_arm" escape="false" /><% } %>]: <s:v value="title" escape="false" /></div>

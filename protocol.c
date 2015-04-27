@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: protocol.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: protocol.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "protocol.h"
+#include "ejudge/protocol.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 
@@ -99,10 +99,3 @@ protocol_priv_level_str(int n)
   ASSERT(n >= 0 && n <= PRIV_LEVEL_ADMIN);
   return priv_level_map[n];
 }
-
-/**
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

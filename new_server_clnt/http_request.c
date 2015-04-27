@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: http_request.c 6155 2011-03-27 06:57:30Z cher $ */
+/* $Id: http_request.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,13 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_types.h"
+#include "ejudge/ej_types.h"
 #include "new_server_clnt/new_server_clnt_priv.h"
-#include "new_server_proto.h"
-#include "errlog.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <unistd.h>
 
@@ -310,6 +310,5 @@ new_server_clnt_http_request(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

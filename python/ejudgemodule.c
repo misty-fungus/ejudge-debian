@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: ejudgemodule.c 7366 2013-02-10 19:18:53Z cher $ */
+/* $Id: ejudgemodule.c 8237 2014-05-17 06:40:01Z cher $ */
 
-/* Copyright (C) 2007-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,11 +17,11 @@
 
 #include <Python.h>
 
-#include "config.h"
-#include "userlist_clnt.h"
-#include "userlist_proto.h"
-#include "userlist.h"
-#include "xml_utils.h"
+#include "ejudge/config.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/userlist.h"
+#include "ejudge/xml_utils.h"
 
 /* userlist_clnt implementation status
  *

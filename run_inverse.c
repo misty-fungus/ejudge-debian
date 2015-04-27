@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_inverse.c 7055 2012-10-17 04:20:40Z cher $ */
+/* $Id: run_inverse.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,28 +15,27 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/run.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/prepare.h"
+#include "ejudge/run_packet.h"
+#include "ejudge/prepare_dflt.h"
+#include "ejudge/misctext.h"
+#include "ejudge/curtime.h"
+#include "ejudge/runlog.h"
+#include "ejudge/testing_report_xml.h"
+#include "ejudge/super_run_packet.h"
+#include "ejudge/cpu.h"
 
-#include "run.h"
-#include "serve_state.h"
-#include "fileutl.h"
-#include "pathutl.h"
-#include "mime_type.h"
-#include "prepare.h"
-#include "run_packet.h"
-#include "prepare_dflt.h"
-#include "misctext.h"
-#include "curtime.h"
-#include "runlog.h"
-#include "testing_report_xml.h"
-#include "super_run_packet.h"
-#include "cpu.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/exec.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -1448,9 +1447,3 @@ presentation_error:
   reply_pkt->status = RUN_PRESENTATION_ERR;
   goto cleanup;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

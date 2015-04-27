@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: parse_ip_mask.c 7374 2013-03-07 20:08:26Z cher $ */
+/* $Id: parse_ip_mask.c 8210 2014-05-14 23:41:03Z cher $ */
 
-/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "errlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/errlog.h"
 
 #include <string.h>
 #include <errno.h>

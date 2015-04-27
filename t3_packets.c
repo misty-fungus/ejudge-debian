@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: t3_packets.c 6493 2011-10-21 06:48:27Z cher $ */
+/* $Id: t3_packets.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,16 +15,15 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/t3_packets.h"
+#include "ejudge/expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/misctext.h"
 
-#include "t3_packets.h"
-#include "expat_iface.h"
-#include "xml_utils.h"
-#include "mime_type.h"
-#include "misctext.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -405,9 +404,3 @@ t3_out_packet_free(struct t3_out_packet *p)
   xfree(p);
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

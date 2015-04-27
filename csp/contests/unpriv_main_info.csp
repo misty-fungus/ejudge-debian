@@ -1,0 +1,188 @@
+<%
+  if (!cnts->exam_mode) {
+%><div class="h2-long"><h2><s:tr>Server status</s:tr></h2></div>
+<p><b><%
+    if (stop_time > 0) {
+      if (duration > 0 && global->board_fog_time > 0
+          && global->board_unfog_time > 0
+          && cs->current_time < stop_time + global->board_unfog_time
+          && !cs->standings_updated) {
+        if (cnts->exam_mode) {
+%><s:tr>The exam is over (standings are frozen)</s:tr><%
+        } else {
+%><s:tr>The contest is over (standings are frozen)</s:tr><%
+        }
+      } else if (cnts->exam_mode) {
+%><s:tr>The exam is over</s:tr><%
+      } else {
+%><s:tr>The contest is over</s:tr><%
+      }
+    } else if (start_time > 0) {
+      if (fog_start_time > 0 && cs->current_time >= fog_start_time) {
+        if (cnts->exam_mode) {
+%><s:tr>The exam is in progress (standings are frozen)</s:tr><%
+        } else {
+%><s:tr>The contest is in progress (standings are frozen)</s:tr><%
+        }
+      } else {
+        if (cnts->exam_mode) {
+%><s:tr>The exam is in progress</s:tr><%
+        } else {
+%><s:tr>The contest is in progress</s:tr><%
+        }
+      }
+    } else {
+      if (cnts->exam_mode) {
+%><s:tr>The exam is not started</s:tr><%
+      } else {
+%><s:tr>The contest is not started</s:tr><%
+      }
+    }
+%></b></p>
+
+<%    if (cs->upsolving_mode) {
+%><p><b><s:tr>Upsolving mode</s:tr></b></p><%
+    }
+%>
+
+<%
+    if (start_time > 0) {
+      if (global->score_system == SCORE_OLYMPIAD && !global->is_virtual) {
+%><p><b><%
+        if (cs->accepting_mode) {
+%><s:tr>Participants' solutions are being accepted</s:tr><%
+        } else if (!cs->testing_finished) {
+%><s:tr>Participants' solutions are being judged</s:tr><%
+        } else {
+%><s:tr>Participants' solutions are judged</s:tr><%
+        }
+%></b></p><%
+      }
+    }
+%>
+<%
+    if (cs->clients_suspended) {
+%><p><b><s:tr>Participants' requests are suspended</s:tr></b></p><%
+    }
+%>
+<%
+    if (start_time > 0) {
+      if (cs->testing_suspended) {
+%><p><b><s:tr>Testing of participants' submits is suspended</s:tr></b></p><%
+      }
+      if (cs->printing_suspended) {
+%><p><b><s:tr>Print requests are suspended</s:tr></b></p><%
+      }
+    }
+%>
+
+<table class="b0 info-table-line">
+<tr><td class="b0"><s:tr>Server time</s:tr>:</td><td class="b0"><s:v value="cs->current_time" /></td></tr>
+<%    if (start_time > 0) {
+%><tr><td class="b0"><%
+      if (cnts->exam_mode) {
+%><s:tr>Exam start time</s:tr><%
+      } else {
+%><s:tr>Contest start time</s:tr><%
+      }
+%><td class="b0"><s:v value="start_time" /></td></tr><%
+    }
+%>
+<%
+    if (!global->is_virtual && start_time <= 0 && sched_time > 0) {
+%><tr><td class="b0"><s:tr>Planned start time</s:tr>:</td><td class="b0"><s:v value="sched_time" /></td></tr><%
+    }
+%>
+<%
+    if (stop_time <= 0 && (duration > 0 || finish_time <= 0)) {
+%><tr><td class="b0"><s:tr>Duration</s:tr>:</td><td class="b0"><%
+      if (duration > 0) {
+        duration_str(0, duration, 0, hbuf, 0);
+%><s:v value="hbuf" escape="false" /><%
+      } else {
+%><s:tr>Unlimited</s:tr><%
+      }
+%></td></tr><%
+    }
+%>
+<%
+    if (start_time > 0 && stop_time <= 0 && duration > 0) {
+%><tr><td class="b0"><s:tr>Scheduled end time</s:tr>:</td><td class="b0"><s:v value="(time_t)(start_time + duration)" /></td></tr><%
+    } else if (start_time > 0 && stop_time <= 0 && duration <= 0 && finish_time > 0) {
+%><tr><td class="b0"><s:tr>Scheduled end time</s:tr>:</td><td class="b0"><s:v value="finish_time" /></td></tr><%
+    } else if (stop_time) {
+%><tr><td class="b0"><s:tr>End time</s:tr>:</td><td class="b0"><s:v value="stop_time" /></td></tr><%
+    }
+%>
+<%
+    if (start_time > 0 && stop_time <= 0 && fog_start_time > 0) {
+%><tr><td class="b0"><s:tr>Standings freeze time</s:tr>:</td><td class="b0"><s:v value="fog_start_time" /></td></tr><%
+    } else if (stop_time > 0 && duration > 0 && global->board_fog_time > 0
+               && global->board_unfog_time > 0 && !cs->standings_updated
+               && cs->current_time < stop_time + global->board_unfog_time) {
+%><tr><td class="b0"><s:tr>Standings unfreeze time</s:tr>:</td><td class="b0"><s:v value="(time_t)(stop_time + global->board_unfog_time)" /></td></tr><%
+    }
+%>
+<%
+    if (start_time > 0 && stop_time <= 0 && duration > 0) {
+      duration_str(0, cs->current_time, start_time, hbuf, 0);
+%><tr><td class="b0"><s:tr>Elapsed time</s:tr>:</td><td class="b0"><s:v value="hbuf" escape="false" /></td></tr>
+<%      duration_str(0, start_time + duration - cs->current_time, 0, hbuf, 0);
+%><tr><td class="b0"><s:tr>Remaining time</s:tr>:</td><td class="b0"><s:v value="hbuf" escape="false" /></td></tr>
+<%    }
+    if (start_time <= 0 && global->is_virtual > 0 && cnts->open_time > 0 && cs->current_time < cnts->open_time) {
+%><tr><td class="b0"><s:tr>Virtual contest open time</s:tr>:</td><td class="b0"><s:v value="cnts->open_time" /></td></tr>
+<%    }
+    if (start_time <= 0 && global->is_virtual > 0 && cnts->close_time > 0) {
+%><tr><td class="b0"><s:tr>Virtual contest close time</s:tr>:</td><td class="b0"><s:v value="cnts->close_time" /></td></tr>
+<%    } %>
+</table>
+<%
+  }
+%>
+<%
+  if (global->description_file[0]) {
+    watched_file_update(&cs->description, global->description_file, cs->current_time);
+    if (cs->description.text) {
+%><s:v value="cs->description.text" escape="false" /><%
+    }
+  }
+%>
+<%
+  if (!cnts->exam_mode) {
+%><p><b><s:tr>On-line users in this contest</s:tr>: <s:v value="phr->online_users" /></b></p>
+<%    if (cs->max_online_count > 0) {
+%><p><b><s:tr>Max number of users was</s:tr>: <s:v value="cs->max_online_count" />, <s:v value="cs->max_online_time" /></b></p>
+<%
+    }
+  }
+%>
+<%
+  if (!cnts->exam_mode && global->is_virtual && start_time <= 0) {
+    enable_virtual_start = 1;
+    if (global->disable_virtual_start > 0) {
+      enable_virtual_start = 0;
+    } else if (cnts->open_time > 0 && cs->current_time < cnts->open_time) {
+      enable_virtual_start = 0;
+    } else if (cnts->close_time > 0 && cs->current_time >= cnts->close_time) {
+      enable_virtual_start = 0;
+    }
+    if (enable_virtual_start) {
+%><s:form><%
+      if (cnts->exam_mode) {
+%><p><s:submit ac="virtual-start" label="Start exam" /></p><%
+      } else {
+%><p><s:submit ac="virtual-start" /></p><%
+      }
+%></s:form><%
+    }
+  } else if (!cnts->exam_mode && global->is_virtual && stop_time <= 0) {
+%><s:form><%
+    if (cnts->exam_mode) {
+%><p><s:submit ac="virtual-stop" label="Stop exam" /></p><%
+    } else {
+%><p><s:submit ac="virtual-stop" /></p><%
+    }
+%></s:form><%
+  }
+%>

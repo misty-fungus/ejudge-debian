@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: userlist_check.c 6147 2011-03-26 10:49:24Z cher $ */
+/* $Id: userlist_check.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "contests.h"
-#include "userlist.h"
-#include "misctext.h"
+#include "ejudge/contests.h"
+#include "ejudge/userlist.h"
+#include "ejudge/misctext.h"
 
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 

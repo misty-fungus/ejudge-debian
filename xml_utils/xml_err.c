@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: xml_err.c 6491 2011-10-21 06:16:54Z cher $ */
+/* $Id: xml_err.c 8210 2014-05-14 23:41:03Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "errlog.h"
-#include "expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/errlog.h"
+#include "ejudge/expat_iface.h"
 
 #include <stdarg.h>
 
@@ -57,6 +57,5 @@ xml_err(const struct xml_tree *pos, const char *format, ...)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

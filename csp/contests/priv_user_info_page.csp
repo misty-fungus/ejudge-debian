@@ -1,0 +1,330 @@
+<%
+/* $Id: priv_user_info_page.csp 8232 2014-05-16 19:06:19Z cher $ */
+%><%@include "priv_includes.csp"
+%><%
+#include "ejudge/team_extra.h"
+%><%@set getter_name = "csp_get_priv_user_info_page"
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@set err_prefix = "NEW_SRV_ERR_"
+%><%@page csp_view_priv_user_info_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "priv_stdvars.csp"
+%><%
+    // variables...
+    const struct section_global_data *global = cs->global;
+    struct teamdb_export u_info;
+    const struct team_extra *u_extra = 0;
+    const struct team_warning *cur_warn = 0;
+    int flags, pages_total;
+    int runs_num = 0, clars_num = 0;
+    size_t clars_total = 0, runs_total = 0;
+    const struct userlist_user *u = 0;
+    const struct userlist_contest *uc = 0;
+    int allowed_edit = 0, needed_cap = 0, init_value, i;
+    struct userlist_user_info *ui = 0;
+    int view_user_id = 0;
+    const unsigned char *title = NULL;
+
+%><s:read var="view_user_id" required="yes" name="user_id" error="inv-user-id" /><%
+  if (!teamdb_lookup(cs->teamdb_state, view_user_id))
+    FAIL(NEW_SRV_ERR_INV_USER_ID);
+
+  if (opcaps_check(phr->caps, OPCAP_GET_USER) < 0)
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+
+    // initialization
+    teamdb_export_team(cs->teamdb_state, view_user_id, &u_info);
+    u_extra = team_extra_get_entry(cs->team_extra_state, view_user_id);
+    run_get_team_usage(cs->runlog_state, view_user_id, &runs_num, &runs_total);
+    clar_get_user_usage(cs->clarlog_state,view_user_id, &clars_num, &clars_total);
+    pages_total = run_get_total_pages(cs->runlog_state, view_user_id);
+    flags = teamdb_get_flags(cs->teamdb_state, view_user_id);
+    u = u_info.user;
+    if (u) uc = userlist_get_user_contest(u, phr->contest_id);
+    if (u) ui = u->cnts0;
+
+    l10n_setlocale(phr->locale_id);
+    title = _("Details for user ");
+%><%@include "priv_header.csp"
+%>
+<ul>
+    <li><s:a ac="main-page"><s:tr>Main page</s:tr></s:a></li>
+    <li><s:a ac="view-users"><s:tr>View regular users</s:tr></s:a></li>
+    <li><s:a ac="view-reg-pwds"><s:tr>View registration passwords</s:tr></s:a></li>
+<%  if (!cnts->disable_team_password) { %>
+    <li><s:a ac="view-cnts-pwds"><s:tr>View contest passwords</s:tr></s:a></li>
+<%  } %>
+</ul>
+
+<table>
+<tr><td><s:tr>User Id</s:tr>:</td><td><s:v value="view_user_id" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td><s:tr>User Login</s:tr>:</td><td><tt><s:v value="u_info.login" /></tt></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td><s:tr>User Name</s:tr>:</td><td><% if (u_info.name && *u_info.name) { %><s:v value="u_info.name" /><% } else { %><i><s:tr>Not set</s:tr></i><% } %></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td><s:tr>Registration time</s:tr>:</td><td><% if (uc && uc->create_time > 0) { %><s:v value="uc->create_time" /><% } else { %>&nbsp;<% } %></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td><s:tr>Last login time</s:tr>:</td><td><% if (ui && ui->last_login_time > 0) { %><s:v value="ui->last_login_time" /><% } else { %>&nbsp;<% } %></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<% if (/*opcaps_check(phr->caps, OPCAP_GENERATE_TEAM_PASSWORDS) >= 0*/ 1) { %>
+<tr><td><s:tr>Registration password</s:tr>:</td><td><%
+    if (u && !u->passwd) {
+%><i><s:tr>Not set</s:tr></i><%
+    } else if (u && u->passwd_method != USERLIST_PWD_PLAIN) {
+%><i><s:tr>Changed by user</s:tr></i><%
+    } else if (u) {
+%><tt><s:v value="u->passwd" /></tt><%
+    }
+%><td>&nbsp;</td><td>&nbsp;</td></tr>
+<% if (!cnts->disable_team_password) { %>
+<tr><td><s:tr>Contest password</s:tr>:</td><td><%
+      if (ui && !ui->team_passwd) {
+%><i><s:tr>Not set</s:tr></i><%
+      } else if (ui && ui->team_passwd_method != USERLIST_PWD_PLAIN) {
+%><i><s:tr>Changed by user</s:tr></i> <%
+      } else if (ui) {
+%><tt><s:v value="ui->team_passwd" /></tt><%
+      } else {
+%>&nbsp;<%
+      }
+%>
+<% } %>
+<% } %>
+<tr><td><s:tr>Privileged?</s:tr>:</td><td><s:vb value="u &amp;&amp; u->is_privileged" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<%
+  // invisible, locked, banned status and change buttons
+  // to make invisible EDIT_REG is enough for all users
+  // to ban or lock DELETE_PRIV_REG required for privileged users
+  allowed_edit = 0;
+  if (opcaps_check(phr->caps, OPCAP_EDIT_REG) >= 0) allowed_edit = 1;
+  if (allowed_edit) {
+%>
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<%  } %>
+
+<tr><td><s:tr>Invisible?</s:tr>:</td><td><s:vb value="flags &amp; TEAM_INVISIBLE" /></td><td>&nbsp;</td><td><%
+  if(allowed_edit) {
+    if (flags & TEAM_INVISIBLE) {
+%><s:submit ac="toggle-visibility" label="Make visible" /><%
+    } else {
+%><s:submit ac="toggle-visibility" label="Make invisible" /><%
+    }
+  } else {
+%>&nbsp;<%
+  }
+%></td></tr>
+<%  if (allowed_edit) { %>
+</s:form>
+<%  } %>
+
+<%
+  allowed_edit = 0;
+  if (u) {
+    if (u->is_privileged) {
+      if ((flags & TEAM_BANNED)) needed_cap = OPCAP_PRIV_CREATE_REG;
+      else needed_cap = OPCAP_PRIV_DELETE_REG;
+    } else {
+      if ((flags & TEAM_BANNED)) needed_cap = OPCAP_CREATE_REG;
+      else needed_cap = OPCAP_DELETE_REG;
+    }
+    if (opcaps_check(phr->caps, needed_cap) >= 0) allowed_edit = 1;
+  }
+  if (allowed_edit) {
+%>
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<%  } %>
+<tr><td><s:tr>Banned?</s:tr>:</td><td><s:vb value="flags &amp; TEAM_BANNED" /></td><td>&nbsp;</td><td><%
+  if(allowed_edit) {
+    if ((flags & TEAM_BANNED)) {
+%><s:submit ac="toggle-ban" label="Remove ban" /><%
+    } else {
+%><s:submit ac="toggle-ban" label="Ban" /><%
+    }
+  } else {
+%>&nbsp;<%
+  }
+%></td></tr>
+<%  if (allowed_edit) { %>
+</s:form>
+<%  } %>
+
+<%
+  allowed_edit = 0;
+  if (u) {
+    if (u->is_privileged) {
+      if ((flags & TEAM_LOCKED)) needed_cap = OPCAP_PRIV_CREATE_REG;
+      else needed_cap = OPCAP_PRIV_DELETE_REG;
+    } else {
+      if ((flags & TEAM_LOCKED)) needed_cap = OPCAP_CREATE_REG;
+      else needed_cap = OPCAP_DELETE_REG;
+    }
+    if (opcaps_check(phr->caps, needed_cap) >= 0) allowed_edit = 1;
+  }
+  if (allowed_edit) {
+%>
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<% } %>
+<tr><td><s:tr>Locked?</s:tr>:</td><td><s:vb value="flags &amp; TEAM_LOCKED" /></td><td>&nbsp;</td><td><%
+  if(allowed_edit) {
+    if ((flags & TEAM_LOCKED)) {
+%><s:submit ac="toggle-lock" label="Unlock" /><%
+    } else {
+%><s:submit ac="toggle-lock" label="Lock" /><%
+    }
+  } else {
+%>&nbsp;<%
+  }
+%></td></tr>
+<%  if (allowed_edit) { %>
+</s:form>
+<%  } %>
+
+<%  allowed_edit = 0;
+  if (u) {
+    if (u->is_privileged) {
+      if ((flags & TEAM_INCOMPLETE)) needed_cap = OPCAP_PRIV_CREATE_REG;
+      else needed_cap = OPCAP_PRIV_DELETE_REG;
+    } else {
+      if ((flags & TEAM_INCOMPLETE)) needed_cap = OPCAP_CREATE_REG;
+      else needed_cap = OPCAP_DELETE_REG;
+    }
+    if (opcaps_check(phr->caps, needed_cap) >= 0) allowed_edit = 1;
+  }
+%>
+<%
+  if (allowed_edit) {
+%>
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<%  } %>
+<tr><td><s:tr>Incomplete?</s:tr>:</td><td><s:vb value="flags &amp; TEAM_INCOMPLETE" /></td><td>&nbsp;</td><td><%
+  if(allowed_edit) {
+    if ((flags & TEAM_INCOMPLETE)) {
+%><s:submit ac="toggle-incompleteness" label="Clear" /><%
+    } else {
+%><s:submit ac="toggle-incompleteness" label="Clear" /><%
+    }
+  } else {
+%>&nbsp;<%
+  }
+%></td></tr>
+<%  if (allowed_edit) { %>
+</s:form>
+<% } %>
+
+<tr><td><s:tr>Disqualified?</s:tr>:</td><td><s:vb value="flags &amp; TEAM_DISQUALIFIED" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td><s:tr>Number of Runs</s:tr>:</td><td><s:v value="runs_num" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td><s:tr>Total size of Runs</s:tr>:</td><td><s:v value="runs_total" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td><s:tr>Number of Clars</s:tr>:</td><td><s:v value="clars_num" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td><s:tr>Total size of Clars</s:tr>:</td><td><s:v value="clars_total" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<tr><td><s:tr>Number of printed pages</s:tr>:</td><td><s:v value="pages_total" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+
+<%  if (global->contestant_status_num > 0) {
+    // contestant status is editable when OPCAP_EDIT_REG is set
+    allowed_edit = 0;
+    if (opcaps_check(phr->caps, OPCAP_EDIT_REG) >= 0) allowed_edit = 1;
+%>
+<%    if (allowed_edit) { %>
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<%    } %>
+<tr><td><s:tr>Status</s:tr>:</td><td><%
+    init_value = 0;
+    if (!u_extra) {
+%>N/A<%
+    } else if (u_extra->status < 0
+               || u_extra->status >= global->contestant_status_num) {
+%><s:v value="u_extra->status" /> - ???<%
+    } else {
+%><s:v value="u_extra->status" /> - <s:v value="global->contestant_status_legend[u_extra->status]" /><%
+      init_value = u_extra->status;
+    }
+%></td><%
+    if (allowed_edit) {
+%><td><s:select name="status"><%
+      for (i = 0; i < global->contestant_status_num; i++) {
+%><s:option value="i" selectedExpr="i == init_value"><s:v value="i" /> - <s:v value="global->contestant_status_legend[i]" /></s:option><%
+      }
+%></s:select></td><td><s:submit ac="user-change-status" /></td><%
+    } else {
+%><td>&nbsp;</td><td>&nbsp;</td><%
+    }
+%></tr>
+<%    if (allowed_edit) { %>
+</s:form>
+<%    } %>
+<%  } %>
+
+<%
+  i = 0;
+  if (u_extra) i = u_extra->warn_u;
+%><tr><td><s:tr>Number of warnings</s:tr>:</td><td><s:v value="i" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+</table>
+
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<p><s:submit ac="print-user-protocol" />
+</s:form>
+
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<p><s:submit ac="print-user-full-protocol" />
+</s:form>
+
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<p><s:submit ac="print-ufc-protocol" />
+</s:form>
+
+<%
+  if (!u_extra || !u_extra->warn_u) {
+%><h2><s:tr>No warnings</s:tr></h2><%
+  } else {
+%><h2><s:tr>Warnings</s:tr></h2>
+<%    for (i = 0; i < u_extra->warn_u; i++) {
+      if (!(cur_warn = u_extra->warns[i])) continue;
+%><h3>Warning <s:v value="i + 1" />: issued: <s:v value="cur_warn->date" />: issued by: <s:v value="teamdb_get_login(cs->teamdb_state, cur_warn->issuer_id)" /> (<s:v value="cur_warn->issuer_id" />), issued from: <s:v value="cur_warn->issuer_ip" /></h3>
+
+<p><s:tr>Warning text for the user</s:tr>:\n<pre><s:v value="cur_warn->text" /></pre>
+<p><s:tr>Judge's comment</s:tr>:\n<pre><s:v value="cur_warn->comment" /></pre>
+<%    } %>
+<%  } %>
+
+<%  if (opcaps_check(phr->caps, OPCAP_EDIT_REG) >= 0) { %>
+<h2><s:tr>Issue a warning</s:tr></h2>
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<p><s:tr>Warning explanation for the user (mandatory)</s:tr>:<br/>
+<p><textarea name="warn_text" rows="5" cols="60"></textarea></p>
+<p><s:tr>Comment for other judges (optional)</s:tr>:<br/>
+<p><textarea name="warn_comment" rows="5" cols="60"></textarea></p>
+<p><s:submit ac="issue-warning" /></p>
+</s:form>
+<%  } %>
+
+<%  if (opcaps_check(phr->caps, OPCAP_EDIT_REG) >= 0) { %>
+
+<h2><s:tr>Disqualify user</s:tr></h2>
+<s:form>
+<s:hidden name="user_id" value="view_user_id" />
+<p><s:tr>Disqualification explanation</s:tr>:<br/>
+<p><textarea name="disq_comment" rows="5" cols="60"><% if (u_extra->disq_comment) { %><s:v value="u_extra->disq_comment" /><% } %></textarea></p>
+
+<table class="b0"><tr><td class="b0"><%
+  if ((flags & TEAM_DISQUALIFIED)) {
+%><s:submit ac="set-disqualification" label="Edit comment" /><%
+  } else {
+%><s:submit ac="set-disqualification" label="Disqualify" /><%
+  }
+%></td><%
+  if ((flags & TEAM_DISQUALIFIED)) {
+%><td class="b0"><s:submit ac="clear-disqualification" /></td><%
+  }
+%></tr></table>
+</s:form>
+<%  } %>
+
+<%@include "priv_footer.csp"
+%><%
+  l10n_setlocale(0);
+cleanup:
+  html_armor_free(&ab);
+%>

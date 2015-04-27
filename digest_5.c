@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: digest_5.c 6147 2011-03-26 10:49:24Z cher $ */
+/* $Id: digest_5.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "digest_io.h"
+#include "ejudge/digest_io.h"
 
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 
@@ -34,10 +34,3 @@ digest_is_equal(int kind, const void *dig1, const void *dig2)
 
   return (memcmp(dig1, dig2, dlen) == 0);
 }
-
-/**
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

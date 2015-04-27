@@ -1,0 +1,562 @@
+<%
+/* $Id: priv_main_page.csp 8158 2014-05-10 08:41:13Z cher $ */
+%><%@include "priv_includes.csp"
+%><%@set getter_name = "csp_get_priv_main_page"
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@set err_prefix = "NEW_SRV_ERR_"
+%><%@page csp_view_priv_main_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "priv_stdvars.csp"
+%><%
+  int need_examiners = 0;
+  time_t start_time = 0;
+  time_t stop_time = 0;
+  time_t sched_time = 0;
+  time_t fog_start_time = 0;
+  time_t finish_time = 0;
+  struct section_global_data *global = cs->global;
+  time_t duration = 0;
+  const unsigned char *s;
+  int online_users = 0;
+  int i;
+  struct last_access_info *pa;
+  int job_count = 0;
+  unsigned char duration_buf[64];
+  time_t tmpt = 0;
+  int action = 0;
+  int filter_first_run = 0, filter_last_run = 0, filter_mode_clar = 0;
+  int filter_first_run_set = 0, filter_last_run_set = 0;
+  const unsigned char *filter_expr = 0;
+  const struct section_problem_data *prob = 0;
+  int x;
+  int variant = 0;
+  int skip_start_form = 0;
+  int y, n;
+  const unsigned char *filter_first_clar_str = 0;
+  const unsigned char *filter_last_clar_str = 0;
+  long long tdiff = 0;
+  struct server_framework_job *job;
+  time_t server_start_time = nsf_get_server_start_time(phr->fw_state);
+  const unsigned char *title = _("Main page");
+%><%
+  if (hr_cgi_param(phr, "filter_expr", &s) > 0) filter_expr = s;
+
+%><s:read var="filter_first_run" flagvar="filter_first_run_set" ignoreerrors="yes" /><%
+%><s:read var="filter_last_run" flagvar="filter_last_run_set" ignoreerrors="yes" /><%
+
+  if (hr_cgi_param(phr, "filter_first_clar", &s) > 0 && s)
+    filter_first_clar_str = s;
+  if (hr_cgi_param(phr, "filter_last_clar", &s) > 0 && s)
+    filter_last_clar_str = s;
+  if (hr_cgi_param(phr, "filter_mode_clar", &s) > 0
+      && sscanf(s, "%d%n", &x, &n) == 1 && !s[n] && x >= 1 && x <= 2)
+    filter_mode_clar = x;
+  if (hr_cgi_param(phr, "problem", &s) > 0) {
+    if (sscanf(s, "%d_%d%n", &x, &y, &n) == 2 && !s[n]
+        && x > 0 && x <= cs->max_prob && cs->probs[x]
+        && cs->probs[x]->variant_num > 0 && y > 0
+        && y <= cs->probs[x]->variant_num) {
+      prob = cs->probs[x];
+      variant = y;
+    } else if (sscanf(s, "%d%n", &x, &n) == 1 && !s[n]
+               && x > 0 && x <= cs->max_prob && cs->probs[x]
+               && cs->probs[x]->variant_num <= 0) {
+      prob = cs->probs[x];
+    }
+  }
+
+  run_get_times(cs->runlog_state, &start_time, &sched_time, &duration,
+                &stop_time, &finish_time);
+  if (duration > 0 && start_time && !stop_time && global->board_fog_time > 0)
+    fog_start_time = start_time + duration - global->board_fog_time;
+  if (fog_start_time < 0) fog_start_time = 0;
+
+  for (i = 1; i <= cs->max_prob; i++)
+    if (cs->probs[i] && cs->probs[i]->manual_checking)
+      need_examiners = 1;
+%><%@include "priv_header.csp"
+%><script language="javascript">
+    var self_url='<s:v escape="false" value="phr->self_url" />';
+    var SID='<s:v value="phr->session_id" />';
+</script>
+<ul>
+    <li><s:a ac="view-users"><s:tr>View regular users</s:tr></s:a></li>
+    <li><s:a ac="priv-users-view"><s:tr>View privileged users</s:tr></s:a></li>
+    <li><s:a ac="view-online-users"><s:tr>View who is currently online</s:tr></s:a></li>
+    <li><s:a ac="view-exam-info"><s:tr>View examination information</s:tr></s:a></li>
+    <% if (need_examiners) { %>
+        <li><s:a ac="examiners-page"><s:tr>Examiners assignments</s:tr></s:a></li>
+    <% } %>
+    <li><s:a ac="standings"><s:tr>View standings</s:tr></s:a></li>
+    <% if (phr->role >= USER_ROLE_JUDGE && opcaps_check(phr->caps, OPCAP_EDIT_PASSWD) >= 0) { %>
+        <li><s:a ac="view-reg-pwds"><s:tr>View registration passwords</s:tr></s:a></li>
+        <% if (!cnts->disable_team_password) { %>
+            <li><s:a ac="view-cnts-pwds"><s:tr>View contest passwords</s:tr></s:a></li>
+        <% } %>
+    <% } %>
+    <% if (phr->role >= USER_ROLE_JUDGE && opcaps_check(phr->caps, OPCAP_DUMP_USERS) >= 0) { %>
+        <li><s:a ac="view-user-dump"><s:tr>Dump users in CSV format</s:tr></s:a></li>
+    <% } %>
+    <% if (phr->role >= USER_ROLE_JUDGE && opcaps_check(phr->caps, OPCAP_DUMP_RUNS) >= 0) { %>
+        <li><s:a ac="view-runs-dump"><s:tr>Dump runs in CSV format</s:tr></s:a></li>
+        <li><s:a ac="export-xml-runs"><s:tr>Export runs in XML external format</s:tr></s:a></li>
+        <li><s:a ac="write-xml-runs"><s:tr>Write runs in XML internal format</s:tr></s:a></li>
+        <li><s:a ac="write-xml-runs-with-src"><s:tr>Write runs in XML internal format with source</s:tr></s:a></li>
+    <% } %>
+    <li><s:a ac="assign-cyphers-1"><s:tr>Assign random cyphers</s:tr></s:a></li>
+    <li><s:a ac="view-ip-users"><s:tr>View users for IP addresses</s:tr></s:a></li>
+    <li><s:a ac="view-user-ips"><s:tr>View IP addresses for users</s:tr></s:a></li>
+    <li><s:a ac="view-testing-queue"><s:tr>View testing queue</s:tr></s:a></li>
+    <% if (phr->role >= USER_ROLE_ADMIN) { %>
+        <li><s:a ac="admin-contest-settings"><s:tr>Contest settings</s:tr></s:a></li>
+    <% } %>
+    <% if (cnts->problems_url) { %>
+        <li><a href='<s:v escape="false" value="cnts->problems_url" />' target="_blank"><s:tr>Problems</s:tr></a>
+    <% } %>
+    <li><s:a ac="priv-submit-page"><s:tr>Submit a solution</s:tr></s:a></li>
+    <li><s:a ac="logout"><s:tr>Logout</s:tr></s:a></li>
+</ul>
+
+<hr /><a name="status"></a><h2><s:tr>Server status</s:tr></h2>
+
+<%  if (stop_time > 0 && !global->is_virtual) {
+    if (duration > 0 && global->board_fog_time > 0
+        && global->board_unfog_time > 0
+        && cs->current_time < stop_time + global->board_unfog_time
+        && !cs->standings_updated) {
+      s = _("The contest is over (standings are frozen)");
+    } else {
+      s = _("The contest is over");
+    }
+  } else if (start_time > 0) {
+    if (fog_start_time > 0 && cs->current_time >= fog_start_time)
+      s = _("The contest is in progress (standings are frozen)");
+    else
+      s = _("The contest is in progress");
+  } else {
+    s = _("The contest is not started");
+  }
+%>
+
+<p><big><b><s:v escape="false" value="s" /></b></big></p>
+
+<%  if (global->score_system == SCORE_OLYMPIAD && !global->is_virtual) {
+    if (cs->accepting_mode)
+      s = _("Participants' solutions are being accepted");
+    else if (!cs->testing_finished)
+      s = _("Participants' solutions are being judged");
+    else
+      s = _("Participants' solutions are judged");
+%>
+<p><big><b><s:v escape="false" value="s" /></b></big></p>
+<%  } %>
+
+<%  if (cs->upsolving_mode) { %>
+<p><big><b><s:tr>Upsolving mode</s:tr></b></big></p>
+<%  } %>
+
+<%  if (cs->clients_suspended) { %>
+<p><big><b><s:tr>Participants' requests are suspended</s:tr></b></big></p>
+<%  } %>
+
+<%  if (cs->testing_suspended) { %>
+<p><big><b><s:tr>Testing of participants' submits is suspended</s:tr></b></big></p>
+<%  } %>
+<%  if (cs->printing_suspended) { %>
+<p><big><b><s:tr>Print requests are suspended</s:tr></b></big></p>
+<%  } %>
+<%  if (cs->online_view_source < 0) { %>
+<p><big><b><s:tr>Source code is closed</s:tr></b></big></p>
+<%  } else if (cs->online_view_source > 0) { %>
+<p><big><b><s:tr>Source code is open</s:tr></b></big></p>
+<%  } %>
+<%  if (cs->online_view_report < 0) { %>
+<p><big><b><s:tr>Testing reports are closed</s:tr></b></big></p>
+<%  } else if (cs->online_view_report > 0) { %>
+<p><big><b><s:tr>Testing reports are open</s:tr></b></big></p>
+<%  } %>
+<%  if (cs->online_view_judge_score > 0) { %>
+<p><big><b><s:tr>Judge scores are opened</s:tr></b></big></p>
+<%  } %>
+<%  if (cs->online_final_visibility > 0) { %>
+<p><big><b><s:tr>Final visibility rules are active</s:tr></b></big></p>
+<%  } %>
+
+<%
+  // count online users
+  online_users = 0;
+  for (i = 0; i < extra->user_access[USER_ROLE_CONTESTANT].u; i++) {
+    pa = &extra->user_access[USER_ROLE_CONTESTANT].v[i];
+    if (pa->time + 65 >= cs->current_time) online_users++;
+  }
+%>
+<p><big><b><s:tr>On-line users in this contest</s:tr>: <s:v value="online_users" /></b></big></p>
+<%  if (cs->max_online_count > 0) { %>
+<p><big><b><s:tr>Max number of users was</s:tr>: <s:v value="cs->max_online_count"/>, <s:v value="cs->max_online_time" /></b></big></p>
+<%  } %>
+
+<%  if (job_count > 0) { %>
+<p><b><s:tr>Background jobs</s:tr>: <s:v value="job_count"/></b></p>
+<table class="b1">
+<%    for (job = nsf_get_first_job(phr->fw_state); job; job = job->next) { %>
+<tr><td class="b1"><s:v value="job->id" /></td><td class="b1"><s:v value="job->start_time" /></td><td  class="b1"><s:v escape="false" value="job->title" /></td><td class="b1">
+<%      if (job->vt->get_status) {
+        unsigned char *str = job->vt->get_status(job);
+        if (str && *str) { %>
+<s:v escape="false" value="s" />
+<%        } else { %>
+&nbsp;
+<%        }
+        xfree(str);
+      } else { %>
+&nbsp;
+<%      } %>
+</td></tr>
+<%    } %>
+</table>
+<%  } %>
+
+<%  if (phr->role == USER_ROLE_ADMIN && opcaps_check(phr->caps, OPCAP_CONTROL_CONTEST) >= 0) { %>
+<s:form>
+<table border="0">
+<tr><td><s:tr>Server time</s:tr>:</td><td><s:v value="cs->current_time" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<%    if (start_time <= 0) { %>
+<tr><td colspan="2"><b><s:tr>Contest is not started</s:tr></b></td><td>&nbsp;</td><td><s:submit ac="start-contest" /></td></tr>
+<%    } else { %>
+<tr><td><s:tr>Contest start time</s:tr>:</td><td><s:v value="start_time" /></td><td>&nbsp;</td>
+<%      if (stop_time <= 0) { %>
+<td><s:submit ac="stop-contest" /></td></tr>
+<%      } else if (global->enable_continue
+                 && (!duration || stop_time < start_time + duration)) { %>
+<td><s:submit ac="continue-contest" /></td></tr>
+<%      } %>
+<%    } %>
+
+<%    if (!global->is_virtual && start_time <= 0) { %>
+<tr><td><s:tr>Planned start time</s:tr>:</td><td>
+<% if (sched_time <= 0) { %><s:tr>Not set</s:tr><% } else { %><s:v value="sched_time" /><% } %>
+</td><td><input type="text" name="sched_time" size="16"/></td><td><s:submit ac="schedule" /></td></tr>
+<%    } %>
+
+<%
+    if (finish_time <= 0) {
+      if (duration > 0) {
+        duration_str(0, duration, 0, duration_buf, 0);
+      } else {
+        snprintf(duration_buf, sizeof(duration_buf), "%s", _("Unlimited"));
+      }
+%>
+<tr><td><s:tr>Duration</s:tr>:</td><td><s:v escape="false" value="duration_buf" /></td>
+<%      if ((stop_time <= 0 || global->enable_continue) && !global->is_virtual) { %>
+<td><input type="text" name="dur" size="16"/></td><td><s:submit ac="change-duration" /></td></tr>
+<%      } else { %>
+<td>&nbsp;</td><td>&nbsp;</td></tr>
+<%      } %>
+
+<%      if (duration <= 0 && (stop_time <= 0 || global->enable_continue)
+          && !global->is_virtual) { %>
+<tr><td><s:tr>Finish time</s:tr>:</td><td>&nbsp;</td><td><input type="text" name="finish_time" size="16" /></td><td><s:submit ac="change-finish-time" /></td></tr>
+<%      }
+    }
+%>
+
+<%    if (!global->is_virtual) {
+      if (start_time > 0 && stop_time <= 0 && duration > 0) {
+        tmpt = start_time + duration; %>
+<tr><td><s:tr>Scheduled end time</s:tr>:</td><td><s:v value="tmpt" /></td></tr>
+<%      } else if (start_time > 0 && stop_time <= 0 && duration <= 0
+                 && finish_time > 0) { %>
+<tr><td><s:tr>Scheduled end time</s:tr>:</td><td><s:v value="finish_time" /></td><td><input type="text" name="finish_time" size="16" /></td><td><s:submit ac="change-finish-time" /></td></tr>
+<%      } else if (stop_time) { %>
+<tr><td><s:tr>End time</s:tr>:</td><td><s:v value="stop_time" /></td></tr>
+<% } %>
+<%      if (start_time > 0 && stop_time <= 0 && fog_start_time > 0) { %>
+<tr><td><s:tr>Standings freeze time</s:tr>:</td><td><s:v value="fog_start_time" /></td></tr>
+<%      } else if (stop_time > 0 && duration > 0 && global->board_fog_time > 0
+                 && global->board_unfog_time > 0 && !cs->standings_updated
+                 && cs->current_time < stop_time + global->board_unfog_time) {
+        tmpt = stop_time + global->board_unfog_time; %>
+<tr><td><s:tr>Standings unfreeze time</s:tr>:</td><td><s:v value="tmpt" /></td></tr>
+<%    } %>
+
+<%      if (start_time > 0 && stop_time <= 0 && duration > 0) {
+        duration_str(0, cs->current_time, start_time, duration_buf, 0); %>
+<tr><td><s:tr>Elapsed time</s:tr>:</td><td><s:v escape="false" value="duration_buf" /></td></tr>
+<%        duration_str(0, start_time + duration - cs->current_time, 0,
+                     duration_buf, 0); %>
+<tr><td><s:tr>Remaining time</s:tr>:</td><td><s:v escape="false" value="duration_buf" /></td></tr>
+<%
+      }
+    } %>
+<tr><td><s:tr>Contest load time</s:tr></td><td><s:v value="cs->load_time" /></td></tr>
+<tr><td><s:tr>Server start time</s:tr></td><td><s:v value="server_start_time" /></td></tr>
+</table></s:form>
+
+<hr />
+
+<s:form>
+<s:submit ac="update-standings-1" />
+<s:submit ac="reset-1" />
+<%    action = NEW_SRV_ACTION_SUSPEND;
+    if (cs->clients_suspended) action = NEW_SRV_ACTION_RESUME; %>
+<s:submit action="action" />
+<%    action = NEW_SRV_ACTION_TEST_SUSPEND;
+    if (cs->testing_suspended) action = NEW_SRV_ACTION_TEST_RESUME; %>
+<s:submit action="action" />
+<%
+    if (global->enable_printing) {
+      action = NEW_SRV_ACTION_PRINT_SUSPEND;
+      if (cs->printing_suspended) action = NEW_SRV_ACTION_PRINT_RESUME; %>
+<s:submit action="action" />
+<%    } %>
+<%    if (global->score_system == SCORE_OLYMPIAD && !global->is_virtual) {
+      action = NEW_SRV_ACTION_SET_JUDGING_MODE;
+      if (!cs->accepting_mode) action = NEW_SRV_ACTION_SET_ACCEPTING_MODE; %>
+<s:submit action="action" />
+<%    } %>
+<%    if (global->score_system == SCORE_OLYMPIAD
+        && ((!global->is_virtual && !cs->accepting_mode)
+            || (global->is_virtual && global->disable_virtual_auto_judge >0))) {
+      action = NEW_SRV_ACTION_SET_TESTING_FINISHED_FLAG;
+      if (cs->testing_finished)
+        action = NEW_SRV_ACTION_CLEAR_TESTING_FINISHED_FLAG; %>
+<s:submit action="action" />
+<%    } %>
+<%    if (!cnts->disable_team_password) { %>
+<s:submit ac="generate-passwords-1" />
+<s:submit ac="clear-passwords-1" />
+<%    } %>
+<s:submit ac="generate-reg-passwords-1" />
+<s:submit ac="upsolving-config-1" />
+<s:submit ac="reload-server" />
+</s:form>
+<%  } else { %>
+<table border="0">
+<tr><td><s:tr>Server time</s:tr>:</td><td><s:v value="cs->current_time" /></td><td>&nbsp;</td><td>&nbsp;</td></tr>
+<%    if (start_time <= 0) { %>
+<tr><td colspan="2"><b><s:tr>Contest is not started</s:tr></b></td></tr>
+<%    } else { %>
+<tr><td><s:tr>Contest start time</s:tr>:</td><td><s:v value="start_time" /></td></tr>
+<%    } %>
+
+<%    if (!global->is_virtual && start_time <= 0) { %>
+<tr><td><s:tr>Planned start time</s:tr>:</td><td>
+<% if (sched_time <= 0) { %><s:tr>Not set</s:tr><% } else { %><s:v value="sched_time" /><% } %>
+</td></tr>
+<%    } %>
+<%
+    if (finish_time <= 0) {
+      if (duration > 0) {
+        duration_str(0, duration, 0, duration_buf, 0);
+      } else {
+        snprintf(duration_buf, sizeof(duration_buf), "%s", _("Unlimited"));
+      }
+%>
+<tr><td><s:tr>Duration</s:tr>:</td><td><s:v escape="false" value="duration_buf" /></td></tr>
+<%    } %>
+
+<%    if (!global->is_virtual) {
+      if (start_time > 0 && stop_time <= 0 && duration > 0) {
+        tmpt = start_time + duration; %>
+<tr><td><s:tr>Scheduled end time</s:tr>:</td><td><s:v value="tmpt" /></td></tr>
+<%      } else if (start_time > 0 && stop_time <= 0 && duration <= 0
+                 && finish_time > 0) { %>
+<tr><td><s:tr>Scheduled end time</s:tr>:</td><td><s:v value="finish_time" /></td></tr>
+<%      } else if (stop_time) { %>
+<tr><td><s:tr>End time</s:tr>:</td><td><s:v value="stop_time" /></td></tr>
+<%      } %>
+
+<%      if (start_time > 0 && stop_time <= 0 && fog_start_time > 0) { %>
+<tr><td><s:tr>Standings freeze time</s:tr>:</td><td><s:v value="fog_start_time" /></td></tr>
+<%      } else if (stop_time > 0 && duration > 0 && global->board_fog_time > 0
+                 && global->board_unfog_time > 0 && !cs->standings_updated
+                 && cs->current_time < stop_time + global->board_unfog_time) {
+        tmpt = stop_time + global->board_unfog_time; %>
+<tr><td><s:tr>Standings unfreeze time</s:tr>:</td><td><s:v value="tmpt" /></td></tr>
+<%      } %>
+
+<%      if (start_time > 0 && stop_time <= 0 && duration > 0) {
+        duration_str(0, cs->current_time, start_time, duration_buf, 0); %>
+<tr><td><s:tr>Elapsed time</s:tr>:</td><td><s:v escape="false" value="duration_buf" /></td></tr>
+<%        duration_str(0, start_time + duration - cs->current_time, 0,
+                     duration_buf, 0); %>
+<tr><td><s:tr>Remaining time</s:tr></td><td><s:v escape="false" value="duration_buf" /></td></tr>
+<%      }
+    } %>
+</table>
+<%  } %>
+
+<%  ns_write_priv_all_runs(out_f, phr, cnts, extra,
+                         filter_first_run_set, filter_first_run,
+                         filter_last_run_set, filter_last_run,
+                         filter_expr); %>
+
+<%
+  if (opcaps_check(phr->caps, OPCAP_SUBMIT_RUN) >= 0) {
+    if (!prob) {
+      // no problem is selected yet
+%>
+<hr/><a name="submit"></a><h2><s:tr>View the problem statement and send a submission</s:tr></h2>
+<s:form method="get">
+<table>
+<tr><td><s:tr>Problem</s:tr>:</td><td><select name="problem">
+<%      for (x = 1; x <= cs->max_prob; x++) {
+        if (!(prob = cs->probs[x])) continue; %>
+<option value='<s:v value="x" />'><s:v escape="false" value="prob->short_name" /> - <s:v value="prob->long_name" /></option>
+<%      }%>
+</select></td><td><s:submit ac="priv-submit-page" label="Select problem" /></td></tr></table></s:form>
+<%
+      prob = 0;
+    } else {
+      // a problem is already selected
+      // prob and variant have correct values
+      if (variant > 0) {
+%>
+<hr /><a name="submit"></a>
+<h2><s:tr>Submit a solution for</s:tr> <s:v escape="0" value="prob->short_name" />-<s:v value="prob->long_name" /> (<s:tr>Variant</s:tr> <s:v value="variant" />)</h2>
+<%      } else { %>
+<hr /><a name="submit"></a>
+<h2><s:tr>Submit a solution for</s:tr> <s:v escape="0" value="prob->short_name" />-<s:v value="prob->long_name" /></h2>
+<%      }%>
+
+<%      if (!skip_start_form) {%>
+<s:form method="post" enctype="multipart/form-data">
+<%      }%>
+<%      if (variant <= 0) { %>
+<input type="hidden" name="problem" value='<s:v value="prob->id" />' />
+<%      } else { %>
+<input type="hidden" name="problem" value='<s:v value="prob->id" />_<s:v value="variant" />' />
+<%      } %>
+<table>
+<%      if (!prob->type) { %>
+<tr><td><s:tr>Language</s:tr>:</td><td>
+<select name="lang_id"><option value="">
+<%        for (i = 1; i <= cs->max_lang; i++) {
+          if (!cs->langs[i]) continue; %>
+<option value='<s:v value="i"/>'><s:v escape="0" value="cs->langs[i]->short_name" /> - <s:v value="cs->langs[i]->long_name" /></option>
+<%        } %>
+</select></td></tr>
+<%        if (global->enable_eoln_select > 0) { %>
+<tr><td>EOLN Type:</td><td><select name="eoln_type">
+<option value="0"></option>
+<option value="1">LF (Unix/MacOS)</option>
+<option value="2">CRLF (Windows/DOS)</option>
+</select></td></tr>
+
+<%        }
+      }
+
+      switch (prob->type) {
+      case PROB_TYPE_STANDARD:
+      case PROB_TYPE_OUTPUT_ONLY:
+      case PROB_TYPE_TESTS: %>
+<tr><td><s:tr>File</s:tr></td><td><input type="file" name="file"/></td></tr>
+<%        break;
+      case PROB_TYPE_SHORT_ANSWER: %>
+<tr><td><s:tr>Answer</s:tr></td><td><input type="text" name="file"/></td></tr>
+<%        break;
+      case PROB_TYPE_TEXT_ANSWER: %>
+<tr><td colspan="2"><textarea name="file" rows="20" cols="60"></textarea></td></tr>
+<%        break;
+      case PROB_TYPE_SELECT_ONE:
+        /* FIXME: handle problem XML */
+        if (prob->alternative) {
+          for (i = 0; prob->alternative[i]; i++) { %>
+<tr><td><s:v value="i + 1" /></td><td><input type="radio" name="file" value='<s:v value="i + 1" />'/></td><td><s:v escape="false" value="prob->alternative[i]" /></td></tr>
+<%          }
+        }
+        break;
+      case PROB_TYPE_SELECT_MANY:
+        if (prob->alternative) {
+          for (i = 0; prob->alternative[i]; i++) { %>
+<tr><td><s:v value="i + 1" /></td><td><input type="checkbox" name='ans_<s:v value="i + 1" />' /></td><td><s:v escape="false" value="prob->alternative[i]" />%s</td></tr>
+<%          }
+        }
+        break;
+      case PROB_TYPE_CUSTOM:    /* form is a part of problem statement */
+        break;
+      } %>
+<tr><td><s:tr>Send!</s:tr></td><td><s:submit ac="submit-run" /></td></tr></table></s:form>
+     
+<hr/><a name="submit"></a>
+<h2><s:tr>Select another problem</s:tr></h2>
+<s:form method="get">
+<table>
+<tr><td><s:tr>Problem</s:tr></td><td><select name="problem">
+<%      for (x = 1; x <= cs->max_prob; x++) {
+        if (!(prob = cs->probs[x])) continue;
+        if (prob->variant_num <= 0) { %>
+<option value='<s:v value="x" />'><s:v escape="false" value="prob->short_name" /> - <s:v value="prob->long_name" /></option>
+<%        } else {
+          for (y = 1; y <= prob->variant_num; y++) { %>
+<option value='<s:v value="x" />_<s:v value="y"/>'><s:v escape="false" value="prob->short_name" /> - <s:v value="prob->long_name" />, <s:tr>Variant</s:tr> <s:v value="y" /></option>
+<%          }
+        }
+      } %>
+</select></td><td><s:submit ac="main-page" label="Select problem" /></td></tr></table></form>
+<%
+      prob = 0;
+    }
+  }
+%>
+
+<%
+  if (opcaps_check(phr->caps, OPCAP_VIEW_CLAR) >= 0) {
+    ns_write_all_clars(out_f, phr, cnts, extra, filter_mode_clar,
+                       filter_first_clar_str, filter_last_clar_str);
+  }
+%>
+
+<%  if (opcaps_check(phr->caps, OPCAP_NEW_MESSAGE) >= 0) { %>
+<hr /><h2><s:tr>Compose a message to all participants</s:tr></h2>
+<s:form>
+<table>
+<tr><td><s:tr>To user id</s:tr>:</td><td><input type="text" size="16" name="msg_dest_id"/></td></tr>
+<tr><td><s:tr>To user login</s:tr>:</td><td><input type="text" size="32" name="msg_dest_login"/></td></tr>
+<tr><td><s:tr>Subject</s:tr>:</td><td><input type="text" size="64" name="msg_subj"/></td></tr>
+<%    if (start_time <= 0) { %>
+<tr><td><s:tr>Do not show before the contest starts?</s:tr></td><td><select name="msg_hide_flag"><option value="0">NO</option><option value="1">YES</option></select></td></tr>
+<%    } %>
+</table>
+<p><textarea name="msg_text" rows="20" cols="60"></textarea></p>
+<p><s:submit ac="priv-submit-clar" /></p></s:form>
+<%  } %>
+
+<hr/><a name="chgpasswd"></a>
+<h2><s:tr>Change password</s:tr></h2>
+<s:form>
+<table>
+<tr><td><s:tr>Old password</s:tr>:</td><td><input type="password" name="oldpasswd" size="16"/></td></tr>
+<tr><td><s:tr>New password</s:tr>:</td><td><input type="password" name="newpasswd1" size="16"/></td></tr>
+<tr><td><s:tr>Retype new password</s:tr>:</td><td><input type="password" name="newpasswd2" size="16"/></td></tr>
+<tr><td colspan="2"><s:submit ac="change-password" /></td></tr>
+</table></s:form>
+
+<%
+#if CONF_HAS_LIBINTL - 0 == 1
+  if (cs->global->enable_l10n) {
+%>
+
+<hr /><a name="chglanguage"></a><<s:v escape="false" value="cnts->team_head_style" />><s:tr>Change language</s:tr></<s:v escape="false" value="cnts->team_head_style" />>
+
+<s:form>
+<table><tr><td><s:tr>Change language</s:tr></td><td>
+<%    l10n_html_locale_select(out_f, phr->locale_id); %>
+</td><td><s:submit ac="change-language" /></td></tr></table></s:form>
+<%
+  }
+#endif /* CONF_HAS_LIBINTL */
+%>
+
+<%
+  gettimeofday(&phr->timestamp2, 0);
+  tdiff = ((long long) phr->timestamp2.tv_sec) * 1000000;
+  tdiff += phr->timestamp2.tv_usec;
+  tdiff -= ((long long) phr->timestamp1.tv_sec) * 1000000;
+  tdiff -= phr->timestamp1.tv_usec;
+%>
+
+<div class="dotted"><p<s:v escape="false" value="cnts->team_par_style" />><s:tr>Page generation time</s:tr>: <s:v value="tdiff / 1000" /> <s:tr>msec</s:tr></p></div>
+<%@include "priv_footer.csp"
+%><%
+  html_armor_free(&ab);
+%>

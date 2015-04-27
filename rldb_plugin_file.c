@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 7581 2013-11-10 14:11:16Z cher $ */
+/* $Id: rldb_plugin_file.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,26 +15,26 @@
  * GNU General Public License for more details.
  */
 
-#include "rldb_plugin.h"
-#include "ejudge_cfg.h"
-#include "runlog.h"
-#include "teamdb.h"
+#include "ejudge/rldb_plugin.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/runlog.h"
+#include "ejudge/teamdb.h"
 
 #define RUNS_ACCESS 
-#include "runlog_state.h"
+#include "ejudge/runlog_state.h"
 
-#include "pathutl.h"
-#include "contests.h"
-#include "prepare.h"
-#include "errlog.h"
-#include "fileutl.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/contests.h"
+#include "ejudge/prepare.h"
+#include "ejudge/errlog.h"
+#include "ejudge/fileutl.h"
 #include "unix/unix_fileutl.h"
-#include "xml_utils.h"
-#include "random.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/random.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -1618,9 +1618,3 @@ change_status_4_func(
   rls->runs[run_id].saved_score = 0;
   return do_flush_entry(cs, run_id);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

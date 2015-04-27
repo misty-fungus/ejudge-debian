@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: sock_op_put_fds.c 5463 2008-12-25 20:49:27Z cher $ */
+/* $Id: sock_op_put_fds.c 8212 2014-05-15 12:48:23Z cher $ */
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "sock_op.h"
+#include "ejudge/sock_op.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -59,6 +59,5 @@ sock_op_put_fds(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: serve.c 6808 2012-05-05 20:01:31Z cher $ */
+/* $Id: serve.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,43 +15,41 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/runlog.h"
+#include "ejudge/parsecfg.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/prepare.h"
+#include "ejudge/html.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/protocol.h"
+#include "ejudge/userlist.h"
+#include "ejudge/sha.h"
+#include "ejudge/l10n.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/team_extra.h"
+#include "ejudge/printing.h"
+#include "ejudge/diff.h"
+#include "ejudge/compile_packet.h"
+#include "ejudge/run_packet.h"
+#include "ejudge/curtime.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/job_packet.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/startstop.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/misctext.h"
+#include "ejudge/base64.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/fileutl.h"
 
-#include "runlog.h"
-#include "parsecfg.h"
-#include "teamdb.h"
-#include "prepare.h"
-#include "html.h"
-#include "clarlog.h"
-#include "protocol.h"
-#include "userlist.h"
-#include "sha.h"
-#include "l10n.h"
-#include "archive_paths.h"
-#include "team_extra.h"
-#include "printing.h"
-#include "diff.h"
-#include "compile_packet.h"
-#include "run_packet.h"
-#include "curtime.h"
-#include "xml_utils.h"
-#include "job_packet.h"
-#include "serve_state.h"
-#include "startstop.h"
-#include "ejudge_cfg.h"
-
-#include "misctext.h"
-#include "base64.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "fileutl.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/exec.h"
 
 #include <time.h>
 #include <stdio.h>
@@ -203,10 +201,3 @@ main(int argc, char *argv[])
   printf("  -DDEF  - define a symbol for preprocessor\n");
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "fd_set" "tpTask")
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: err_elem_undefined_s.c 5677 2010-01-19 09:59:15Z cher $ */
+/* $Id: err_elem_undefined_s.c 8210 2014-05-14 23:41:03Z cher $ */
 
-/* Copyright (C) 2006 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/expat_iface.h"
 
 int
 xml_err_elem_undefined_s(const struct xml_tree *p, const unsigned char *s_elem)
@@ -33,6 +33,5 @@ xml_err_elem_undefined_s(const struct xml_tree *p, const unsigned char *s_elem)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: shellcfg_parse.c 6135 2011-03-26 09:30:42Z cher $ */
+/* $Id: shellcfg_parse.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "shellcfg_parse.h"
+#include "ejudge/shellcfg_parse.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <string.h>
 #include <ctype.h>
@@ -219,11 +219,3 @@ shellconfig_get(
     }
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */
-

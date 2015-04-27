@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: prepare.c 7645 2013-11-29 11:22:33Z cher $ */
+/* $Id: prepare.c 8586 2014-09-03 09:17:39Z cher $ */
 
-/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,28 +15,26 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/prepare.h"
+#include "ejudge/varsubst.h"
+#include "ejudge/version.h"
+#include "ejudge/meta/prepare_meta.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/sformat.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/prepare_serve.h"
+#include "ejudge/prepare_dflt.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/cpu.h"
+#include "ejudge/errlog.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/compat.h"
 
-#include "prepare.h"
-#include "varsubst.h"
-#include "version.h"
-#include "prepare_meta.h"
-
-#include "fileutl.h"
-#include "sformat.h"
-#include "teamdb.h"
-#include "prepare_serve.h"
-#include "prepare_dflt.h"
-#include "ejudge_cfg.h"
-#include "cpu.h"
-#include "errlog.h"
-#include "serve_state.h"
-#include "xml_utils.h"
-#include "compat.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -45,7 +43,7 @@
 #include <ctype.h>
 #include <errno.h>
 
-#include "win32_compat.h"
+#include "ejudge/win32_compat.h"
 
 static int
 do_problem_parse_type(const unsigned char *str, void *ptr, size_t size);
@@ -7689,6 +7687,11 @@ get_advanced_layout_path(
     snprintf(path1,sizeof(path1),"%s/%s",global->root_dir,DFLT_G_PROBLEMS_DIR);
   }
 
+  if (!prob) {
+    snprintf(buf, bufsize, "%s", path1);
+    return buf;
+  }
+
   prob_name = prob->short_name;
   if (prob->internal_name[0]) {
     prob_name = prob->internal_name;
@@ -7836,10 +7839,3 @@ fail:
   xfree(arr);
   return -1;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 7615 2013-11-22 20:37:54Z cher $ */
+/* $Id: super-serve.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,35 +15,34 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/contests.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/super_proto.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/misctext.h"
+#include "ejudge/super-serve.h"
+#include "ejudge/super_html.h"
+#include "ejudge/prepare.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/random.h"
+#include "ejudge/startstop.h"
+#include "ejudge/meta/super-serve_meta.h"
+#include "ejudge/sock_op.h"
+#include "ejudge/compat.h"
+#include "ejudge/ej_process.h"
+#include "ejudge/ej_byteorder.h"
+#include "ejudge/pollfds.h"
+#include "ejudge/xml_utils.h"
 
-#include "version.h"
-#include "ejudge_cfg.h"
-#include "contests.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "userlist_clnt.h"
-#include "super_proto.h"
-#include "userlist_proto.h"
-#include "misctext.h"
-#include "super-serve.h"
-#include "super_html.h"
-#include "prepare.h"
-#include "serve_state.h"
-#include "random.h"
-#include "startstop.h"
-#include "super-serve_meta.h"
-#include "sock_op.h"
-#include "compat.h"
-#include "ej_process.h"
-#include "ej_byteorder.h"
-#include "pollfds.h"
-#include "xml_utils.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -137,7 +136,7 @@ static int self_group_max;
 static gid_t *self_groups;
 
 static int extra_a;
-static struct contest_extra **extras;
+static struct ss_contest_extra **extras;
 
 static int control_socket_fd = -1;
 static int run_inotify_fd = -1;
@@ -247,10 +246,10 @@ client_state_new_autoclose(struct client_state *p,
   return q;
 }
 
-struct contest_extra *
+struct ss_contest_extra *
 new_contest_extra(int contest_id)
 {
-  struct contest_extra *p;
+  struct ss_contest_extra *p;
 
   XCALLOC(p, 1);
   p->id = contest_id;
@@ -260,10 +259,10 @@ new_contest_extra(int contest_id)
   return p;
 }
 
-static struct contest_extra *
+static struct ss_contest_extra *
 delete_contest_extra(int contest_id)
 {
-  struct contest_extra *p;
+  struct ss_contest_extra *p;
 
   if (contest_id <= 0 || contest_id >= extra_a) return 0;
   if (!(p = extras[contest_id])) return 0;
@@ -281,7 +280,7 @@ delete_contest_extra(int contest_id)
   return 0;
 }
 
-struct contest_extra *
+struct ss_contest_extra *
 get_existing_contest_extra(int num)
 {
   ASSERT(num > 0 && num <= EJ_MAX_CONTEST_ID);
@@ -290,10 +289,10 @@ get_existing_contest_extra(int num)
 }
 
 /* note, that contest validity is not checked */
-struct contest_extra *
+struct ss_contest_extra *
 get_contest_extra(int num)
 {
-  struct contest_extra **new_extras;
+  struct ss_contest_extra **new_extras;
   int old_extra_a;
 
   ASSERT(num > 0 && num < 1000000);
@@ -377,9 +376,10 @@ startup_err(const char *format, ...)
 }
 
 static void
-prepare_run_serving(const struct contest_desc *cnts,
-                    struct contest_extra *extra,
-                    int do_run_manage)
+prepare_run_serving(
+        const struct contest_desc *cnts,
+        struct ss_contest_extra *extra,
+        int do_run_manage)
 {
   unsigned char run_queue_dir[1024];
   unsigned char run_log_path[1024];
@@ -490,7 +490,7 @@ acquire_contest_resources(const struct contest_desc *cnts,
   FILE *error_log = 0;
   char *error_log_txt = 0;
   size_t error_log_size = 0;
-  struct contest_extra *extra;
+  struct ss_contest_extra *extra;
   int i, old_run_managed = 0;
   struct stat stbuf;
   unsigned char config_path[1024];
@@ -629,7 +629,7 @@ acquire_resources(void)
 static void
 release_contest_resources(const struct contest_desc *cnts)
 {
-  struct contest_extra *extra;
+  struct ss_contest_extra *extra;
   int status = 0, out_pid;
 
   if (!cnts) return;
@@ -1415,8 +1415,8 @@ super_serve_move_edited_contest(struct sid_state *dst, struct sid_state *src)
   dst->cs_lang_names = src->cs_lang_names; src->cs_lang_names = 0;
 }
 
-static void
-activate_problem(struct sid_state *sstate, int prob_id)
+void
+super_html_activate_problem(struct sid_state *sstate, int prob_id)
 {
   if (!sstate) return;
   if (prob_id <= 0 || prob_id >= sstate->prob_a || !sstate->probs || !sstate->prob_flags || !sstate->probs[prob_id]) return;
@@ -1424,490 +1424,6 @@ activate_problem(struct sid_state *sstate, int prob_id)
     sstate->prob_flags[i] &= ~SID_STATE_SHOW_HIDDEN;
   }
   sstate->prob_flags[prob_id] |= SID_STATE_SHOW_HIDDEN;
-}
-
-static void
-cmd_main_page(struct client_state *p, int len,
-              struct prot_super_pkt_main_page *pkt)
-{
-  int r;
-  unsigned char *self_url_ptr, *hidden_vars_ptr, *extra_args_ptr;
-  int self_url_len, hidden_vars_len, extra_args_len, total_len;
-  FILE *f;
-  char *html_ptr = 0;
-  size_t html_len = 0;
-  struct client_state *q;
-  opcap_t caps;
-  int capbit = 0;
-  const struct contest_desc *cnts = 0;
-  struct contest_desc *rw_cnts = 0;
-  struct sid_state *sstate = 0;
-  const struct sid_state *other_ss = 0;
-
-  if (slave_mode) return error_slave_mode(p);
-
-  if (len < sizeof(*pkt)) return error_packet_too_short(p, len, sizeof(*pkt));
-  self_url_ptr = pkt->data;
-  self_url_len = strlen(self_url_ptr);
-  if (self_url_len != pkt->self_url_len)
-    return error_field_len_mismatch(p, "self_url",
-                                    self_url_len, pkt->self_url_len);
-  hidden_vars_ptr = self_url_ptr + self_url_len + 1;
-  hidden_vars_len = strlen(hidden_vars_ptr);
-  if (hidden_vars_len != pkt->hidden_vars_len)
-    return error_field_len_mismatch(p, "hidden_vars",
-                                    hidden_vars_len, pkt->hidden_vars_len);
-  extra_args_ptr = hidden_vars_ptr + hidden_vars_len + 1;
-  extra_args_len = strlen(extra_args_ptr);
-  if (extra_args_len != pkt->extra_args_len)
-    return error_field_len_mismatch(p, "extra_args",
-                                    extra_args_len, pkt->extra_args_len);
-  total_len = sizeof(*pkt) + self_url_len + hidden_vars_len + extra_args_len;
-  if (total_len != len)
-    return error_bad_packet_length(p, len, total_len);
-
-  if ((r = get_peer_local_user(p)) < 0) {
-    send_reply(p, r);
-    return;
-  }
-
-  if (p->client_fds[0] < 0 || p->client_fds[1] < 0) {
-    err("cmd_main_page: two file descriptors expected");
-    return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
-  }
-
-  sstate = sid_state_get(p->cookie, &p->ip, p->user_id, p->login, p->name);
-
-  // extra incoming packet checks
-  switch (pkt->b.id) {
-  case SSERV_CMD_CONTEST_PAGE:
-    if ((r = contests_get(pkt->contest_id, &cnts)) < 0 || !cnts) {
-      err("cmd_main_page: invalid contest_id %d", pkt->contest_id);
-      cnts = 0;
-      //return send_reply(p, -SSERV_ERR_INVALID_CONTEST);
-    }
-    break;
-  case SSERV_CMD_VIEW_RUN_LOG:
-  case SSERV_CMD_VIEW_CONTEST_XML:
-  case SSERV_CMD_VIEW_SERVE_CFG:
-  case SSERV_CMD_EDIT_CONTEST_XML:
-  case SSERV_CMD_EDIT_SERVE_CFG_PROB:
-    if ((r = contests_get(pkt->contest_id, &cnts)) < 0 || !cnts) {
-      return send_reply(p, -SSERV_ERR_INVALID_CONTEST);
-    }
-    /*
-    if (sstate->edited_cnts) {
-      return send_reply(p, -SSERV_ERR_CONTEST_EDITED);
-    }
-    */
-    break;
-  case SSERV_CMD_CHECK_TESTS:
-    if ((r = contests_get(pkt->contest_id, &cnts)) < 0 || !cnts) {
-      return send_reply(p, -SSERV_ERR_INVALID_CONTEST);
-    }
-    if (sstate->edited_cnts) {
-      return send_reply(p, -SSERV_ERR_CONTEST_EDITED);
-    }
-    break;
-  }
-
-  // check permissions: MASTER_PAGE
-  switch (pkt->b.id) {
-  case SSERV_CMD_MAIN_PAGE:
-    if (ejudge_cfg_opcaps_find(config, p->login, &caps) < 0) {
-      err("%d: user %d has no privileges", p->id, p->user_id);
-      return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-    }
-    switch (p->priv_level) {
-    case PRIV_LEVEL_JUDGE: capbit = OPCAP_JUDGE_LOGIN; break;
-    case PRIV_LEVEL_ADMIN: capbit = OPCAP_MASTER_LOGIN; break;
-    default:
-      return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-    }
-    if (opcaps_check(caps, capbit) < 0) {
-      err("%d: user %d has no capability %d", p->id, p->user_id, capbit);
-      return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-    }
-    break;
-  case SSERV_CMD_CONTEST_PAGE:
-  case SSERV_CMD_VIEW_RUN_LOG:
-  case SSERV_CMD_VIEW_CONTEST_XML:
-  case SSERV_CMD_VIEW_SERVE_CFG:
-    // all checks are performed in super_html_log_page
-    break;
-
-    // global CREATE_CONTEST is required
-  case SSERV_CMD_CREATE_CONTEST:
-    if (p->priv_level != PRIV_LEVEL_ADMIN) {
-      err("%d: inappropriate privilege level", p->id);
-      return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-    }
-    if (ejudge_cfg_opcaps_find(config, p->login, &caps) < 0) {
-      err("%d: user %d has no privileges", p->id, p->user_id);
-      return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-    }
-    if (opcaps_check(caps, OPCAP_EDIT_CONTEST) < 0) {
-      err("%d: user %d has no capability %d", p->id, p->user_id, capbit);
-      return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-    }
-    break;
-
-  case SSERV_CMD_EDIT_CONTEST_XML:
-  case SSERV_CMD_EDIT_SERVE_CFG_PROB:
-  case SSERV_CMD_CHECK_TESTS:
-    if (p->priv_level != PRIV_LEVEL_ADMIN) {
-      err("%d: inappropriate privilege level", p->id);
-      return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-    }
-    if (opcaps_find(&cnts->capabilities, p->login, &caps) < 0) {
-      err("%d: user %d has no privileges", p->id, p->user_id);
-      return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-    }
-    if (opcaps_check(caps, OPCAP_EDIT_CONTEST) < 0) {
-      err("%d: user %d has no capability %d", p->id, p->user_id, capbit);
-      return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-    }
-    break;
-    
-    // Current contest editing commands are allowed to anybody,
-    // because the editing mode cannot be entered without privilege
-  case SSERV_CMD_EDIT_CURRENT_CONTEST:
-  case SSERV_CMD_EDIT_REGISTER_ACCESS:
-  case SSERV_CMD_EDIT_USERS_ACCESS:
-  case SSERV_CMD_EDIT_MASTER_ACCESS:
-  case SSERV_CMD_EDIT_JUDGE_ACCESS:
-  case SSERV_CMD_EDIT_TEAM_ACCESS:
-  case SSERV_CMD_EDIT_SERVE_CONTROL_ACCESS:
-  case SSERV_CMD_CNTS_EDIT_PERMISSION:
-  case SSERV_CMD_CNTS_EDIT_FORM_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_CONTESTANT_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_RESERVE_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_COACH_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_ADVISOR_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_GUEST_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_USERS_HEADER:
-  case SSERV_CMD_CNTS_EDIT_USERS_FOOTER:
-  case SSERV_CMD_CNTS_EDIT_REGISTER_HEADER:
-  case SSERV_CMD_CNTS_EDIT_REGISTER_FOOTER:
-  case SSERV_CMD_CNTS_EDIT_TEAM_HEADER:
-  case SSERV_CMD_CNTS_EDIT_TEAM_MENU_1:
-  case SSERV_CMD_CNTS_EDIT_TEAM_MENU_2:
-  case SSERV_CMD_CNTS_EDIT_TEAM_MENU_3:
-  case SSERV_CMD_CNTS_EDIT_TEAM_SEPARATOR:
-  case SSERV_CMD_CNTS_EDIT_TEAM_FOOTER:
-  case SSERV_CMD_CNTS_EDIT_PRIV_HEADER:
-  case SSERV_CMD_CNTS_EDIT_PRIV_FOOTER:
-  case SSERV_CMD_CNTS_EDIT_COPYRIGHT:
-  case SSERV_CMD_CNTS_EDIT_WELCOME:
-  case SSERV_CMD_CNTS_EDIT_REG_WELCOME:
-  case SSERV_CMD_CNTS_EDIT_REGISTER_EMAIL_FILE:
-  case SSERV_CMD_CNTS_COMMIT:
-  case SSERV_CMD_EDIT_CURRENT_GLOBAL:
-  case SSERV_CMD_EDIT_CURRENT_LANG:
-  case SSERV_CMD_EDIT_CURRENT_PROB:
-  case SSERV_CMD_GLOB_EDIT_CONTEST_START_CMD:
-  case SSERV_CMD_GLOB_EDIT_CONTEST_STOP_CMD:
-  case SSERV_CMD_GLOB_EDIT_STAND_HEADER_FILE:
-  case SSERV_CMD_GLOB_EDIT_STAND_FOOTER_FILE:
-  case SSERV_CMD_GLOB_EDIT_STAND2_HEADER_FILE:
-  case SSERV_CMD_GLOB_EDIT_STAND2_FOOTER_FILE:
-  case SSERV_CMD_GLOB_EDIT_PLOG_HEADER_FILE:
-  case SSERV_CMD_GLOB_EDIT_PLOG_FOOTER_FILE:
-  case SSERV_CMD_VIEW_NEW_SERVE_CFG:
-  case SSERV_CMD_PROB_EDIT_VARIANTS:
-  case SSERV_CMD_PROB_EDIT_VARIANTS_2:
-    // FIXME: add permissions checks
-    break;
-
-  default:
-    err("%d: unhandled request %d", p->id, pkt->b.id);
-    return send_reply(p, -SSERV_ERR_PERMISSION_DENIED);
-  }
-
-  if (!(f = open_memstream(&html_ptr, &html_len))) {
-    err("%d: open_memstream failed", p->id);
-    return send_reply(p, -SSERV_ERR_SYSTEM_ERROR);
-  }
-
-  // handle command
-  switch (pkt->b.id) {
-  case SSERV_CMD_MAIN_PAGE:
-    r = super_html_main_page(f, p->priv_level, p->user_id, p->login,
-                             p->cookie, &p->ip, p->ssl, pkt->flags, config, sstate,
-                             self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-  case SSERV_CMD_CONTEST_PAGE:
-    r = super_html_contest_page(f, p->priv_level, p->user_id, pkt->contest_id,
-                                p->login, p->cookie, &p->ip, p->ssl, config,
-                                self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-  case SSERV_CMD_VIEW_RUN_LOG:
-  case SSERV_CMD_VIEW_CONTEST_XML:
-  case SSERV_CMD_VIEW_SERVE_CFG:
-    r = super_html_log_page(f, pkt->b.id, p->priv_level, p->user_id,
-                            pkt->contest_id, p->login, p->cookie, &p->ip, p->ssl,
-                            config,
-                            self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-  case SSERV_CMD_CREATE_CONTEST:
-    r = super_html_create_contest(f, p->priv_level, p->user_id, p->login,
-                                  p->cookie, &p->ip, config, sstate,
-                                  self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-  case SSERV_CMD_EDIT_CURRENT_CONTEST:
-    r = super_html_edit_contest_page(f, p->priv_level, p->user_id, p->login,
-                                     p->cookie, &p->ip, config, sstate,
-                                     self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-  case SSERV_CMD_EDIT_REGISTER_ACCESS:
-  case SSERV_CMD_EDIT_USERS_ACCESS:
-  case SSERV_CMD_EDIT_MASTER_ACCESS:
-  case SSERV_CMD_EDIT_JUDGE_ACCESS:
-  case SSERV_CMD_EDIT_TEAM_ACCESS:
-  case SSERV_CMD_EDIT_SERVE_CONTROL_ACCESS:
-    r = super_html_edit_access_rules(f, p->priv_level, p->user_id, p->login,
-                                     p->cookie, &p->ip, config, sstate, pkt->b.id,
-                                     self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-  case SSERV_CMD_EDIT_CONTEST_XML:
-  case SSERV_CMD_EDIT_SERVE_CFG_PROB:
-    if (sstate->edited_cnts && sstate->edited_cnts->id == cnts->id) {
-      r = super_html_edit_contest_page(f, p->priv_level, p->user_id, p->login,
-                                       p->cookie, &p->ip, config, sstate,
-                                       self_url_ptr, hidden_vars_ptr,
-                                       extra_args_ptr);
-      break;
-    }
-    if (sstate->edited_cnts) {
-      r = super_html_edited_cnts_dialog(f, p->priv_level, p->user_id, p->login,
-                                        p->cookie, &p->ip, config, sstate,
-                                        self_url_ptr, hidden_vars_ptr,
-                                        extra_args_ptr, cnts, 0);
-      break;
-    }
-    if ((other_ss = super_serve_sid_state_get_cnts_editor(cnts->id))) {
-      r = super_html_locked_cnts_dialog(f, p->priv_level, p->user_id, p->login,
-                                        p->cookie, &p->ip, config, sstate,
-                                        self_url_ptr, hidden_vars_ptr,
-                                        extra_args_ptr, cnts->id,
-                                        other_ss, 0);
-      break;
-    }
-    
-    if ((r = contests_load(pkt->contest_id, &rw_cnts)) < 0 || !rw_cnts) {
-      return send_reply(p, -SSERV_ERR_INVALID_CONTEST);
-    }
-    sstate->edited_cnts = rw_cnts;
-    super_html_load_serve_cfg(rw_cnts, config, sstate);
-    if (pkt->b.id == SSERV_CMD_EDIT_SERVE_CFG_PROB) {
-      activate_problem(sstate, pkt->flags);
-      r = super_html_edit_problems(f, p->priv_level, p->user_id, p->login,
-                                   p->cookie, &p->ip, config, sstate,
-                                   self_url_ptr, hidden_vars_ptr,
-                                   extra_args_ptr);
-    } else {
-      r = super_html_edit_contest_page(f, p->priv_level, p->user_id, p->login,
-                                       p->cookie, &p->ip, config, sstate,
-                                       self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    }
-    break;
-  case SSERV_CMD_CHECK_TESTS:
-    if ((r = contests_load(pkt->contest_id, &rw_cnts)) < 0 || !rw_cnts) {
-      return send_reply(p, -SSERV_ERR_INVALID_CONTEST);
-    }
-    sstate->edited_cnts = rw_cnts;
-    super_html_load_serve_cfg(rw_cnts, config, sstate);
-    r = super_html_check_tests(f, p->priv_level, p->user_id, p->login,
-                               p->cookie, &p->ip, config, sstate,
-                               self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    super_serve_clear_edited_contest(sstate);
-    break;
-  case SSERV_CMD_CNTS_EDIT_PERMISSION:
-    r = super_html_edit_permission(f, p->priv_level, p->user_id, p->login,
-                                   p->cookie, &p->ip, config, sstate, pkt->flags,
-                                   self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-  case SSERV_CMD_CNTS_EDIT_FORM_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_CONTESTANT_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_RESERVE_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_COACH_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_ADVISOR_FIELDS:
-  case SSERV_CMD_CNTS_EDIT_GUEST_FIELDS:
-    r = super_html_edit_form_fields(f, p->priv_level, p->user_id, p->login,
-                                    p->cookie, &p->ip, config, sstate, pkt->b.id,
-                                    self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-
-  case SSERV_CMD_CNTS_EDIT_USERS_HEADER:
-  case SSERV_CMD_CNTS_EDIT_USERS_FOOTER:
-  case SSERV_CMD_CNTS_EDIT_REGISTER_HEADER:
-  case SSERV_CMD_CNTS_EDIT_REGISTER_FOOTER:
-  case SSERV_CMD_CNTS_EDIT_TEAM_HEADER:
-  case SSERV_CMD_CNTS_EDIT_TEAM_MENU_1:
-  case SSERV_CMD_CNTS_EDIT_TEAM_MENU_2:
-  case SSERV_CMD_CNTS_EDIT_TEAM_MENU_3:
-  case SSERV_CMD_CNTS_EDIT_TEAM_SEPARATOR:
-  case SSERV_CMD_CNTS_EDIT_TEAM_FOOTER:
-  case SSERV_CMD_CNTS_EDIT_PRIV_HEADER:
-  case SSERV_CMD_CNTS_EDIT_PRIV_FOOTER:
-  case SSERV_CMD_CNTS_EDIT_COPYRIGHT:
-  case SSERV_CMD_CNTS_EDIT_WELCOME:
-  case SSERV_CMD_CNTS_EDIT_REG_WELCOME:
-  case SSERV_CMD_CNTS_EDIT_REGISTER_EMAIL_FILE:
-  case SSERV_CMD_GLOB_EDIT_CONTEST_START_CMD:
-  case SSERV_CMD_GLOB_EDIT_CONTEST_STOP_CMD:
-  case SSERV_CMD_GLOB_EDIT_STAND_HEADER_FILE:
-  case SSERV_CMD_GLOB_EDIT_STAND_FOOTER_FILE:
-  case SSERV_CMD_GLOB_EDIT_STAND2_HEADER_FILE:
-  case SSERV_CMD_GLOB_EDIT_STAND2_FOOTER_FILE:
-  case SSERV_CMD_GLOB_EDIT_PLOG_HEADER_FILE:
-  case SSERV_CMD_GLOB_EDIT_PLOG_FOOTER_FILE:
-    r = super_html_edit_template_file(f, p->priv_level, p->user_id, p->login,
-                                      p->cookie, &p->ip, config, sstate, pkt->b.id,
-                                      self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-  case SSERV_CMD_CNTS_COMMIT:
-    r = super_html_commit_contest(f, p->priv_level, p->user_id, p->login,
-                                  p->cookie, &p->ip, config, userlist_clnt,
-                                  sstate, pkt->b.id,
-                                  self_url_ptr, hidden_vars_ptr,
-                                  extra_args_ptr);
-    break;
-  case SSERV_CMD_EDIT_CURRENT_GLOBAL:
-    r = super_html_edit_global_parameters(f, p->priv_level, p->user_id, p->login,
-                                          p->cookie, &p->ip, config, sstate,
-                                          self_url_ptr, hidden_vars_ptr,
-                                          extra_args_ptr);
-    break;
-
-  case SSERV_CMD_EDIT_CURRENT_LANG:
-    r = super_html_edit_languages(f, p->priv_level, p->user_id, p->login,
-                                  p->cookie, &p->ip, config, sstate,
-                                  self_url_ptr, hidden_vars_ptr,
-                                  extra_args_ptr);
-    break;
-
-  case SSERV_CMD_EDIT_CURRENT_PROB:
-    r = super_html_edit_problems(f, p->priv_level, p->user_id, p->login,
-                                 p->cookie, &p->ip, config, sstate,
-                                 self_url_ptr, hidden_vars_ptr,
-                                 extra_args_ptr);
-    break;
-
-  case SSERV_CMD_VIEW_NEW_SERVE_CFG:
-    r = super_html_view_new_serve_cfg(f, p->priv_level, p->user_id, p->login,
-                                      p->cookie, &p->ip, config, sstate,
-                                      self_url_ptr, hidden_vars_ptr,
-                                      extra_args_ptr);
-    break;
-
-  case SSERV_CMD_PROB_EDIT_VARIANTS:
-  case SSERV_CMD_PROB_EDIT_VARIANTS_2:
-    r = super_html_edit_variants(f, pkt->b.id, p->priv_level, p->user_id, p->login,
-                                 p->cookie, &p->ip, p->ssl, userlist_clnt,
-                                 config, sstate, self_url_ptr, hidden_vars_ptr,
-                                 extra_args_ptr);
-    break;
-
-  default:
-    abort();
-  }
-
-  if (r < 0) {
-    fclose(f); xfree(html_ptr);
-    info("cmd_main_page: %s", super_proto_strerror(-r));
-    send_reply(p, r);
-    return;
-  }
-
-  close_memstream(f); f = 0;
-  if (!html_ptr) html_ptr = xstrdup("");
-  q = client_state_new_autoclose(p, html_ptr, html_len);
-  (void) q;
-
-  info("cmd_main_page: %zu", html_len);
-  send_reply(p, SSERV_RPL_OK);
-}
-
-static void
-cmd_create_contest(struct client_state *p, int len,
-                   struct prot_super_pkt_create_contest *pkt)
-{
-  int r;
-  unsigned char *self_url_ptr, *hidden_vars_ptr, *extra_args_ptr;
-  int self_url_len, hidden_vars_len, extra_args_len, total_len;
-  struct sid_state *sstate;
-  char *html_ptr = 0;
-  size_t html_len = 0;
-  FILE *f;
-  struct client_state *q;
-
-  if (slave_mode) return error_slave_mode(p);
-
-  if (len < sizeof(*pkt)) return error_packet_too_short(p, len, sizeof(*pkt));
-  self_url_ptr = pkt->data;
-  self_url_len = strlen(self_url_ptr);
-  if (self_url_len != pkt->self_url_len)
-    return error_field_len_mismatch(p, "self_url",
-                                    self_url_len, pkt->self_url_len);
-  hidden_vars_ptr = self_url_ptr + self_url_len + 1;
-  hidden_vars_len = strlen(hidden_vars_ptr);
-  if (hidden_vars_len != pkt->hidden_vars_len)
-    return error_field_len_mismatch(p, "hidden_vars",
-                                    hidden_vars_len, pkt->hidden_vars_len);
-  extra_args_ptr = hidden_vars_ptr + hidden_vars_len + 1;
-  extra_args_len = strlen(extra_args_ptr);
-  if (extra_args_len != pkt->extra_args_len)
-    return error_field_len_mismatch(p, "extra_args",
-                                    extra_args_len, pkt->extra_args_len);
-  total_len = sizeof(*pkt) + self_url_len + hidden_vars_len + extra_args_len;
-  if (total_len != len)
-    return error_bad_packet_length(p, len, total_len);
-
-  if ((r = get_peer_local_user(p)) < 0) {
-    send_reply(p, r);
-    return;
-  }
-
-  if (p->client_fds[0] < 0 || p->client_fds[1] < 0) {
-    err("cmd_main_page: two file descriptors expected");
-    return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
-  }
-
-  // FIXME: check permissions
-  sstate = sid_state_get(p->cookie, &p->ip, p->user_id, p->login, p->name);
-  if (!(f = open_memstream(&html_ptr, &html_len))) {
-    err("%d: open_memstream failed", p->id);
-    return send_reply(p, -SSERV_ERR_SYSTEM_ERROR);
-  }
-
-  switch (pkt->b.id) {
-  case SSERV_CMD_CREATE_CONTEST_2:
-    r = super_html_create_contest_2(f, p->priv_level, p->user_id, p->login,
-                                    userlist_login,
-                                    p->cookie, &p->ip, p->ssl, config, sstate,
-                                    pkt->num_mode, pkt->templ_mode,
-                                    pkt->contest_id, pkt->templ_id,
-                                    self_url_ptr, hidden_vars_ptr, extra_args_ptr);
-    break;
-  default:
-    abort();
-  }
-
-  if (r < 0) {
-    fclose(f);
-    xfree(html_ptr);
-    send_reply(p, r);
-    return;
-  }
-
-  close_memstream(f); f = 0;
-  if (!html_ptr) html_ptr = xstrdup("");
-  q = client_state_new_autoclose(p, html_ptr, html_len);
-  (void) q;
-
-  info("cmd_create_contest: %zu", html_len);
-  send_reply(p, SSERV_RPL_OK);
 }
 
 static int contest_mngmt_cmd(const struct contest_desc *cnts,
@@ -2179,22 +1695,6 @@ cmd_simple_top_command(struct client_state *p, int len,
   case SSERV_CMD_CNTS_CLEAR_DIR_GROUP:
   case SSERV_CMD_CNTS_CLEAR_FILE_MODE:
   case SSERV_CMD_CNTS_CLEAR_FILE_GROUP:
-  case SSERV_CMD_CNTS_CLEAR_USERS_HEADER_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_USERS_FOOTER_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_REGISTER_HEADER_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_REGISTER_FOOTER_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_TEAM_HEADER_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_TEAM_MENU_1_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_TEAM_MENU_2_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_TEAM_MENU_3_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_TEAM_SEPARATOR_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_TEAM_FOOTER_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_PRIV_HEADER_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_PRIV_FOOTER_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_COPYRIGHT_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_WELCOME_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_REG_WELCOME_TEXT:
-  case SSERV_CMD_CNTS_CLEAR_REGISTER_EMAIL_FILE_TEXT:
     r = super_html_clear_variable(sstate, pkt->b.id);
     break;
 
@@ -2336,22 +1836,6 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_CNTS_SAVE_COACH_FIELDS:
   case SSERV_CMD_CNTS_SAVE_ADVISOR_FIELDS:
   case SSERV_CMD_CNTS_SAVE_GUEST_FIELDS:
-  case SSERV_CMD_CNTS_SAVE_USERS_HEADER:
-  case SSERV_CMD_CNTS_SAVE_USERS_FOOTER:
-  case SSERV_CMD_CNTS_SAVE_REGISTER_HEADER:
-  case SSERV_CMD_CNTS_SAVE_REGISTER_FOOTER:
-  case SSERV_CMD_CNTS_SAVE_TEAM_HEADER:
-  case SSERV_CMD_CNTS_SAVE_TEAM_MENU_1:
-  case SSERV_CMD_CNTS_SAVE_TEAM_MENU_2:
-  case SSERV_CMD_CNTS_SAVE_TEAM_MENU_3:
-  case SSERV_CMD_CNTS_SAVE_TEAM_SEPARATOR:
-  case SSERV_CMD_CNTS_SAVE_TEAM_FOOTER:
-  case SSERV_CMD_CNTS_SAVE_PRIV_HEADER:
-  case SSERV_CMD_CNTS_SAVE_PRIV_FOOTER:
-  case SSERV_CMD_CNTS_SAVE_COPYRIGHT:
-  case SSERV_CMD_CNTS_SAVE_WELCOME:
-  case SSERV_CMD_CNTS_SAVE_REG_WELCOME:
-  case SSERV_CMD_CNTS_SAVE_REGISTER_EMAIL_FILE:
     r = super_html_set_contest_var(sstate, pkt->b.id, pkt->param1, param2_ptr,
                                    pkt->param3, pkt->param4, pkt->param5);
     break;
@@ -2485,6 +1969,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_OUTPUT_FILE:
   case SSERV_CMD_PROB_CHANGE_USE_CORR:
   case SSERV_CMD_PROB_CHANGE_USE_INFO:
+  case SSERV_CMD_PROB_CHANGE_USE_TGZ:
   case SSERV_CMD_PROB_CHANGE_TEST_DIR:
   case SSERV_CMD_PROB_CLEAR_TEST_DIR:
   case SSERV_CMD_PROB_CHANGE_CORR_DIR:
@@ -2617,7 +2102,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CHANGE_DISABLE_SUBMIT_AFTER_OK:
   case SSERV_CMD_GLOB_CHANGE_IGNORE_COMPILE_ERRORS:
   case SSERV_CMD_GLOB_CHANGE_DISABLE_FAILED_TEST_VIEW:
-  case SSERV_CMD_GLOB_CHANGE_IGNORE_DUPICATED_RUNS:
+  case SSERV_CMD_GLOB_CHANGE_IGNORE_DUPLICATED_RUNS:
   case SSERV_CMD_GLOB_CHANGE_REPORT_ERROR_CODE:
   case SSERV_CMD_GLOB_CHANGE_SHOW_DEADLINE:
   case SSERV_CMD_GLOB_CHANGE_ENABLE_PRINTING:
@@ -2805,22 +2290,6 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_DISABLE_TEAM_DOWNLOAD_TIME:
   case SSERV_CMD_GLOB_CHANGE_CPU_BOGOMIPS:
   case SSERV_CMD_GLOB_DETECT_CPU_BOGOMIPS:
-  case SSERV_CMD_GLOB_SAVE_CONTEST_START_CMD:
-  case SSERV_CMD_GLOB_CLEAR_CONTEST_START_CMD_TEXT:
-  case SSERV_CMD_GLOB_SAVE_CONTEST_STOP_CMD:
-  case SSERV_CMD_GLOB_CLEAR_CONTEST_STOP_CMD_TEXT:
-  case SSERV_CMD_GLOB_SAVE_STAND_HEADER:
-  case SSERV_CMD_GLOB_CLEAR_STAND_HEADER_TEXT:
-  case SSERV_CMD_GLOB_SAVE_STAND_FOOTER:
-  case SSERV_CMD_GLOB_CLEAR_STAND_FOOTER_TEXT:
-  case SSERV_CMD_GLOB_SAVE_STAND2_HEADER:
-  case SSERV_CMD_GLOB_CLEAR_STAND2_HEADER_TEXT:
-  case SSERV_CMD_GLOB_SAVE_STAND2_FOOTER:
-  case SSERV_CMD_GLOB_CLEAR_STAND2_FOOTER_TEXT:
-  case SSERV_CMD_GLOB_SAVE_PLOG_HEADER:
-  case SSERV_CMD_GLOB_CLEAR_PLOG_HEADER_TEXT:
-  case SSERV_CMD_GLOB_SAVE_PLOG_FOOTER:
-  case SSERV_CMD_GLOB_CLEAR_PLOG_FOOTER_TEXT:
   case SSERV_CMD_GLOB_CHANGE_CLARDB_PLUGIN:
   case SSERV_CMD_GLOB_CLEAR_CLARDB_PLUGIN:
   case SSERV_CMD_GLOB_CHANGE_RUNDB_PLUGIN:
@@ -2911,7 +2380,7 @@ cmd_control_server(struct client_state *p, int len,
 }
 
 static void
-cmd_http_request_continuation(struct super_http_request_info *phr);
+cmd_http_request_continuation(struct http_request_info *phr);
 
 static void
 cmd_http_request(
@@ -2925,7 +2394,7 @@ cmd_http_request(
     MAX_PARAM_SIZE = 128 * 1024 * 1024,
   };
 
-  struct super_http_request_info *phr = NULL;
+  struct http_request_info *phr = NULL;
   char *out_t = 0;
   size_t out_z = 0;
   int i, r;
@@ -3075,18 +2544,6 @@ cmd_http_request(
     bptr += param_sizes[i] + 1;
   }
 
-  if ((r = get_peer_local_user(p)) < 0) {
-    send_reply(p, r);
-    xfree(phr);
-    return;
-  }
-
-  if (p->client_fds[0] < 0 || p->client_fds[1] < 0) {
-    err("cmd_main_page: two file descriptors expected");
-    xfree(phr);
-    return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
-  }
-
   phr->arg_num = pkt->arg_num;
   phr->args = args;
   phr->env_num = pkt->env_num;
@@ -3095,20 +2552,38 @@ cmd_http_request(
   phr->param_names = param_names;
   phr->param_sizes = my_param_sizes;
   phr->params = params;
-
-  phr->user_id = p->user_id;
-  phr->priv_level = p->priv_level;
-  phr->login = p->login;
-  phr->name = p->name;
-  phr->html_login = p->html_login;
-  phr->html_name = p->html_name;
-  phr->ip = p->ip;
-  phr->ssl_flag = p->ssl;
   phr->system_login = userlist_login;
   phr->userlist_clnt = userlist_clnt;
-
-  phr->ss = sid_state_get(p->cookie, &p->ip, p->user_id, p->login, p->name);
   phr->config = config;
+
+  const unsigned char *s = 0;
+  if (hr_cgi_param(phr, "login_page", &s) > 0) {
+    phr->anonymous_mode = 1;
+  }
+
+  if (!phr->anonymous_mode) {
+    if ((r = get_peer_local_user(p)) < 0) {
+      send_reply(p, r);
+      xfree(phr);
+      return;
+    }
+
+    if (p->client_fds[0] < 0 || p->client_fds[1] < 0) {
+      err("cmd_main_page: two file descriptors expected");
+      xfree(phr);
+      return send_reply(p, -SSERV_ERR_PROTOCOL_ERROR);
+    }
+
+    phr->user_id = p->user_id;
+    phr->priv_level = p->priv_level;
+    phr->login = p->login;
+    phr->name = p->name;
+    phr->html_login = p->html_login;
+    phr->html_name = p->html_name;
+    phr->ip = p->ip;
+    phr->ssl_flag = p->ssl;
+    phr->ss = sid_state_get(p->cookie, &p->ip, p->user_id, p->login, p->name);
+  }
 
   super_html_http_request(&out_t, &out_z, phr);
   if (phr->suspend_reply > 0) {
@@ -3122,13 +2597,14 @@ cmd_http_request(
   (void) q;
   info("cmd_http_request: %zu", out_z);
   send_reply(p, SSERV_RPL_OK);
+  xfree(phr->redirect);
   xfree(phr);
 
   //cleanup:
 }
 
 static void
-cmd_http_request_continuation(struct super_http_request_info *phr)
+cmd_http_request_continuation(struct http_request_info *phr)
 {
   struct client_state *p = (typeof(p)) phr->suspend_context;
   info("continuation: %d, %d, %d\n", p->fd, p->client_fds[0], p->client_fds[1]);
@@ -3139,6 +2615,7 @@ cmd_http_request_continuation(struct super_http_request_info *phr)
   xfree(phr->log_t); phr->log_t = NULL; phr->log_z = 0;
   phr->out_t = NULL; phr->out_z = 0;
   send_reply(p, SSERV_RPL_OK);
+  xfree(phr->redirect);
   xfree(phr);
 }
 
@@ -3149,11 +2626,6 @@ struct packet_handler
 static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
 {
   [SSERV_CMD_PASS_FD] = { cmd_pass_fd },
-  [SSERV_CMD_MAIN_PAGE] = { cmd_main_page },
-  [SSERV_CMD_CONTEST_PAGE] = { cmd_main_page },
-  [SSERV_CMD_VIEW_RUN_LOG] = { cmd_main_page },
-  [SSERV_CMD_VIEW_CONTEST_XML] = { cmd_main_page },
-  [SSERV_CMD_VIEW_SERVE_CFG] = { cmd_main_page },
   [SSERV_CMD_OPEN_CONTEST] = { cmd_simple_command },
   [SSERV_CMD_CLOSE_CONTEST] = { cmd_simple_command },
   [SSERV_CMD_INVISIBLE_CONTEST] = { cmd_simple_command },
@@ -3172,9 +2644,6 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_HIDE_CLOSED] = { cmd_simple_top_command },
   [SSERV_CMD_SHOW_UNMNG] = { cmd_simple_top_command },
   [SSERV_CMD_HIDE_UNMNG] = { cmd_simple_top_command },
-  [SSERV_CMD_CREATE_CONTEST] = { cmd_main_page },
-  [SSERV_CMD_CREATE_CONTEST_2] = { cmd_create_contest },
-  [SSERV_CMD_EDIT_CURRENT_CONTEST] = { cmd_main_page },
   [SSERV_CMD_CNTS_BASIC_VIEW] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_ADVANCED_VIEW] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_SHOW_HTML_HEADERS] = { cmd_simple_top_command },
@@ -3188,42 +2657,10 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_HIDE_NOTIFICATIONS] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_SHOW_ACCESS_RULES] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_HIDE_ACCESS_RULES] = { cmd_simple_top_command },
-  [SSERV_CMD_EDIT_REGISTER_ACCESS] = { cmd_main_page },
-  [SSERV_CMD_EDIT_USERS_ACCESS] = { cmd_main_page },
-  [SSERV_CMD_EDIT_MASTER_ACCESS] = { cmd_main_page },
-  [SSERV_CMD_EDIT_JUDGE_ACCESS] = { cmd_main_page },
-  [SSERV_CMD_EDIT_TEAM_ACCESS] = { cmd_main_page },
-  [SSERV_CMD_EDIT_SERVE_CONTROL_ACCESS] = { cmd_main_page },
   [SSERV_CMD_CNTS_SHOW_PERMISSIONS] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_HIDE_PERMISSIONS] = { cmd_simple_top_command },
-  [SSERV_CMD_EDIT_CONTEST_XML] = { cmd_main_page },
-  [SSERV_CMD_EDIT_SERVE_CFG_PROB] = { cmd_main_page },
-  [SSERV_CMD_CHECK_TESTS] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_PERMISSION] = { cmd_main_page },
   [SSERV_CMD_CNTS_SHOW_FORM_FIELDS] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_HIDE_FORM_FIELDS] = { cmd_simple_top_command },
-  [SSERV_CMD_CNTS_EDIT_FORM_FIELDS] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_CONTESTANT_FIELDS] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_RESERVE_FIELDS] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_COACH_FIELDS] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_ADVISOR_FIELDS] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_GUEST_FIELDS] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_USERS_HEADER] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_USERS_FOOTER] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_REGISTER_HEADER] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_REGISTER_FOOTER] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_TEAM_HEADER] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_TEAM_MENU_1] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_TEAM_MENU_2] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_TEAM_MENU_3] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_TEAM_SEPARATOR] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_TEAM_FOOTER] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_PRIV_HEADER] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_PRIV_FOOTER] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_COPYRIGHT] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_WELCOME] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_REG_WELCOME] = { cmd_main_page },
-  [SSERV_CMD_CNTS_EDIT_REGISTER_EMAIL_FILE] = { cmd_main_page },
   [SSERV_CMD_CNTS_CLEAR_NAME] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_NAME_EN] = { cmd_simple_top_command },
   [SSERV_CMD_CNTS_CLEAR_MAIN_URL] = { cmd_simple_top_command },
@@ -3384,39 +2821,6 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_CNTS_SAVE_COACH_FIELDS] = { cmd_set_value },
   [SSERV_CMD_CNTS_SAVE_ADVISOR_FIELDS] = { cmd_set_value },
   [SSERV_CMD_CNTS_SAVE_GUEST_FIELDS] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_USERS_HEADER] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_USERS_FOOTER] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_REGISTER_HEADER] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_REGISTER_FOOTER] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_TEAM_HEADER] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_TEAM_MENU_1] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_TEAM_MENU_2] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_TEAM_MENU_3] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_TEAM_SEPARATOR] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_TEAM_FOOTER] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_PRIV_HEADER] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_PRIV_FOOTER] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_COPYRIGHT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_WELCOME] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_REG_WELCOME] = { cmd_set_value },
-  [SSERV_CMD_CNTS_SAVE_REGISTER_EMAIL_FILE] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_USERS_HEADER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_USERS_FOOTER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_REGISTER_HEADER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_REGISTER_FOOTER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_TEAM_HEADER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_TEAM_MENU_1_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_TEAM_MENU_1_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_TEAM_SEPARATOR_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_TEAM_FOOTER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_PRIV_HEADER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_PRIV_FOOTER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_COPYRIGHT_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_WELCOME_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_REG_WELCOME_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_CLEAR_REGISTER_EMAIL_FILE_TEXT] = { cmd_set_value },
-  [SSERV_CMD_CNTS_COMMIT] = { cmd_main_page },
-  [SSERV_CMD_EDIT_CURRENT_GLOBAL] = { cmd_main_page },
   [SSERV_CMD_GLOB_SHOW_1] = { cmd_simple_top_command },
   [SSERV_CMD_GLOB_HIDE_1] = { cmd_simple_top_command },
   [SSERV_CMD_GLOB_SHOW_2] = { cmd_simple_top_command },
@@ -3431,7 +2835,6 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_HIDE_6] = { cmd_simple_top_command },
   [SSERV_CMD_GLOB_SHOW_7] = { cmd_simple_top_command },
   [SSERV_CMD_GLOB_HIDE_7] = { cmd_simple_top_command },
-  [SSERV_CMD_EDIT_CURRENT_LANG] = { cmd_main_page },
   [SSERV_CMD_LANG_SHOW_DETAILS] = { cmd_set_value },
   [SSERV_CMD_LANG_HIDE_DETAILS] = { cmd_set_value },
   [SSERV_CMD_LANG_DEACTIVATE] = { cmd_set_value },
@@ -3460,7 +2863,6 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_LANG_CHANGE_STYLE_CHECKER_ENV] = { cmd_set_value },
   [SSERV_CMD_LANG_CLEAR_STYLE_CHECKER_ENV] = { cmd_set_value },
 
-  [SSERV_CMD_EDIT_CURRENT_PROB] = { cmd_main_page },
   [SSERV_CMD_PROB_ADD] = { cmd_set_value },
   [SSERV_CMD_PROB_ADD_ABSTRACT] = { cmd_set_value },
   [SSERV_CMD_PROB_SHOW_DETAILS] = { cmd_set_value },
@@ -3557,6 +2959,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_OUTPUT_FILE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_USE_CORR] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_USE_INFO] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_USE_TGZ] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEST_DIR] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_TEST_DIR] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_CORR_DIR] = { cmd_set_value },
@@ -3647,8 +3050,6 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DEADLINE] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_DEADLINE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_VARIANT_NUM] = { cmd_set_value },
-  [SSERV_CMD_PROB_EDIT_VARIANTS] = { cmd_main_page },
-  [SSERV_CMD_PROB_EDIT_VARIANTS_2] = { cmd_main_page },
   [SSERV_CMD_PROB_CHANGE_VARIANTS] = { cmd_set_value },
   [SSERV_CMD_PROB_DELETE_VARIANTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_XML_FILE] = { cmd_set_value },
@@ -3685,7 +3086,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_IGNORE_COMPILE_ERRORS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_DISABLE_FAILED_TEST_VIEW] = { cmd_set_value },
-  [SSERV_CMD_GLOB_CHANGE_IGNORE_DUPICATED_RUNS] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_IGNORE_DUPLICATED_RUNS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_REPORT_ERROR_CODE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_SHOW_DEADLINE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ENABLE_PRINTING] = { cmd_set_value },
@@ -3727,10 +3128,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CLEAR_DESCRIPTION_FILE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_CONTEST_START_CMD] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_CONTEST_START_CMD] = { cmd_set_value },
-  [SSERV_CMD_GLOB_EDIT_CONTEST_START_CMD] = { cmd_main_page },
   [SSERV_CMD_GLOB_CHANGE_CONTEST_STOP_CMD] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_CONTEST_STOP_CMD] = { cmd_set_value },
-  [SSERV_CMD_GLOB_EDIT_CONTEST_STOP_CMD] = { cmd_main_page },
   [SSERV_CMD_GLOB_CHANGE_MAX_RUN_SIZE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_MAX_RUN_TOTAL] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_MAX_RUN_NUM] = { cmd_set_value },
@@ -3747,10 +3146,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_USERS_ON_PAGE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_STAND_HEADER_FILE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_STAND_HEADER_FILE] = { cmd_set_value },
-  [SSERV_CMD_GLOB_EDIT_STAND_HEADER_FILE] = { cmd_main_page },
   [SSERV_CMD_GLOB_CHANGE_STAND_FOOTER_FILE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_STAND_FOOTER_FILE] = { cmd_set_value },
-  [SSERV_CMD_GLOB_EDIT_STAND_FOOTER_FILE] = { cmd_main_page },
   [SSERV_CMD_GLOB_CHANGE_STAND_SYMLINK_DIR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_STAND_SYMLINK_DIR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_STAND_IGNORE_AFTER] = { cmd_set_value },
@@ -3764,10 +3161,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CLEAR_STAND2_FILE_NAME] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_STAND2_HEADER_FILE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_STAND2_HEADER_FILE] = { cmd_set_value },
-  [SSERV_CMD_GLOB_EDIT_STAND2_HEADER_FILE] = { cmd_main_page },
   [SSERV_CMD_GLOB_CHANGE_STAND2_FOOTER_FILE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_STAND2_FOOTER_FILE] = { cmd_set_value },
-  [SSERV_CMD_GLOB_EDIT_STAND2_FOOTER_FILE] = { cmd_main_page },
   [SSERV_CMD_GLOB_CHANGE_STAND2_SYMLINK_DIR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_STAND2_SYMLINK_DIR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_ENABLE_PLOG] = { cmd_set_value },
@@ -3775,10 +3170,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CLEAR_PLOG_FILE_NAME] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_PLOG_HEADER_FILE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_PLOG_HEADER_FILE] = { cmd_set_value },
-  [SSERV_CMD_GLOB_EDIT_PLOG_HEADER_FILE] = { cmd_main_page },
   [SSERV_CMD_GLOB_CHANGE_PLOG_FOOTER_FILE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_PLOG_FOOTER_FILE] = { cmd_set_value },
-  [SSERV_CMD_GLOB_EDIT_PLOG_FOOTER_FILE] = { cmd_main_page },
   [SSERV_CMD_GLOB_CHANGE_PLOG_SYMLINK_DIR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_PLOG_SYMLINK_DIR] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_PLOG_UPDATE_TIME] = { cmd_set_value },
@@ -3888,23 +3281,6 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_DISABLE_TEAM_DOWNLOAD_TIME] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_CPU_BOGOMIPS] = { cmd_set_value },
   [SSERV_CMD_GLOB_DETECT_CPU_BOGOMIPS] = { cmd_set_value },
-  [SSERV_CMD_GLOB_SAVE_CONTEST_START_CMD] = { cmd_set_value },
-  [SSERV_CMD_GLOB_CLEAR_CONTEST_START_CMD_TEXT] = { cmd_set_value },
-  [SSERV_CMD_GLOB_SAVE_CONTEST_STOP_CMD] = { cmd_set_value },
-  [SSERV_CMD_GLOB_CLEAR_CONTEST_STOP_CMD_TEXT] = { cmd_set_value },
-  [SSERV_CMD_GLOB_SAVE_STAND_HEADER] = { cmd_set_value },
-  [SSERV_CMD_GLOB_CLEAR_STAND_HEADER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_GLOB_SAVE_STAND_FOOTER] = { cmd_set_value },
-  [SSERV_CMD_GLOB_CLEAR_STAND_FOOTER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_GLOB_SAVE_STAND2_HEADER] = { cmd_set_value },
-  [SSERV_CMD_GLOB_CLEAR_STAND2_HEADER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_GLOB_SAVE_STAND2_FOOTER] = { cmd_set_value },
-  [SSERV_CMD_GLOB_CLEAR_STAND2_FOOTER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_GLOB_SAVE_PLOG_HEADER] = { cmd_set_value },
-  [SSERV_CMD_GLOB_CLEAR_PLOG_HEADER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_GLOB_SAVE_PLOG_FOOTER] = { cmd_set_value },
-  [SSERV_CMD_GLOB_CLEAR_PLOG_FOOTER_TEXT] = { cmd_set_value },
-  [SSERV_CMD_VIEW_NEW_SERVE_CFG] = { cmd_main_page },
   [SSERV_CMD_LANG_UPDATE_VERSIONS] = { cmd_simple_top_command },
   [SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_VM_SIZE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_COMPILE_MAX_STACK_SIZE] = { cmd_set_value },
@@ -3964,7 +3340,7 @@ contest_mngmt_cmd(
 {
   path_t log_path;
   struct stat stbuf;
-  struct contest_extra *extra;
+  struct ss_contest_extra *extra;
 
   switch (cmd) {
   case SSERV_CMD_RUN_LOG_TRUNC:
@@ -4144,7 +3520,7 @@ handle_inotify_read(void *context, void *fds, void *user)
   unsigned char buf[8192];
   int r, cur_ind = 0, init_offset = 0, i;
   struct inotify_event *pev;
-  struct contest_extra *cur;
+  struct ss_contest_extra *cur;
 
   if ((pfd->revents & POLLNVAL)) {
     err("%s: ppoll invalid request fd=%d", __FUNCTION__, pfd->fd);
@@ -4212,7 +3588,7 @@ handle_inotify_read(void *context, void *fds, void *user)
 }
 
 static void
-start_run(struct contest_extra *cur, time_t current_time)
+start_run(struct ss_contest_extra *cur, time_t current_time)
 {
   int pid, j, null_fd = -1, log_fd = -1;
   unsigned char **args = NULL;
@@ -4313,7 +3689,7 @@ do_loop(void)
 {
   int i, n, status, pid;
   sigset_t block_mask, work_mask;
-  struct contest_extra *cur;
+  struct ss_contest_extra *cur;
   time_t current_time;
   struct client_state *cur_clnt;
   pollfds_t *pfds = pollfds_create();
@@ -4654,6 +4030,8 @@ write_version(void)
   exit(0);
 }
 
+extern const unsigned char * const super_serve_help_urls[];
+
 int
 main(int argc, char **argv)
 {
@@ -4663,6 +4041,8 @@ main(int argc, char **argv)
   const unsigned char *user = 0, *group = 0, *workdir = 0;
   char **argv_restart = 0;
   int pid;
+
+  hr_set_symbolic_action_table(SSERV_CMD_LAST, 0, 0, super_serve_help_urls);
 
   program_name = os_GetBasename(argv[0]);
   start_set_self_args(argc, argv);
@@ -4803,9 +4183,3 @@ main(int argc, char **argv)
   if (hup_flag) start_restart();
   return retcode;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

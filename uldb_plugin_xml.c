@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_plugin_xml.c 7611 2013-11-21 23:28:08Z cher $ */
+/* $Id: uldb_plugin_xml.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,19 +15,19 @@
  * GNU General Public License for more details.
  */
 
-#include "uldb_plugin.h"
-#include "errlog.h"
-#include "pathutl.h"
-#include "ejudge_cfg.h"
-#include "userlist.h"
-#include "random.h"
-#include "misctext.h"
-#include "ej_limits.h"
-#include "compat.h"
+#include "ejudge/uldb_plugin.h"
+#include "ejudge/errlog.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/userlist.h"
+#include "ejudge/random.h"
+#include "ejudge/misctext.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/compat.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <sys/types.h>
@@ -4314,9 +4314,3 @@ get_client_key_func(
     return -1;
   }
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

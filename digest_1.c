@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: digest_1.c 6147 2011-03-26 10:49:24Z cher $ */
+/* $Id: digest_1.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "digest_io.h"
+#include "ejudge/digest_io.h"
 
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 
 int
 digest_get_ascii_size(int kind)
@@ -28,10 +28,3 @@ digest_get_ascii_size(int kind)
     SWERR(("unhandled digest type %d", kind));
   }
 }
-
-/**
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

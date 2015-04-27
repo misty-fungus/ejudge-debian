@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new-server.c 7623 2013-11-23 19:25:40Z cher $ */
+/* $Id: new-server.c 8580 2014-09-02 14:51:45Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,26 +15,26 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/version.h"
+#include "ejudge/startstop.h"
+#include "ejudge/errlog.h"
+#include "ejudge/server_framework.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/new-server.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/contests.h"
+#include "ejudge/ejudge_plugin.h"
+#include "ejudge/nsdb_plugin.h"
+#include "ejudge/l10n.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/userlist.h"
+#include "ejudge/compat.h"
+#include "ejudge/xml_utils.h"
 
-#include "startstop.h"
-#include "errlog.h"
-#include "server_framework.h"
-#include "new_server_proto.h"
-#include "new-server.h"
-#include "ejudge_cfg.h"
-#include "contests.h"
-#include "ejudge_plugin.h"
-#include "nsdb_plugin.h"
-#include "l10n.h"
-#include "pathutl.h"
-#include "userlist.h"
-#include "compat.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,7 +75,7 @@ int ul_uid;
 unsigned char *ul_login;
 
 struct session_info *session_first, *session_last;
-time_t server_start_time;
+//time_t server_start_time;
 
 // plugin information
 struct nsdb_loaded_plugin
@@ -267,11 +267,14 @@ ns_new_autoclose(struct client_state *p, void *write_buf, size_t write_len)
   return nsf_new_autoclose(state, p, write_buf, write_len);
 }
 
+extern const unsigned char * const ns_symbolic_action_table[NEW_SRV_ACTION_LAST];
+
 static void
-cmd_http_request(struct server_framework_state *state,
-                 struct client_state *p,
-                 size_t pkt_size,
-                 const struct new_server_prot_packet *pkt_gen)
+cmd_http_request(
+        struct server_framework_state *state,
+        struct client_state *p,
+        size_t pkt_size,
+        const struct new_server_prot_packet *pkt_gen)
 {
   enum
   {
@@ -293,12 +296,16 @@ cmd_http_request(struct server_framework_state *state,
   size_t out_size = 0;
   FILE *out_f = 0;
   struct http_request_info hr;
+  unsigned char info_buf[1024];
+  unsigned char *pbuf = info_buf;
 
   memset(&hr, 0, sizeof(hr));
   hr.id = p->id;
   hr.client_state = p;
   hr.fw_state = state;
   gettimeofday(&hr.timestamp1, 0);
+  hr.current_time = hr.timestamp1.tv_sec;
+  hr.locale_id = -1;
 
   if (pkt_size < sizeof(*pkt))
     return nsf_err_packet_too_small(state, p, pkt_size, sizeof(*pkt));
@@ -384,27 +391,87 @@ cmd_http_request(struct server_framework_state *state,
   hr.param_names = param_names;
   hr.param_sizes = my_param_sizes;
   hr.params = params;
+  hr.config = ejudge_config;
 
   // ok, generate HTML
   out_f = open_memstream(&out_txt, &out_size);
   ns_handle_http_request(state, p, out_f, &hr);
   close_memstream(out_f); out_f = 0;
 
+  *pbuf = 0;
+  // report IP?
+  if (hr.ssl_flag) {
+    pbuf = stpcpy(pbuf, "HTTPS:");
+  } else {
+    pbuf = stpcpy(pbuf, "HTTPS:");
+  }
+  pbuf = stpcpy(pbuf, xml_unparse_ipv6(&hr.ip));
+  *pbuf++ = ':';
+  if (hr.role_name) {
+    pbuf = stpcpy(pbuf, hr.role_name);
+  }
+  if (hr.action > 0 && hr.action < NEW_SRV_ACTION_LAST && ns_symbolic_action_table[hr.action]) {
+    *pbuf++ = '/';
+    pbuf = stpcpy(pbuf, ns_symbolic_action_table[hr.action]);
+  }
+  if (hr.session_id) {
+    *pbuf++ = '/';
+    *pbuf++ = 'S';
+    pbuf += sprintf(pbuf, "%016llx", hr.session_id);
+    if (hr.client_key) {
+      *pbuf++ = '-';
+      pbuf += sprintf(pbuf, "%016llx", hr.client_key);
+    }
+  }
+  if (hr.user_id > 0) {
+    *pbuf++ = '/';
+    *pbuf++ = 'U';
+    pbuf += sprintf(pbuf, "%d", hr.user_id);
+  }
+  if (hr.contest_id > 0) {
+    *pbuf++ = '/';
+    *pbuf++ = 'C';
+    pbuf += sprintf(pbuf, "%d", hr.contest_id);
+  }
+
   // no reply now
   if (hr.no_reply) goto cleanup;
 
   if (hr.protocol_reply) {
     xfree(out_txt); out_txt = 0;
-    info("HTTP_REQUEST -> %d", hr.protocol_reply);
+    info("%d:%s -> %d", p->id, info_buf, hr.protocol_reply);
     nsf_close_client_fds(p);
     nsf_send_reply(state, p, hr.protocol_reply);
     goto cleanup;
   }
 
+  //
+  if (hr.content_type && hr.content_type[0]) {
+    // generate header
+    char *hdr_t = NULL;
+    size_t hdr_z = 0;
+    FILE *hdr_f = open_memstream(&hdr_t, &hdr_z);
+
+    fprintf(hdr_f, "Content-Type: %s\n", hr.content_type);
+    fprintf(hdr_f, "Cache-Control: no-cache\n");
+    fprintf(hdr_f, "Pragma: no-cache\n");
+    if (hr.client_key) {
+      fprintf(hdr_f, "Set-Cookie: EJSID=%016llx; Path=/\n", hr.client_key);
+    }
+    putc('\n', hdr_f);
+    if (out_size > 0) {
+      fwrite(out_txt, 1, out_size, hdr_f);
+    }
+    fclose(hdr_f); hdr_f = NULL;
+    free(out_txt);
+    out_txt = hdr_t;
+    out_size = hdr_z;
+  }
+
   if (!out_txt || !*out_txt) {
     xfree(out_txt); out_txt = 0;
     if (hr.allow_empty_output) {
-      info("HTTP_REQUEST -> OK");
+      info("%d:%s -> OK", p->id, info_buf);
       nsf_close_client_fds(p);
       nsf_send_reply(state, p, NEW_SRV_RPL_OK);
       goto cleanup;
@@ -416,10 +483,12 @@ cmd_http_request(struct server_framework_state *state,
   }
 
   nsf_new_autoclose(state, p, out_txt, out_size);
-  info("HTTP_REQUEST -> OK, %zu", out_size);
+  info("%d:%s -> OK, %zu", p->id, info_buf, out_size);
   nsf_send_reply(state, p, NEW_SRV_RPL_OK);
 
  cleanup:
+  if (hr.log_f) fclose(hr.log_f);
+  xfree(hr.log_t);
   xfree(hr.login);
   xfree(hr.name);
   xfree(hr.name_arm);
@@ -638,7 +707,9 @@ main(int argc, char *argv[])
   int restart_flag = 0;
   char **argv_restart = 0;
   int pid;
+  time_t server_start_time = 0;
 
+  hr_set_symbolic_action_table(NEW_SRV_ACTION_LAST, ns_symbolic_action_table, ns_submit_button_labels, 0);
   time(&server_start_time);
   start_set_self_args(argc, argv);
   /* certain options should be removed for restart */
@@ -756,7 +827,7 @@ main(int argc, char *argv[])
     return 1;
   }
 
-  if (!(state = nsf_init(&params, 0))) return 1;
+  if (!(state = nsf_init(&params, 0, server_start_time))) return 1;
   if (nsf_prepare(state) < 0) return 1;
   nsf_main_loop(state);
   restart_flag = nsf_is_restart_requested(state);
@@ -768,10 +839,3 @@ main(int argc, char *argv[])
 
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
- * End:
- */

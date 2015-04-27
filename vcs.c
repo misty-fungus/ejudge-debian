@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: vcs.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: vcs.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,17 +15,16 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/vcs.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/ej_process.h"
+#include "ejudge/compat.h"
 
-#include "vcs.h"
-#include "pathutl.h"
-#include "ej_process.h"
-#include "compat.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -204,10 +203,3 @@ vcs_add_dir(const unsigned char *path, unsigned char **p_log_txt)
 {
   return vcs_do_action(path, p_log_txt, vcs_add_dir_funcs);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
- * End:
- */

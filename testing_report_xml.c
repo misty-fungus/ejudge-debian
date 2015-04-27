@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: testing_report_xml.c 7130 2012-11-04 13:06:17Z cher $ */
+/* $Id: testing_report_xml.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,19 +15,18 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/testing_report_xml.h"
+#include "ejudge/expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/protocol.h"
+#include "ejudge/runlog.h"
+#include "ejudge/digest_io.h"
+#include "ejudge/misctext.h"
 
-#include "testing_report_xml.h"
-#include "expat_iface.h"
-#include "xml_utils.h"
-#include "protocol.h"
-#include "runlog.h"
-#include "digest_io.h"
-#include "misctext.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 
@@ -1515,9 +1514,3 @@ testing_report_unparse_xml(
   fprintf(out, "</%s>\n", elem_map[TR_T_TESTING_REPORT]);
   html_armor_free(&ab);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

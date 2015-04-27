@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: sformat.c 6902 2012-06-20 18:44:43Z cher $ */
+/* $Id: sformat.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2001-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2001-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,14 @@
  * GNU General Public License for more details.
  */
 
-#include "sformat.h"
-#include "prepare.h"
-#include "teamdb.h"
-#include "userlist.h"
-#include "misctext.h"
+#include "ejudge/sformat.h"
+#include "ejudge/prepare.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/userlist.h"
+#include "ejudge/misctext.h"
+#include "ejudge/win32_compat.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,8 +30,6 @@
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
-
-#include "win32_compat.h"
 
 #define ARMOR(s)  html_armor_buf(&ab, (s))
 
@@ -1105,10 +1104,3 @@ sformat_message(
   html_armor_free(&ab);
   return used;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

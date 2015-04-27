@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: userlist-server.c 7638 2013-11-27 10:45:08Z cher $ */
+/* $Id: userlist-server.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,38 +15,37 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/userlist.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/base64.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/contests.h"
+#include "ejudge/version.h"
+#include "ejudge/sha.h"
+#include "ejudge/misctext.h"
+#include "ejudge/l10n.h"
+#include "ejudge/tsc.h"
+#include "ejudge/sformat.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/job_packet.h"
+#include "ejudge/ejudge_plugin.h"
+#include "ejudge/uldb_plugin.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/random.h"
+#include "ejudge/startstop.h"
+#include "ejudge/csv.h"
+#include "ejudge/sock_op.h"
+#include "ejudge/compat.h"
+#include "ejudge/bitset.h"
 
-#include "ejudge_cfg.h"
-#include "userlist.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "base64.h"
-#include "userlist_proto.h"
-#include "contests.h"
-#include "version.h"
-#include "sha.h"
-#include "misctext.h"
-#include "l10n.h"
-#include "tsc.h"
-#include "sformat.h"
-#include "fileutl.h"
-#include "job_packet.h"
-#include "ejudge_plugin.h"
-#include "uldb_plugin.h"
-#include "xml_utils.h"
-#include "random.h"
-#include "startstop.h"
-#include "csv.h"
-#include "sock_op.h"
-#include "compat.h"
-#include "bitset.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <time.h>
@@ -9872,8 +9871,8 @@ cmd_create_user_2(
       return;
     }
   }
-  if (data->group_id != 0) {
-    ul_group = plugin_call(get_group, data->contest_id);
+  if (data->group_id > 0) {
+    ul_group = plugin_call(get_group, data->group_id);
     if (!ul_group) {
       err("%s -> invalid group %d", logbuf, data->group_id);
       send_reply(p, -ULS_ERR_BAD_GROUP_ID);
@@ -11255,9 +11254,3 @@ main(int argc, char *argv[])
   if (restart_signaled) start_restart();
   return code;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

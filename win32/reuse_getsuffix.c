@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: reuse_getsuffix.c 6165 2011-03-27 10:26:54Z cher $ */
+/* $Id: reuse_getsuffix.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This library is free software; you can redistribute it and/or
@@ -15,7 +15,7 @@
  * Lesser General Public License for more details.
  */
 
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 #define EXTBUFSIZE 32
 static char extbuf[EXTBUFSIZE];
@@ -35,6 +35,6 @@ os_GetSuffix(char const *path)
 
 /*
  * Local variables:
- *  compile-command: "make -C ../.."
+ *  compile-command: "make -C .."
  * End:
  */

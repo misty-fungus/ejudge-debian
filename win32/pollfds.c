@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: pollfds.c 6604 2012-01-01 16:41:30Z cher $ */
+/* $Id: pollfds.c 8212 2014-05-15 12:48:23Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,5 +15,5 @@
  * GNU General Public License for more details.
  */
 
-#include "pollfds.h"
+#include "ejudge/pollfds.h"
 

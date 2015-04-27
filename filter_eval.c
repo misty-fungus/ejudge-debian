@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: filter_eval.c 7587 2013-11-11 16:53:34Z cher $ */
+/* $Id: filter_eval.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,17 +17,17 @@
 
 #define YYSTYPE struct filter_tree *
 
-#include "filter_tree.h"
-#include "filter_expr.h"
-#include "filter_eval.h"
-#include "teamdb.h"
-#include "userlist.h"
-#include "archive_paths.h"
-#include "ej_uuid.h"
-#include "prepare_dflt.h"
+#include "ejudge/filter_tree.h"
+#include "ejudge/filter_expr.h"
+#include "ejudge/filter_eval.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/userlist.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/ej_uuid.h"
+#include "ejudge/prepare_dflt.h"
 
-#include "reuse_logger.h"
-#include "reuse_mempage.h"
+#include "ejudge/logger.h"
+#include "ejudge/mempage.h"
 
 static unsigned char *envdup(struct filter_env *env,
                              unsigned char const *str)

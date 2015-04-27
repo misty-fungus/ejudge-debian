@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: libdropcaps.c 6383 2011-06-26 20:22:33Z cher $ */
+/* $Id: libdropcaps.c 8173 2014-05-12 19:50:16Z cher $ */
 
-/* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -16,7 +16,7 @@
  */
 
 #if defined HAVE_CONFIG_H && HAVE_CONFIG_H > 0
-#include "../config.h"
+#include "../include/ejudge/config.h"
 #endif
 
 #include <stdio.h>
