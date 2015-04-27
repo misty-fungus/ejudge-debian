@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: cgi.h 8203 2014-05-14 21:58:29Z cher $ */
+/* $Id$ */
 #ifndef __CGI_H__
 #define __CGI_H__
 

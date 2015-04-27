@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: pypy-version.in 8627 2014-10-08 12:14:34Z cher $
+# $Id$
 # Copyright (c) 2014 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"

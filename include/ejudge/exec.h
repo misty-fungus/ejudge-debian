@@ -1,4 +1,4 @@
-/* $Id: exec.h 8796 2014-12-11 22:33:10Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_EXEC_H__
 #define __REUSE_EXEC_H__

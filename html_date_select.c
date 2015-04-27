@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html_date_select.c 8413 2014-08-03 21:27:39Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 

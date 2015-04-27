@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: curtime.h 8195 2014-05-14 20:19:32Z cher $ */
+/* $Id$ */
 #ifndef __CURTIME_H__
 #define __CURTIME_H__
 

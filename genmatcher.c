@@ -1,4 +1,4 @@
-/* $Id: genmatcher.c 8238 2014-05-17 10:52:34Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2013 Alexander Chernov <cher@ejudge.ru> */
 

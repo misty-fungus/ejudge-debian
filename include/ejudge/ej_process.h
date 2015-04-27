@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_process.h 8188 2014-05-14 19:09:53Z cher $ */
+/* $Id$ */
 
 #ifndef __EJ_PROCESS_H__
 #define __EJ_PROCESS_H__

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: testinfo.c 8235 2014-05-17 06:26:48Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 

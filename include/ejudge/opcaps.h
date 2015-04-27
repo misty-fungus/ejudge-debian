@@ -1,7 +1,7 @@
 #ifndef __OPCAPS_H__
 #define __OPCAPS_H__
 
-/* $Id: opcaps.h 8416 2014-08-04 10:23:38Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 

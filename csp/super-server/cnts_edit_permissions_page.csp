@@ -1,5 +1,5 @@
 <%
-/* $Id: cnts_edit_permissions_page.csp 8606 2014-09-10 18:03:54Z cher $ */
+/* $Id$ */
 %><%@include "includes.csp"
 %><%
 extern const char * super_html_contest_cap_descs[OPCAP_LAST];

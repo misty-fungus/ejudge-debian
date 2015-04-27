@@ -1,5 +1,5 @@
 <%
-/* $Id: main_page.csp 8606 2014-09-10 18:03:54Z cher $ */
+/* $Id$ */
 %><%@include "includes.csp"
 %><%@set ac_prefix = "SSERV_CMD_"
 %><%@page csp_view_main_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)

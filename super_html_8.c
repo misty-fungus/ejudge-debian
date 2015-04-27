@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_8.c 8640 2014-10-16 19:30:59Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 

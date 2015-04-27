@@ -1,10 +1,9 @@
 /* -*- c -*- */
-/* $Id: clarlog_state.h 8233 2014-05-17 06:07:09Z cher $ */
 
 #ifndef __CLARLOG_STATE_H__
 #define __CLARLOG_STATE_H__
 
-/* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,7 +25,7 @@ struct cldb_plugin_cnts;
 struct clar_array
 {
   int                   a, u;
-  struct clar_entry_v1 *v;
+  struct clar_entry_v2 *v;
 };
 
 struct clarlog_state

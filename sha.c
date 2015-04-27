@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: sha.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id$ */
 
 /*
  * This program is free software; you can redistribute it and/or modify

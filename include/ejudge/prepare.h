@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: prepare.h 8793 2014-12-11 21:55:57Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -814,6 +813,8 @@ struct section_problem_data
   ejintbool_t score_latest_or_unmarked;
   /** for KIROV contests: score the latest marked submit */
   ejintbool_t score_latest_marked;
+  /** for KIROV contests: score only the tokenized submits (with tokens spent on them) */
+  ejintbool_t score_tokenized;
   /** maximum astronomical time for a problem (seconds) */
   int real_time_limit;
   /** time limit in seconds */
@@ -874,8 +875,12 @@ struct section_problem_data
   ejintbool_t restricted_statement;
   /** hide input/output file names from problem submit page */
   ejintbool_t hide_file_names;
+  /** hide information about real time limit */
+  ejintbool_t hide_real_time_limit;
   /** enable tokens for this problem */
   ejintbool_t enable_tokens;
+  /** enable tokens only for user AC status */
+  ejintbool_t tokens_for_user_ac;
   /** disable submission after this problem is solved */
   ejintbool_t disable_submit_after_ok;
   /** do not test this problem automatically */

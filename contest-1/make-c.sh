@@ -1,5 +1,5 @@
 #! /bin/sh
-# $Id: make-c.sh 6275 2011-04-28 03:59:21Z cher $
+# $Id$
 
 filename="$1"
 infile="$2"

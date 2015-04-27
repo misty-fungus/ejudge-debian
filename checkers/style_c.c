@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: style_c.c 6088 2011-02-27 15:20:01Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2011 Alexander Chernov <cher@ejudge.ru> */
 

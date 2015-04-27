@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super-serve.h 8772 2014-11-22 15:51:48Z cher $ */
+/* $Id$ */
 #ifndef __SUPER_SERVE_H__
 #define __SUPER_SERVE_H__
 

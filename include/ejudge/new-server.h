@@ -1,10 +1,9 @@
 /* -*- c -*- */
-/* $Id: new-server.h 8746 2014-11-13 10:02:18Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -320,6 +319,7 @@ enum
   NEW_SRV_ACTION_VIEW_IP_USERS,
   NEW_SRV_ACTION_CHANGE_FINISH_TIME,
   NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK,
+  NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_REJECT,
   NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE,
   NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK,
   NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED,
@@ -534,6 +534,17 @@ ns_write_priv_all_runs(FILE *f,
                        struct contest_extra *extra,
                        int first_run_set, int first_run, int last_run_set, int last_run,
                        unsigned char const *filter_expr);
+
+// clar filter options
+enum
+{
+  CLAR_FILTER_ALL_CLARS = 1,
+  CLAR_FILTER_UNANS_CLARS_COMMENTS,
+  CLAR_FILTER_ALL_CLARS_COMMENTS,
+  CLAR_FILTER_CLARS_TO_ALL,
+  CLAR_FILTER_NONE, // show even empty entries
+};
+
 void
 ns_write_all_clars(
         FILE *f,
@@ -924,7 +935,9 @@ new_write_user_runs(
         int prob_id,
         const unsigned char *table_class,
         const struct UserProblemInfo *pinfo,
-        int back_action);
+        int back_action,
+        time_t start_time,
+        time_t stop_time);
 
 void
 new_write_user_clars(

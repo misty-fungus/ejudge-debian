@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 8795 2014-12-11 22:25:52Z cher $ */
 
-/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -402,6 +401,7 @@ const unsigned char * const super_serve_help_urls[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST] = "Serve.cfg:problem:score_latest",
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED] = "Serve.cfg:problem:score_latest_or_unmarked",
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_MARKED] = "Serve.cfg:problem:score_latest_marked",
+  [SSERV_CMD_PROB_CHANGE_SCORE_TOKENIZED] = "Serve.cfg:problem:score_tokenized",
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT] = "Serve.cfg:problem:time_limit",
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS] = "Serve.cfg:problem:time_limit_millis",
   [SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT] = "Serve.cfg:problem:real_time_limit",
@@ -416,7 +416,9 @@ const unsigned char * const super_serve_help_urls[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DISABLE_TAB] = "Serve.cfg:problem:disable_tab",
   [SSERV_CMD_PROB_CHANGE_UNRESTRICTED_STATEMENT] = "Serve.cfg:problem:unrestricted_statement",
   [SSERV_CMD_PROB_CHANGE_HIDE_FILE_NAMES] = "Serve.cfg:problem:hide_file_names",
+  [SSERV_CMD_PROB_CHANGE_HIDE_REAL_TIME_LIMIT] = "Serve.cfg:problem:hide_real_time_limit",
   [SSERV_CMD_PROB_CHANGE_ENABLE_TOKENS] = "Serve.cfg:problem:enable_tokens",
+  [SSERV_CMD_PROB_CHANGE_TOKENS_FOR_USER_AC] = "Serve.cfg:problem:tokens_for_user_ac",
   [SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = "Serve.cfg:problem:disable_submit_after_ok",
   [SSERV_CMD_PROB_CHANGE_DISABLE_SECURITY] = "Serve.cfg:problem:disable_security",
   [SSERV_CMD_PROB_CHANGE_DISABLE_TESTING] = "Serve.cfg:problem:disable_testing",
@@ -2008,6 +2010,7 @@ super_html_add_abstract_problem(
   prob->score_latest = 0;
   prob->score_latest_or_unmarked = 0;
   prob->score_latest_marked = 0;
+  prob->score_tokenized = 0;
   prob->time_limit = 1;
   prob->time_limit_millis = 0;
   prob->real_time_limit = 5;
@@ -2289,6 +2292,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     p_int = &prob->score_latest_marked;
     goto handle_boolean_1;
 
+  case SSERV_CMD_PROB_CHANGE_SCORE_TOKENIZED:
+    p_int = &prob->score_tokenized;
+    goto handle_boolean_1;
+
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT:
     p_int = &prob->time_limit;
 
@@ -2357,8 +2364,16 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     p_int = &prob->hide_file_names;
     goto handle_boolean_2;
 
+  case SSERV_CMD_PROB_CHANGE_HIDE_REAL_TIME_LIMIT:
+    p_int = &prob->hide_real_time_limit;
+    goto handle_boolean_2;
+
   case SSERV_CMD_PROB_CHANGE_ENABLE_TOKENS:
     p_int = &prob->enable_tokens;
+    goto handle_boolean_2;
+
+  case SSERV_CMD_PROB_CHANGE_TOKENS_FOR_USER_AC:
+    p_int = &prob->tokens_for_user_ac;
     goto handle_boolean_2;
 
   case SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK:

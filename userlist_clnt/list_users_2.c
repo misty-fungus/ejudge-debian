@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: list_users_2.c 6262 2011-04-22 05:15:27Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2011 Alexander Chernov <cher@ejudge.ru> */
 

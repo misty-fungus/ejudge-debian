@@ -1,4 +1,4 @@
-/* $Id: changelog.h 7753 2014-01-03 19:59:12Z cher $ */
+/* $Id$ */
 
 #ifndef __CHANGELOG__H__
 #define __CHANGELOG__H__

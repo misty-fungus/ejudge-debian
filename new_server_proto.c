@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_proto.c 8233 2014-05-17 06:07:09Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 

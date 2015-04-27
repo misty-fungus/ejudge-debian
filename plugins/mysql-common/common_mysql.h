@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: common_mysql.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 
 #ifndef __COMMON_MYSQL_H__
 #define __COMMON_MYSQL_H__

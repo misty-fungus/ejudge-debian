@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: http_request.h 8452 2014-08-09 20:23:35Z cher $ */
+/* $Id$ */
 #ifndef __HTTP_REQUEST_H__
 #define __HTTP_REQUEST_H__
 

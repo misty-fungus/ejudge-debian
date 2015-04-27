@@ -1,4 +1,4 @@
-# $Id: Makefile 7753 2014-01-03 19:59:12Z cher $
+# $Id$
 
 CC = gcc
 LD = gcc

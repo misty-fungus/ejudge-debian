@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: userlist_proto.h 8233 2014-05-17 06:07:09Z cher $ */
+/* $Id$ */
 
 #ifndef __USERLIST_PROTO_H__
 #define __USERLIST_PROTO_H__

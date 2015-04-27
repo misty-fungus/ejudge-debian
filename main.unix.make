@@ -1,7 +1,6 @@
 # -*- Makefile -*-
-# $Id: main.unix.make 8754 2014-11-16 06:31:58Z cher $
 
-# Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -303,7 +302,7 @@ ej-page-gen.debug : ej-page-gen
 	objcopy --only-keep-debug $< $@
 
 ej-convert-clars: ${CU_OBJECTS}
-	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a libplatform.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl
+	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a libplatform.a -o $@ ${LDLIBS} ${EXPAT_LIB} ${LIBUUID} -ldl
 
 ej-convert-runs: ${CR_OBJECTS}
 	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl ${LIBUUID}

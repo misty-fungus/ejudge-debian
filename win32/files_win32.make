@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files_win32.make 7756 2014-01-03 21:22:52Z cher $
+# $Id$
 
 # Copyright (C) 2009-2014 Alexander Chernov <cher@ejudge.ru> */
 

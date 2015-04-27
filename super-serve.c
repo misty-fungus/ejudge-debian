@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 8795 2014-12-11 22:25:52Z cher $ */
 
-/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1915,6 +1914,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_SCORE_LATEST:
   case SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED:
   case SSERV_CMD_PROB_CHANGE_SCORE_LATEST_MARKED:
+  case SSERV_CMD_PROB_CHANGE_SCORE_TOKENIZED:
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT:
   case SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS:
   case SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT:
@@ -1929,7 +1929,9 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_DISABLE_TAB:
   case SSERV_CMD_PROB_CHANGE_UNRESTRICTED_STATEMENT:
   case SSERV_CMD_PROB_CHANGE_HIDE_FILE_NAMES:
+  case SSERV_CMD_PROB_CHANGE_HIDE_REAL_TIME_LIMIT:
   case SSERV_CMD_PROB_CHANGE_ENABLE_TOKENS:
+  case SSERV_CMD_PROB_CHANGE_TOKENS_FOR_USER_AC:
   case SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK:
   case SSERV_CMD_PROB_CHANGE_DISABLE_SECURITY:
   case SSERV_CMD_PROB_CHANGE_DISABLE_TESTING:
@@ -2921,6 +2923,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_MARKED] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_SCORE_TOKENIZED] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT] = { cmd_set_value },
@@ -2935,7 +2938,9 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DISABLE_TAB] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_UNRESTRICTED_STATEMENT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_HIDE_FILE_NAMES] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_HIDE_REAL_TIME_LIMIT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ENABLE_TOKENS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_TOKENS_FOR_USER_AC] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_SECURITY] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_TESTING] = { cmd_set_value },
@@ -3669,7 +3674,7 @@ start_run(struct ss_contest_extra *cur, time_t current_time)
     err("contest %d [%d] open(/dev/null) failed: %s", cur->id, pid, os_ErrorMsg());
     _exit(1);
   }
-  if ((log_fd = open(cur->run_log_file, O_WRONLY | O_APPEND | O_CREAT, 0600)) < 0) {
+  if ((log_fd = open(cur->run_log_file, O_WRONLY | O_APPEND | O_CREAT | O_LARGEFILE, 0600)) < 0) {
     err("contest %d [%d] open(%s) failed: %s", cur->id, pid, cur->run_log_file, os_ErrorMsg());
     _exit(1);
   }

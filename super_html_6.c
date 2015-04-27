@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_6.c 8687 2014-10-26 06:38:07Z cher $ */
 
-/* Copyright (C) 2011-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2011-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -10233,6 +10232,25 @@ super_serve_op_DOWNLOAD_PROGRESS_PAGE(
     } else if (us->pid_file && (f = fopen(us->pid_file, "r"))) {
       if (fscanf(f, "%d", &pid) <= 0 || pid <= 0) pid = 0;
       fclose(f); f = NULL;
+
+      // check that the process still exists
+      if (kill(pid, 0) < 0) {
+        // the process does not exists, so create status file
+        if (us->log_file) {
+          if ((f = fopen(us->log_file, "a")) != NULL) {
+            fprintf(f, "\nej-polygon process has terminated unexpectedly!\n");
+            fclose(f); f = NULL;
+          }
+        }
+        if (us->status_file) {
+          if ((f = fopen(us->status_file, "w")) != NULL) {
+            fprintf(f, "127\n0\n");
+            fclose(f); f = NULL;
+            return super_serve_op_DOWNLOAD_PROGRESS_PAGE(log_f, out_f, phr);
+          }
+        }
+      }
+
       snprintf(buf, sizeof(buf), "serve-control: %s, download in progress", phr->html_name);
     } else if (us->start_time > 0 && cur_time < us->start_time + 5) {
       snprintf(buf, sizeof(buf), "serve-control: %s, download started", phr->html_name);

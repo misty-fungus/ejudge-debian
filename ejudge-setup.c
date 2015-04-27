@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-setup.c 8634 2014-10-10 04:01:57Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 

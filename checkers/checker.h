@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: checker.h 5688 2010-01-19 10:10:41Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2006 Alexander Chernov <cher@ejudge.ru> */
 

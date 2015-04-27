@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: ejudge-config.v.in 5676 2010-01-19 09:54:39Z cher $
+# $Id$
 # Copyright (C) 2004-2007 Alexander Chernov <cher@ejudge.ru>
 
 prefix="@prefix@"

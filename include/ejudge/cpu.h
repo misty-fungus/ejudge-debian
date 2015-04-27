@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: cpu.h 8189 2014-05-14 19:15:57Z cher $ */
+/* $Id$ */
 #ifndef __CPU_H__
 #define __CPU_H__
 

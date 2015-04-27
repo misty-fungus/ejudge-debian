@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: c_value.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_C_VALUE_H__
 #define __REUSE_C_VALUE_H__

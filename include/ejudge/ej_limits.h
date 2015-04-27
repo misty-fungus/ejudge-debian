@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_limits.h 8785 2014-11-27 09:55:34Z cher $ */
+/* $Id$ */
 #ifndef __EJ_LIMITS_H__
 #define __EJ_LIMITS_H__
 

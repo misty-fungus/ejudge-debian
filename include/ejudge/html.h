@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: html.h 8800 2014-12-28 17:42:54Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -241,5 +240,14 @@ enum
   | (1 << RUN_VIEW_TEST)
   | (1 << RUN_VIEW_SCORE)
 };
+
+struct testing_report_file_content;
+struct html_armor_buffer;
+void
+html_print_testing_report_file_content(
+        FILE *out_f,
+        struct html_armor_buffer *pab,
+        struct testing_report_file_content *fc,
+        int type);
 
 #endif /* __HTML_H__ */

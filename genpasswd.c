@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: genpasswd.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id$ */
 
 /*
  * This program is free software; you can redistribute it and/or modify

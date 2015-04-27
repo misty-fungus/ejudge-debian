@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: random.h 8778 2014-11-23 18:18:39Z cher $ */
+/* $Id$ */
 
 #ifndef __RANDOM_H__
 #define __RANDOM_H__

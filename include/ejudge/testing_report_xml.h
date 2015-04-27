@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: testing_report_xml.h 8232 2014-05-16 19:06:19Z cher $ */
 #ifndef __TESTING_REPORT_XML_H__
 #define __TESTING_REPORT_XML_H__
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,7 +16,28 @@
  * GNU General Public License for more details.
  */
 
+#include "ejudge/ej_types.h"
+
 #include <stdio.h>
+
+// outputs preserved in the testing report
+enum
+{
+  TESTING_REPORT_INPUT,
+  TESTING_REPORT_OUTPUT,
+  TESTING_REPORT_CORRECT,
+  TESTING_REPORT_ERROR,
+  TESTING_REPORT_CHECKER
+};
+
+struct testing_report_file_content
+{
+  long long      size;
+  long long      orig_size;
+  unsigned char *data;
+  int            is_too_big;
+  int            is_base64;
+};
 
 struct testing_report_test
 {
@@ -39,6 +59,7 @@ struct testing_report_test
   int visibility;
   unsigned long max_memory_used;
 
+  // digests are BINARY SHA1 (20 bytes)
   unsigned char input_digest[32];
   unsigned char correct_digest[32];
   unsigned char info_digest[32];
@@ -51,24 +72,15 @@ struct testing_report_test
   unsigned char *args;
 
   /* input data for the program */
-  unsigned char *input;
-  int input_size;
-
+  struct testing_report_file_content input;
   /* output data */
-  unsigned char *output;
-  int output_size;
-
+  struct testing_report_file_content output;
   /* correct answer */
-  unsigned char *correct;
-  int correct_size;
-
+  struct testing_report_file_content correct;
   /* stderr */
-  unsigned char *error;
-  int error_size;
-
+  struct testing_report_file_content error;
   /* checker output */
-  unsigned char *checker;
-  int checker_size;
+  struct testing_report_file_content checker;
 };
 
 struct testing_report_row
@@ -92,6 +104,7 @@ struct testing_report_cell
 
 typedef struct testing_report_xml
 {
+  int contest_id;
   int run_id;
   int judge_id;
   int status;
@@ -118,6 +131,7 @@ typedef struct testing_report_xml
   int user_score;
   int user_max_score;
   int user_run_tests;
+  int compile_error; // only compiler_output is filled 
   unsigned char *comment;       /* additional testing comment */
   unsigned char *valuer_comment;
   unsigned char *valuer_judge_comment;
@@ -128,6 +142,8 @@ typedef struct testing_report_xml
   unsigned char *errors;
   unsigned char *compiler_output;
 
+  ej_uuid_t uuid;
+
   struct testing_report_test **tests;
 
   int tt_row_count;
@@ -136,12 +152,31 @@ typedef struct testing_report_xml
   struct testing_report_cell ***tt_cells;
 } *testing_report_xml_t;
 
-testing_report_xml_t testing_report_alloc(int run_id, int judge_id);
+struct testing_report_test *
+testing_report_test_alloc(int num, int status);
+
+testing_report_xml_t testing_report_alloc(int contest_id, int run_id, int judge_id);
 testing_report_xml_t testing_report_parse_xml(const unsigned char *path);
 testing_report_xml_t testing_report_free(testing_report_xml_t r);
 void
 testing_report_unparse_xml(
         FILE *out,
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        testing_report_xml_t r);
+
+void
+testing_report_to_str(
+        char **pstr,
+        size_t *psize,
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        testing_report_xml_t r);
+int
+testing_report_to_file(
+        const unsigned char *path,
         int utf8_mode,
         int max_file_length,
         int max_line_length,

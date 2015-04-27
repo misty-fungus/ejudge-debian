@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ncheck_packet.h 8228 2014-05-16 12:05:47Z cher $ */
+/* $Id$ */
 #ifndef __NCHECK_PACKET_H__
 #define __NCHECK_PACKET_H__
 

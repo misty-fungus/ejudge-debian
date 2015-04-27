@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: job_packet.h 8219 2014-05-16 05:21:59Z cher $ */
+/* $Id$ */
 
 #ifndef __JOB_PACKET_H__
 #define __JOB_PACKET_H__ 1

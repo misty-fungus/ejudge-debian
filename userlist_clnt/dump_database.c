@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: dump_database.c 8183 2014-05-14 10:26:11Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: interrupt.c 8198 2014-05-14 20:35:18Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 

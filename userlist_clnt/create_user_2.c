@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: create_user_2.c 6296 2011-05-02 20:57:23Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2011 Alexander Chernov <cher@ejudge.ru> */
 

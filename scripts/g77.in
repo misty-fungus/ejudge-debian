@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: g77.in 5608 2010-01-07 19:51:45Z cher $
+# $Id$
 # Copyright (c) 2002-2010 Alexander Chernov <cher@ejudge.ru>
 
 # using EJUDGE_FLAGS we may pass additional flags

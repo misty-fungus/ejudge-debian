@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: super_http_request.c 8795 2014-12-11 22:25:52Z cher $ */
 
-/* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -515,6 +514,7 @@ const unsigned char super_proto_is_http_request[] =
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST] = 0,
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_OR_UNMARKED] = 0,
   [SSERV_CMD_PROB_CHANGE_SCORE_LATEST_MARKED] = 0,
+  [SSERV_CMD_PROB_CHANGE_SCORE_TOKENIZED] = 0,
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT] = 0,
   [SSERV_CMD_PROB_CHANGE_TIME_LIMIT_MILLIS] = 0,
   [SSERV_CMD_PROB_CHANGE_REAL_TIME_LIMIT] = 0,
@@ -529,7 +529,9 @@ const unsigned char super_proto_is_http_request[] =
   [SSERV_CMD_PROB_CHANGE_DISABLE_TAB] = 0,
   [SSERV_CMD_PROB_CHANGE_UNRESTRICTED_STATEMENT] = 0,
   [SSERV_CMD_PROB_CHANGE_HIDE_FILE_NAMES] = 0,
+  [SSERV_CMD_PROB_CHANGE_HIDE_REAL_TIME_LIMIT] = 0,
   [SSERV_CMD_PROB_CHANGE_ENABLE_TOKENS] = 0,
+  [SSERV_CMD_PROB_CHANGE_TOKENS_FOR_USER_AC] = 0,
   [SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = 0,
   [SSERV_CMD_PROB_CHANGE_DISABLE_SECURITY] = 0,
   [SSERV_CMD_PROB_CHANGE_DISABLE_TESTING] = 0,

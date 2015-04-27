@@ -1,4 +1,4 @@
-/* $Id: cdeps.c 7757 2014-01-03 21:23:42Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 1997-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Created: Thu Feb 13 11:50:21 1997 by cher (Alexander Chernov) */

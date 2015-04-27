@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: cookies.inc.c 7632 2013-11-24 19:37:45Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 

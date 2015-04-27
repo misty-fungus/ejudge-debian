@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: dwarf_parse.c 8754 2014-11-16 06:31:58Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 

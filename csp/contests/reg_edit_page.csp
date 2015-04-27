@@ -1,5 +1,5 @@
 <%
-/* $Id: reg_edit_page.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id$ */
 %><%@include "reg_includes.csp"
 %><%
 // local includes go here

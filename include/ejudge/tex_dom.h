@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: tex_dom.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 
 #ifndef __TEX_DOM_H__
 #define __TEX_DOM_H__

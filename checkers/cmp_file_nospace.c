@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: cmp_file_nospace.c 7529 2013-11-02 05:08:29Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: contests.h 8213 2014-05-15 13:09:46Z cher $ */
+/* $Id$ */
 
 #ifndef __CONTESTS_H__
 #define __CONTESTS_H__

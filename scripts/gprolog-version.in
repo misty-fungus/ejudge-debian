@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: gprolog-version.in 7005 2012-08-28 09:13:19Z cher $
+# $Id$
 # Copyright (c) 2005-2012 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"

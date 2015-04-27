@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: copyright.h 8181 2014-05-13 14:17:31Z cher $ */
+/* $Id$ */
 #ifndef __COPYRIGHT_H__
 #define __COPYRIGHT_H__
 

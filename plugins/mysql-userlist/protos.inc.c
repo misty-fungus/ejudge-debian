@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: protos.inc.c 7605 2013-11-20 14:37:04Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 

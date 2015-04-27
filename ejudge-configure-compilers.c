@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-configure-compilers.c 8634 2014-10-10 04:01:57Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 

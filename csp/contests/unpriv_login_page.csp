@@ -1,5 +1,5 @@
 <%
-/* $Id: unpriv_login_page.csp 8676 2014-10-21 09:51:22Z cher $ */
+/* $Id$ */
 %><%@include "unpriv_includes.csp"
 %><%
 #include "ejudge/ejudge_cfg.h"

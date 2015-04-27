@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: run_inverse.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1048,7 +1047,7 @@ run_inverse_testing(
   path_t exe_path;
   path_t extra_path;
   path_t log_path;
-  FILE *log_f = 0, *rep_f = 0;
+  FILE *log_f = 0;
   unsigned char *log_text = 0;
   size_t log_size = 0;
   struct testing_report_cell ***tt_cells = 0, *tt_cell = 0;
@@ -1108,7 +1107,7 @@ run_inverse_testing(
   get_current_time(&reply_pkt->ts5, &reply_pkt->ts5_us);
 
   /* create the testing report */
-  report_xml = testing_report_alloc(reply_pkt->run_id, reply_pkt->judge_id);
+  report_xml = testing_report_alloc(srgp->contest_id, reply_pkt->run_id, reply_pkt->judge_id);
   report_xml->status = RUN_CHECK_FAILED;
   report_xml->scoring_system = srgp->scoring_system_val;
   report_xml->archive_available = 0;
@@ -1387,16 +1386,10 @@ cleanup:
   reply_pkt->ts7 = reply_pkt->ts6;
   reply_pkt->ts7_us = reply_pkt->ts6_us;
 
-  if ((rep_f = fopen(report_path, "w"))) {
-    fprintf(rep_f, "Content-type: text/xml\n\n");
-    fprintf(rep_f, "<?xml version=\"1.0\" encoding=\"%s\"?>\n", EJUDGE_CHARSET);
-    testing_report_unparse_xml(rep_f, utf8_mode,
-                               srgp->max_file_length,
-                               srgp->max_line_length,
-                               report_xml);
-    fclose(rep_f); rep_f = 0;
+  if (testing_report_to_file(report_path, utf8_mode, srgp->max_file_length, srgp->max_line_length, report_xml) < 0) {
+    // too late to report error
+    //perr("run_inverse_testing: failed to save file '%s'", report_path);
   }
-
   report_xml = testing_report_free(report_xml);
 
   if (log_f) {

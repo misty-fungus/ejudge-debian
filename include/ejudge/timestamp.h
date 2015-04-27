@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: timestamp.h 8201 2014-05-14 21:47:41Z cher $ */
+/* $Id$ */
 
 #ifndef __TIMESTAMP_H__
 #define __TIMESTAMP_H__

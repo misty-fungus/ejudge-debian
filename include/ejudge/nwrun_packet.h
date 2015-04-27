@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: nwrun_packet.h 8228 2014-05-16 12:05:47Z cher $ */
+/* $Id$ */
 #ifndef __NWRUN_PACKET_H__
 #define __NWRUN_PACKET_H__
 

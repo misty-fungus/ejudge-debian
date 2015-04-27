@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: userlist-server.c 8604 2014-09-10 17:08:07Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 

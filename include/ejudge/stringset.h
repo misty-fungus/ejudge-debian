@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: stringset.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 #ifndef __STRINGSET_H__
 #define __STRINGSET_H__
 

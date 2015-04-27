@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: errno.h 7722 2014-01-03 13:06:28Z cher $ */
+/* $Id$ */
 
 #ifndef __RCC_ERRNO_H__
 #define __RCC_ERRNO_H__

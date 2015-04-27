@@ -1,4 +1,4 @@
-/* $Id: problem_plugin_impl.h 8238 2014-05-17 10:52:34Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
 

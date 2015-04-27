@@ -2,7 +2,7 @@
 #ifndef __TYPEDEF_H__
 #define __TYPEDEF_H__
 
-/* $Id: typedef.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 

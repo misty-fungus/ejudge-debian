@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: p2c.h 7722 2014-01-03 13:06:28Z cher $ */
+/* $Id$ */
 
 #ifndef __RCC_P2C_H__
 #define __RCC_P2C_H__

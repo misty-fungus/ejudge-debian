@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: ruscmp.c 5687 2010-01-19 10:10:15Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2006-2007 Alexander Chernov <cher@ejudge.ru> */
 

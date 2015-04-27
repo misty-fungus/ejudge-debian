@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: list_ops.h 8196 2014-05-14 20:26:23Z cher $ */
+/* $Id$ */
 
 #ifndef __LIST_OPS_H__
 #define __LIST_OPS_H__

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: watched_file.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 
 #ifndef __WATCHED_FILE_H__
 #define __WATCHED_FILE_H__

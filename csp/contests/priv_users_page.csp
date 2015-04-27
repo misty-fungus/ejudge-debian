@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_users_page.csp 8644 2014-10-18 06:39:05Z cher $ */
+/* $Id$ */
 %><%@include "priv_includes.csp"
 %><%
 #include "ejudge/userlist_clnt.h"

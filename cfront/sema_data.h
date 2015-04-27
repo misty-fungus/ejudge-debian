@@ -1,5 +1,5 @@
 /* -*- mode: C -*- */
-/* $Id: sema_data.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 #ifndef __SEMA_DATA_H__
 #define __SEMA_DATA_H__

@@ -1,5 +1,5 @@
 <%
-/* $Id: reg_error_unknown.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id$ */
 %><%@include "reg_includes.csp"
 %><%@set getter_name = "csp_get_reg_error_unknown"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"

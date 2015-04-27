@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: ej_process.c 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1152,7 +1152,7 @@ msg(const unsigned char *path, const char *function, int lineno,
   va_end(args);
 
   int revision = 0;
-  sscanf("$Revision: 8530 $", "$" "Revision:%d", &revision);
+  sscanf("$Revision$", "$" "Revision:%d", &revision);
 
   if (!path) {
     fprintf(stderr, "%s: %d: %d: %s\n", function, lineno, revision, buf);

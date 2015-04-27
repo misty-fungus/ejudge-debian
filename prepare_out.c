@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 8795 2014-12-11 22:25:52Z cher $ */
 
-/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1079,6 +1078,9 @@ prepare_unparse_prob(
   if ((prob->abstract && prob->score_latest_marked == 1)
       || (!prob->abstract && prob->score_latest_marked >= 0))
     unparse_bool(f, "score_latest_marked", prob->score_latest_marked);
+  if ((prob->abstract && prob->score_tokenized > 0)
+      || (!prob->abstract && prob->score_tokenized >= 0))
+    unparse_bool(f, "score_tokenized", prob->score_tokenized);
   if (prob->xml_file[0])
     fprintf(f, "xml_file = \"%s\"\n", CARMOR(prob->xml_file));
   if (prob->alternatives_file[0])
@@ -1371,8 +1373,12 @@ prepare_unparse_prob(
     unparse_bool(f, "unrestricted_statement", prob->unrestricted_statement);
   if (prob->hide_file_names >= 0)
     unparse_bool(f, "hide_file_names", prob->hide_file_names);
+  if (prob->hide_real_time_limit >= 0)
+    unparse_bool(f, "hide_real_time_limit", prob->hide_real_time_limit);
   if (prob->enable_tokens >= 0)
     unparse_bool(f, "enable_tokens", prob->enable_tokens);
+  if (prob->tokens_for_user_ac >= 0)
+    unparse_bool(f, "tokens_for_user_ac", prob->tokens_for_user_ac);
   if (prob->disable_submit_after_ok >= 0)
     unparse_bool(f, "disable_submit_after_ok", prob->disable_submit_after_ok);
   if (prob->disable_security >= 0)
@@ -1507,6 +1513,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "score_latest_or_unmarked", prob->score_latest_or_unmarked);
   if (prob->score_latest_marked > 0)
     unparse_bool(f, "score_latest_marked", prob->score_latest_marked);
+  if (prob->score_tokenized > 0)
+    unparse_bool(f, "score_tokenized", prob->score_tokenized);
   if ((show_paths || (global && global->advanced_layout > 0)) && prob->xml_file[0])
     fprintf(f, "xml_file = \"%s\"\n", CARMOR(prob->xml_file));
   if (show_paths && prob->alternatives_file[0])
@@ -1729,8 +1737,12 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "unrestricted_statement", prob->unrestricted_statement);
   if (prob->hide_file_names > 0)
     unparse_bool(f, "hide_file_names", prob->hide_file_names);
+  if (prob->hide_real_time_limit > 0)
+    unparse_bool(f, "hide_real_time_limit", prob->hide_real_time_limit);
   if (prob->enable_tokens > 0)
     unparse_bool(f, "enable_tokens", prob->enable_tokens);
+  if (prob->tokens_for_user_ac > 0)
+    unparse_bool(f, "tokens_for_user_ac", prob->tokens_for_user_ac);
   if (prob->disable_submit_after_ok > 0)
     unparse_bool(f, "disable_submit_after_ok", prob->disable_submit_after_ok);
   if (prob->disable_security > 0)

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: printing.h 8219 2014-05-16 05:21:59Z cher $ */
+/* $Id$ */
 
 #ifndef __PRINTING_H__
 #define __PRINTING_H__

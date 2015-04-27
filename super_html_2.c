@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_2.c 8773 2014-11-22 18:43:44Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 

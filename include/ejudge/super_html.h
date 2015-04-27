@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_html.h 8772 2014-11-22 15:51:48Z cher $ */
+/* $Id$ */
 #ifndef __SUPER_HTML_H__
 #define __SUPER_HTML_H__
 

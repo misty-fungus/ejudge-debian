@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: fileutl.c 8785 2014-11-27 09:55:34Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 

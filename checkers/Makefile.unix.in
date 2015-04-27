@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.unix.in 8557 2014-08-27 12:35:04Z cher $
+# $Id$
 
 # Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -230,7 +230,7 @@ testinfo.o: testinfo.c testinfo.h
 pic/testinfo.o: testinfo.c testinfo.h
 
 testinfo.h: ../include/ejudge/testinfo.h
-	ln -f ../include/ejudge/testinfo.h .
+	ln -sf ../include/ejudge/testinfo.h .
 testinfo.c: ../testinfo.c
 	ln -sf ../testinfo.c
 

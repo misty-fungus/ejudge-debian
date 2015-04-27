@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: sem.h 7722 2014-01-03 13:06:28Z cher $ */
+/* $Id$ */
 
 #ifndef	__RCC_SYS_SEM_H__
 #define __RCC_SYS_SEM_H__ 1

@@ -1,6 +1,6 @@
 # -*- mode: po; coding: utf-8 -*-
 # ejudgecheckers messages catalog
-# $Id: ejudgecheckers.ru_RU.UTF-8.po 7463 2013-10-22 05:40:02Z cher $
+# $Id$
 # Copyright (C) 2013 Alexander Chernov <cher@ejudge.ru>
 #
 msgid ""

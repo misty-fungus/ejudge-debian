@@ -1,5 +1,4 @@
 <%
-/* $Id: cnts_edit_cur_one_problem.csp 8795 2014-12-11 22:25:52Z cher $ */
 %>
 <%
   int show_details = 0, show_adv = 0;
@@ -1674,6 +1673,30 @@
 <s:form>
     <s:hidden name="prob_id" check="false" />
     <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Real-time limit from problem statement?</td>
+        <td><%
+    if (is_abstract || !sup_prob) {
+      int value = (prob->hide_real_time_limit == 1);
+%><s:yesno name="param" value="value" /><%
+    } else {
+      prepare_set_prob_value(CNTSPROB_hide_real_time_limit, tmp_prob, sup_prob, global);
+%><s:yesno3 name="param" value="prob->hide_real_time_limit" default="tmp_prob->hide_real_time_limit" /><%
+    }
+%></td>
+        <td><s:submit ac="prob-change-hide-real-time-limit" label="Change" /></td>
+        <td><s:help ac="prob-change-hide-real-time-limit" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
+  if (show_adv) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
         <td>Disable submissions after OK?</td>
         <td><%
     if (is_abstract || !sup_prob) {
@@ -1890,6 +1913,30 @@
 %></td>
         <td><s:submit ac="prob-change-score-latest-marked" label="Change" /></td>
         <td><s:help ac="prob-change-score-latest-marked" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
+  if (show_adv && global->score_system == SCORE_KIROV) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Score only tokenized submits?</td>
+        <td><%
+    if (is_abstract || !sup_prob) {
+      int value = (prob->score_tokenized == 1);
+%><s:yesno name="param" value="value" /><%
+    } else {
+      prepare_set_prob_value(CNTSPROB_score_tokenized, tmp_prob, sup_prob, global);
+%><s:yesno3 name="param" value="prob->score_tokenized" default="tmp_prob->score_tokenized" /><%
+    }
+%></td>
+        <td><s:submit ac="prob-change-score-tokenized" label="Change" /></td>
+        <td><s:help ac="prob-change-score-tokenized" /></td>
     </s:tr>
 </s:form>
 <%
@@ -2270,6 +2317,30 @@
 %></td>
         <td><s:submit ac="prob-change-enable-tokens" label="Change" /></td>
         <td><s:help ac="prob-change-enable-tokens" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
+  if (show_adv) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Tokens only for user AC submits?</td>
+        <td><%
+    if (is_abstract || !sup_prob) {
+      int value = prob->tokens_for_user_ac == 1;
+%><s:yesno name="param" value="value" /><%
+    } else {
+      prepare_set_prob_value(CNTSPROB_tokens_for_user_ac, tmp_prob, sup_prob, global);
+%><s:yesno3 name="param" value="prob->tokens_for_user_ac" default="tmp_prob->tokens_for_user_ac" /><%
+    }
+%></td>
+        <td><s:submit ac="prob-change-tokens-for-user-ac" label="Change" /></td>
+        <td><s:help ac="prob-change-tokens-for-user-ac" /></td>
     </s:tr>
 </s:form>
 <%

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: ej-make-archive.c 6481 2011-10-19 08:18:00Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2011 Alexander Chernov <cher@ejudge.ru> */
 

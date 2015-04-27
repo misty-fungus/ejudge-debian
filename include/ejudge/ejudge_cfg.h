@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ejudge_cfg.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 
 #ifndef __EJUDGE_CFG_H__
 #define __EJUDGE_CFG_H__ 1

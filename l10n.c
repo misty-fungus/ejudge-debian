@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: l10n.c 8608 2014-09-12 09:24:55Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: testinfo.h 8235 2014-05-17 06:26:48Z cher $ */
+/* $Id$ */
 #ifndef __TESTINFO_H__
 #define __TESTINFO_H__
 

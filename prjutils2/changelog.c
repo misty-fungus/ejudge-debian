@@ -1,4 +1,4 @@
-/* $Id: changelog.c 7753 2014-01-03 19:59:12Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2006 Alexander Chernov <cher@ispras.ru> */
 

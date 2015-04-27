@@ -1,6 +1,6 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
-# $Id: kumir2-version.in 8631 2014-10-09 13:17:23Z cher $
+# $Id$
 # Copyright (c) 2014 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"

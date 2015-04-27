@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 8793 2014-12-11 21:55:57Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
-/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -53,6 +52,7 @@ struct problem_config_section
   ejintbool_t score_latest;
   ejintbool_t score_latest_or_unmarked;
   ejintbool_t score_latest_marked;
+  ejintbool_t score_tokenized;
   ejintbool_t use_ac_not_ok;
   ejintbool_t ignore_prev_ac;
   ejintbool_t team_enable_rep_view;
@@ -70,7 +70,9 @@ struct problem_config_section
   ejintbool_t disable_tab;
   ejintbool_t unrestricted_statement;
   ejintbool_t hide_file_names;
+  ejintbool_t hide_real_time_limit;
   ejintbool_t enable_tokens;
+  ejintbool_t tokens_for_user_ac;
   ejintbool_t disable_submit_after_ok;
   ejintbool_t disable_auto_testing;
   ejintbool_t disable_testing;

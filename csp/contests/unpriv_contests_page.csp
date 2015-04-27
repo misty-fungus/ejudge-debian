@@ -1,5 +1,5 @@
 <%
-/* $Id: unpriv_contests_page.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id$ */
 %><%@include "unpriv_includes.csp"
 %><%
 %><%@set ac_prefix = "NEW_SRV_ACTION_"

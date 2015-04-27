@@ -1,4 +1,4 @@
-/* $Id: xfile.h 8528 2014-08-22 11:25:35Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_XFILE_H__
 #define __REUSE_XFILE_H__

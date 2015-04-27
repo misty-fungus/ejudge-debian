@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: job-server-cmd.c 8219 2014-05-16 05:21:59Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 

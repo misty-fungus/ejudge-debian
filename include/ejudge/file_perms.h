@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: file_perms.h 8200 2014-05-14 20:47:02Z cher $ */
+/* $Id$ */
 
 #ifndef __FILE_PERMS_H__
 #define __FILE_PERMS_H__

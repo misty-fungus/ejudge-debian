@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: tables.inc.c 7590 2013-11-13 17:28:39Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
 

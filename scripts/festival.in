@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: festival.in 5550 2009-02-19 18:14:43Z cher $
+# $Id$
 # Copyright (C) 2004 Alexander Chernov <cher@unicorn.cmc.msu.ru>
 
 festival_home_dir="@ac_cv_festival_home@"

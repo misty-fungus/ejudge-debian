@@ -1,10 +1,9 @@
 /* -*- c -*- */
-/* $Id: cldb_plugin.h 8232 2014-05-16 19:06:19Z cher $ */
 
 #ifndef __CLDB_PLUGIN_H__
 #define __CLDB_PLUGIN_H__
 
-/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -33,7 +32,8 @@ struct section_global_data;
 struct clarlog_state;
 struct cldb_plugin_data;
 struct cldb_plugin_cnts;
-struct clar_entry_v1;
+struct clar_entry_v2;
+struct full_clar_entry;
 
 struct cldb_plugin_iface
 {
@@ -69,11 +69,16 @@ struct cldb_plugin_iface
   // get the message text as is
   int (*get_raw_text)(struct cldb_plugin_cnts *, int, unsigned char **,size_t*);
   // add the message text
-  int (*add_text)(struct cldb_plugin_cnts *, int, const unsigned char *,size_t);
+  int (*add_text)(struct cldb_plugin_cnts *, int, const ej_uuid_t *, const unsigned char *,size_t);
   // modify the message text
   int (*modify_text)(struct cldb_plugin_cnts *, int clar_id, const unsigned char *text, size_t size);
   // modify the message record
-  int (*modify_record)(struct cldb_plugin_cnts *, int clar_id, int mask, const struct clar_entry_v1 *pe);
+  int (*modify_record)(struct cldb_plugin_cnts *, int clar_id, int mask, const struct clar_entry_v2 *pe);
+  // fetch the messages related to the specified run UUID
+  int (*fetch_run_messages)(
+        struct cldb_plugin_cnts *,
+        const ej_uuid_t *p_run_uuid,
+        struct full_clar_entry **pfce);
 };
 
 /* default plugin: compiled into new-server */

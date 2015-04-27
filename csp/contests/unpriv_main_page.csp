@@ -1,5 +1,5 @@
 <%
-/* $Id: unpriv_main_page.csp 8707 2014-11-02 15:24:18Z cher $ */
+/* $Id$ */
 %><%@include "unpriv_includes.csp"
 %><%
 #include "ejudge/compat.h"

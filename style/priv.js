@@ -1,5 +1,5 @@
 /* -*- mode: java; coding: utf-8 -*- */
-// $Id: priv.js 8699 2014-10-30 06:04:45Z cher $
+// $Id$
 
 // Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru>
 

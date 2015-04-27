@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: packet_name.h 8785 2014-11-27 09:55:34Z cher $ */
+/* $Id$ */
 #ifndef __PACKET_NAME_H__
 #define __PACKET_NAME_H__
 

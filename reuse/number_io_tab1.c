@@ -1,5 +1,5 @@
 /* -*- mode: C -*- */
-/* $Id: number_io_tab1.c 7724 2014-01-03 13:38:42Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 

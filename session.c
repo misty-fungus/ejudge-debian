@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: session.c 8617 2014-09-17 09:36:29Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 

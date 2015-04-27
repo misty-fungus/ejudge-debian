@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: fileutl.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 #ifndef __FILEUTL_H__
 #define __FILEUTL_H__
 

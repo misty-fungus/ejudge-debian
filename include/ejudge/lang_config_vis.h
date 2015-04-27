@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: lang_config_vis.h 8634 2014-10-10 04:01:57Z cher $ */
+/* $Id$ */
 #ifndef __LANG_CONFIG_VIS_H__
 #define __LANG_CONFIG_VIS_H__
 

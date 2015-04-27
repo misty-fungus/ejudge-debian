@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: methods.inc.c 7113 2012-11-01 13:26:45Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
 

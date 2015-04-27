@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: make-version.in 7182 2012-11-20 14:46:00Z cher $
+# $Id$
 # Copyright (c) 2012 Alexander Chernov <cher@ejudge.ru>
 
 # This is a version script for a generic build system.

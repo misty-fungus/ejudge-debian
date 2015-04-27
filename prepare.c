@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: prepare.c 8795 2014-12-11 22:25:52Z cher $ */
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -369,6 +368,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(score_latest, "d"),
   PROBLEM_PARAM(score_latest_or_unmarked, "d"),
   PROBLEM_PARAM(score_latest_marked, "d"),
+  PROBLEM_PARAM(score_tokenized, "d"),
   PROBLEM_PARAM(time_limit, "d"),
   PROBLEM_PARAM(time_limit_millis, "d"),
   PROBLEM_PARAM(real_time_limit, "d"),
@@ -400,7 +400,9 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(unrestricted_statement, "d"),
   PROBLEM_PARAM(restricted_statement, "d"),
   PROBLEM_PARAM(hide_file_names, "d"),
+  PROBLEM_PARAM(hide_real_time_limit, "d"),
   PROBLEM_PARAM(enable_tokens, "d"),
+  PROBLEM_PARAM(tokens_for_user_ac, "d"),
   PROBLEM_PARAM(disable_submit_after_ok, "d"),
   PROBLEM_PARAM(disable_security, "d"),
   PROBLEM_PARAM(enable_compilation, "d"),
@@ -929,6 +931,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->score_latest = -1;
   p->score_latest_or_unmarked = -1;
   p->score_latest_marked = -1;
+  p->score_tokenized = -1;
   p->time_limit = -1;
   p->time_limit_millis = -1;
   p->real_time_limit = -1;
@@ -961,7 +964,9 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->disable_tab = -1;
   p->unrestricted_statement = -1;
   p->hide_file_names = -1;
+  p->hide_real_time_limit = -1;
   p->enable_tokens = -1;
+  p->tokens_for_user_ac = -1;
   p->disable_submit_after_ok = -1;
   p->disable_security = -1;
   p->enable_compilation = -1;
@@ -2106,6 +2111,9 @@ parse_tokens_cost(
       value2 &= ~TOKEN_TESTS_MASK;
       value2 |= TOKEN_FINALTESTS_BIT;
       p += 14;
+    } else if (!strncasecmp(p, "valuerjudgecomment", 18)) {
+      value2 |= TOKEN_VALUER_JUDGE_COMMENT_BIT;
+      p += 18;
     } else {
       break;
     }
@@ -3146,7 +3154,9 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_disable_tab, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_unrestricted_statement, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_hide_file_names, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_hide_real_time_limit, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_enable_tokens, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_tokens_for_user_ac, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_submit_after_ok, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_auto_testing, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_testing, prob, aprob, g);
@@ -3192,6 +3202,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_score_latest, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest_or_unmarked, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest_marked, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_score_tokenized, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit_millis, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_real_time_limit, prob, aprob, g);
@@ -4285,27 +4296,23 @@ create_dirs(serve_state_t state, int mode)
   return 0;
 }
 
-int
+static int
 parse_version_string(int *pmajor, int *pminor, int *ppatch, int *pbuild)
 {
   const unsigned char *p = compile_version;
   int n, x;
 
-  if (sscanf(p, "%d.%dpre%d #%d%n", pmajor, pminor, ppatch, pbuild, &n) == 4
-      && !p[n]) {
+  if (sscanf(p, "%d.%dpre%d #%d%n", pmajor, pminor, ppatch, pbuild, &n) == 4 && !p[n]) {
     *ppatch = -*ppatch;
-  } else if (sscanf(p, "%d.%dpre%d%n", pmajor, pminor, ppatch, &n) == 3
-             && !p[n]) {
+  } else if (sscanf(p, "%d.%dpre%d%n", pmajor, pminor, ppatch, &n) == 3 && !p[n]) {
     *ppatch = -*ppatch;
     *pbuild = 0;
-  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d) #%d%n", pmajor, pminor, ppatch,
-                    pbuild, &x, &n) == 5 && !p[n]) {
-  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d)%n", pmajor, pminor, ppatch,
-                    pbuild, &n) == 4 && !p[n]) {
-  } else if (sscanf(p, "%d.%d.%d #%d%n", pmajor, pminor, ppatch, pbuild, &n)==4
-             && !p[n]) {
-  } else if (sscanf(p, "%d.%d.%d%n", pmajor, pminor, ppatch, &n) == 3
-             && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (GIT %x) #%d%n", pmajor, pminor, ppatch, pbuild, &x, &n) == 5 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (GIT %x)%n", pmajor, pminor, ppatch, pbuild, &n) == 4 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d) #%d%n", pmajor, pminor, ppatch, pbuild, &x, &n) == 5 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d)%n", pmajor, pminor, ppatch, pbuild, &n) == 4 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d #%d%n", pmajor, pminor, ppatch, pbuild, &n)==4 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d%n", pmajor, pminor, ppatch, &n) == 3 && !p[n]) {
     *pbuild = 0;
   } else {
     err("cannot parse version string %s", compile_version);
@@ -4910,6 +4917,7 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->score_latest < 0) prob->score_latest = 0;
   if (prob->score_latest_or_unmarked < 0) prob->score_latest_or_unmarked = 0;
   if (prob->score_latest_marked < 0) prob->score_latest_marked = 0;
+  if (prob->score_tokenized < 0) prob->score_tokenized = 0;
   if (prob->time_limit < 0) prob->time_limit = 0;
   if (prob->time_limit_millis < 0) prob->time_limit_millis = 0;
   if (prob->real_time_limit < 0) prob->real_time_limit = 0;
@@ -5509,6 +5517,11 @@ prepare_set_prob_value(
     if (out->score_latest_marked == -1) out->score_latest_marked = 0;
     break;
 
+  case CNTSPROB_score_tokenized:
+    if (out->score_tokenized < 0 && abstr) out->score_tokenized = abstr->score_tokenized;
+    if (out->score_tokenized < 0) out->score_tokenized = 0;
+    break;
+
   case CNTSPROB_time_limit:
     if (out->time_limit == -1 && abstr) out->time_limit = abstr->time_limit;
     if (out->time_limit == -1) out->time_limit = 0;
@@ -5619,11 +5632,25 @@ prepare_set_prob_value(
       out->hide_file_names = 0;
     break;
 
+  case CNTSPROB_hide_real_time_limit:
+    if (out->hide_real_time_limit < 0 && abstr)
+      out->hide_real_time_limit = abstr->hide_real_time_limit;
+    if (out->hide_real_time_limit < 0)
+      out->hide_real_time_limit = 0;
+    break;
+
   case CNTSPROB_enable_tokens:
     if (out->enable_tokens < 0 && abstr)
       out->enable_tokens = abstr->enable_tokens;
     if (out->enable_tokens < 0)
       out->enable_tokens = 0;
+    break;
+
+  case CNTSPROB_tokens_for_user_ac:
+    if (out->tokens_for_user_ac < 0 && abstr)
+      out->tokens_for_user_ac = abstr->tokens_for_user_ac;
+    if (out->tokens_for_user_ac < 0)
+      out->tokens_for_user_ac = 0;
     break;
 
   case CNTSPROB_disable_submit_after_ok:
@@ -6320,7 +6347,8 @@ static const int prob_settable_list[] =
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
   CNTSPROB_binary_input, CNTSPROB_binary, CNTSPROB_ignore_exit_code,
   CNTSPROB_olympiad_mode,
-  CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_score_latest_marked, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
+  CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_score_latest_marked, CNTSPROB_score_tokenized,
+  CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
   CNTSPROB_real_time_limit, CNTSPROB_interactor_time_limit, CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac,
   CNTSPROB_team_enable_rep_view, CNTSPROB_team_enable_ce_view,
   CNTSPROB_team_show_judge_report, CNTSPROB_show_checker_comment, CNTSPROB_ignore_compile_errors,
@@ -6331,7 +6359,8 @@ static const int prob_settable_list[] =
   CNTSPROB_min_tests_to_accept, CNTSPROB_checker_real_time_limit,
   CNTSPROB_disable_auto_testing, CNTSPROB_disable_testing,
   CNTSPROB_disable_user_submit, CNTSPROB_disable_tab,
-  CNTSPROB_unrestricted_statement, CNTSPROB_hide_file_names, CNTSPROB_enable_tokens, CNTSPROB_disable_submit_after_ok,
+  CNTSPROB_unrestricted_statement, CNTSPROB_hide_file_names, CNTSPROB_hide_real_time_limit,
+  CNTSPROB_enable_tokens, CNTSPROB_tokens_for_user_ac, CNTSPROB_disable_submit_after_ok,
   CNTSPROB_disable_security, CNTSPROB_enable_compilation,
   CNTSPROB_skip_testing, CNTSPROB_variable_full_score, CNTSPROB_hidden,
   CNTSPROB_priority_adjustment, CNTSPROB_spelling, CNTSPROB_stand_hide_time,
@@ -6395,6 +6424,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_score_latest] = 1,
   [CNTSPROB_score_latest_or_unmarked] = 1,
   [CNTSPROB_score_latest_marked] = 1,
+  [CNTSPROB_score_tokenized] = 1,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
@@ -6426,7 +6456,9 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_tab] = 1,
   [CNTSPROB_unrestricted_statement] = 1,
   [CNTSPROB_hide_file_names] = 1,
+  [CNTSPROB_hide_real_time_limit] = 1,
   [CNTSPROB_enable_tokens] = 1,
+  [CNTSPROB_tokens_for_user_ac] = 1,
   [CNTSPROB_disable_submit_after_ok] = 1,
   [CNTSPROB_disable_security] = 1,
   [CNTSPROB_enable_compilation] = 1,
@@ -6545,7 +6577,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
   CNTSPROB_binary_input, CNTSPROB_binary,
   CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode, CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked,
-  CNTSPROB_score_latest_marked,
+  CNTSPROB_score_latest_marked, CNTSPROB_score_tokenized,
   CNTSPROB_time_limit, CNTSPROB_time_limit_millis, CNTSPROB_real_time_limit,
   CNTSPROB_interactor_time_limit,
   CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac, CNTSPROB_team_enable_rep_view,
@@ -6558,7 +6590,8 @@ static const int prob_inheritable_list[] =
   CNTSPROB_min_tests_to_accept, CNTSPROB_checker_real_time_limit,
   CNTSPROB_disable_auto_testing, CNTSPROB_disable_testing,
   CNTSPROB_disable_user_submit, CNTSPROB_disable_tab,
-  CNTSPROB_unrestricted_statement, CNTSPROB_hide_file_names, CNTSPROB_enable_tokens, CNTSPROB_disable_submit_after_ok,
+  CNTSPROB_unrestricted_statement, CNTSPROB_hide_file_names, CNTSPROB_hide_real_time_limit,
+  CNTSPROB_enable_tokens, CNTSPROB_tokens_for_user_ac, CNTSPROB_disable_submit_after_ok,
   CNTSPROB_disable_security, CNTSPROB_enable_compilation,
   CNTSPROB_skip_testing, CNTSPROB_variable_full_score,
   CNTSPROB_hidden, CNTSPROB_priority_adjustment, CNTSPROB_spelling,
@@ -6621,6 +6654,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_score_latest] = 1,
   [CNTSPROB_score_latest_or_unmarked] = 1,
   [CNTSPROB_score_latest_marked] = 1,
+  [CNTSPROB_score_tokenized] = 1,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
@@ -6652,7 +6686,9 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_tab] = 1,
   [CNTSPROB_unrestricted_statement] = 1,
   [CNTSPROB_hide_file_names] = 1,
+  [CNTSPROB_hide_real_time_limit] = 1,
   [CNTSPROB_enable_tokens] = 1,
+  [CNTSPROB_tokens_for_user_ac] = 1,
   [CNTSPROB_disable_submit_after_ok] = 1,
   [CNTSPROB_disable_security] = 1,
   [CNTSPROB_enable_compilation] = 1,
@@ -6778,6 +6814,7 @@ static const struct section_problem_data prob_undef_values =
   .score_latest = -1,
   .score_latest_or_unmarked = -1,
   .score_latest_marked = -1,
+  .score_tokenized = -1,
   .real_time_limit = -1,
   .time_limit = -1,
   .time_limit_millis = -1,
@@ -6808,7 +6845,9 @@ static const struct section_problem_data prob_undef_values =
   .disable_tab = -1,
   .unrestricted_statement = -1,
   .hide_file_names = -1,
+  .hide_real_time_limit = -1,
   .enable_tokens = -1,
+  .tokens_for_user_ac = -1,
   .disable_submit_after_ok = -1,
   .disable_auto_testing = -1,
   .disable_testing = -1,
@@ -6939,6 +6978,7 @@ static const struct section_problem_data prob_default_values =
   .score_latest = 0,
   .score_latest_or_unmarked = 0,
   .score_latest_marked = 0,
+  .score_tokenized = 0,
   .real_time_limit = 0,
   .time_limit = 0,
   .time_limit_millis = 0,
@@ -6969,7 +7009,9 @@ static const struct section_problem_data prob_default_values =
   .disable_tab = 0,
   .unrestricted_statement = 0,
   .hide_file_names = 0,
+  .hide_real_time_limit = 0,
   .enable_tokens = 0,
+  .tokens_for_user_ac = 0,
   .disable_submit_after_ok = 0,
   .disable_auto_testing = 0,
   .disable_testing = 0,

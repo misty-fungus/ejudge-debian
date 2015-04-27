@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare_dflt.h 8473 2014-08-15 15:09:53Z cher $ */
+/* $Id$ */
 #ifndef __PREPARE_DFLT_H__
 #define __PREPARE_DFLT_H__
 

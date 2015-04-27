@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: main.make 8545 2014-08-23 10:35:54Z cher $
+# $Id$
 
 # Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 

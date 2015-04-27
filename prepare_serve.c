@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare_serve.c 8791 2014-12-10 18:30:45Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 

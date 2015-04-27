@@ -1,5 +1,5 @@
 /* -*- mode: C -*- */
-/* $Id: builtin_idents.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 #ifndef __BUILTIN_IDENTS_H__
 #define __BUILTIN_IDENTS_H__

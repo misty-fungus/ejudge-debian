@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: gcc-vg-version.in 6861 2012-05-27 19:08:55Z cher $
+# $Id$
 # Copyright (c) 2012 Alexander Chernov <cher@ejudge.ru>
 
 # compiler script interface is as follows
