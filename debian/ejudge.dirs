@@ -1,3 +1,4 @@
+#! dh-exec
 /etc/ejudge
 /var/lib/ejudge
 /var/lib/ejudge/cgi-data
@@ -7,3 +8,11 @@
 /var/spool/ejudge/new-serve-db
 /var/log/ejudge
 /usr/lib/cgi-bin/
+
+# making dirs in var
+/var/lib/ejudge/compile/scripts
+/var/lib/ejudge/compile/conf
+
+# istalling missing dirs
+/var/spool/ejudge/work-disk/work
+/usr/lib/${DEB_HOST_MULTIARCH}/ejudge/cgi-data

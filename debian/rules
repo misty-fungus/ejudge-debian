@@ -47,30 +47,17 @@ override_dh_strip:
 install_root:=$(CURDIR)/debian/ejudge
 .PHONY: override_dh_auto_install
 override_dh_auto_install:
+	sed 's/@DEB_HOST_MULTIARCH@/$(DEB_HOST_MULTIARCH)/g' "$(CURDIR)/debian/extra/ejudge.xml.in" >"$(CURDIR)/debian/extra/ejudge.xml"
 	dh_auto_install --destdir=debian/ejudge
-	set -x
 	mkdir -p "$(install_root)/usr/sbin/"
 	mv "$(install_root)/usr/bin/ejudge-control" "$(install_root)/usr/sbin/"
 	mv "$(install_root)/usr/bin/ejudge-config" "$(install_root)/usr/sbin/"
 	mv "$(install_root)/usr/bin/ejudge-upgrade-web" "$(install_root)/usr/sbin/"
+	
 	# removing extra binaries
 	rm "$(install_root)/usr/sbin/uudecode"
-	# making dirs in var
-	mkdir "$(install_root)/var/lib/ejudge/compile/scripts"
-	mkdir "$(install_root)/var/lib/ejudge/compile/conf"
-	# installing sample contest
-	mkdir "$(install_root)/usr/share/ejudge/sample_config"
-	cp -r "$(CURDIR)/debian/extra/000001" "$(install_root)/usr/share/ejudge/sample_config"
-	cp -r "$(CURDIR)/contest-1/problems" "$(install_root)/usr/share/ejudge/sample_config"
-	cp "$(CURDIR)/debian/extra/000001.xml" "$(install_root)/usr/share/ejudge/sample_config"
-	# installing default config
-	cp "$(CURDIR)/debian/extra/ejudge.xml" "$(install_root)/etc/ejudge/ejudge.xml"
-	cp "$(CURDIR)/debian/extra/capabilities.xml" "$(install_root)/etc/ejudge/capabilities.xml"
-	# installing default userlist
-	cp "$(CURDIR)/debian/extra/userlist.xml" "$(install_root)/usr/share/ejudge/sample_config"
-	# istalling missing dirs
-	mkdir "$(install_root)/var/spool/ejudge/work-disk/work"
-	mkdir "$(install_root)/usr/lib/$(DEB_HOST_MULTIARCH)/ejudge/cgi-data"
+	
+	# Setup bundle dojo
 	dojo_package=$$(ls $(CURDIR)/debian/extra/ | grep dojo-release-.*.tar.gz | head -n 1);\
 	  tar -xzf "$(CURDIR)/debian/extra/$${dojo_package}" --directory "$(install_root)/usr/share/ejudge/style" --transform "s/^$${dojo_package%.tar.gz}\///"  --wildcards "$${dojo_package%.tar.gz}/*"
 

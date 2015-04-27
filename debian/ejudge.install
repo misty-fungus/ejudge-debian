@@ -1,0 +1,14 @@
+# Sample_contest
+debian/extra/000001 usr/share/ejudge/sample_config
+contest-1/problems usr/share/ejudge/sample_config
+
+# Sample contest config
+debian/extra/000001.xml usr/share/ejudge/sample_config
+
+# installing default config
+debian/extra/ejudge.xml etc/ejudge/
+debian/extra/capabilities.xml etc/ejudge/
+
+# installing default userlist
+debian/extra/userlist.xml usr/share/ejudge/sample_config
+
