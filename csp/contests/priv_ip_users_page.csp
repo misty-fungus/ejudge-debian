@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_ip_users_page.csp 8006 2014-03-21 18:34:31Z cher $ */
+/* $Id: priv_ip_users_page.csp 8620 2014-09-17 11:16:32Z cher $ */
 %><%@include "priv_includes.csp"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
 %><%@page csp_view_priv_ip_users_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
@@ -15,11 +15,14 @@
     l10n_setlocale(phr->locale_id);
     title = _("Users for IP addresses");
 %><%@include "priv_header.csp"
-%><table class="b1">
+%>
+</div>
+
+<table class="b1">
     <tr>
         <th class="b1">NN</th>
-        <th class="b1"><s:tr>IP address</s:tr></th>
-        <th class="b1"><s:tr>Users</s:tr></th>
+        <th class="b1"><s:_>IP address</s:_></th>
+        <th class="b1"><s:_>Users</s:_></th>
     </tr>
 <%  for (i = 0; i < pp->ips.u; ++i) { %>
     <tr>
@@ -40,7 +43,7 @@
 </table>
 <%@include "priv_footer.csp"
 %><%
-  l10n_setlocale(0);
 cleanup:
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

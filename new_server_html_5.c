@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_5.c 8583 2014-09-02 19:36:37Z cher $ */
+/* $Id: new_server_html_5.c 8604 2014-09-10 17:08:07Z cher $ */
 
 /* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1618,7 +1618,7 @@ action_error_page(
           ARMOR(text));
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
   html_armor_free(&ab);
 }
@@ -2064,7 +2064,7 @@ submit_general_editing(
     ns_refresh_page(fout, phr, NEW_SRV_ACTION_REG_VIEW_GENERAL, 0);
   }
 
-  l10n_setlocale(0);
+  l10n_resetlocale();
   xfree(log_t);
 }
 

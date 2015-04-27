@@ -1,5 +1,5 @@
 <%
-/* $Id: reg_error_unknown.csp 8581 2014-09-02 18:56:04Z cher $ */
+/* $Id: reg_error_unknown.csp 8620 2014-09-17 11:16:32Z cher $ */
 %><%@include "reg_includes.csp"
 %><%@set getter_name = "csp_get_reg_error_unknown"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
@@ -17,11 +17,11 @@
 %>
 <h2><font color="red"><s:v value="title" escape="false" /></font></h2>
 <% if (phr->log_t && *phr->log_t) { %>
-<p><s:tr>Additional information about this error:</s:tr></p>
+<p><s:_>Additional information about this error:</s:_></p>
 <font color="red"><pre><s:v value="phr->log_t" /></pre></font>
 <% } %>
 <%@include "reg_footer.csp"
 %><%
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

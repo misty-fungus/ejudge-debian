@@ -1,5 +1,5 @@
 <%
-/* $Id: main_page.csp 8584 2014-09-03 08:58:06Z cher $ */
+/* $Id: main_page.csp 8606 2014-09-10 18:03:54Z cher $ */
 %><%@include "includes.csp"
 %><%@set ac_prefix = "SSERV_CMD_"
 %><%@page csp_view_main_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
@@ -164,7 +164,7 @@
 
 <%@include "footer.csp"
 %><%
-  l10n_setlocale(0);
 cleanup:
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

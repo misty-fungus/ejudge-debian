@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-page-gen.c 8545 2014-08-23 10:35:54Z cher $ */
+/* $Id: ej-page-gen.c 8624 2014-09-17 11:27:31Z cher $ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -3480,7 +3480,7 @@ handle_redirect_open(
 }
 
 static int
-handle_htr_open(
+handle_tr_open(
         FILE *log_f,
         TypeContext *cntx,
         ProcessorState *ps,
@@ -3518,7 +3518,7 @@ handle_htr_open(
 }
 
 static int
-handle_htr_close(
+handle_tr_close(
         FILE *log_f,
         TypeContext *cntx,
         ProcessorState *ps,
@@ -4051,7 +4051,7 @@ handle_checkbox_open(
 }
 
 static int
-handle_tr_open(
+handle_gettext_open(
         FILE *log_f,
         TypeContext *cntx,
         ProcessorState *ps,
@@ -4063,7 +4063,7 @@ handle_tr_open(
 }
 
 static int
-handle_tr_close(
+handle_gettext_close(
         FILE *log_f,
         TypeContext *cntx,
         ProcessorState *ps,
@@ -4598,8 +4598,7 @@ struct ElementInfo
 
 static const struct ElementInfo element_handlers[] =
 {
-    { "s:tr", handle_tr_open, handle_tr_close },
-    { "s:_", handle_tr_open, handle_tr_close },
+    { "s:_", handle_gettext_open, handle_gettext_close },
     { "s:a", handle_a_open, handle_a_close },
     { "s:submit", handle_submit_open, NULL },
     { "s:v", handle_v_open, NULL },
@@ -4623,7 +4622,7 @@ static const struct ElementInfo element_handlers[] =
     { "s:ac", handle_ac_open, NULL },
     { "s:read", handle_read_open, NULL },
     { "s:numselect", handle_numselect_open, NULL },
-    { "s:htr", handle_htr_open, handle_htr_close },
+    { "s:tr", handle_tr_open, handle_tr_close },
     { "s:redirect", handle_redirect_open, NULL },
     { "s:help", handle_help_open, NULL },
 

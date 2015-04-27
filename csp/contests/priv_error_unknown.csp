@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_error_unknown.csp 8006 2014-03-21 18:34:31Z cher $ */
+/* $Id: priv_error_unknown.csp 8620 2014-09-17 11:16:32Z cher $ */
 %><%@include "priv_includes.csp"
 %><%@set getter_name = "csp_get_priv_error_unknown"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
@@ -14,12 +14,15 @@
   snprintf(title, sizeof(title), "%s: %s", _("Error"), error_title);
 %><%@include "priv_header.csp"
 %>
+</div>
+
+<h2><s:v value="error_title" escape="false" /></h2>
 <% if (phr->log_t && *phr->log_t) { %>
-<p><s:tr>Additional information about this error:</s:tr></p>
+<p><s:_>Additional information about this error:</s:_></p>
 <font color="red"><pre><s:v value="phr->log_t" /></pre></font>
 <% } %>
 <%@include "priv_footer.csp"
 %><%
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: super_html_4.c 8602 2014-09-06 19:15:00Z cher $ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -6710,7 +6710,7 @@ static const unsigned char * const external_action_names[SSERV_CMD_LAST] =
 
 static const unsigned char * const external_error_names[SSERV_ERR_LAST] = 
 {
-  [1] = NULL, // here comes the default error handler
+  [1] = "error_unknown_page", // here comes the default error handler
 };
 
 static ExternalActionState *external_action_states[SSERV_CMD_LAST];
@@ -6727,15 +6727,26 @@ default_error_page(
   }
   FILE *out_f = open_memstream(p_out_t, p_out_z);
 
+  if (phr->error_code < 0) phr->error_code = -phr->error_code;
+  unsigned char buf[32];
+  const unsigned char *errmsg = 0;
+  if (phr->error_code > 0 && phr->error_code < SSERV_ERR_LAST) {
+    errmsg = super_proto_error_messages[phr->error_code];
+  }
+  if (!errmsg) {
+    snprintf(buf, sizeof(buf), "%d", phr->error_code);
+    errmsg = buf;
+  }
+
   fprintf(out_f, "Content-type: text/html; charset=%s\n\n", EJUDGE_CHARSET);
   fprintf(out_f,
           "<html>\n"
           "<head>\n"
-          "<title>Error %d</title>\n"
+          "<title>Error: %s</title>\n"
           "</head>\n"
           "<body>\n"
-          "<h1>Error %d</h1>\n",
-          phr->error_code, phr->error_code);
+          "<h1>Error: %s</h1>\n",
+          errmsg, errmsg);
   if (phr->log_t && *phr->log_t) {
     fprintf(out_f, "<p>Additional messages:</p>\n");
     unsigned char *s = html_armor_string_dup(phr->log_t);
@@ -6782,8 +6793,8 @@ external_error_page(
     return;
   }
 
-  snprintf(phr->content_type, sizeof(phr->content_type), "text/html; charset=%s", EJUDGE_CHARSET);
   phr->out_f = open_memstream(p_out_t, p_out_z);
+  fprintf(phr->out_f, "Content-type: text/html; charset=%s\n\n", EJUDGE_CHARSET);
   pg->ops->render(pg, NULL, phr->out_f, phr);
   xfree(phr->log_t); phr->log_t = NULL;
   phr->log_z = 0;
@@ -6937,7 +6948,6 @@ redo_action:
 
         xfree(phr->out_t); phr->out_t = NULL;
         phr->out_z = 0;
-
       }
       return;
     }
@@ -7004,9 +7014,7 @@ redo_action:
   html_armor_free(&ab);
 }
 
-// forced link
-static void *forced_link[] __attribute__((unused));
-static void *forced_link[] =
+void *super_html_forced_link[] =
 {
   html_date_select
 };

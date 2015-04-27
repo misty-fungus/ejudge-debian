@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_2.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: new_server_html_2.c 8596 2014-09-05 19:47:28Z cher $ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -2040,7 +2040,7 @@ ns_priv_edit_run_action(
   }
   ej_ip_t ipv6;
   run_entry_to_ipv6(&info, &ipv6);
-  if (!ipv6cmp(&new_ip, &ipv6) != 0) {
+  if (ipv6cmp(&new_ip, &ipv6) != 0) {
     ipv6_to_run_entry(&new_ip, &new_info);
     mask |= RE_IP;
   }

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: dwarf_parse.c 8565 2014-08-28 13:31:40Z cher $ */
+/* $Id: dwarf_parse.c 8619 2014-09-17 10:57:56Z cher $ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1452,6 +1452,7 @@ static const struct TopDieParseTable top_die_table[] =
     { DW_TAG_subroutine_type, NODE_FUNCTION_TYPE, "function", parse_function_type_die },
     { DW_TAG_variable, 0, NULL, NULL },
     { DW_TAG_subprogram, NODE_SUBROUTINE, "subprogram", parse_subroutine_die },
+    { DW_TAG_dwarf_procedure, 0, NULL, NULL },
 
     { 0 },
 };

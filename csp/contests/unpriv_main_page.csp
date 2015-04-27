@@ -1,5 +1,5 @@
 <%
-/* $Id: unpriv_main_page.csp 8390 2014-07-30 19:32:24Z cher $ */
+/* $Id: unpriv_main_page.csp 8605 2014-09-10 17:57:16Z cher $ */
 %><%@include "unpriv_includes.csp"
 %><%
 #include "ejudge/compat.h"
@@ -331,7 +331,7 @@ ns_unparse_answers(
   }
 %><%@include "unpriv_footer.csp"
 %><%
-  l10n_setlocale(0);
+  l10n_resetlocale();
 //cleanup:;
   html_armor_free(&ab);
 %>
