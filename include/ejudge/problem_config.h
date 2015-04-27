@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 8759 2014-11-19 15:50:38Z cher $ */
+/* $Id: problem_config.h 8793 2014-12-11 21:55:57Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
@@ -88,6 +88,7 @@ struct problem_config_section
   ejintbool_t ignore_unmarked;
   ejintbool_t disable_stderr;
   ejintbool_t enable_process_group;
+  ejintbool_t hide_variant;
 
   int id;
   int real_time_limit;
@@ -164,6 +165,7 @@ struct problem_config_section
   unsigned char *extid;
   unsigned char *revision;
   unsigned char *tokens;
+  unsigned char *umask;
 
   char **test_sets;
   char **date_penalty;

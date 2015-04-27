@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_submit_page.csp 8682 2014-10-24 07:50:41Z cher $ */
+/* $Id: priv_submit_page.csp 8789 2014-12-07 12:11:00Z cher $ */
 %><%@include "priv_includes.csp"
 %><%
 void
@@ -121,10 +121,12 @@ ns_unparse_answers(
       pw = &cs->prob_extras[prob_id].stmt;
       pw_path = prob->statement_file;
     }
-    watched_file_update(pw, pw_path, cs->current_time);
-    if (!pw->text) {
+    if (pw) {
+      watched_file_update(pw, pw_path, cs->current_time);
+    }
+    if (!pw || !pw->text) {
 %><big><font color="red"><p><s:_>The problem statement is not available</s:_></p></font></big><%
-     } else {
+    } else {
       fprintf(out_f, "%s", pw->text);
     }
   }

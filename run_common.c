@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: run_common.c 8764 2014-11-21 19:19:51Z cher $ */
+/* $Id: run_common.c 8797 2014-12-11 22:37:31Z cher $ */
 
 /* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -2349,7 +2349,13 @@ run_one_test(
   }
   task_SetPathAsArg0(tsk);
   task_SetWorkingDir(tsk, working_dir);
-  if (srpp->enable_process_group > 0) task_EnableProcessGroup(tsk);
+  if (srpp->enable_process_group > 0) {
+    task_EnableProcessGroup(tsk);
+#ifndef __WIN32__
+    snprintf(mem_limit_buf, sizeof(mem_limit_buf), "%d", getpid());
+    task_SetEnv(tsk, "EJ_SUPER_RUN_PID", mem_limit_buf);
+#endif
+  }
 
   if (interactor_cmd) {
     task_SetRedir(tsk, 0, TSR_DUP, pfd2[0]);
@@ -2528,6 +2534,13 @@ run_one_test(
   if (srpp->max_process_count > 0) {
     task_SetMaxProcessCount(tsk, srpp->max_process_count);
   }
+  if (srpp->umask && srpp->umask[0]) {
+    // FIXME: handle errors
+    int umask = strtol(srpp->umask, NULL, 8);
+    if (umask >= 0 && umask <= 0777) {
+      task_SetUmask(tsk, umask);
+    }
+  }
 
   //task_PrintArgs(tsk);
 
@@ -2574,8 +2587,6 @@ run_one_test(
   }
 #endif
 
-  if (tsk_int) task_Wait(tsk_int);
-
   if (srpp->enable_process_group > 0 && task_TryProcessGroup(tsk) >= 0) {
     // there exist some processes beloging to the process group
     append_msg_to_log(check_out_path,
@@ -2584,6 +2595,7 @@ run_one_test(
     task_KillProcessGroup(tsk);
   }
 
+  if (tsk_int) task_Wait(tsk_int);
 
   /* set normal permissions for the working directory */
   make_writable(check_dir);

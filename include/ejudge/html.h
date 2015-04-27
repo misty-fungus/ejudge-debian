@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: html.h 8709 2014-11-03 09:43:17Z cher $ */
+/* $Id: html.h 8800 2014-12-28 17:42:54Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
@@ -126,6 +126,7 @@ calc_kirov_score(
         time_t start_time,
         int separate_user_score,
         int user_mode,
+        int token_flags,
         const struct run_entry *pe,
         const struct section_problem_data *pr,
         int attempts,

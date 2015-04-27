@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 8766 2014-11-21 19:58:47Z cher $ */
+/* $Id: new_server_html.c 8799 2014-12-27 23:09:23Z cher $ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -8303,6 +8303,10 @@ unpriv_submit_run(
       || prob_id <= 0 || prob_id > cs->max_prob
       || !(prob = cs->probs[prob_id])) {
     FAIL2(NEW_SRV_ERR_INV_PROB_ID);
+  }
+
+  if (prob->disable_user_submit > 0) {
+    FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
   }
 
   // "STANDARD" problems need programming language identifier

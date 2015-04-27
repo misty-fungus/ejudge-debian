@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.h 8759 2014-11-19 15:50:38Z cher $ */
+/* $Id: super_run_packet.h 8793 2014-12-11 21:55:57Z cher $ */
 #ifndef __SUPER_RUN_PACKET_H__
 #define __SUPER_RUN_PACKET_H__
 
@@ -162,6 +162,7 @@ struct super_run_in_problem_packet
   unsigned char *spelling;
   unsigned char *open_tests;
   ejintbool_t enable_process_group;
+  unsigned char *umask;
 
   int type_val META_ATTRIB((meta_hidden));
 };

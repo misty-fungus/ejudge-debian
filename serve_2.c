@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_2.c 8785 2014-11-27 09:55:34Z cher $ */
+/* $Id: serve_2.c 8795 2014-12-11 22:25:52Z cher $ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1918,6 +1918,9 @@ serve_run_request(
   srpp->max_open_file_count = prob->max_open_file_count;
   srpp->max_process_count = prob->max_process_count;
   srpp->enable_process_group = prob->enable_process_group;
+  if (prob->umask && prob->umask[0]) {
+    srpp->umask = xstrdup(prob->umask);
+  }
 
   if (find_lang_specific_size(prob->lang_max_vm_size, lang,
                               &lang_specific_size) > 0) {

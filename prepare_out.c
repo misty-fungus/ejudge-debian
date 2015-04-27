@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 8777 2014-11-22 20:09:08Z cher $ */
+/* $Id: prepare_out.c 8795 2014-12-11 22:25:52Z cher $ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1201,6 +1201,8 @@ prepare_unparse_prob(
   if (prob->max_process_count >= 0) {
     fprintf(f, "max_process_count = %d\n", prob->max_process_count);
   }
+  if (prob->umask && prob->umask[0])
+    fprintf(f, "umask = \"%s\"\n", CARMOR(prob->umask));
 
   if (score_system == SCORE_KIROV || score_system == SCORE_OLYMPIAD) {
     if (prob->full_score >= 0) {
@@ -1405,6 +1407,10 @@ prepare_unparse_prob(
       || (!prob->abstract && prob->enable_process_group >= 0)) {
     unparse_bool(f, "enable_process_group", prob->enable_process_group);
   }
+  if ((prob->abstract > 0 && prob->hide_variant > 0)
+      || (!prob->abstract && prob->hide_variant >= 0)) {
+    unparse_bool(f, "hide_variant", prob->hide_variant);
+  }
   if (prob->enable_text_form >= 0
       && ((prob->abstract && prob->enable_text_form) || !prob->abstract))
       unparse_bool(f, "enable_text_form", prob->enable_text_form);
@@ -1587,6 +1593,8 @@ prepare_unparse_actual_prob(
   if (prob->max_process_count > 0) {
     fprintf(f, "max_process_count = %d\n", prob->max_process_count);
   }
+  if (prob->umask && prob->umask[0])
+    fprintf(f, "umask = \"%s\"\n", CARMOR(prob->umask));
 
   if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
     if (prob->full_score >= 0)
@@ -1755,6 +1763,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "disable_stderr", prob->disable_stderr);
   if (prob->enable_process_group > 0)
     unparse_bool(f, "enable_process_group", prob->enable_process_group);
+  if (prob->hide_variant > 0)
+    unparse_bool(f, "hide_variant", prob->hide_variant);
   if (prob->enable_text_form > 0)
     unparse_bool(f, "enable_text_form", prob->enable_text_form);
   if (prob->stand_ignore_score > 0)
@@ -2752,9 +2762,13 @@ prob_instr(
   }
 
   if (!tmp_prob->standard_checker[0]) {
-    prepare_set_prob_value(CNTSPROB_check_cmd, tmp_prob, abstr, global);
-    fprintf(f, "<p><b>Output file checker:</b></p>\n");
-    handle_file(f, global, tmp_prob, tmp_prob->check_cmd, 1);
+    if (!tmp_prob->check_cmd[0]) {
+      fprintf(f, "<p><b><font color=\"red\">Neither standard, nor custom checker is defined!</font></b></p>\n");
+    } else {
+      prepare_set_prob_value(CNTSPROB_check_cmd, tmp_prob, abstr, global);
+      fprintf(f, "<p><b>Output file checker:</b></p>\n");
+      handle_file(f, global, tmp_prob, tmp_prob->check_cmd, 1);
+    }
   }
 
   prepare_set_prob_value(CNTSPROB_test_checker_cmd, tmp_prob, abstr, global);

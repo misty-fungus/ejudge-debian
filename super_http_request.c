@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_http_request.c 8777 2014-11-22 20:09:08Z cher $ */
+/* $Id: super_http_request.c 8795 2014-12-11 22:25:52Z cher $ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -546,6 +546,8 @@ const unsigned char super_proto_is_http_request[] =
   [SSERV_CMD_PROB_CLEAR_TEST_SCORE_LIST] = 0,
   [SSERV_CMD_PROB_CHANGE_TOKENS] = 0,
   [SSERV_CMD_PROB_CLEAR_TOKENS] = 0,
+  [SSERV_CMD_PROB_CHANGE_UMASK] = 0,
+  [SSERV_CMD_PROB_CLEAR_UMASK] = 0,
   [SSERV_CMD_PROB_CHANGE_SCORE_TESTS] = 0,
   [SSERV_CMD_PROB_CLEAR_SCORE_TESTS] = 0,
   [SSERV_CMD_PROB_CHANGE_TESTS_TO_ACCEPT] = 0,
@@ -559,6 +561,7 @@ const unsigned char super_proto_is_http_request[] =
   [SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED] = 0,  
   [SSERV_CMD_PROB_CHANGE_DISABLE_STDERR] = 0,
   [SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP] = 0,
+  [SSERV_CMD_PROB_CHANGE_HIDE_VARIANT] = 0,
   [SSERV_CMD_PROB_CHANGE_AUTOASSIGN_VARIANTS] = 0,
   [SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM] = 0,
   [SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE] = 0,

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare.h 8775 2014-11-22 19:57:33Z cher $ */
+/* $Id: prepare.h 8793 2014-12-11 21:55:57Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
@@ -950,6 +950,8 @@ struct section_problem_data
   unsigned char *test_score_list;
   /** token specification */
   unsigned char *tokens;
+  /** process umask */
+  unsigned char *umask;
 
   struct token_info *token_info META_ATTRIB((meta_private));
 
@@ -983,6 +985,8 @@ struct section_problem_data
   ejintbool_t disable_stderr;
   /** use process groups */
   ejintbool_t enable_process_group;
+  /** hide variant number from user */
+  ejintbool_t hide_variant;
 
   /** printf pattern for the test files */
   unsigned char test_pat[32];

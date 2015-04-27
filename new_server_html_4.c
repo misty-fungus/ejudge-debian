@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 8616 2014-09-17 06:37:58Z cher $ */
+/* $Id: new_server_html_4.c 8800 2014-12-28 17:42:54Z cher $ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -821,6 +821,9 @@ cmd_submit_run(
   /* check variant */
   switch (phr->role) {
   case USER_ROLE_CONTESTANT:
+    if (prob->disable_user_submit > 0) {
+      FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    }
     if (hr_cgi_param(phr, "variant", &s) != 0)
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
     if (prob->variant_num > 0) {
@@ -1756,7 +1759,7 @@ do_dump_master_runs(
         orig_score = prob->full_score;
       snprintf(base_score_buf, sizeof(base_score_buf), "%d", orig_score);
       csv_rec[F_BASE_SCORE] = base_score_buf;
-      score = calc_kirov_score(0, 0, start_time, 0, 0, pe, prob, attempts, disq_attempts,
+      score = calc_kirov_score(0, 0, start_time, 0, 0, 0, pe, prob, attempts, disq_attempts,
                                prev_successes, &date_penalty, 0);
       snprintf(score_buf, sizeof(score_buf), "%d", score);
       csv_rec[F_TOTAL_SCORE] = score_buf;
