@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_edit_run_page.csp 8644 2014-10-18 06:39:05Z cher $ */
+/* $Id: priv_edit_run_page.csp 8708 2014-11-02 15:25:55Z cher $ */
 %><%@include "priv_includes.csp"
 %><%
 #include "ejudge/ej_uuid.h"
@@ -217,6 +217,14 @@
 <tr><td class="b0">Saved score:</td><td class="b0"><s:textfield name="saved_score" size="20" disabledExpr="info.is_readonly" checkExpr=">= 0" value="info.saved_score" /></td></tr>
 <%
     }
+  }
+%>
+<%
+  if (prob && prob->enable_tokens > 0) {
+%>
+<tr><td class="b0">Token flags:</td><td class="b0"><s:textfield name="token_flags" size="20" disabledExpr="info.is_readonly" value="(int) info.token_flags" /></td></tr>
+<tr><td class="b0">Token count:</td><td class="b0"><s:textfield name="token_count" size="20" disabledExpr="info.is_readonly" value="(int) info.token_count" /></td></tr>
+<%
   }
 %>
 <tr><td class="b0">IP:</td><td class="b0"><s:textfield name="ip" size="20" disabledExpr="info.is_readonly" value="info.a.ip" /></td></tr>

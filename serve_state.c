@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: serve_state.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: serve_state.c 8768 2014-11-22 09:05:13Z cher $ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -37,6 +37,7 @@
 #include "ejudge/userlist.h"
 #include "ejudge/xml_utils.h"
 #include "ejudge/win32_compat.h"
+#include "ejudge/variant_map.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"

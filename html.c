@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: html.c 8739 2014-11-12 05:59:17Z cher $ */
 
 /* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -265,9 +265,15 @@ write_html_run_status(
 
   separate_user_score = global->separate_user_score > 0 && state->online_view_judge_score <= 0;
   if (separate_user_score > 0 && pe->is_saved && user_mode) {
-    status = pe->saved_status;
-    score = pe->saved_score;
-    test = pe->saved_test;
+    if (pe->token_count > 0 && (pe->token_flags & TOKEN_FINALSCORE_BIT)) {
+      status = pe->status;
+      score = pe->score;
+      test = pe->test;
+    } else {
+      status = pe->saved_status;
+      score = pe->saved_score;
+      test = pe->saved_test;
+    }
   } else {
     status = pe->status;
     score = pe->score;
@@ -901,6 +907,29 @@ score_view_display(
     snprintf(buf, size, "%s", prob->score_view_text[i]);
   }
   return buf;
+}
+
+void
+score_view_display_f(
+        FILE *out_f,
+        const struct section_problem_data *prob,
+        int score)
+{
+  int i;
+
+  if (!prob || !prob->score_view || !prob->score_view[0] || !prob->score_view_score) {
+    if (score < 0) score = 0;
+    fprintf(out_f, "%d", score);
+    return;
+  }
+
+  for (i = 0; prob->score_view[i] && prob->score_view_score[i] != score; i++);
+  if (!prob->score_view[i]) {
+    if (score < 0) score = 0;
+    fprintf(out_f, "%d", score);
+  } else {
+    fprintf(out_f, "%s", prob->score_view_text[i]);
+  }
 }
 
 static void

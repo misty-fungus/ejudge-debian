@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare_serve.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: prepare_serve.c 8780 2014-11-23 18:57:29Z cher $ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -24,6 +24,8 @@
 #include "ejudge/errlog.h"
 #include "ejudge/serve_state.h"
 #include "ejudge/runlog.h"
+#include "ejudge/variant_map.h"
+#include "ejudge/random.h"
 
 #include "ejudge/xalloc.h"
 
@@ -37,10 +39,11 @@ find_variant(
   int i, new_vint;
   struct variant_map *pmap = state->global->variant_map;
   struct variant_map_item *vi;
+  const struct section_problem_data *prob = NULL;
 
   if (!pmap) return 0;
-  if (prob_id <= 0 || prob_id > state->max_prob || !state->probs[prob_id]) return 0;
-  if (state->probs[prob_id]->variant_num <= 0) return 0;
+  if (prob_id <= 0 || prob_id > state->max_prob || !(prob = state->probs[prob_id])) return 0;
+  if (prob->variant_num <= 0) return 0;
   if (!pmap->prob_map[prob_id]) return 0;
 
   teamdb_refresh(state->teamdb_state);
@@ -80,7 +83,26 @@ find_variant(
     }
     if (p_virtual_variant)
       *p_virtual_variant = vi->variants[pmap->prob_map[prob_id]];
-    return vi->variants[pmap->prob_map[prob_id]];
+    int v = vi->variants[pmap->prob_map[prob_id]];
+    if (!v && prob->autoassign_variants > 0) {
+      v = random_range(1, prob->variant_num + 1);
+      variant_map_set_variant(pmap, user_id,
+                              teamdb_get_login(state->teamdb_state, user_id),
+                              prob_id,
+                              v);
+      // FIXME: handle errors
+      variant_map_save(stderr, pmap, state->global->variant_map_file, 1);
+    }
+    return v;
+  } else if (prob->autoassign_variants > 0) {
+    int v = random_range(1, prob->variant_num + 1);
+    variant_map_set_variant(pmap, user_id,
+                            teamdb_get_login(state->teamdb_state, user_id),
+                            prob_id,
+                            v);
+    // FIXME: handle errors
+    variant_map_save(stderr, pmap, state->global->variant_map_file, 1);
+    return v;
   }
   return 0;
 }

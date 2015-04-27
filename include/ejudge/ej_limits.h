@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_limits.h 8177 2014-05-13 08:55:27Z cher $ */
+/* $Id: ej_limits.h 8785 2014-11-27 09:55:34Z cher $ */
 #ifndef __EJ_LIMITS_H__
 #define __EJ_LIMITS_H__
 
@@ -74,7 +74,7 @@
 /* the length of the serve's packet name
  * includes one character for priority
  */
-#define EJ_SERVE_PACKET_NAME_SIZE 13
+//#define EJ_SERVE_PACKET_NAME_SIZE 13
 
 /* maximal length of a CGI parameter value */
 #define EJ_MAX_CGI_VALUE_LEN 2097152

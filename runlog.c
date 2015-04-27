@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: runlog.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: runlog.c 8737 2014-11-11 12:14:51Z cher $ */
 
 /* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -901,6 +901,28 @@ run_count_all_attempts_2(runlog_state_t state, int user_id, int prob_id, int ign
   return count;
 }
 
+int
+run_count_tokens(runlog_state_t state, int user_id, int prob_id)
+{
+  int i, count = 0;
+
+  struct user_entry *ue = get_user_entry(state, user_id);
+  ASSERT(ue);
+  ASSERT(ue->run_id_valid > 0); // run index is ok
+
+  for (i = ue->run_id_first; i >= 0; i = state->run_extras[i].next_user_id) {
+    ASSERT(i < state->run_u);
+    const struct run_entry *re = &state->runs[i];
+    ASSERT(re->user_id == user_id);
+    if (prob_id <= 0 || re->prob_id == prob_id) {
+      count += re->token_count;
+    }
+  }
+  ASSERT(i == -1);
+
+  return count;
+}
+
 /* FIXME: EVER DUMBER */
 /*
  * if the specified run_id is OK run, how many successes were on the
@@ -1329,6 +1351,14 @@ run_set_entry(
   }
   if ((mask & RE_STORE_FLAGS) && te.store_flags != in->store_flags) {
     te.store_flags = in->store_flags;
+    f = 1;
+  }
+  if ((mask & RE_TOKEN_FLAGS) && te.token_flags != in->token_flags) {
+    te.token_flags = in->token_flags;
+    f = 1;
+  }
+  if ((mask & RE_TOKEN_COUNT) && te.token_count != in->token_count) {
+    te.token_count = in->token_count;
     f = 1;
   }
 

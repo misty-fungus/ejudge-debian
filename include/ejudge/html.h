@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: html.h 8232 2014-05-16 19:06:19Z cher $ */
+/* $Id: html.h 8709 2014-11-03 09:43:17Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
@@ -188,6 +188,11 @@ score_view_display(
         size_t size,
         const struct section_problem_data *prob,
         int score);
+void
+score_view_display_f(
+        FILE *out_f,
+        const struct section_problem_data *prob,
+        int score);
 
 /* run field selection flags */
 enum
@@ -219,6 +224,7 @@ enum
   RUN_VIEW_RUN_UUID,
   RUN_VIEW_EOLN_TYPE,
   RUN_VIEW_STORE_FLAGS,
+  RUN_VIEW_TOKENS,
 
   RUN_VIEW_LAST,
 

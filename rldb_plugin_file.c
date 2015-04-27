@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_plugin_file.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: rldb_plugin_file.c 8698 2014-10-30 05:47:27Z cher $ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1196,9 +1196,6 @@ add_entry_func(
   if ((flags & RE_SCORE_ADJ)) {
     de->score_adj = re->score_adj;
   }
-  if ((flags & RE_IS_EXAMINABLE)) {
-    //de->is_examinable = re->is_examinable;
-  }
   if ((flags & RE_JUDGE_ID)) {
     de->judge_id = re->judge_id;
   }
@@ -1207,12 +1204,6 @@ add_entry_func(
   }
   if ((flags & RE_MIME_TYPE)) {
     de->mime_type = re->mime_type;
-  }
-  if ((flags & RE_EXAMINERS)) {
-    //memcpy(de->examiners, re->examiners, sizeof(de->examiners));
-  }
-  if ((flags & RE_EXAM_SCORE)) {
-    //memcpy(de->exam_score, re->exam_score, sizeof(de->exam_score));
   }
   if ((flags & RE_IS_MARKED)) {
     de->is_marked = re->is_marked;
@@ -1237,6 +1228,12 @@ add_entry_func(
   }
   if ((flags & RE_STORE_FLAGS)) {
     de->store_flags = re->store_flags;
+  }
+  if ((flags & RE_TOKEN_FLAGS)) {
+    de->token_flags = re->token_flags;
+  }
+  if ((flags & RE_TOKEN_COUNT)) {
+    de->token_count = re->token_count;
   }
 
   return do_flush_entry(cs, run_id);

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_3.c 8675 2014-10-21 06:17:22Z cher $ */
+/* $Id: super_html_3.c 8780 2014-11-23 18:57:29Z cher $ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -39,6 +39,7 @@
 #include "ejudge/compat.h"
 #include "ejudge/file_perms.h"
 #include "ejudge/build_support.h"
+#include "ejudge/variant_map.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -211,6 +212,7 @@ const unsigned char * const super_serve_help_urls[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_UNFOG_TIME] = "Serve.cfg:global:board_unfog_time",
   [SSERV_CMD_GLOB_CHANGE_STAND_LOCALE] = "Serve.cfg:global:standings_locale",
   [SSERV_CMD_GLOB_CHANGE_CHECKER_LOCALE] = "Serve.cfg:global:checker_locale",
+  [SSERV_CMD_GLOB_CHANGE_TOKENS] = "Serve.cfg:global:tokens",
   [SSERV_CMD_GLOB_CHANGE_SRC_VIEW] = "Serve.cfg:global:team_enable_src_view",
   [SSERV_CMD_GLOB_CHANGE_REP_VIEW] = "Serve.cfg:global:team_enable_rep_view",
   [SSERV_CMD_GLOB_CHANGE_CE_VIEW] = "Serve.cfg:global:team_enable_ce_view",
@@ -414,6 +416,7 @@ const unsigned char * const super_serve_help_urls[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DISABLE_TAB] = "Serve.cfg:problem:disable_tab",
   [SSERV_CMD_PROB_CHANGE_UNRESTRICTED_STATEMENT] = "Serve.cfg:problem:unrestricted_statement",
   [SSERV_CMD_PROB_CHANGE_HIDE_FILE_NAMES] = "Serve.cfg:problem:hide_file_names",
+  [SSERV_CMD_PROB_CHANGE_ENABLE_TOKENS] = "Serve.cfg:problem:enable_tokens",
   [SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = "Serve.cfg:problem:disable_submit_after_ok",
   [SSERV_CMD_PROB_CHANGE_DISABLE_SECURITY] = "Serve.cfg:problem:disable_security",
   [SSERV_CMD_PROB_CHANGE_DISABLE_TESTING] = "Serve.cfg:problem:disable_testing",
@@ -428,6 +431,7 @@ const unsigned char * const super_serve_help_urls[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DISQUALIFIED_PENALTY] = "Serve.cfg:problem:disqualified_penalty",
   [SSERV_CMD_PROB_CHANGE_VARIABLE_FULL_SCORE] = "Serve.cfg:problem:variable_full_score",
   [SSERV_CMD_PROB_CHANGE_TEST_SCORE_LIST] = "Serve.cfg:problem:test_score_list",
+  [SSERV_CMD_PROB_CHANGE_TOKENS] = "Serve.cfg:problem:tokens",
   [SSERV_CMD_PROB_CHANGE_SCORE_TESTS] = "Serve.cfg:problem:score_tests",
   [SSERV_CMD_PROB_CHANGE_TESTS_TO_ACCEPT] = "Serve.cfg:problem:tests_to_accept",
   [SSERV_CMD_PROB_CHANGE_ACCEPT_PARTIAL] = "Serve.cfg:problem:accept_partial",
@@ -440,6 +444,7 @@ const unsigned char * const super_serve_help_urls[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED] = "Serve.cfg:problem:ignore_unmarked",
   [SSERV_CMD_PROB_CHANGE_DISABLE_STDERR] = "Serve.cfg:problem:disable_stderr",
   [SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP] = "Serve.cfg:problem:enable_process_group",
+  [SSERV_CMD_PROB_CHANGE_AUTOASSIGN_VARIANTS] = "Serve.cfg:problem:autoassign_variants",
   [SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM] = "Serve.cfg:problem:enable_text_form",
   [SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE] = "Serve.cfg:problem:stand_ignore_score",
   [SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN] = "Serve.cfg:problem:stand_last_column",
@@ -473,6 +478,7 @@ const unsigned char * const super_serve_help_urls[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_SCORE_BONUS] = "Serve.cfg:problem:score_bonus",
   [SSERV_CMD_PROB_CHANGE_OPEN_TESTS] = "Serve.cfg:problem:open_tests",
   [SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS] = "Serve.cfg:problem:final_open_tests",
+  [SSERV_CMD_PROB_CHANGE_TOKEN_OPEN_TESTS] = "Serve.cfg:problem:token_open_tests",
   [SSERV_CMD_PROB_CHANGE_LANG_COMPILER_ENV] = "Serve.cfg:problem:lang_compiler_env",
   [SSERV_CMD_PROB_CHANGE_CHECK_CMD] = "Serve.cfg:problem:check_cmd",
   [SSERV_CMD_PROB_CHANGE_CHECKER_ENV] = "Serve.cfg:problem:checker_env",
@@ -485,6 +491,7 @@ const unsigned char * const super_serve_help_urls[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_CMD] = "Serve.cfg:problem:test_checker_cmd",
   [SSERV_CMD_PROB_CHANGE_TEST_CHECKER_ENV] = "Serve.cfg:problem:test_checker_env",
   [SSERV_CMD_PROB_CHANGE_INIT_CMD] = "Serve.cfg:problem:init_cmd",
+  [SSERV_CMD_PROB_CHANGE_START_CMD] = "Serve.cfg:problem:start_cmd",
   [SSERV_CMD_PROB_CHANGE_INIT_ENV] = "Serve.cfg:problem:init_env",
   [SSERV_CMD_PROB_CHANGE_START_ENV] = "Serve.cfg:problem:start_env",
   [SSERV_CMD_PROB_CHANGE_SOLUTION_SRC] = "Serve.cfg:problem:solution_src",
@@ -640,6 +647,15 @@ super_html_global_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_GLOB_CLEAR_CHECKER_LOCALE:
     xfree(global->checker_locale); global->checker_locale = 0;
+    return 0;
+
+  case SSERV_CMD_GLOB_CHANGE_TOKENS:
+    xfree(global->tokens);
+    global->tokens = xstrdup(param2);
+    return 0;
+
+  case SSERV_CMD_GLOB_CLEAR_TOKENS:
+    xfree(global->tokens); global->tokens = 0;
     return 0;
 
   case SSERV_CMD_GLOB_CHANGE_SRC_VIEW:
@@ -2339,6 +2355,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     p_int = &prob->hide_file_names;
     goto handle_boolean_2;
 
+  case SSERV_CMD_PROB_CHANGE_ENABLE_TOKENS:
+    p_int = &prob->enable_tokens;
+    goto handle_boolean_2;
+
   case SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK:
     p_int = &prob->disable_submit_after_ok;
     goto handle_boolean_2;
@@ -2402,6 +2422,28 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
     prob->test_score_list = NULL;
     return 0;
 
+  case SSERV_CMD_PROB_CHANGE_TOKENS:
+    // FIXME: check for correctness
+    xfree(prob->tokens);
+    prob->tokens = xstrdup(param2);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_TOKENS:
+    xfree(prob->tokens);
+    prob->tokens = NULL;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_TOKEN_OPEN_TESTS:
+    // FIXME: check for correctness
+    xfree(prob->token_open_tests);
+    prob->token_open_tests = xstrdup(param2);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_TOKEN_OPEN_TESTS:
+    xfree(prob->token_open_tests);
+    prob->token_open_tests = NULL;
+    return 0;
+
   case SSERV_CMD_PROB_CHANGE_SCORE_TESTS:
     // FIXME: check for correctness
     PROB_ASSIGN_STRING(score_tests);
@@ -2458,6 +2500,10 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
 
   case SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP:
     p_int = &prob->enable_process_group;
+    goto handle_boolean_1;
+
+  case SSERV_CMD_PROB_CHANGE_AUTOASSIGN_VARIANTS:
+    p_int = &prob->autoassign_variants;
     goto handle_boolean_1;
 
   case SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM:
@@ -2809,6 +2855,16 @@ super_html_prob_param(struct sid_state *sstate, int cmd,
   case SSERV_CMD_PROB_CLEAR_INIT_CMD:
     xfree(prob->init_cmd);
     prob->init_cmd = 0;
+    return 0;
+
+  case SSERV_CMD_PROB_CHANGE_START_CMD:
+    xfree(prob->start_cmd);
+    prob->start_cmd = xstrdup(param2);
+    return 0;
+
+  case SSERV_CMD_PROB_CLEAR_START_CMD:
+    xfree(prob->start_cmd);
+    prob->start_cmd = 0;
     return 0;
 
   case SSERV_CMD_PROB_CHANGE_INIT_ENV:
@@ -4206,9 +4262,7 @@ super_html_update_variant_map(FILE *flog, int contest_id,
                               const struct contest_desc *cnts,
                               struct section_global_data *global,
                               int total_probs,
-                              struct section_problem_data **probs,
-                              unsigned char **p_header_txt,
-                              unsigned char **p_footer_txt)
+                              struct section_problem_data **probs)
 {
   int r;
   unsigned char *xml_text = 0;
@@ -4221,7 +4275,6 @@ super_html_update_variant_map(FILE *flog, int contest_id,
   int *tvec = 0, *new_map, *new_rev_map;
   struct userlist_user *user;
   struct userlist_user_info *ui;
-  unsigned char header_buf[1024];
 
   if (!cnts->root_dir && !cnts->root_dir[0]) {
     fprintf(flog, "update_variant_map: contest root_dir is not set");
@@ -4255,13 +4308,6 @@ super_html_update_variant_map(FILE *flog, int contest_id,
 
     if (stat(variant_file, &stbuf) < 0) {
       XCALLOC(global->variant_map, 1);
-      if (p_header_txt) {
-        snprintf(header_buf, sizeof(header_buf),
-                 "<?xml version=\"1.0\" encoding=\"%s\" ?>\n"
-                 "<!-- $%s$ -->\n",
-                 INTERNAL_CHARSET, "Id");
-        *p_header_txt = xstrdup(header_buf);
-      }
     } else {
       if (!S_ISREG(stbuf.st_mode)) {
         fprintf(flog, "update_variant_map: variant map file %s is not regular file\n",
@@ -4269,7 +4315,7 @@ super_html_update_variant_map(FILE *flog, int contest_id,
         goto failed;
       }
 
-      if (!(global->variant_map = prepare_parse_variant_map(flog, 0, variant_file, p_header_txt, p_footer_txt)))
+      if (!(global->variant_map = variant_map_parse(flog, 0, variant_file)))
         goto failed;
     }
   }
@@ -4516,7 +4562,7 @@ super_html_variant_prob_op(struct sid_state *sstate, int cmd, int prob_id)
         vmap->v[i].variants[j] = 1;
         continue;
       }
-      vmap->v[i].variants[j] = 1 + (int) ((random_u16() / 65536.0) * prob->variant_num);
+      vmap->v[i].variants[j] = random_range(1, prob->variant_num + 1);
     }
     break;
   default:

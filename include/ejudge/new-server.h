@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 8590 2014-09-03 19:36:14Z cher $ */
+/* $Id: new-server.h 8746 2014-11-13 10:02:18Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -286,6 +286,7 @@ enum
   NEW_SRV_ACTION_ASSIGN_CYPHERS_2,
   NEW_SRV_ACTION_VIEW_EXAM_INFO,
   NEW_SRV_ACTION_PRIV_SUBMIT_PAGE,
+  NEW_SRV_ACTION_USE_TOKEN,
 
   /* new-register stuff */
   NEW_SRV_ACTION_REG_CREATE_ACCOUNT_PAGE,
@@ -758,7 +759,9 @@ ns_write_olympiads_user_runs(
         struct contest_extra *extra,
         int all_runs,
         int prob_id,
-        const unsigned char *table_class);
+        const unsigned char *table_class,
+        const struct UserProblemInfo *pinfo,
+        int back_action);
 
 int
 new_server_cmd_handler(FILE *fout, struct http_request_info *phr);
@@ -779,40 +782,16 @@ struct client_state *ns_get_client_by_id(int client_id);
 void ns_send_reply(struct client_state *p, int answer);
 void ns_new_autoclose(struct client_state *p, void *, size_t);
 
+struct UserProblemInfo;
 void
 ns_get_user_problems_summary(
         const serve_state_t cs,
         int user_id,
+        const unsigned char *user_login,
         int accepting_mode,
-        unsigned char *solved_flag,   /* whether the problem was OK */
-        unsigned char *accepted_flag, /* whether the problem was accepted */
-        unsigned char *pending_flag,  /* whether there are pending runs */
-        unsigned char *trans_flag,    /* whether there are transient runs */
-        unsigned char *pr_flag,       /* whether there are pending review runs */
-        int *best_run,                /* the number of the best run */
-        int *attempts,                /* the number of previous attempts */
-        int *disqualified,            /* the number of prev. disq. attempts */
-        int *best_score,              /* the best score for the problem */
-        int *prev_successes,          /* the number of prev. successes */
-        int *all_attempts);           /* all attempts count */
-
-void
-ns_write_user_problems_summary(
-        const struct contest_desc *cnts,
-        const serve_state_t cs,
-        FILE *fout,
-        int user_id,
-        int accepting_mode,
-        const unsigned char *table_class,
-        unsigned char *solved_flag,   /* whether the problem was OK */
-        unsigned char *accepted_flag, /* whether the problem was accepted */
-        unsigned char *pr_flag,       /* whether there are pending review runs */
-        unsigned char *pending_flag,  /* whether there are pending runs */
-        unsigned char *trans_flag,    /* whether there are transient runs */
-        int *best_run,                /* the number of the best run */
-        int *attempts,                /* the number of previous attempts */
-        int *disqualified,            /* the number of prev. disq. attempts */
-        int *best_score);             /* the best score for the problem */
+        time_t start_time,
+        time_t stop_time,
+        struct UserProblemInfo *pinfo); /* user problem info */
 
 int ns_insert_variant_num(unsigned char *buf, size_t size,
                           const unsigned char *file, int variant);
@@ -935,6 +914,7 @@ ns_submit_run(
 extern int utf8_mode;
 extern time_t server_start_time;
 
+struct UserProblemInfo;
 void
 new_write_user_runs(
         const serve_state_t,
@@ -942,7 +922,9 @@ new_write_user_runs(
         struct http_request_info *phr,
         unsigned int show_flags,
         int prob_id,
-        const unsigned char *table_class);
+        const unsigned char *table_class,
+        const struct UserProblemInfo *pinfo,
+        int back_action);
 
 void
 new_write_user_clars(
@@ -960,6 +942,7 @@ write_xml_team_testing_report(
         struct http_request_info *phr,
         int output_only,
         int is_marked,
+        int token_flags,
         const unsigned char *txt,
         const unsigned char *table_class);
 
@@ -1029,17 +1012,7 @@ ns_get_register_url(
         const struct contest_desc *cnts,
         const struct http_request_info *phr);
 
-void
-ns_get_problem_status(
-        serve_state_t cs,
-        int user_id,
-        const unsigned char *user_login,
-        int accepting_mode,
-        time_t start_time,
-        time_t stop_time,
-        const unsigned char *solved_flag,
-        const unsigned char *accepted_flag,
-        unsigned char *pstat);
+struct UserProblemInfo;
 
 // problem status flags
 enum
@@ -1056,8 +1029,7 @@ html_problem_selection(
         serve_state_t cs,
         FILE *fout,
         struct http_request_info *phr,
-        const unsigned char *solved_flag,
-        const unsigned char *accepted_flag,
+        const struct UserProblemInfo *pinfo,
         const unsigned char *var_name,
         int light_mode,
         time_t start_time);
@@ -1081,5 +1053,11 @@ get_last_source(serve_state_t cs, int user_id, int prob_id);
 
 int
 get_last_answer_select_one(serve_state_t cs, int user_id, int prob_id);
+
+int
+compute_available_tokens(
+        serve_state_t cs,
+        const struct section_problem_data *prob,
+        time_t start_time);
 
 #endif /* __NEW_SERVER_H__ */

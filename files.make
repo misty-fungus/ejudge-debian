@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files.make 8617 2014-09-17 09:36:29Z cher $
+# $Id: files.make 8785 2014-11-27 09:55:34Z cher $
 
 # Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -186,6 +186,7 @@ COMMON_CFILES=\
  nwrun_packet.c\
  opcaps.c\
  opcaps_2.c\
+ packet_name.c\
  parsecfg.c\
  parsecfg_2.c\
  pathutl.c\
@@ -254,6 +255,7 @@ COMMON_CFILES=\
  userlist_check.c\
  userlist_proto.c\
  userlist_xml.c\
+ variant_map.c\
  varsubst.c\
  vcs.c\
  watched_file.c\
@@ -548,6 +550,7 @@ HFILES=\
  ./include/ejudge/nsdb_plugin.h\
  ./include/ejudge/nwrun_packet.h\
  ./include/ejudge/opcaps.h\
+ ./include/ejudge/packet_name.h\
  ./include/ejudge/parsecfg.h\
  ./include/ejudge/pathutl.h\
  ./include/ejudge/pollfds.h\
@@ -596,6 +599,7 @@ HFILES=\
  ./include/ejudge/uldb_plugin.h\
  ./include/ejudge/userlist.h\
  ./include/ejudge/userlist_clnt.h\
+ ./include/ejudge/variant_map.h\
  ./include/ejudge/varsubst.h\
  ./include/ejudge/vcs.h\
  ./include/ejudge/version.h\
