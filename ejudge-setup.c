@@ -1,7 +1,6 @@
 /* -*- mode:c -*- */
-/* $Id$ */
 
-/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -160,12 +159,25 @@ static unsigned char const email_accept_chars[] =
 static unsigned char const name_accept_chars[] =
 " !#$%()*+,-./0123456789=?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_"
 "abcdefghijklmnopqrstuvwxyz{|}~"
-" ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞß"
-"àáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ";
+"\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f"
+"\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f"
+"\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf"
+"\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf"
+"\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
+"\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf"
+"\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef"
+"\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff";
 static unsigned char const password_accept_chars[] =
 " !#$%\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_"
-"`abcdefghijklmnopqrstuvwxyz{|}~ ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿"
-"ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ";
+"`abcdefghijklmnopqrstuvwxyz{|}~"
+"\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f"
+"\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f"
+"\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf"
+"\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf"
+"\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
+"\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf"
+"\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef"
+"\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff";
 
 static unsigned char *lang_ids_file = 0;
 
@@ -875,13 +887,13 @@ do_paths_menu(int *p_cur_item)
       cmd = -1;
       switch (c) {
       case KEY_BACKSPACE: case KEY_DC: case 127: case 8:
-      case 'd': case 'D': case '÷' & 255: case '×' & 255:
+      case 'd': case 'D': /* case '÷' & 255: case '×' & 255: */
         c = 'd';
         goto menu_done;
-      case 'q': case 'Q': case 'Ê' & 255: case 'ê' & 255: case 'G' & 31:
+      case 'q': case 'Q': /* case 'Ê' & 255: case 'ê' & 255: */ case 'G' & 31:
         c = 'q';
         goto menu_done;
-      case 'b': case 'B': case 'É' & 255: case 'é' & 255:
+      case 'b': case 'B': /* case 'É' & 255: case 'é' & 255: */
         c = 'b';
         goto menu_done;
       case '\n': case '\r':
@@ -1217,10 +1229,10 @@ do_identity_menu(int *p_cur_item)
       cmd = -1;
       switch (c) {
       case KEY_BACKSPACE: case KEY_DC: case 127: case 8:
-      case 'd': case 'D': case '÷' & 255: case '×' & 255:
+      case 'd': case 'D': /* case '÷' & 255: case '×' & 255: */
         c = 'd';
         goto menu_done;
-      case 'q': case 'Q': case 'Ê' & 255: case 'ê' & 255: case 'G' & 31:
+      case 'q': case 'Q': /* case 'Ê' & 255: case 'ê' & 255: */ case 'G' & 31:
         c = 'q';
         goto menu_done;
       case '\n': case '\r':
@@ -1984,16 +1996,16 @@ do_settings_menu(int *p_cur_item)
       cmd = -1;
       switch (c) {
       case KEY_BACKSPACE: case KEY_DC: case 127: case 8:
-      case 'd': case 'D': case '÷' & 255: case '×' & 255:
+      case 'd': case 'D': /* case '÷' & 255: case '×' & 255: */
         c = 'd';
         goto menu_done;
-      case 'q': case 'Q': case 'Ê' & 255: case 'ê' & 255: case 'G' & 31:
+      case 'q': case 'Q': /* case 'Ê' & 255: case 'ê' & 255: */ case 'G' & 31:
         c = 'q';
         goto menu_done;
       case '\n': case '\r':
         c = '\n';
         goto menu_done;
-      case 'b': case 'B': case 'É' & 255: case 'é' & 255:
+      case 'b': case 'B': /* case 'É' & 255: case 'é' & 255: */
         c = 'b';
         goto menu_done;
       case KEY_UP: case KEY_LEFT:
@@ -3539,7 +3551,7 @@ static const unsigned char * const preview_menu_items[] =
 };
 static const unsigned char * const preview_menu_hotkeys[] =
 {
-  "qQÊê", "1", "2", "3", "4", "5", "6", "7", "8", "9", "aAÆæ",
+  "qQ", "1", "2", "3", "4", "5", "6", "7", "8", "9", "aA",
 };
 
 static void
@@ -4528,7 +4540,7 @@ create_tmp_dir(void)
   }
 }
 
-static const unsigned char initial_warning[] =
+static const unsigned char initial_warning[] __attribute__((unused)) =
 "\\begin{center}\n"
 "WARNING!\n"
 "\\end{center}\n"

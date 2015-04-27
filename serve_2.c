@@ -2993,10 +2993,10 @@ serve_read_run_packet(
 
 static const char * const scoring_system_strs[] =
 {
-  [SCORE_ACM] "ACM",
-  [SCORE_KIROV] "KIROV",
-  [SCORE_OLYMPIAD] "OLYMPIAD",
-  [SCORE_MOSCOW] "MOSCOW",
+  [SCORE_ACM] = "ACM",
+  [SCORE_KIROV] = "KIROV",
+  [SCORE_OLYMPIAD] = "OLYMPIAD",
+  [SCORE_MOSCOW] = "MOSCOW",
 };
 static const unsigned char *
 unparse_scoring_system(unsigned char *buf, size_t size, int val)
@@ -3582,7 +3582,7 @@ rejudge_by_mask_get_status_func(
   return xstrdup(buf);
 }
 
-static const struct server_framework_job_funcs rejudge_by_mask_funcs =
+static const struct server_framework_job_funcs rejudge_by_mask_funcs __attribute__((unused)) =
 {
   rejudge_by_mask_destroy_func,
   rejudge_by_mask_run_func,
@@ -3774,7 +3774,7 @@ rejudge_problem_get_status_func(
   return xstrdup(buf);
 }
 
-static const struct server_framework_job_funcs rejudge_problem_funcs =
+static const struct server_framework_job_funcs rejudge_problem_funcs __attribute__((unused)) =
 {
   rejudge_problem_destroy_func,
   rejudge_problem_run_func,
@@ -4741,6 +4741,46 @@ serve_mark_by_mask(
 
     serve_audit_log(state, r, &re, user_id, ip, ssl_flag,
                     audit_cmd, "ok", -1, NULL);
+  }
+}
+
+void
+serve_tokenize_by_mask(
+        serve_state_t state,
+        int user_id,
+        const ej_ip_t *ip,
+        int ssl_flag,
+        int mask_size,
+        unsigned long *mask,
+        int token_count,
+        int token_flags)
+{
+  int total_runs, r;
+  struct run_entry re;
+
+  ASSERT(mask_size > 0);
+
+  total_runs = run_get_total(state->runlog_state);
+  if (total_runs > mask_size * BITS_PER_LONG) {
+    total_runs = mask_size * BITS_PER_LONG;
+  }
+
+  for (r = total_runs - 1; r >= 0; r--) {
+    if (!(mask[r / BITS_PER_LONG] & (1L << (r % BITS_PER_LONG)))
+        || run_is_readonly(state->runlog_state, r))
+      continue;
+    if (run_get_entry(state->runlog_state, r, &re) < 0) continue;
+    if (!run_is_valid_status(re.status)) continue;
+    if (re.status > RUN_MAX_STATUS) continue;
+
+    if (re.token_count != token_count || re.token_flags != token_flags) {
+      re.token_count = token_count;
+      re.token_flags = token_flags;
+      run_set_entry(state->runlog_state, r, RE_TOKEN_COUNT | RE_TOKEN_FLAGS, &re);
+    }
+
+    serve_audit_log(state, r, &re, user_id, ip, ssl_flag,
+                    "change-token", "ok", -1, NULL);
   }
 }
 

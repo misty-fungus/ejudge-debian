@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 3.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-01-14 09:43+0300\n"
+"POT-Creation-Date: 2015-01-16 19:00+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Ukrainian <uk@li.org>\n"
@@ -33,6 +33,12 @@ msgstr ""
 
 #, c-format
 msgid " / <b>%d unread message(s)</b>"
+msgstr ""
+
+msgid " or standard input"
+msgstr ""
+
+msgid " or standard output"
 msgstr ""
 
 msgid "(no subject)"
@@ -466,6 +472,12 @@ msgstr ""
 msgid "Allow viewing source code"
 msgstr ""
 
+msgid "Allow viewing the final scores"
+msgstr ""
+
+msgid "Allow viewing the judge comment of the valuer"
+msgstr ""
+
 #, c-format
 msgid "An e-mail messages is sent to the address <tt>%s</tt>."
 msgstr ""
@@ -633,6 +645,9 @@ msgid "Change password"
 msgstr ""
 
 msgid "Change status"
+msgstr ""
+
+msgid "Change tokens for displayed runs"
 msgstr ""
 
 msgid "Change!"
@@ -3127,6 +3142,9 @@ msgstr ""
 msgid "Runs pending testing"
 msgstr ""
 
+msgid "Runs to change token info:"
+msgstr ""
+
 msgid "STATUS UPDATE FAILED!"
 msgstr ""
 
@@ -3344,6 +3362,9 @@ msgid "Show details"
 msgstr ""
 
 msgid "Show hidden contests"
+msgstr ""
+
+msgid "Show tests"
 msgstr ""
 
 msgid "Show unmanageable contests"
@@ -3788,6 +3809,15 @@ msgid "To user id"
 msgstr ""
 
 msgid "To user login"
+msgstr ""
+
+msgid "Token counter"
+msgstr ""
+
+msgid "Tokenize displayed runs"
+msgstr ""
+
+msgid "Tokenize displayed runs!"
 msgstr ""
 
 msgid "Too few lines in CSV file"
