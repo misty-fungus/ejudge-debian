@@ -1,7 +1,6 @@
-#! dh-exec
+#!/usr/bin/dh-exec
 /etc/ejudge
 /var/lib/ejudge
-/var/lib/ejudge/cgi-data
 /var/lib/ejudge/compile
 /var/spool/ejudge
 /var/spool/ejudge/work-disk
