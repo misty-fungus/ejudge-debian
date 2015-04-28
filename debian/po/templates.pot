@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ejudge\n"
 "Report-Msgid-Bugs-To: ejudge@packages.debian.org\n"
-"POT-Creation-Date: 2015-04-24 22:52+0300\n"
+"POT-Creation-Date: 2015-04-28 13:17+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -20,7 +20,7 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../ejudge.templates:1001
-msgid "Dedicated system account for the ejudge contest managment service:"
+msgid "Ejudge user:"
 msgstr ""
 
 #. Type: string
@@ -40,7 +40,7 @@ msgstr ""
 #. Type: string
 #. Description
 #: ../ejudge.templates:2001
-msgid "Dedicated system group for ejudge contest managment service:"
+msgid "Ejudge group:"
 msgstr ""
 
 #. Type: string
@@ -53,14 +53,8 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../ejudge.templates:2001
-msgid "Please choose group for ejudge."
-msgstr ""
-
-#. Type: string
-#. Description
 #: ../ejudge.templates:3001
-msgid "ejudge contests root directory"
+msgid "Ejudge contests root directory:"
 msgstr ""
 
 #. Type: string
@@ -74,13 +68,15 @@ msgstr ""
 #. Type: note
 #. Description
 #: ../ejudge.templates:4001
-msgid "Ejudge requires a kernel patch to enable secure run of solutions."
+msgid "Ejudge kernel patch "
 msgstr ""
 
 #. Type: note
 #. Description
 #: ../ejudge.templates:4001
-msgid "Accept public solutions without kernel patch at your own risk."
+msgid ""
+"Ejudge requires a kernel patch to enable secure run of solutions. Accept "
+"public solutions without kernel patch at your own risk."
 msgstr ""
 
 #. Type: note
