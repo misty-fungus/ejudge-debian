@@ -1,16 +1,17 @@
-ejudge (2.3.29-5~1.gbp8b8a91) UNRELEASED; urgency=medium
+ejudge (2.3.29-5) unstable; urgency=medium
 
-  ** SNAPSHOT build @8b8a91cc361492468191cd072f3feeb8e7c981ca **
-
-  * UNRELEASED
   * [85f82fd] new debian snapshot
   * [22fb913] refreshed default configs for 1-st contest
   * [221ff8a] added mysql examples to config file
   * [9e8176c] updated local options
   * [02763a6] added debian multiarch support
   * [a7afa92] moved some installation from rules to ejudge.install and ejudge.dirs
+  * [5fc75d0] new debian snapshot
+  * [60cfe58] added ejudge-compilers.patch from alt linux ejudge port
+  * [87d60db] regenerated pot files
+  * [5fe3871] updated dirs file
 
- -- Yaroslav Leonov <alximik@aeon.btty.su>  Sat, 25 Apr 2015 00:52:24 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Tue, 28 Apr 2015 13:36:17 +0300
 
 ejudge (2.3.29-4) unstable; urgency=medium
 
