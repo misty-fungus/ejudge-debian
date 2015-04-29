@@ -64,6 +64,11 @@ override_dh_auto_install:
 
 .PHONY: override_dh_auto_clean
 override_dh_auto_clean:
+	# bzr-builder does not support quilt packages and converts
+	# quilt packages to native 
+	if grep -q native debian/source/format; then \
+		rm -rf .pc; \
+	fi 
 	dh_auto_clean
 	debconf-updatepo
 	[ ! -f ejudge.ru_RU.KOI8-R.po.bak ] || mv ejudge.ru_RU.KOI8-R.po.bak ejudge.ru_RU.KOI8-R.po
