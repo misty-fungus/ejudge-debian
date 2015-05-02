@@ -1,20 +1,2 @@
-embedded-javascript-library usr/share/ejudge/style/dijit/dijit.js please use libjs-dojo-\w+
-embedded-javascript-library usr/share/ejudge/style/dojo/dojo.js please use libjs-dojo-\w+
-embedded-javascript-library usr/share/ejudge/style/dojox/analytics/plugins/dojo.js please use libjs-dojo-\w+
-embedded-javascript-library usr/share/ejudge/style/dojox/dtl/contrib/dijit.js please use libjs-dojo-\w+
-embedded-javascript-library usr/share/ejudge/style/dojox/grid/cells/dijit.js please use libjs-dojo-\w+
-extra-license-file usr/share/ejudge/style/dijit/LICENSE
-extra-license-file usr/share/ejudge/style/dojo/LICENSE
-extra-license-file usr/share/ejudge/style/dojo/_firebug/LICENSE
-extra-license-file usr/share/ejudge/style/dojo/cldr/LICENSE
-extra-license-file usr/share/ejudge/style/dojo/resources/LICENSE
-extra-license-file usr/share/ejudge/style/dojox/LICENSE
-extra-license-file usr/share/ejudge/style/dojox/encoding/LICENSE
-extra-license-file usr/share/ejudge/style/dojox/lang/LICENSE
-extra-license-file usr/share/ejudge/style/dojox/sql/LICENSE
-
-privacy-breach-google-adsense usr/share/ejudge/style/dojox/analytics/Urchin.js
-script-not-executable usr/share/ejudge/style/dojox/storage/buildFlashStorage.sh
-
 possible-debconf-note-abuse config:\w+ ejudge/kernel_patch_note
 wrong-bug-number-in-closes l\w+:#nnnn

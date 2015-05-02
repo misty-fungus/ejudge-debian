@@ -24,11 +24,6 @@ set -e
 
 case "$1" in
     remove|upgrade|deconfigure)
-        # removing links to dojox
-        cgi_data_dir="/usr/share/ejudge/style"
-        for folder in dijit dojo dojox; do
-            [ -L "$cgi_data_dir/$folder" ] && rm "$cgi_data_dir/$folder"
-        done
     ;;
 
     failed-upgrade)

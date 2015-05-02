@@ -77,6 +77,14 @@ case "${action}" in
             echo "not updating userlist.xml --- file exists"
         fi
 
+        # Dojo dependency dropped  since 3.0.0
+        # removing links to dojox
+        if dpkg --compare-versions "$oldversion" lt-nl 3.0.0; then
+            cgi_data_dir="/usr/share/ejudge/style"
+            for folder in dijit dojo dojox; do
+                [ -L "$cgi_data_dir/$folder" ] && rm "$cgi_data_dir/$folder"
+            done
+        fi
 
         # fixing permissions
         chown -R "${_USERNAME}:${_GROUPNAME}" "/var/spool/ejudge"
@@ -93,15 +101,6 @@ case "${action}" in
         # Attention! this debian build has 09_preserve_configured_langs patch to prevent ejudge-configure-compilers
         # deletion of configured langs
         ejudge-configure-compilers --batch
-
-        #creating links to dojox
-        for folder in dijit dojo dojox; do
-            if [ -e "$cgi_data_dir/$folder" ]; then
-               echo "Skip creation of $cgi_data_dir/$folder"
-               continue
-            fi
-            ln -sf "/usr/share/javascript/$folder" "$cgi_data_dir/$folder"
-        done
 
         #probe run for ej-compile
         ej-compile  -u "${_USERNAME}" -g "${_GROUPNAME}" -C "/var/lib/ejudge/compile" -i conf/compile.cfg

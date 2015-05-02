@@ -56,10 +56,6 @@ override_dh_auto_install:
 	
 	# removing extra binaries
 	rm "$(install_root)/usr/sbin/uudecode"
-	
-	# Setup bundle dojo
-	dojo_package=$$(ls $(CURDIR)/debian/extra/ | grep dojo-release-.*.tar.gz | head -n 1);\
-	  tar -xzf "$(CURDIR)/debian/extra/$${dojo_package}" --directory "$(install_root)/usr/share/ejudge/style" --transform "s/^$${dojo_package%.tar.gz}\///"  --wildcards "$${dojo_package%.tar.gz}/*"
 
 
 .PHONY: override_dh_auto_clean
