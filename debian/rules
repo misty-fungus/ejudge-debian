@@ -20,7 +20,6 @@ export DH_VERBOSE=1
 
 .PHONY: override_dh_auto_configure
 override_dh_auto_configure:
-	[ -f ejudge.ru_RU.KOI8-R.po.bak ] || cp -a ejudge.ru_RU.KOI8-R.po ejudge.ru_RU.KOI8-R.po.bak
 	dh_auto_configure -- \
 		--disable-rpath  \
 		--libexecdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
@@ -71,7 +70,6 @@ override_dh_auto_clean:
 	fi 
 	dh_auto_clean
 	debconf-updatepo
-	[ ! -f ejudge.ru_RU.KOI8-R.po.bak ] || mv ejudge.ru_RU.KOI8-R.po.bak ejudge.ru_RU.KOI8-R.po
 	rm -f .build
 	rm -f style/ejudge-upgrade-web
 	rm -f python/streamio/Makefile
