@@ -1,3 +1,10 @@
+ejudge (3.0.1-1) UNRELEASED; urgency=medium
+
+  * [df7da3a] New upstream version 3.0.1
+  * [065c4b7] added bzr-builder support
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Sat, 02 May 2015 19:51:56 +0300
+
 ejudge (2.3.29-5) unstable; urgency=medium
 
   * [85f82fd] new debian snapshot
