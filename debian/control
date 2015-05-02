@@ -8,10 +8,10 @@ Homepage: http://www.ejudge.ru
 
 Package: ejudge
 Architecture: any
+Multi-Arch: foreign
 Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}, sharutils, apache2 | httpd, gawk,
  adduser
-Suggests: libjs-dojo-dojox, emboss-lib
 Description: Programming contest management system
  Ejudge is a programming contest management system.
 
