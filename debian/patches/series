@@ -8,3 +8,4 @@
 08_fix_perl_interpreter_in_scripts
 09_preserve_configured_langs
 ejudge-compilers.patch
+10_fix_libdwarf_paths.patch

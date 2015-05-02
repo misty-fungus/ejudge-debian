@@ -1,0 +1,41 @@
+Index: ejudge-debian/configure
+===================================================================
+--- ejudge-debian.orig/configure
++++ ejudge-debian/configure
+@@ -6674,7 +6674,7 @@ fi
+ 
+ saved_LIBS="${LIBS}"
+ LIBS="-lelf"
+-ac_fn_c_check_header_mongrel "$LINENO" "libdwarf/libdwarf.h" "ac_cv_header_libdwarf_libdwarf_h" "$ac_includes_default"
++ac_fn_c_check_header_mongrel "$LINENO" "libdwarf.h" "ac_cv_header_libdwarf_libdwarf_h" "$ac_includes_default"
+ if test "x$ac_cv_header_libdwarf_libdwarf_h" = xyes; then :
+   ac_cv_has_libdwarf=1
+ else
+Index: ejudge-debian/configure.ac
+===================================================================
+--- ejudge-debian.orig/configure.ac
++++ ejudge-debian/configure.ac
+@@ -425,7 +425,7 @@ fi
+ dnl checl libdwarf library
+ saved_LIBS="${LIBS}"
+ LIBS="-lelf"
+-AC_CHECK_HEADER([libdwarf/libdwarf.h],[ac_cv_has_libdwarf=1],[ac_cv_has_libdwarf=0])
++AC_CHECK_HEADER([libdwarf.h],[ac_cv_has_libdwarf=1],[ac_cv_has_libdwarf=0])
+ if [[ x"${ac_cv_has_libdwarf}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
+ then
+   AC_MSG_FAILURE([please install libdwarf development package])
+Index: ejudge-debian/dwarf_parse.c
+===================================================================
+--- ejudge-debian.orig/dwarf_parse.c
++++ ejudge-debian/dwarf_parse.c
+@@ -31,8 +31,8 @@
+ #include <errno.h>
+ #include <limits.h>
+ 
+-#include <libdwarf/dwarf.h>
+-#include <libdwarf/libdwarf.h>
++#include <dwarf.h>
++#include <libdwarf.h>
+ 
+ typedef struct DieMapEntry
+ {
