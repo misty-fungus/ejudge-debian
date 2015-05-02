@@ -35,6 +35,7 @@ override_dh_auto_configure:
 		--enable-local-dir=/var/spool/ejudge \
 		--enable-ajax \
 		--enable-lang-config-dir=/var/lib/ejudge/compile/conf/lang.d \
+		--with-rest \
 
 # note: dont change /var/... to \$${localstatedir}. configure will write it to config.h as is
 #       same for $${prefix}
