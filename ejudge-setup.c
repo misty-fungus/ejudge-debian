@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-setup.c 7658 2013-12-07 18:02:11Z cher $ */
+/* $Id: ejudge-setup.c 8546 2014-08-23 18:12:48Z cher $ */
 
-/* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,25 +15,24 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/ncurses_utils.h"
+#include "ejudge/sha.h"
+#include "ejudge/base64.h"
+#include "ejudge/startstop.h"
+#include "ejudge/cpu.h"
+#include "ejudge/misctext.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/shellcfg_parse.h"
+#include "ejudge/lang_config_vis.h"
+#include "ejudge/stringset.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/compat.h"
 
-#include "ncurses_utils.h"
-#include "sha.h"
-#include "base64.h"
-#include "startstop.h"
-#include "cpu.h"
-#include "misctext.h"
-#include "pathutl.h"
-#include "shellcfg_parse.h"
-#include "lang_config_vis.h"
-#include "stringset.h"
-#include "fileutl.h"
-#include "compat.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <limits.h>
 #include <string.h>
@@ -580,6 +579,8 @@ is_valid_path(int idx)
 {
   struct stat stbuf;
   const struct path_edit_item *pi;
+
+  if (getenv("EJUDGE_NO_CHECK_PATH") != 0) return 1;
 
   ASSERT(idx >= 0 && idx < PATH_LINE_LAST);
   switch (idx) {
@@ -4618,9 +4619,3 @@ main(int argc, char **argv)
   if (tmp_work_dir[0]) remove_directory_recursively(tmp_work_dir, 0);
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

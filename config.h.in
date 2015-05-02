@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: config.h.in 7556 2013-11-07 11:12:15Z cher $ */
+/* $Id: config.h.in 7690 2013-12-24 18:51:26Z cher $ */
 
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
@@ -166,6 +166,9 @@
 #undef R_HAS_LONGLONG
 
 #undef R_HAS___INT64
+
+#undef EJUDGE_REST_PREFIX
+#undef EJUDGE_REST_PREFIX_LEN
 
 #endif /* __CONFIG_H__ */
 

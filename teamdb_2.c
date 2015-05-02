@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: teamdb_2.c 6855 2012-05-25 10:31:22Z cher $ */
+/* $Id: teamdb_2.c 8271 2014-05-29 09:07:29Z cher $ */
 
-/* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "teamdb.h"
-#include "teamdb_priv.h"
-#include "userlist.h"
-#include "serve_state.h"
-#include "filter_eval.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/teamdb_priv.h"
+#include "ejudge/userlist.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/filter_eval.h"
 
 #include <string.h>
 
@@ -133,6 +133,7 @@ teamdb_get_user_map(
   }
 
   /*
+   * FIXME: why is that?
   env.mem = filter_tree_delete(env.mem);
   filter->stand_user_tree = 0;
   */

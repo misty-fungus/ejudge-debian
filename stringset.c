@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: stringset.c 6135 2011-03-26 09:30:42Z cher $ */
+/* $Id: stringset.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "stringset.h"
+#include "ejudge/stringset.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <string.h>
 
@@ -105,10 +105,3 @@ stringset_check(stringset_t p, const unsigned char * s)
       return 1;
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: create_contest.c 6158 2011-03-27 06:59:28Z cher $ */
+/* $Id: create_contest.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,26 +15,27 @@
  * GNU General Public License for more details.
  */
 
-#include "super_clnt.h"
-#include "super_proto.h"
-#include "errlog.h"
+#include "ejudge/super_clnt.h"
+#include "ejudge/super_proto.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 #include <stdlib.h>
 #include <unistd.h>
 
 int
-super_clnt_create_contest(int sock_fd,
-                          int out_fd,
-                          int cmd,
-                          int num_mode,
-                          int templ_mode,
-                          int contest_id,
-                          int templ_id,
-                          const unsigned char *self_url,
-                          const unsigned char *hidden_vars,
-                          const unsigned char *extra_args)
+super_clnt_create_contest(
+        int sock_fd,
+        int out_fd,
+        int cmd,
+        int num_mode,
+        int templ_mode,
+        int contest_id,
+        int templ_id,
+        const unsigned char *self_url,
+        const unsigned char *hidden_vars,
+        const unsigned char *extra_args)
 {
   struct prot_super_pkt_create_contest *out = 0;
   struct prot_super_packet *in = 0;
@@ -120,9 +121,8 @@ super_clnt_create_contest(int sock_fd,
   return SSERV_RPL_OK;
 }
 
-/**
+/*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: contests.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: contests.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,24 +15,22 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/contests.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/userlist.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/misctext.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/l10n.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/meta/contests_meta.h"
 
-#include "ej_limits.h"
-#include "contests.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "userlist.h"
-#include "xml_utils.h"
-#include "misctext.h"
-#include "fileutl.h"
-#include "xml_utils.h"
-#include "l10n.h"
-#include "ejudge_cfg.h"
-#include "contests_meta.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <time.h>
@@ -1886,9 +1884,3 @@ contests_get_member_name(int ff)
   ASSERT(ff >= 0 && ff < CONTEST_LAST_MEMBER);
   return member_names[ff];
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

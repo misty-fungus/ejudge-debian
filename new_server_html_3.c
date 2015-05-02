@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_3.c 7636 2013-11-25 19:23:10Z cher $ */
+/* $Id: new_server_html_3.c 8583 2014-09-02 19:36:37Z cher $ */
 
-/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,22 +15,21 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/new-server.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/prepare.h"
+#include "ejudge/misctext.h"
+#include "ejudge/errlog.h"
+#include "ejudge/contests.h"
+#include "ejudge/l10n.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/copyright.h"
+#include "ejudge/team_extra.h"
 
-#include "new-server.h"
-#include "new_server_proto.h"
-#include "prepare.h"
-#include "misctext.h"
-#include "errlog.h"
-#include "contests.h"
-#include "l10n.h"
-#include "xml_utils.h"
-#include "copyright.h"
-#include "team_extra.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <stdarg.h>
 
@@ -294,19 +293,9 @@ ns_html_err_no_perm(FILE *fout,
   if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
   if (cnts) extra = ns_get_contest_extra(phr->contest_id);
   if (extra && !priv_mode) {
-    watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-    watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-    watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
     watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-    header = extra->header.text;
-    separator = extra->separator.text;
-    footer = extra->footer.text;
     copyright = extra->copyright.text;
   } else if (extra && priv_mode) {
-    watched_file_update(&extra->priv_header, cnts->priv_header_file, cur_time);
-    watched_file_update(&extra->priv_footer, cnts->priv_footer_file, cur_time);
-    header = extra->priv_header.text;
-    footer = extra->priv_footer.text;
   }
   if (!priv_mode) {
     if (!header || !footer) {
@@ -389,19 +378,9 @@ ns_html_err_simple_registered(
   if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
   if (cnts) extra = ns_get_contest_extra(phr->contest_id);
   if (extra && !priv_mode) {
-    watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-    watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-    watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
     watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-    header = extra->header.text;
-    separator = extra->separator.text;
-    footer = extra->footer.text;
     copyright = extra->copyright.text;
   } else if (extra && priv_mode) {
-    watched_file_update(&extra->priv_header, cnts->priv_header_file, cur_time);
-    watched_file_update(&extra->priv_footer, cnts->priv_footer_file, cur_time);
-    header = extra->priv_header.text;
-    footer = extra->priv_footer.text;
   }
   if (!priv_mode) {
     if (!header || !footer) {
@@ -476,19 +455,9 @@ ns_html_err_inv_param(FILE *fout,
   if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
   if (cnts) extra = ns_get_contest_extra(phr->contest_id);
   if (extra && !priv_mode) {
-    watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-    watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-    watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
     watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-    header = extra->header.text;
-    separator = extra->separator.text;
-    footer = extra->footer.text;
     copyright = extra->copyright.text;
   } else if (extra && priv_mode) {
-    watched_file_update(&extra->priv_header, cnts->priv_header_file, cur_time);
-    watched_file_update(&extra->priv_footer, cnts->priv_footer_file, cur_time);
-    header = extra->priv_header.text;
-    footer = extra->priv_footer.text;
   }
   if (!priv_mode) {
     if (!header || !footer) {
@@ -542,13 +511,7 @@ ns_html_err_service_not_available(FILE *fout,
   if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
   if (cnts) extra = ns_get_contest_extra(phr->contest_id);
   if (extra) {
-    watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-    watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-    watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
     watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-    header = extra->header.text;
-    separator = extra->separator.text;
-    footer = extra->footer.text;
     copyright = extra->copyright.text;
   }
 
@@ -604,13 +567,7 @@ ns_html_err_cnts_unavailable(FILE *fout,
   if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
   if (cnts) extra = ns_get_contest_extra(phr->contest_id);
   if (extra) {
-    watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-    watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-    watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
     watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-    header = extra->header.text;
-    separator = extra->separator.text;
-    footer = extra->footer.text;
     copyright = extra->copyright.text;
   }
 
@@ -672,19 +629,9 @@ ns_html_err_ul_server_down(FILE *fout,
   if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
   if (cnts) extra = ns_get_contest_extra(phr->contest_id);
   if (extra && !priv_mode) {
-    watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-    watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-    watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
     watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-    header = extra->header.text;
-    header = extra->separator.text;
-    footer = extra->footer.text;
     copyright = extra->copyright.text;
   } else if (extra && priv_mode) {
-    watched_file_update(&extra->priv_header, cnts->priv_header_file, cur_time);
-    watched_file_update(&extra->priv_footer, cnts->priv_footer_file, cur_time);
-    header = extra->priv_header.text;
-    footer = extra->priv_footer.text;
   }
   if (!priv_mode) {
     if (!header || !footer) {
@@ -740,19 +687,9 @@ ns_html_err_internal_error(FILE *fout,
   if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
   if (cnts) extra = ns_get_contest_extra(phr->contest_id);
   if (extra && !priv_mode) {
-    watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-    watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-    watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
     watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-    header = extra->header.text;
-    separator = extra->separator.text;
-    footer = extra->footer.text;
     copyright = extra->copyright.text;
   } else if (extra && priv_mode) {
-    watched_file_update(&extra->priv_header, cnts->priv_header_file, cur_time);
-    watched_file_update(&extra->priv_footer, cnts->priv_footer_file, cur_time);
-    header = extra->priv_header.text;
-    footer = extra->priv_footer.text;
   }
   if (!priv_mode) {
     if (!header || !footer) {
@@ -806,19 +743,9 @@ ns_html_err_inv_session(FILE *fout,
   if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
   if (cnts) extra = ns_get_contest_extra(phr->contest_id);
   if (extra && !priv_mode) {
-    watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-    watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-    watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
     watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-    header = extra->header.text;
-    separator = extra->separator.text;
-    footer = extra->footer.text;
     copyright = extra->copyright.text;
   } else if (extra && priv_mode) {
-    watched_file_update(&extra->priv_header, cnts->priv_header_file, cur_time);
-    watched_file_update(&extra->priv_footer, cnts->priv_footer_file, cur_time);
-    header = extra->priv_header.text;
-    footer = extra->priv_footer.text;
   }
   if (!priv_mode) {
     if (!header || !footer) {
@@ -896,13 +823,7 @@ ns_html_err_registration_incomplete(
   if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
   if (cnts) extra = ns_get_contest_extra(phr->contest_id);
   if (extra) {
-    watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-    watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-    watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
     watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-    header = extra->header.text;
-    separator = extra->separator.text;
-    footer = extra->footer.text;
     copyright = extra->copyright.text;
   }
   if (!header || !footer) {
@@ -956,13 +877,7 @@ ns_html_err_disqualified(
 
   err("%d: user disqualified", phr->id);
 
-  watched_file_update(&extra->header, cnts->team_header_file, cur_time);
-  watched_file_update(&extra->separator, cnts->team_separator_file, cur_time);
-  watched_file_update(&extra->footer, cnts->team_footer_file, cur_time);
   watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
-  header = extra->header.text;
-  separator = extra->separator.text;
-  footer = extra->footer.text;
   copyright = extra->copyright.text;
 
   if (!header || !footer) {
@@ -989,8 +904,63 @@ ns_html_err_disqualified(
   html_armor_free(&ab);
 }
 
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */
+// very basic error messaging
+void
+ns_html_error(
+        FILE *fout,
+        struct http_request_info *phr,
+        int priv_mode,
+        int error_code)
+{
+  const struct contest_desc *cnts = 0;
+  struct contest_extra *extra = 0;
+  const unsigned char *header = 0, *footer = 0, *separator = 0;
+  const unsigned char *copyright = 0;
+  time_t cur_time = time(0);
+  const unsigned char *title = ns_error_title(error_code);
+  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
+
+  err("%d: html error: %d, %d (%s)", phr->id, priv_mode, error_code, title);
+
+  if (phr->contest_id > 0) contests_get(phr->contest_id, &cnts);
+  if (cnts) extra = ns_get_contest_extra(phr->contest_id);
+  if (extra && !priv_mode) {
+    watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
+    copyright = extra->copyright.text;
+  } else if (extra && priv_mode) {
+  }
+  if (!priv_mode) {
+    if (!header || !footer) {
+      header = ns_fancy_header;
+      separator = ns_fancy_separator;
+      if (copyright) footer = ns_fancy_footer_2;
+      else footer = ns_fancy_footer;
+    }
+  } else {
+    if (!header || !footer) {
+      header = ns_fancy_priv_header;
+      separator = ns_fancy_priv_separator;
+      footer = ns_fancy_priv_footer;
+    }    
+  }
+
+  if (phr->log_f) {
+    fclose(phr->log_f); phr->log_f = NULL;
+  }
+
+  l10n_setlocale(phr->locale_id);
+  title = ns_error_title(error_code);
+  ns_header(fout, header, 0, 0, 0, 0, phr->locale_id, cnts, NULL_CLIENT_KEY, title);
+  if (separator && *separator) {
+    fprintf(fout, "%s", ns_fancy_empty_status);
+    ns_separator(fout, separator, cnts);
+  }
+  if (phr->log_t && *phr->log_t) {
+    fprintf(fout, "<p>%s</p>\n", _("Error details follow"));
+    fprintf(fout, "<font color=\"red\"><pre>%s</pre></font>\n", ARMOR(phr->log_t));
+  }
+  xfree(phr->log_t); phr->log_t = NULL;
+  phr->log_z = 0;
+  ns_footer(fout, footer, copyright, phr->locale_id);
+  l10n_setlocale(0);
+}

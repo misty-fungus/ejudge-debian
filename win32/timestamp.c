@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: timestamp.c 6143 2011-03-26 10:37:35Z cher $ */
+/* $Id: timestamp.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "timestamp.h"
+#include "ejudge/timestamp.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <windows.h>
 
@@ -106,9 +106,8 @@ file_stamp_free(file_stamp_t ts)
 }
 
 
-/**
+/*
  * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
+ *  compile-command: "make -C .."
  * End:
  */

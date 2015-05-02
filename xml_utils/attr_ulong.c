@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: attr_ulong.c 6891 2012-06-18 03:50:37Z cher $ */
+/* $Id: attr_ulong.c 8210 2014-05-14 23:41:03Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "errlog.h"
-#include "expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/errlog.h"
+#include "ejudge/expat_iface.h"
 
 #include <errno.h>
 #include <stdlib.h>

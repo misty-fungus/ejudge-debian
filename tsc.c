@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: tsc.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: tsc.c 8192 2014-05-14 19:40:35Z cher $ */
 
-/* Copyright (C) 2003-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,15 +15,14 @@
  * GNU General Public License for more details.
  */
 
-#include "tsc.h"
+#include "ejudge/tsc.h"
+#include "ejudge/win32_compat.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
-
-#include "win32_compat.h"
 
 ej_tsc_t cpu_frequency;
 int

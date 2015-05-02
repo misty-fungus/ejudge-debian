@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: parse_date.c 6491 2011-10-21 06:16:54Z cher $ */
+/* $Id: parse_date.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "errlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -227,6 +227,5 @@ xml_parse_date(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

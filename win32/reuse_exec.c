@@ -1,6 +1,6 @@
-/* $Id: reuse_exec.c 7179 2012-11-18 18:14:31Z cher $ */
+/* $Id: reuse_exec.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 1999-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 1999-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 11:05:09 cher> */
 
 /*
@@ -16,14 +16,14 @@
  */
 
 /**
- * FILE:    reuse/win32/exec.c
+ * FILE:    ejudge/win32/exec.c
  * PURPOSE: process abstraction layer, Win32 implementation
  */
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/exec.h"
 
 #include <windows.h>
 #include <stdio.h>

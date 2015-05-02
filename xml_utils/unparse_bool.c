@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: unparse_bool.c 5677 2010-01-19 09:59:15Z cher $ */
+/* $Id: unparse_bool.c 8210 2014-05-14 23:41:03Z cher $ */
 
-/* Copyright (C) 2006 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
+#include "ejudge/xml_utils.h"
 
 const unsigned char *
 xml_unparse_bool(int b)
@@ -27,6 +27,5 @@ xml_unparse_bool(int b)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

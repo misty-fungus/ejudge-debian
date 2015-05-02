@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: ej-ncheck.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: ej-ncheck.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,14 +15,13 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/version.h"
+#include "ejudge/ncheck_packet.h"
 
-#include "ncheck_packet.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -145,9 +144,3 @@ main(int argc, char *argv[])
 
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: expat_iface.c 6500 2011-10-29 14:03:52Z cher $ */
+/* $Id: expat_iface.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,16 +15,15 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/expat_iface.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/misctext.h"
 
-#include "expat_iface.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "misctext.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <expat.h>
 
@@ -1225,10 +1224,3 @@ cleanup_and_exit:
   if (data.tree) xml_tree_free(data.tree, spec);
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "XML_Parser" "XML_Char" "XML_Encoding")
- * End:
- */

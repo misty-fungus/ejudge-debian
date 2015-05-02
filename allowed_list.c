@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: allowed_list.c 6135 2011-03-26 09:30:42Z cher $ */
+/* $Id: allowed_list.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "misctext.h"
+#include "ejudge/misctext.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <stdlib.h>
 #include <ctype.h>
@@ -118,10 +118,3 @@ allowed_list_map(
 
   allowed_list_free(langs, langs_u);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: empty_text.c 6129 2011-03-26 09:12:45Z cher $ */
+/* $Id: empty_text.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "pathutl.h"
-#include "expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/expat_iface.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <ctype.h>
 
@@ -64,6 +64,5 @@ xml_empty_text_c(const struct xml_tree *tree)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

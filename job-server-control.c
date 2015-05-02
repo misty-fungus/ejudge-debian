@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: job-server-control.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: job-server-control.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,16 +15,15 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/job_packet.h"
+#include "ejudge/startstop.h"
 
-#include "ejudge_cfg.h"
-#include "job_packet.h"
-#include "startstop.h"
-
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>

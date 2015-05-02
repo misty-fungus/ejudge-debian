@@ -1,0 +1,205 @@
+<%
+/* $Id: priv_submit_page.csp 8158 2014-05-10 08:41:13Z cher $ */
+%><%@include "priv_includes.csp"
+%><%
+void
+ns_unparse_statement(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra,
+        const struct section_problem_data *prob,
+        int variant,
+        problem_xml_t px,
+        const unsigned char *bb,
+        int is_submittable);
+
+void
+ns_unparse_answers(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra,
+        const struct section_problem_data *prob,
+        int variant,
+        problem_xml_t px,
+        const unsigned char *lang,
+        int is_radio,
+        int last_answer,
+        int next_prob_id,
+        int enable_js,
+        const unsigned char *class_name);
+%><%@set getter_name = "csp_get_priv_submit_page"
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@set err_prefix = "NEW_SRV_ERR_"
+%><%@page csp_view_priv_submit_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "priv_stdvars.csp"
+%><%
+  const struct section_problem_data *prob = 0;
+  int prob_id = 0, variant = 0, i;
+  problem_xml_t px = 0;
+  struct watched_file *pw = 0;
+  const unsigned char *pw_path = 0;
+  path_t variant_stmt_file;
+  unsigned char title[1024];
+
+%><s:read var="prob_id" name="problem" default="0" error="inv-run-id" /><%
+  if (prob_id < 0 || prob_id > cs->max_prob) {
+    FAIL(NEW_SRV_ERR_INV_PROB_ID);
+  }
+  if (prob_id > 0 && !(prob = cs->probs[prob_id])) {
+    FAIL(NEW_SRV_ERR_INV_PROB_ID);
+  }
+%><s:read var="variant" error="inv-variant" /><%
+  if (!prob) variant = 0;
+  if (prob && prob->variant_num <= 0) variant = 0;
+  if (variant < 0
+      || (prob && prob->variant_num <= 0 && variant > 0)
+      || (prob && prob->variant_num > 0 && variant > prob->variant_num)) {
+    FAIL(NEW_SRV_ERR_INV_VARIANT);
+  }
+  if (opcaps_check(phr->caps, OPCAP_SUBMIT_RUN) < 0) {
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  }
+
+  l10n_setlocale(phr->locale_id);
+  if (prob && variant > 0) {
+    snprintf(title, sizeof(title), "%s %s-%d", _("Submit a solution for"), prob->short_name, variant);
+  } else if (prob) {
+    snprintf(title, sizeof(title), "%s %s", _("Submit a solution for"), prob->short_name);
+  } else {
+    snprintf(title, sizeof(title), "%s", _("Submit a solution"));
+  }
+%><%@include "priv_header.csp"
+%>
+<% if (prob) { %>
+<h2><s:tr>Problem</s:tr> <s:v value="prob->short_name" escape="false"/>: <s:v value="prob->long_name" /></h2>
+<% } %>
+
+<s:form enctype="multipart/form-data">
+
+<table class="b0"><tr>
+<tr><td class="b0"><s:tr>Problem</s:tr>:</td><td class="b0"><s:select name="problem"><%
+  for (i = 1; i <= cs->max_prob; i++) {
+    if (!(cs->probs[i])) continue;
+%><s:option value="i" selectedExpr="prob_id > 0 && i == prob_id"><s:v value="cs->probs[i]->short_name" escape="false" /> - <s:v value="cs->probs[i]->long_name" /></s:option><%
+  }
+%></s:select></td><td class="b0"><s:submit ac="priv-submit-page" /></td></tr>
+<% if (prob && prob->variant_num > 0) { %>
+<tr><td class="b0"><s:tr>Variant</s:tr>:</td><td class="b0"><s:select name="variant"><%
+    for (i = 0; i <= prob->variant_num; i++) {
+%><s:option value="i" selectedExpr="i == variant"><s:v value="i" checkExpr=" > 0" /></s:option><%
+    }
+%></s:select></td><td class="b0"><s:submit ac="priv-submit-page" label="Select variant" /></td>
+</tr>
+<% } %>
+</table>
+<%
+  /* output the problem statement */
+  px = 0; pw = 0; pw_path = 0;
+  if (prob && prob->variant_num > 0 && variant > 0 && prob->xml.a
+      && prob->xml.a[variant - 1]) {
+    px = prob->xml.a[variant - 1];
+  } else if (prob && prob->variant_num <= 0 && prob->xml.p) {
+    px = prob->xml.p;
+  }
+  if (px && px->stmts) {
+    ns_unparse_statement(out_f, phr, cnts, extra, prob, variant, px, NULL, 1);
+  }
+
+  if (!px && prob && prob->statement_file[0]) {
+    if (prob->variant_num > 0 && variant > 0) {
+      prepare_insert_variant_num(variant_stmt_file,
+                                 sizeof(variant_stmt_file),
+                                 prob->statement_file, variant);
+      pw = &cs->prob_extras[prob_id].v_stmts[variant];
+      pw_path = variant_stmt_file;
+    } else if (prob->variant_num <= 0) {
+      pw = &cs->prob_extras[prob_id].stmt;
+      pw_path = prob->statement_file;
+    }
+    watched_file_update(pw, pw_path, cs->current_time);
+    if (!pw->text) {
+%><big><font color="red"><p><s:tr>The problem statement is not available</s:tr></p></font></big><%
+     } else {
+      fprintf(out_f, "%s", pw->text);
+    }
+  }
+%>
+
+<table class="b0">
+
+<%  if (!prob || !prob->type) { %>
+<tr>
+<td class="b0"><s:tr>Language</s:tr>:</td><td class="b0"><s:select name="lang_id"><option value=""></option><%
+    for (i = 1; i <= cs->max_lang; i++) {
+      if (cs->langs[i]) {
+%><s:option value="i"><s:v value="cs->langs[i]->short_name" escape="false" /> - <s:v value="cs->langs[i]->long_name" /></s:option><%
+      }
+    }
+%></s:select></td></tr>
+
+<% if (cs->global->enable_eoln_select > 0) { %>
+<tr><td class="b0"><s:tr>EOLN Type</s:tr>:</td><td class="b0"><s:select name="eoln_type">
+<option value="0"></option>
+<option value="1">LF (Unix/MacOS)</option>
+<option value="2">CRLF (Windows/DOS)</option>
+</s:select></td></tr>
+<% } %>
+<% } %>
+
+<%  if (!prob /*|| !prob->type*/) {
+%><tr><td class="b0"><s:tr>File</s:tr></td><td class="b0"><input type="file" name="file" /></td></tr><%
+   } else {
+    switch (prob->type) {
+    case PROB_TYPE_STANDARD:
+    case PROB_TYPE_OUTPUT_ONLY:
+    case PROB_TYPE_TESTS:
+      if (prob->enable_text_form > 0) {
+%><tr><td colspan="2" class="b0"><textarea name="text_form" rows="20" cols="60"></textarea></td></tr><%
+      }
+%><tr><td class="b0"><s:tr>File</s:tr></td><td class="b0"><input type="file" name="file"/></td></tr><%
+      break;
+    case PROB_TYPE_SHORT_ANSWER:
+%><tr><td class="b0"><s:tr>Answer</s:tr></td><td class="b0"><input type="text" name="file" /></td></tr><%
+      break;
+    case PROB_TYPE_TEXT_ANSWER:
+%><tr><td colspan="2" class="b0"><textarea name="file" rows="20" cols="60"></textarea></td></tr><%
+      break;
+    case PROB_TYPE_SELECT_ONE:
+      if (px) {
+        ns_unparse_answers(out_f, phr, cnts, extra, prob, variant,
+                           px, 0 /* lang */, 1 /* is_radio */,
+                           -1, prob_id, 0 /* js_flag */, "b0");
+      } else if (prob->alternative) {
+        for (i = 0; prob->alternative[i]; i++) {
+%><tr><td class="b0"><s:v value="i + 1" /></td><td class="b0"><s:radio name="file" value="i+1"/></td><td class="b0"><s:v value="prob->alternative[i]" escape="false" /></td></tr><%
+        }
+      }
+      break;
+    case PROB_TYPE_SELECT_MANY:
+      if (prob->alternative) {
+        for (i = 0; prob->alternative[i]; i++) {
+%><tr><td class="b0"><s:v value="i + 1" /></td><td class="b0"><input type="checkbox" name="ans_<s:v value="i + 1" />" /></td><td class="b0"><s:v value="prob->alternative[i]" /></td></tr><%
+        }
+      }
+      break;
+    case PROB_TYPE_CUSTOM:
+      break;
+
+    default:
+      abort();
+    }
+  }
+%>
+<tr><td class="b0">&nbsp;</td><td class="b0"><s:submit ac="submit-run" /></td></tr>
+<tr><td class="b0">&nbsp;</td><td class="b0"><s:a ac="main-page"><s:tr>Main page</s:tr></s:a></td></tr>
+</table>
+</s:form>
+
+<%@include "priv_footer.csp"
+%><%
+  l10n_setlocale(0);
+cleanup:
+  html_armor_free(&ab);
+%>

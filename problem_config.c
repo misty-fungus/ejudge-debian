@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: problem_config.c 6867 2012-06-01 04:04:25Z cher $ */
+/* $Id: problem_config.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "problem_config.h"
-#include "problem_config_meta.h"
+#include "ejudge/problem_config.h"
+#include "ejudge/meta/problem_config_meta.h"
+#include "ejudge/meta_generic.h"
 
-#include "meta_generic.h"
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <limits.h>
 

@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: errlog.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: errlog.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -15,10 +15,10 @@
  * Lesser General Public License for more details.
  */
 
-#include "errlog.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 #include <stdlib.h>

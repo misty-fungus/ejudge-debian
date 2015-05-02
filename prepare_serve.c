@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: prepare_serve.c 6855 2012-05-25 10:31:22Z cher $ */
+/* $Id: prepare_serve.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,18 +15,17 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/prepare.h"
+#include "ejudge/varsubst.h"
+#include "ejudge/version.h"
+#include "ejudge/prepare_serve.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/errlog.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/runlog.h"
 
-#include "prepare.h"
-#include "varsubst.h"
-#include "version.h"
-#include "prepare_serve.h"
-#include "teamdb.h"
-#include "errlog.h"
-#include "serve_state.h"
-#include "runlog.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 int
 find_variant(
@@ -211,9 +210,3 @@ prepare_serve_defaults(serve_state_t state, const struct contest_desc **p_cnts)
   }
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

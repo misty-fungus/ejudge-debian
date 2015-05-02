@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: userlist.c 7602 2013-11-19 15:20:38Z cher $ */
+/* $Id: userlist.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,18 +15,18 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/userlist.h"
+#include "ejudge/contests.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/tsc.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/win32_compat.h"
 
-#include "userlist.h"
-#include "contests.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "tsc.h"
-#include "xml_utils.h"
-#include "ej_limits.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,8 +34,6 @@
 #include <time.h>
 #include <ctype.h>
 #include <errno.h>
-
-#include "win32_compat.h"
 
 #if CONF_HAS_LIBINTL - 0 == 1
 #include <libintl.h>
@@ -2166,14 +2164,14 @@ static const unsigned char * const field_lookup_table[][7] =
   [USERLIST_NM_OCCUPATION] = { "occupation", NULL },
   [USERLIST_NM_OCCUPATION_EN] = { "occupation_en", NULL },
   [USERLIST_NM_DISCIPLINE] = { "discipline", NULL },
-  [USERLIST_NC_INST] = { "memb_inst", "member_institution", "membinst", "memberinstitution", NULL },
-  [USERLIST_NC_INST_EN] = { "memb_inst_en", "member_institution_en", "membinsten", "memberinstitutionen", NULL },
-  [USERLIST_NC_INSTSHORT] = { "memb_instshort", "member_institution_short", "membinstshort", "memberinstitutionshort", NULL },
-  [USERLIST_NC_INSTSHORT_EN] = { "memb_instshort_en", "member_institution_short_en", "membinstshorten", "memberinstitutionshorten", NULL },
-  [USERLIST_NC_FAC] = { "memb_fac", "member_faculty", "membfac", "memberfaculty", NULL },
-  [USERLIST_NC_FAC_EN] = { "memb_fac_en", "member_faculty_en", "membfacen", "memberfacultyen", NULL },
-  [USERLIST_NC_FACSHORT] = { "memb_facshort", "member_faculty_short", "membfacshort", "memberfacultyshort", NULL },
-  [USERLIST_NC_FACSHORT_EN] = { "memb_facshort_en", "member_faculty_short_en", "membfacshorten", "memberfacultyshorten", NULL },
+  [USERLIST_NM_INST] = { "memb_inst", "member_institution", "membinst", "memberinstitution", NULL },
+  [USERLIST_NM_INST_EN] = { "memb_inst_en", "member_institution_en", "membinsten", "memberinstitutionen", NULL },
+  [USERLIST_NM_INSTSHORT] = { "memb_instshort", "member_institution_short", "membinstshort", "memberinstitutionshort", NULL },
+  [USERLIST_NM_INSTSHORT_EN] = { "memb_instshort_en", "member_institution_short_en", "membinstshorten", "memberinstitutionshorten", NULL },
+  [USERLIST_NM_FAC] = { "memb_fac", "member_faculty", "membfac", "memberfaculty", NULL },
+  [USERLIST_NM_FAC_EN] = { "memb_fac_en", "member_faculty_en", "membfacen", "memberfacultyen", NULL },
+  [USERLIST_NM_FACSHORT] = { "memb_facshort", "member_faculty_short", "membfacshort", "memberfacultyshort", NULL },
+  [USERLIST_NM_FACSHORT_EN] = { "memb_facshort_en", "member_faculty_short_en", "membfacshorten", "memberfacultyshorten", NULL },
   [USERLIST_NM_PHONE] = { "memb_phone", "membphone", "member_phone", "memberphone", NULL },
   /*
     USERLIST_NM_CREATE_TIME,

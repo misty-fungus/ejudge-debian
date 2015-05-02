@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: nwrun.c 7138 2012-11-04 13:28:57Z cher $ */
+/* $Id: nwrun.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,19 +15,18 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/version.h"
+#include "ejudge/parsecfg.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/runlog.h"
+#include "ejudge/nwrun_packet.h"
 
-#include "parsecfg.h"
-#include "fileutl.h"
-#include "errlog.h"
-#include "runlog.h"
-#include "nwrun_packet.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/exec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -793,10 +792,3 @@ main(int argc, char *argv[])
 
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "tTask")
- * End:
- */

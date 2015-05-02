@@ -1,13 +1,12 @@
 // This is an auto-generated file, do not edit
-// Generated 2011/05/22 11:43:29
 
-#include "super_html_6_meta.h"
-#include "super_html_6.h"
-#include "meta_generic.h"
+#include "ejudge/meta/super_html_6_meta.h"
+#include "ejudge/super_html_6.h"
+#include "ejudge/meta_generic.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 #include <string.h>
 #include <stdlib.h>
 

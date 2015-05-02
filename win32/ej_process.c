@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: ej_process.c 7222 2012-12-09 07:18:37Z cher $ */
+/* $Id: ej_process.c 8188 2014-05-14 19:09:53Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_process.h"
+#include "ejudge/ej_process.h"
 
 unsigned char *
 read_process_output(const unsigned char *cmd,

@@ -1,0 +1,140 @@
+<%
+/* $Id: unpriv_login_page.csp 8583 2014-09-02 19:36:37Z cher $ */
+%><%@include "unpriv_includes.csp"
+%><%
+#include "ejudge/ejudge_cfg.h"
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@set err_prefix = "NEW_SRV_ERR_"
+%><%@set getter_name = "csp_get_unpriv_login_page"
+%><%@page csp_view_unpriv_login_page(PageInterface *ps, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "unpriv_stdvars.csp"
+%><%
+  time_t cur_time;
+  int vis_flag = 0;
+  const unsigned char *login_str = NULL;
+  const unsigned char *password_str = NULL;
+  unsigned char title[1024];
+
+  if (phr->contest_id <= 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts) {
+    FAIL(NEW_SRV_ERR_INV_CONTEST_ID);
+  }
+  if (phr->locale_id < 0 && cnts->default_locale_num >= 0)
+    phr->locale_id = cnts->default_locale_num;
+  if (phr->locale_id < 0) phr->locale_id = 0;
+  if (!contests_check_team_ip(phr->contest_id, &phr->ip, phr->ssl_flag)) {
+    fprintf(log_f, "%s://%s is not allowed for USER for contest %d\n",
+            ns_ssl_flag_str[phr->ssl_flag], xml_unparse_ipv6(&phr->ip), phr->contest_id);
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  }
+  if (cnts->closed) {
+    fprintf(log_f, "contest %d is closed", cnts->id);
+    FAIL(NEW_SRV_ERR_SERVICE_NOT_AVAILABLE);
+  }
+  if (!cnts->managed) {
+    fprintf(log_f, "contest %d is not managed", cnts->id);
+    FAIL(NEW_SRV_ERR_SERVICE_NOT_AVAILABLE);
+  }
+
+  extra = ns_get_contest_extra(phr->contest_id);
+  if (!extra) FAIL(NEW_SRV_ERR_INTERNAL);
+
+  cur_time = time(0);
+  watched_file_update(&extra->copyright, cnts->copyright_file, cur_time);
+  extra->copyright_txt = extra->copyright.text;
+  if (!extra->header_txt || !extra->footer_txt || !extra->separator_txt) {
+    extra->header_txt = ns_fancy_header;
+    if (extra->copyright_txt) extra->footer_txt = ns_fancy_footer_2;
+    else extra->footer_txt = ns_fancy_footer;
+    extra->separator_txt = ns_fancy_separator;
+  }
+
+%><s:read var="login_str" name="login" ignoreerrors="yes" /><%
+%><s:read var="password_str" name="password" ignoreerrors="yes" /><%
+
+  phr->hidden_vars = "";
+  l10n_setlocale(phr->locale_id);
+  if (phr->locale_id == 0 && cnts->name_en) {
+    snprintf(title, sizeof(title), "%s [%s]", _("User login page"), cnts->name_en);
+  } else {
+    snprintf(title, sizeof(title), "%s [%s]", _("User login page"), cnts->name);
+  }
+%><%@include "unpriv_simple_header.csp"
+%><s:form>
+<s:hidden name="contest_id" value="phr->contest_id" />
+<s:hidden name="role" value="0" checkExpr=">= 0" />
+<% if (cnts->disable_locale_change) {
+%><s:hidden name="locale_id" value="phr->locale_id" /><%
+} %>
+<div class="user_actions"><table class="menu"><tr>
+<td class="menu"><div class="user_action_item"><s:tr>login</s:tr>: <s:textfield name="login" size="8" value="login_str" /></div></td>
+<td class="menu"><div class="user_action_item"><s:tr>password</s:tr>: <s:password name="password" size="8" value="password_str"/></div></td>
+<%  if (!cnts->disable_locale_change) {
+%><td class="menu"><div class="user_action_item"><s:tr>language</s:tr>: <% l10n_html_locale_select(out_f, phr->locale_id); %></div></td><%
+  }
+%>
+<td class="menu"><div class="user_action_item"><s:submit ac="main-page" label="Log in" /></div></td>
+
+<td class="menu"><div class="contest_actions_item">
+<table class="menu">
+<%
+  if (cnts && cnts->assign_logins && cnts->force_registration
+      && cnts->register_url && contests_check_register_ip_2(cnts, &phr->ip, phr->ssl_flag) > 0
+      && (cnts->reg_deadline <= 0 || cur_time < cnts->reg_deadline)) {
+    if (phr->config->disable_new_users <= 0) {
+      if (cnts->assign_logins) {
+%><s:url name="RegisterUrl" script="register" ac="reg-create-account-page">
+    <s:param name="contest_id" value="phr->contest_id" />
+    <s:param name="locale_id" value="phr->locale_id" />
+</s:url><tr><td align="right" class="menu"><s:a class="menu" url="RegisterUrl"><s:tr>Registration</s:tr></s:a></td></tr><%
+      } else {
+%><s:url name="RegisterUrl" script="register" ac="main-page">
+    <s:param name="contest_id" value="phr->contest_id" />
+    <s:param name="locale_id" value="phr->locale_id" />
+</s:url><tr><td align="right" class="menu"><s:a class="menu" url="RegisterUrl"><s:tr>Registration</s:tr></s:a></td></tr><%
+      }
+    }
+    vis_flag++;
+  } else if (cnts && cnts->register_url && contests_check_register_ip_2(cnts, &phr->ip, phr->ssl_flag) > 0
+             && (cnts->reg_deadline <= 0 || cur_time < cnts->reg_deadline)) {
+    if (phr->config->disable_new_users <= 0) {
+%><s:url name="RegisterUrl" script="register" ac="reg-login-page">
+    <s:param name="contest_id" value="phr->contest_id" />
+    <s:param name="locale_id" value="phr->locale_id" />
+</s:url><tr><td align="right" class="menu"><s:a class="menu" url="RegisterUrl"><s:tr>Registration</s:tr></s:a></td></tr><%
+    }
+  }
+%>
+<%  if (cnts && cnts->enable_password_recovery && cnts->disable_team_password) {
+%>
+<s:url name="ForgotPassword1Url" ac="forgot-password-1">
+    <s:param name="contest_id" value="phr->contest_id" />
+    <s:param name="locale_id" value="phr->locale_id" />
+</s:url>
+<tr><td align="right" class="menu"><font size="-1"><s:a class="menu" url="ForgotPassword1Url"><s:tr>Forgot password?</s:tr></s:a></font></td></tr>
+<%
+  }
+%>
+</table>
+</div></td>
+</tr></table></div>
+</s:form>
+
+
+<%@include "unpriv_separator.csp"
+%>
+
+<br/>
+<br/>
+<br/>
+<br/>
+<%
+  watched_file_update(&extra->welcome, cnts->welcome_file, cur_time);
+  if (extra->welcome.text && extra->welcome.text[0]) {
+    fprintf(out_f, "%s", extra->welcome.text);
+  }
+%><%@include "unpriv_footer.csp"
+%><%
+  l10n_setlocale(0);
+cleanup:;
+  html_armor_free(&ab);
+%>

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cgi.c 7233 2012-12-09 18:55:15Z cher $ */
+/* $Id: cgi.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_limits.h"
-#include "cgi.h"
-#include "errlog.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/cgi.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -573,11 +573,3 @@ cgi_print_param(void)
   }
   return;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */
-

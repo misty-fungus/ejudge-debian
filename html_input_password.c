@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html_input_password.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: html_input_password.c 8211 2014-05-15 08:23:47Z cher $ */
 
 /* Copyright (C) 2007 Alexander Chernov <cher@ejudge.ru> */
 
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "mischtml.h"
+#include "ejudge/mischtml.h"
 
 #include <stdio.h>
 #include <stdarg.h>

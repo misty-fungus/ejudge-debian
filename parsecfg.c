@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: parsecfg.c 6879 2012-06-06 08:39:30Z cher $ */
+/* $Id: parsecfg.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,14 +15,14 @@
  * GNU General Public License for more details.
  */
 
-#include "parsecfg.h"
-#include "charsets.h"
-#include "xml_utils.h"
-#include "misctext.h"
-#include "meta_generic.h"
+#include "ejudge/parsecfg.h"
+#include "ejudge/charsets.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/misctext.h"
+#include "ejudge/meta_generic.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 #include <ctype.h>

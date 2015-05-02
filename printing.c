@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: printing.c 7581 2013-11-10 14:11:16Z cher $ */
+/* $Id: printing.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,21 +15,20 @@
  * GNU General Public License for more details.
  */
 
-#include "printing.h"
+#include "ejudge/printing.h"
+#include "ejudge/runlog.h"
+#include "ejudge/misctext.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/prepare.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/protocol.h"
+#include "ejudge/userlist.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/prepare_dflt.h"
 
-#include "runlog.h"
-#include "misctext.h"
-#include "teamdb.h"
-#include "prepare.h"
-#include "archive_paths.h"
-#include "fileutl.h"
-#include "protocol.h"
-#include "userlist.h"
-#include "serve_state.h"
-#include "xml_utils.h"
-#include "prepare_dflt.h"
-
-#include "reuse_exec.h"
+#include "ejudge/exec.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -319,9 +318,3 @@ team_print_run(const serve_state_t state, int run_id, int user_id)
 {
   return do_print_run(state, run_id, 0, user_id);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_8.c 7059 2012-10-18 19:15:35Z cher $ */
+/* $Id: super_html_8.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,24 +15,23 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/super_html.h"
+#include "ejudge/super-serve.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/contests.h"
+#include "ejudge/prepare.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/errlog.h"
+#include "ejudge/compat.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/ej_process.h"
+#include "ejudge/super_proto.h"
+#include "ejudge/misctext.h"
 
-#include "super_html.h"
-#include "super-serve.h"
-#include "pathutl.h"
-#include "contests.h"
-#include "prepare.h"
-#include "ejudge_cfg.h"
-#include "errlog.h"
-#include "compat.h"
-#include "fileutl.h"
-#include "ej_process.h"
-#include "super_proto.h"
-#include "misctext.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 #include <sys/types.h>

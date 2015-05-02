@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: open_memstream.c 5575 2009-07-20 15:32:03Z cher $ */
+/* $Id: open_memstream.c 8173 2014-05-12 19:50:16Z cher $ */
 
-/* Copyright (C) 2008-2009 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
 
 #include <stdio.h>
 #include <stdlib.h>

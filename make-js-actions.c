@@ -1,7 +1,7 @@
-/* $Id: make-js-actions.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: make-js-actions.c 8238 2014-05-17 10:52:34Z cher $ */
 
 #include <stdio.h>
-#include "new-server.h"
+#include "ejudge/new-server.h"
 
 #define A(n) [n] = #n
 const unsigned char * const action_table[NEW_SRV_ACTION_LAST] =

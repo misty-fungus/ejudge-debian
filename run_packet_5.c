@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run_packet_5.c 7563 2013-11-07 18:01:49Z cher $ */
+/* $Id: run_packet_5.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,20 +15,21 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_types.h"
-#include "ej_limits.h"
-#include "ej_byteorder.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/ej_byteorder.h"
+#include "ejudge/run_packet.h"
+#include "ejudge/run_packet_priv.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/prepare.h"
+#include "ejudge/runlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/ej_uuid.h"
 
-#include "run_packet.h"
-#include "run_packet_priv.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "prepare.h"
-#include "runlog.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_integral.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -99,13 +100,10 @@ run_reply_packet_write(
   return 0;
 
  failed:
-  err("run_reply_packet_write: error %s, %d", "$Revision: 7563 $", errcode);
+  err("run_reply_packet_write: error %s, %d", "$Revision: 8531 $", errcode);
   xfree(out_data);
   return -1;
 }
-
-#include "xml_utils.h"
-#include "ej_uuid.h"
 
 void
 run_reply_packet_dump(

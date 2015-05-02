@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: dump_database.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: dump_database.c 8183 2014-05-14 10:26:11Z cher $ */
 
-/* Copyright (C) 2003-2006 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -16,8 +16,7 @@
  */
 
 #include "userlist_clnt/private.h"
-
-#include "errlog.h"
+#include "ejudge/errlog.h"
 
 int
 userlist_clnt_dump_database(struct userlist_clnt *clnt, int cmd,

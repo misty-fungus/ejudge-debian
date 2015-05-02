@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: varsubst.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: varsubst.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,14 +15,13 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/varsubst.h"
+#include "ejudge/errlog.h"
+#include "ejudge/serve_state.h"
 
-#include "varsubst.h"
-#include "errlog.h"
-#include "serve_state.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 
@@ -223,10 +222,3 @@ config_var_substitute_buf(unsigned char *buf, size_t bufsize)
   xfree(s);
   return buf;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

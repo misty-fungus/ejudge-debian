@@ -1,7 +1,7 @@
 # -*- Makefile -*-
-# $Id: files.make 7592 2013-11-13 17:32:40Z cher $
+# $Id: files.make 8298 2014-07-17 09:34:54Z cher $
 
-# Copyright (C) 2002-2012 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -146,11 +146,13 @@ COMMON_CFILES=\
  digest_4.c\
  digest_5.c\
  dos2unix_str.c\
+ dwarf_parse.c\
  ej_import_packet.c\
  ejudge_cfg.c\
  ej_uuid.c\
  errlog.c\
  expat_iface.c\
+ external_action.c\
  filehash.c\
  filter_eval.c\
  filter_tree.c\
@@ -161,7 +163,9 @@ COMMON_CFILES=\
  html_input_text.c\
  html_hidden.c\
  html_hyperref.c\
+ html_parse.c\
  html_start_form.c\
+ http_request.c\
  l10n.c\
  lang_config.c\
  lang_config_vis.c\
@@ -223,8 +227,10 @@ COMMON_CFILES=\
  super_html_6.c\
  super_html_7.c\
  super_html_8.c\
+ super_http_request.c\
  super_proto.c\
  super_run_packet.c\
+ super_serve_pi.c\
  sha.c\
  t3m_dir_listener.c\
  t3m_submits.c\
@@ -241,6 +247,7 @@ COMMON_CFILES=\
  tex_dom_doc.c\
  tex_dom_render.c\
  tsc.c\
+ type_info.c\
  uldb_plugin_xml.c\
  userlist.c\
  userlist_check.c\
@@ -292,7 +299,6 @@ COMMON_CFILES=\
  ${REUSE_CFILES}
 
 PLATFORM_CFILES =\
- pathutl.c\
  $(ARCH)/fileutl.c\
  $(ARCH)/cr_serialize.c\
  $(ARCH)/interrupt.c\
@@ -354,6 +360,7 @@ CFILES=\
  ej-batch.c\
  ej-import-contest.c\
  ej-normalize.c\
+ ej-page-gen.c\
  ej-polygon.c\
  ej-super-run.c\
  ejudge-configure-compilers.c\
@@ -481,128 +488,125 @@ CFILES=\
  ${NEW_SERVER_CLNT_CFILES}
 
 HFILES=\
- archive_paths.h\
- base64.h\
- bitset.h\
- build_support.h\
- cgi.h\
- charsets.h\
- clarlog.h\
- clarlog_state.h\
- cldb_plugin.h\
- client_actions.h\
- clntutil.h\
- common_plugin.h\
- compat.h\
- compile_packet.h\
- compile_packet_priv.h\
- contests.h\
- copyright.h\
- cpu.h\
- cr_serialize.h\
- csv.h\
- curtime.h\
- diff.h\
- digest_io.h\
- ejudge_cfg.h\
- ejudge_plugin.h\
- ej_import_packet.h\
- ej_limits.h\
- ej_process.h\
- ej_types.h\
- ej_uuid.h\
- errlog.h\
- expat_iface.h\
- filehash.h\
- file_perms.h\
- fileutl.h\
- filter_eval.h\
- filter_tree.h\
- full_archive.h\
- html.h\
- interrupt.h\
- iterators.h\
- job_packet.h\
- l10n.h\
- lang_config_vis.h\
- list_ops.h\
- meta_generic.h\
- mime_type.h\
- mischtml.h\
- misctext.h\
- ncheck_packet.h\
- ncurses_utils.h\
- new-server.h\
- nsdb_plugin.h\
- nwrun_packet.h\
- opcaps.h\
- parsecfg.h\
- pathutl.h\
- pollfds.h\
- polygon_packet.h\
- prepare.h\
- prepare_dflt.h\
- prepare_serve.h\
- printing.h\
- problem_common.h\
- problem_config.h\
- problem_xml.h\
- protocol.h\
- random.h\
- reuse_exec.h\
- reuse_hash.h\
- reuse_hash_priv.h\
- reuse_integral.h\
- reuse_logger.h\
- reuse_mempage.h\
- reuse_osdeps.h\
- reuse_xalloc.h\
- rldb_plugin.h\
- run.h\
- runlog.h\
- runlog_state.h\
- run_packet.h\
- run_packet_priv.h\
- server_framework.h\
- serve_state.h\
- sformat.h\
- shellcfg_parse.h\
- sock_op.h\
- startstop.h\
- stringset.h\
- super_clnt.h\
- super_html.h\
- super_proto.h\
- super_run_packet.h\
- super-serve.h\
- sha.h\
- t3m_dir_listener.h\
- t3m_packet_class.h\
- t3m_submits.h\
- t3_packets.h\
- teamdb.h\
- teamdb_priv.h\
- team_extra.h\
- testinfo.h\
- testing_report_xml.h\
- tex_dom.h\
- timestamp.h\
- tsc.h\
- uldb_plugin.h\
- userlist.h\
- userlist_clnt.h\
- varsubst.h\
- vcs.h\
- version.h\
- watched_file.h\
- win32_compat.h\
+ ./include/ejudge/archive_paths.h\
+ ./include/ejudge/base64.h\
+ ./include/ejudge/bitset.h\
+ ./include/ejudge/build_support.h\
+ ./include/ejudge/cgi.h\
+ ./include/ejudge/charsets.h\
+ ./include/ejudge/clarlog.h\
+ ./include/ejudge/clarlog_state.h\
+ ./include/ejudge/cldb_plugin.h\
+ ./include/ejudge/clntutil.h\
+ ./include/ejudge/common_plugin.h\
+ ./include/ejudge/compat.h\
+ ./include/ejudge/compile_packet.h\
+ ./include/ejudge/compile_packet_priv.h\
+ ./include/ejudge/contests.h\
+ ./include/ejudge/copyright.h\
+ ./include/ejudge/cpu.h\
+ ./include/ejudge/cr_serialize.h\
+ ./include/ejudge/csv.h\
+ ./include/ejudge/curtime.h\
+ ./include/ejudge/diff.h\
+ ./include/ejudge/digest_io.h\
+ ./include/ejudge/dwarf_parse.h\
+ ./include/ejudge/ejudge_cfg.h\
+ ./include/ejudge/ejudge_plugin.h\
+ ./include/ejudge/ej_byteorder.h\
+ ./include/ejudge/ej_import_packet.h\
+ ./include/ejudge/ej_limits.h\
+ ./include/ejudge/ej_process.h\
+ ./include/ejudge/ej_types.h\
+ ./include/ejudge/ej_uuid.h\
+ ./include/ejudge/errlog.h\
+ ./include/ejudge/expat_iface.h\
+ ./include/ejudge/external_action.h\
+ ./include/ejudge/filehash.h\
+ ./include/ejudge/file_perms.h\
+ ./include/ejudge/fileutl.h\
+ ./include/ejudge/filter_eval.h\
+ ./include/ejudge/filter_tree.h\
+ ./include/ejudge/full_archive.h\
+ ./include/ejudge/html.h\
+ ./include/ejudge/html_parse.h\
+ ./include/ejudge/http_request.h\
+ ./include/ejudge/interrupt.h\
+ ./include/ejudge/iterators.h\
+ ./include/ejudge/job_packet.h\
+ ./include/ejudge/l10n.h\
+ ./include/ejudge/lang_config_vis.h\
+ ./include/ejudge/list_ops.h\
+ ./include/ejudge/meta_generic.h\
+ ./include/ejudge/mime_type.h\
+ ./include/ejudge/mischtml.h\
+ ./include/ejudge/misctext.h\
+ ./include/ejudge/ncheck_packet.h\
+ ./include/ejudge/ncurses_utils.h\
+ ./include/ejudge/new-server.h\
+ ./include/ejudge/nsdb_plugin.h\
+ ./include/ejudge/nwrun_packet.h\
+ ./include/ejudge/opcaps.h\
+ ./include/ejudge/parsecfg.h\
+ ./include/ejudge/pathutl.h\
+ ./include/ejudge/pollfds.h\
+ ./include/ejudge/polygon_packet.h\
+ ./include/ejudge/prepare.h\
+ ./include/ejudge/prepare_dflt.h\
+ ./include/ejudge/prepare_serve.h\
+ ./include/ejudge/printing.h\
+ ./include/ejudge/problem_common.h\
+ ./include/ejudge/problem_config.h\
+ ./include/ejudge/problem_xml.h\
+ ./include/ejudge/protocol.h\
+ ./include/ejudge/random.h\
+ ./include/ejudge/rldb_plugin.h\
+ ./include/ejudge/run.h\
+ ./include/ejudge/runlog.h\
+ ./include/ejudge/runlog_state.h\
+ ./include/ejudge/run_packet.h\
+ ./include/ejudge/run_packet_priv.h\
+ ./include/ejudge/server_framework.h\
+ ./include/ejudge/serve_state.h\
+ ./include/ejudge/sformat.h\
+ ./include/ejudge/shellcfg_parse.h\
+ ./include/ejudge/sock_op.h\
+ ./include/ejudge/startstop.h\
+ ./include/ejudge/stringset.h\
+ ./include/ejudge/super_clnt.h\
+ ./include/ejudge/super_html.h\
+ ./include/ejudge/super_proto.h\
+ ./include/ejudge/super_run_packet.h\
+ ./include/ejudge/super-serve.h\
+ ./include/ejudge/sha.h\
+ ./include/ejudge/t3m_dir_listener.h\
+ ./include/ejudge/t3m_packet_class.h\
+ ./include/ejudge/t3m_submits.h\
+ ./include/ejudge/t3_packets.h\
+ ./include/ejudge/teamdb.h\
+ ./include/ejudge/teamdb_priv.h\
+ ./include/ejudge/team_extra.h\
+ ./include/ejudge/testinfo.h\
+ ./include/ejudge/testing_report_xml.h\
+ ./include/ejudge/tex_dom.h\
+ ./include/ejudge/timestamp.h\
+ ./include/ejudge/tsc.h\
+ ./include/ejudge/type_info.h\
+ ./include/ejudge/uldb_plugin.h\
+ ./include/ejudge/userlist.h\
+ ./include/ejudge/userlist_clnt.h\
+ ./include/ejudge/varsubst.h\
+ ./include/ejudge/vcs.h\
+ ./include/ejudge/version.h\
+ ./include/ejudge/watched_file.h\
+ ./include/ejudge/win32_compat.h\
  unix/unix_fileutl.h\
  userlist_clnt/private.h\
- new_server_clnt.h\
- new_server_proto.h\
+ ./include/ejudge/new_server_clnt.h\
+ ./include/ejudge/new_server_proto.h\
  new_server_clnt/new_server_clnt_priv.h\
- xml_utils.h\
- zip_utils.h
+ ./include/ejudge/xml_utils.h\
+ ./include/ejudge/zip_utils.h
 
 OTHERFILES=\
  filter_expr.y\

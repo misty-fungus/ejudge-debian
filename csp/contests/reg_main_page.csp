@@ -1,0 +1,176 @@
+<%
+/* $Id: reg_main_page.csp 8115 2014-04-14 09:49:20Z cher $ */
+%><%@include "reg_includes.csp"
+%><%
+// local includes go here
+void
+ns_reg_main_page_view_info(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra,
+        time_t cur_time);
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@set getter_name = "csp_get_reg_main_page"
+%><%@page csp_view_reg_main_page(PageInterface *ps, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "reg_stdvars.csp"
+%><%
+// local variables go here
+  int shown_items = 0;
+  const unsigned char *title2 = "", *n = 0;
+  struct userlist_user *u = 0;
+  const struct userlist_user_info *ui = 0;
+  unsigned char title[1024];
+
+  if (phr->user_id <= 0) {
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  }
+
+// initial code goes here
+  l10n_setlocale(phr->locale_id);
+
+  switch (phr->action) {
+  case NEW_SRV_ACTION_REG_VIEW_CONTESTANTS:
+    title2 = _("Viewing contestants");
+    break;
+
+  case NEW_SRV_ACTION_REG_VIEW_RESERVES:
+    title2 = _("Viewing reserves");
+    break;
+
+  case NEW_SRV_ACTION_REG_VIEW_COACHES:
+    title2 = _("Viewing coaches");
+    break;
+
+  case NEW_SRV_ACTION_REG_VIEW_ADVISORS:
+    title2 = _("Viewing advisors");
+    break;
+
+  case NEW_SRV_ACTION_REG_VIEW_GUESTS:
+    title2 = _("Viewing guests");
+    break;
+
+  case NEW_SRV_ACTION_VIEW_SETTINGS:
+    title2 = _("Viewing settings");
+    break;
+
+  case NEW_SRV_ACTION_REG_VIEW_GENERAL:
+  default:
+    title2 = _("Viewing general info");
+    break;
+  }
+
+  n = phr->name;
+  if (!n || !*n) n = phr->login;
+
+  snprintf(title, sizeof(title), "%s [%s, %s]", title2, html_armor_buf(&ab, n), extra->contest_arm);
+%><%@include "reg_header.csp"
+%>
+<div class="user_actions"><table class="menu"><tr>
+    <td class="menu"><div class="contest_actions_item"><%
+  if (phr->action != NEW_SRV_ACTION_VIEW_SETTINGS) {
+%><s:a class="menu" ac="view-settings"><%
+  }
+%><s:tr>Settings</s:tr><%
+  if (phr->action != NEW_SRV_ACTION_VIEW_SETTINGS) {
+%></s:a><%
+  }
+%></div></td>
+    <td class="menu"><div class="contest_actions_item"><s:a class="menu" ac="logout"><s:tr>Logout</s:tr> [<s:v checkExpr="" value="phr->login" />]</s:a></div></td>
+</tr></table></div>
+
+<div class="white_empty_block">&nbsp;</div>
+
+<%  shown_items = 0;
+%><div class="contest_actions"><table class="menu"><tr>
+    <td class="menu"><div class="contest_actions_item"><%
+  if (!(phr->action >= NEW_SRV_ACTION_REG_VIEW_GENERAL && phr->action <= NEW_SRV_ACTION_REG_VIEW_GUESTS)) {
+%><s:a class="menu" ac="reg-view-general"><%
+  }
+%><s:tr>User info</s:tr><%
+  if (!(phr->action >= NEW_SRV_ACTION_REG_VIEW_GENERAL && phr->action <= NEW_SRV_ACTION_REG_VIEW_GUESTS)) {
+%></s:a><%
+  }
+%></div></td><%
+  shown_items++;
+%><%
+  if (phr->reg_status == USERLIST_REG_OK
+      && !(phr->reg_flags &~USERLIST_UC_INVISIBLE)
+      && contests_check_team_ip_2(cnts, &phr->ip, phr->ssl_flag)
+      && !cnts->closed) {
+%><td class="menu"><div class="contest_actions_item"><%
+    if (cnts->disable_team_password) {
+%><s:a class="menu" script="client" ac="main-page"><%
+    } else {
+%><s:url name="ClientUrl" script="client" ac="main-page" noSID="yes">
+    <s:param name="login" value="phr->login" fullCheckExpr="phr->login" />
+</s:url><s:a class="menu" url="ClientUrl"><%
+    }
+%><s:tr>Participate</s:tr></s:a><%
+    shown_items++;
+%></div></td><%
+  }
+%>
+<%
+  if (!shown_items) {
+%><td class="menu"><div class="contest_actions_item">&nbsp;</div></td><%
+  }
+%>
+</tr></table></div>
+
+<%@include "reg_separator.csp"
+%>
+
+<%
+  // status row
+  if (phr->reg_status < 0) {
+%><div class="server_status_off"><b><s:tr>NOT REGISTERED</s:tr></b><%
+  } else if (phr->reg_status == USERLIST_REG_PENDING) {
+    if ((phr->reg_flags & USERLIST_UC_INCOMPLETE)) {
+%><div class="server_status_error"><b><s:tr>REGISTERED, PENDING APPROVAL</s:tr><s:tr>, REGISTRATION DATA INCOMPLETE</s:tr></b><%
+    } else {
+%><div class="server_status_alarm"><b><s:tr>REGISTERED, PENDING APPROVAL</s:tr></b><%
+    }
+  } else if (phr->reg_status == USERLIST_REG_REJECTED) {
+%><div class="server_status_error"><b><s:tr>REGISTRATION REJECTED</s:tr></b><%
+  } else if ((phr->reg_flags & USERLIST_UC_BANNED)) {
+%><div class="server_status_error"><b><s:tr>REGISTERED, BANNED</s:tr></b><%
+  } else if ((phr->reg_flags & USERLIST_UC_LOCKED)) {
+%><div class="server_status_error"><b><s:tr>REGISTERED, LOCKED</s:tr></b><%
+  } else if ((phr->reg_flags & USERLIST_UC_INVISIBLE)) {
+    if ((phr->reg_flags & USERLIST_UC_INCOMPLETE)) {
+%><div class="server_status_error"><b><s:tr>REGISTERED (INVISIBLE)</s:tr><s:tr>, REGISTRATION DATA INCOMPLETE</s:tr></b><%
+    } else {
+%><div class="server_status_on"><b><s:tr>REGISTERED (INVISIBLE)</s:tr></b><%
+    }
+  } else {
+    if ((phr->reg_flags & USERLIST_UC_INCOMPLETE)) {
+%><div class="server_status_error"><b><s:tr>REGISTERED</s:tr><s:tr>, REGISTRATION DATA INCOMPLETE</s:tr></b><%
+    } else {
+%><div class="server_status_on"><b><s:tr>REGISTERED</s:tr></b><%
+    }
+  }
+%><%
+  if (phr->reg_status < 0) {
+%><b><s:a class="menu" ac="reg-register"><s:tr>Confirm registration</s:tr></s:a></b><%
+  }
+%><%
+  u = phr->session_extra->user_info;
+  if (u) ui = userlist_get_cnts0(u);
+  if (u->read_only || (ui && ui->cnts_read_only)) {
+%>/ <b><s:tr>READ-ONLY</s:tr></b><%
+  }
+%></div>
+<%
+  if (phr->action == NEW_SRV_ACTION_VIEW_SETTINGS) {
+%><%@include "reg_main_settings.csp" %><%
+  } else {
+    ns_reg_main_page_view_info(out_f, phr, cnts, extra, phr->current_time);
+  }
+%>
+<%@include "reg_footer.csp"
+%><%
+cleanup:;
+  l10n_setlocale(0);
+  html_armor_free(&ab);
+%>

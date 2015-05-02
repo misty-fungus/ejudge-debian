@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: sha.c 6702 2012-03-30 07:29:53Z cher $ */
+/* $Id: sha.c 8531 2014-08-22 13:08:06Z cher $ */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -28,8 +28,8 @@
       Robert Klep <robert@ilse.nl>  -- Expansion function fix
 */
 
-#include "reuse_integral.h"
-#include "sha.h"
+#include "ejudge/integral.h"
+#include "ejudge/sha.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -403,9 +403,3 @@ sha_process_block (const void *buffer, size_t len, struct sha_ctx *ctx)
       e = ctx->E += e;
     }
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

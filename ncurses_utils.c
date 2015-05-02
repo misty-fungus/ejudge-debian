@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: ncurses_utils.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: ncurses_utils.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,13 @@
  * GNU General Public License for more details.
  */
 
-#include "ncurses_utils.h"
-#include "tex_dom.h"
-#include "misctext.h"
+#include "ejudge/ncurses_utils.h"
+#include "ejudge/tex_dom.h"
+#include "ejudge/misctext.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <limits.h>
 #include <menu.h>
@@ -1975,10 +1975,3 @@ ncurses_getkey(int utf8_mode, int *p_code)
   if (koi8_kdb_map[k]) return koi8_kdb_map[k];
   return k;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "WINDOW" "ITEM" "PANEL" "MENU" "DIR")
- * End:
- */

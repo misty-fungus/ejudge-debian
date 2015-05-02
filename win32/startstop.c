@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: startstop.c 6671 2012-03-23 14:04:49Z cher $ */
+/* $Id: startstop.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,12 +17,12 @@
 
 #define STARTSTOP_DEBUG 0
 
-#include "config.h"
-#include "ej_types.h"
-#include "version.h"
-#include "startstop.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/version.h"
+#include "ejudge/startstop.h"
 
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 
 #if STARTSTOP_DEBUG - 0
 #include <stdio.h>

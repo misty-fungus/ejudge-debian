@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: common_mysql.c 7589 2013-11-13 17:27:04Z cher $ */
+/* $Id: common_mysql.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,16 +15,16 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
 #include "common_mysql.h"
-#include "xml_utils.h"
-#include "pathutl.h"
-#include "errlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <ctype.h>

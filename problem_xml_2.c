@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: problem_xml_2.c 6498 2011-10-27 05:11:28Z cher $ */
+/* $Id: problem_xml_2.c 8216 2014-05-15 13:48:26Z cher $ */
 
-/* Copyright (C) 2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2011-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
 
-#include "problem_xml.h"
-#include "misctext.h"
+#include "ejudge/problem_xml.h"
+#include "ejudge/misctext.h"
 
 #define ARMOR(s)  html_armor_buf(&ab, (s))
 

@@ -1,6 +1,6 @@
 #!/bin/sh
-# $Id: javac-version.in 6416 2011-09-07 05:20:14Z cher $
-# Copyright (c) 2005-2011 Alexander Chernov <cher@ejudge.ru>
+# $Id: javac-version.in 8555 2014-08-26 19:03:59Z cher $
+# Copyright (c) 2005-2014 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"
 
@@ -59,9 +59,10 @@ then
   [ "${javalastdir}" = "bin" ] || failure
   JAVADIR=`dirname "${javafulldir}"` || failure
   [ "${JAVADIR}" != "" ] || failure
-  version=`${JAVARUN} -version 2>&1 | grep "java version" | sed 's/^.*"\(.*\)"$/\1/g'` || failure
+  version=`${JAVARUN} -version 2>&1 | grep " version" | sed 's/^.*"\(.*\)"$/\1/g'` || failure
   [ "${version}" != "" ] || failure
   case x"${version}" in
+    x1.8.*) JAVAVER=1.8;;
     x1.7.*) JAVAVER=1.7;;
     x1.6.*) JAVAVER=1.6;;
     x1.5.*) JAVAVER=1.5;;
@@ -139,4 +140,4 @@ fi
 
 [ x"$1" = x-f ] && echo -n "Java JDK "
 
-"${JAVARUN}" -version 2>&1 | grep "java version" | sed 's/^.*"\(.*\)"$/\1/g'
+"${JAVARUN}" -version 2>&1 | grep " version" | sed 's/^.*"\(.*\)"$/\1/g'

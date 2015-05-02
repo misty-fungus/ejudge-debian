@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: problem_common.c 7284 2013-01-23 08:45:50Z cher $ */
+/* $Id: problem_common.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2007-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "problem_common.h"
-#include "ej_types.h"
+#include "ejudge/problem_common.h"
+#include "ejudge/ej_types.h"
 
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 
@@ -139,9 +139,3 @@ eoln_type_unparse_html(int value)
   if (value == 2) return "CRLF";
   return "???";
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cpu.c 7053 2012-10-17 04:16:26Z cher $ */
+/* $Id: cpu.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "cpu.h"
+#include "ejudge/cpu.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <stdio.h>
 #include <string.h>

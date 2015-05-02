@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: parsecfg_2.c 5538 2008-12-31 10:40:16Z cher $ */
+/* $Id: parsecfg_2.c 8212 2014-05-15 12:48:23Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "parsecfg.h"
-#include "compat.h"
+#include "ejudge/parsecfg.h"
+#include "ejudge/compat.h"
 
 #include <stdio.h>
 #include <ctype.h>

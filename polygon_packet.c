@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: polygon_packet.c 6879 2012-06-06 08:39:30Z cher $ */
+/* $Id: polygon_packet.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,12 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "polygon_packet.h"
-#include "polygon_packet_meta.h"
+#include "ejudge/polygon_packet.h"
+#include "ejudge/meta/polygon_packet_meta.h"
+#include "ejudge/meta_generic.h"
 
-#include "meta_generic.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 void
 polygon_packet_init(struct generic_section_config *gp)

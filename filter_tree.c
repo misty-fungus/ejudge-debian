@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: filter_tree.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: filter_tree.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -17,14 +17,14 @@
 
 #define YYSTYPE struct filter_tree *
 
-#include "filter_tree.h"
-#include "filter_expr.h"
-#include "runlog.h"
-#include "xml_utils.h"
+#include "ejudge/filter_tree.h"
+#include "ejudge/filter_expr.h"
+#include "ejudge/runlog.h"
+#include "ejudge/xml_utils.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_mempage.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/mempage.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -34,7 +34,7 @@
 #include <regex.h>
 #endif
 
-#include "win32_compat.h"
+#include "ejudge/win32_compat.h"
 
 struct filter_tree_regexp
 {
@@ -656,7 +656,7 @@ filter_tree_dur_str(unsigned char *buf, size_t size, time_t val)
   min = val / 60;
   hour = min / 60;
   min = min % 60;
-  return snprintf(buf, size, "%s%ld:%02ld:%02ld", sgn, hour, min, sec);
+  return snprintf(buf, size, "%s%ld:%02ld:%02ld", sgn, (long) hour, (long) min, (long) sec);
 }
 
 int

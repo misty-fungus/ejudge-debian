@@ -1,0 +1,429 @@
+<%
+/* $Id: priv_source_page.csp 8511 2014-08-20 03:14:39Z cher $ */
+%><%@include "priv_includes.csp"
+%><%
+#include "ejudge/ej_uuid.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/charsets.h"
+#include "ejudge/fileutl.h"
+%><%@set getter_name = "csp_get_priv_source_page"
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@set err_prefix = "NEW_SRV_ERR_"
+%><%@page csp_view_priv_source_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "priv_stdvars.csp"
+%><%
+  path_t src_path;
+  struct run_entry info;
+  char *src_text = 0; //, *html_text;
+  //unsigned char *numb_txt;
+  size_t src_len; //, html_len, numb_len;
+  time_t start_time;
+  int variant, src_flags;
+  unsigned char filtbuf1[128];
+  time_t run_time;
+  int run_id2 = 0;
+  unsigned char bb[1024];
+  const struct section_problem_data *prob = 0;
+  const struct section_language_data *lang = 0;
+  const struct section_global_data *global = cs->global;
+  const unsigned char *run_charset = 0;
+  int charset_id = 0;
+  int txt_flags = 0;
+  path_t txt_path = { 0 };
+  char *txt_text = 0;
+  size_t txt_size = 0;
+  unsigned char title[1024];
+  int run_id;
+
+  if (ns_parse_run_id(out_f, phr, cnts, extra, &run_id, 0) < 0)
+    FAIL(NEW_SRV_ERR_INV_RUN_ID);
+
+  if (opcaps_check(phr->caps, OPCAP_VIEW_SOURCE) < 0) {
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  }
+
+%><s:read var="run_charset" ignoreerrors="yes" /><%
+  if (run_charset && !*run_charset) run_charset = NULL;
+
+  if (run_id < 0 || run_id >= run_get_total(cs->runlog_state)) {
+    FAIL(NEW_SRV_ERR_INV_RUN_ID);
+  }
+  run_get_entry(cs->runlog_state, run_id, &info);
+  if (info.status > RUN_LAST
+      || (info.status > RUN_MAX_STATUS && info.status < RUN_TRANSIENT_FIRST)) {
+    FAIL(NEW_SRV_ERR_SOURCE_UNAVAILABLE);
+  }
+
+  src_flags = serve_make_source_read_path(cs, src_path, sizeof(src_path), &info);
+  if (src_flags < 0) {
+    FAIL(NEW_SRV_ERR_SOURCE_NONEXISTANT);
+  }
+
+  if (info.prob_id > 0 && info.prob_id <= cs->max_prob)
+    prob = cs->probs[info.prob_id];
+  if (info.lang_id > 0 && info.lang_id <= cs->max_lang)
+    lang = cs->langs[info.lang_id];
+
+  run_time = info.time;
+  if (run_time < 0) run_time = 0;
+  start_time = run_get_start_time(cs->runlog_state);
+  if (start_time < 0) start_time = 0;
+  if (run_time < start_time) run_time = start_time;
+
+
+  snprintf(title, sizeof(title), "%s %d", _("Viewing run"), run_id);
+%><%@include "priv_header.csp"
+%>
+<s:url name="ViewSourceUrl" ac="view-source">
+    <s:param name="run_id" value="run_id" />
+</s:url>
+<s:url name="ViewReportUrl" ac="view-report">
+    <s:param name="run_id" value="run_id" />
+</s:url>
+<s:url name="ViewUserReportUrl" ac="view-user-report">
+    <s:param name="run_id" value="run_id" />
+</s:url>
+<s:url name="ViewAuditLogUrl" ac="view-audit-log">
+    <s:param name="run_id" value="run_id" />
+</s:url>
+
+  <div id="main-menu">
+<ul>
+<li><s:a ac="main-page"><s:tr>Main page</s:tr></s:a></li>
+<li><s:a  class="current" url="ViewSourceUrl"><s:tr>Source</s:tr></s:a></li>
+<li><s:a url="ViewReportUrl"><s:tr>Report</s:tr></s:a></li>
+<li><s:a url="ViewUserReportUrl"><s:tr>User report</s:tr></s:a></li>
+<li><s:a url="ViewAuditLogUrl"><s:tr>Audit log</s:tr></s:a></li>
+</ul></div></div>
+
+<s:url name="PrivEditRunPageUrl" ac="priv-edit-run-page">
+    <s:param name="run_id" value="run_id" />
+</s:url>
+
+<div id="info-brief">
+<div class="h2-long" style="margin-top: 0;"><h2><s:tr>Information about run</s:tr> <s:v value="run_id" /><%
+  if (phr->role == USER_ROLE_ADMIN && opcaps_check(phr->caps, OPCAP_EDIT_RUN) >= 0) {
+%> [<s:a url="PrivEditRunPageUrl"><s:tr>Edit</s:tr></s:a>]
+<% } %></h2></div>
+
+<div class="table-scroll" style="margin-top: -10px; margin-bottom: 5px;">
+<table class="table">
+<tr><th style="width: 10em;"><s:tr>Run ID</s:tr></th> <th><s:tr>Submission time</s:tr></th> <th><s:tr>Contest time</s:tr></th> <% #if CONF_HAS_LIBUUID - 0 != 0 %>
+<th>UUID</th>
+<% #endif %>
+<th><s:tr>Originator IP</s:tr></th>
+<th><s:tr>User ID</s:tr></th>
+<th><s:tr>User login</s:tr></th>
+<th><s:tr>User name</s:tr></th>
+<th><s:tr>Problem</s:tr></th>
+<th><s:tr>Problem</s:tr></th>
+<th><s:tr>Variant</s:tr></th>
+<th><s:tr>Variant</s:tr></th>
+<th><s:tr>Language</s:tr></th>
+<th><s:tr>Language</s:tr></th>
+<th><s:tr>Language</s:tr></th>
+<th><s:tr>EOLN Type</s:tr></th>
+<th><s:tr>Status</s:tr></th>
+<th><s:tr>Tests passed</s:tr></th>
+<th><s:tr>Tests passed</s:tr></th>
+<th><s:tr>Score gained</s:tr></th>
+<th><s:tr>Failed test</s:tr></th>
+<th><s:tr>Score gained</s:tr></th>
+<th><s:tr>Failed test</s:tr></th>
+<th><s:tr>Marked?</s:tr></th>
+</tr>
+<tr><td><s:v value="info.run_id" /></td><td><s:v value="info.time" />:<s:v value="info.nsec" /></td> <td><s:v type="duration" value="run_time - start_time, info.nsec" /></td> <% #if CONF_HAS_LIBUUID - 0 != 0 %>
+<td><s:v type="uuid" value="info.run_uuid" /></td>
+<% #endif %>
+<% snprintf(filtbuf1, sizeof(filtbuf1), "ip == ip(%d)", run_id); %>
+<s:url name="FilteredMainUrl" ac="main-page">
+    <s:param name="filter_expr" value="filtbuf1" />
+</s:url> <td><s:a url="FilteredMainUrl"><s:v value="info.a.ip" /></s:a></td>
+<% snprintf(filtbuf1, sizeof(filtbuf1), "uid == %d", info.user_id); %>
+<s:url name="FilteredMainUrl" ac="main-page">
+    <s:param name="filter_expr" value="filtbuf1" />
+</s:url><td><s:a url="FilteredMainUrl"><s:v value="info.user_id" /></s:a></td>
+<td><s:v value="teamdb_get_login(cs->teamdb_state, info.user_id)" /></td>
+ <td><s:v value="teamdb_get_name(cs->teamdb_state, info.user_id)" /></td>
+
+
+<% if (prob) { %>
+
+<% snprintf(filtbuf1, sizeof(filtbuf1), "prob == \"%s\"",  prob->short_name); %>
+<s:url name="FilteredMainUrl" ac="main-page">
+    <s:param name="filter_expr" value="filtbuf1" />
+</s:url>
+<td><s:a url="FilteredMainUrl"><s:v value="prob->short_name" escape="false" /> - <s:v value="prob->long_name" /></s:a><%
+    if (prob->xml_file && prob->xml_file[0]) {
+%><s:url name="SubmitPageUrl" ac="priv-submit-page"><s:param name="problem" value="prob->id" /></s:url> <s:a url="SubmitPageUrl">[<s:tr>Statement</s:tr>]</s:a><%
+    }
+%></td>
+<% } else { %>
+<td>#<s:v value="info.prob_id" /></td>
+<% } %>
+
+<% if (prob && prob->variant_num > 0) {
+    variant = info.variant;
+    if (!variant) variant = find_variant(cs, info.user_id, info.prob_id, 0);
+    if (variant > 0) {
+%>
+<% snprintf(filtbuf1, sizeof(filtbuf1), "prob == \"%s\" && variant == %d", prob->short_name, variant); %>
+<s:url name="FilteredMainUrl" ac="main-page">
+    <s:param name="filter_expr" value="filtbuf1" />
+</s:url>
+<td><s:a url="FilteredMainUrl"><%
+      if (info.variant > 0) {
+%><s:v value="(int) info.variant" /><%
+      } else {
+%><s:v value="variant" /> (implicit)<%
+      }
+%></s:a></td>
+<%    } else { %>
+<td><i>unassigned</i></td>
+<%    } %>
+<% } %>
+
+
+
+<%  if (lang) { %>
+<% snprintf(filtbuf1, sizeof(filtbuf1), "lang == \"%s\"", lang->short_name); %>
+<s:url name="FilteredMainUrl" ac="main-page">
+    <s:param name="filter_expr" value="filtbuf1" />
+</s:url>
+<td><s:a url="FilteredMainUrl" ><s:v escape="false" value="lang->short_name" /> - <s:v value="lang->long_name" /></s:a></td>
+<%  } else if (!info.lang_id) { %>
+<td>N/A</td>
+<%  } else { %>
+<td>#<s:v value="info.lang_id" /></td>
+<%  } %>
+
+<td><s:v type="eoln_type" value="info.eoln_type" /></td>
+
+<%
+  run_status_to_str_short(bb, sizeof(bb), info.status);
+  snprintf(filtbuf1, sizeof(filtbuf1), "status == %s", bb);
+%>
+<td><s:a url="FilteredMainUrl"><s:v type="run_status" value="info.status" /></s:a></td>
+
+<% if (info.passed_mode > 0) { %>
+<td><s:v value="info.test" checkExpr=">= 0" defstr="N/A" /></td>
+<% } %>
+
+<%  if (global->score_system == SCORE_KIROV
+      || global->score_system == SCORE_OLYMPIAD) {
+    if (info.passed_mode <= 0) {
+%>
+<td><s:v value="info.test - 1" checkExpr=">= 0" defstr="N/A" /></td>
+<%    } %>
+
+<td><s:v value="info.score" checkExpr=">= 0" defstr="N/A" /></td>
+<%  } else if (global->score_system == SCORE_MOSCOW) {
+    if (info.passed_mode <= 0) {
+%>
+<td><s:v value="info.test" checkExpr="> 0" defstr="N/A" /></td>
+<%    } %>
+
+<td><s:v value="info.score" checkExpr=">= 0" defstr="N/A" /></td>
+<%  } else { %>
+<%    if (info.passed_mode <= 0) { %>
+<td><s:v value="info.test" checkExpr="> 0" defstr="N/A" /></td>
+<%    }
+  }
+%>
+
+<td><s:vb value="info.is_marked" /></td></tr>
+</table></div>
+
+<script language="javascript">
+function setDivVisibility(oper, value)
+{
+  obj1 = document.getElementById("Show" + oper + "Div");
+  obj2 = document.getElementById("Hide" + oper + "Div");
+  if (value) {
+    obj1.style.display = "none";
+    obj2.style.display = "";
+  } else {
+    obj1.style.display = "";
+    obj2.style.display = "none";
+  }
+}
+</script>
+<div id="ShowExtraDiv">
+<a onclick="setDivVisibility('Extra', true)">[<s:tr>More info</s:tr>]</a>
+</div>
+<div style="display: none;" id="HideExtraDiv">
+<a onclick="setDivVisibility('Extra', false)">[<s:tr>Hide extended info</s:tr>]</a>
+
+<br/>
+
+<div class="table-scroll" style="margin-top: 7px;">
+<table class="table">
+<tr>
+<% if (!info.lang_id) { %>
+<th><s:tr>Content type</s:tr></th><td><s:v type="mime_type" value="info.mime_type" /></td>
+<% } %>
+<th style="width: 10em;"><s:tr>Imported?</s:tr></th>
+<th><s:tr>Hidden?</s:tr></th>
+<th><s:tr>Saved?</s:tr></th>
+<th><s:tr>Read-only?</s:tr></th>
+<th><s:tr>Locale ID</s:tr></th>
+<%  if (global->score_system != SCORE_ACM) { %>
+<th><s:tr>Score adjustment</s:tr></th>
+<%  } %>
+<th><s:tr>Size</s:tr></th>
+<th><s:tr>Hash value</s:tr></th>
+<th><s:tr>Pages printed</s:tr>:</th>
+</tr>
+<tr>
+<% if (!info.lang_id) { %>
+<td><s:v type="mime_type" value="info.mime_type" /></td>
+<% } %>
+<td><s:vb value="info.is_imported" /></td>
+<td><s:vb value="info.is_hidden" /></td>
+<td><s:vb value="info.is_saved" /></td>
+<td><s:vb value="info.is_readonly" /></td>
+<td><s:v value="info.locale_id" /></td>
+<%  if (global->score_system != SCORE_ACM) { %>
+<td><s:v value="info.score_adj" /></td>
+<%  } %>
+<% snprintf(filtbuf1, sizeof(filtbuf1), "size == size(%d)", run_id); %>
+<td><s:a url="FilteredMainUrl"><s:v value="info.size" /></s:a></td>
+<% snprintf(filtbuf1, sizeof(filtbuf1), "hash == hash(%d)", run_id); %>
+<td><s:a url="FilteredMainUrl"><s:v type="sha1" value="info.sha1" /></s:a></td>
+<td><s:v value="(int) info.pages" /></td>
+</tr>
+
+</table>
+</div>
+</div>
+
+ <div id="brief-actions">
+<s:url name="DownloadRunUrl" ac="priv-download-run">
+    <s:param name="run_id" value="run_id" />
+</s:url>
+<p style="display: inline-block;"><s:a url="DownloadRunUrl"><s:tr>Download run</s:tr></s:a></p>
+
+<% if (phr->role == USER_ROLE_ADMIN && opcaps_check(phr->caps, OPCAP_EDIT_RUN) >= 0 && info.is_readonly <= 0) { %>
+<s:form>
+<s:hidden name="run_id" />
+<p><s:submit ac="clear-run" /></p>
+</s:form>
+<% } %>
+
+<% if (opcaps_check(phr->caps, OPCAP_PRINT_RUN) >= 0) { %>
+<s:form>
+<s:hidden name="run_id" />
+<p><s:submit ac="print-run" /></p>
+</s:form>
+<% } %>
+
+<%
+  if (run_id > 0) {
+    run_id2 = run_find(cs->runlog_state, run_id - 1, 0, info.user_id,
+                       info.prob_id, info.lang_id, NULL, NULL);
+  }
+%>
+
+<s:form>
+<s:hidden name="run_id" />
+<p><s:tr>Compare this run with run</s:tr>: <s:textfield name="run_id2" checkExpr=">= 0" size="10" /> <s:submit ac="compare-runs" /></p>
+</s:form>
+
+<s:form>
+<s:hidden name="run_id" />
+<p><s:tr>Charset</s:tr>: <% charset_html_select(out_f, "run_charset", run_charset); %> <s:submit ac="view-source" /></p>
+</s:form>
+
+<% if (global->enable_report_upload) { %>
+<s:form enctype="multipart/form-data">
+<s:hidden name="run_id" />
+<p><s:tr>Upload judging protocol</s:tr>: <input type="file" name="file" /><%
+    if (global->team_enable_rep_view) {
+%> <s:checkbox name="judge_report" checkedExpr="1" /><s:tr>Judge's report</s:tr><%
+%> <s:checkbox name="user_report" checkedExpr="1" /><s:tr>User's report</s:tr><%
+} %><s:submit ac="upload-report" />
+</s:form>
+<% } %>
+
+</div>
+</div>
+<hr />
+
+<div id="prog">
+<%  if (prob && prob->type > 0 && info.mime_type > 0) {
+    if(info.mime_type >= MIME_TYPE_IMAGE_FIRST
+       && info.mime_type <= MIME_TYPE_IMAGE_LAST) {
+%>
+<s:url name="PrivDownloadRunUrl" ac="priv-download-run">
+    <s:param name="run_id" value="run_id" />
+    <s:param name="no_disp" value="1" />
+</s:url>
+<p><s:img url="PrivDownloadRunUrl" label="Submit image" /></p>
+<%    } else { %>
+<p><s:tr>The submission is binary and thus is not shown.</s:tr></p>
+<%    }
+  } else if (lang && lang->binary) {
+%><p><s:tr>The submission is binary and thus is not shown.</s:tr></p>
+<%  } else if (!info.is_imported) {
+    if (src_flags < 0 || generic_read_file(&src_text, 0, &src_len, src_flags, 0, src_path, "") < 0) {
+%>
+<big><font color="red"><s:tr>Cannot read source text!</s:tr></font></big>
+<%    } else {
+      if (run_charset && (charset_id = charset_get_id(run_charset)) > 0) {
+        unsigned char *newsrc = charset_decode_to_heap(charset_id, src_text);
+        xfree(src_text);
+        src_text = newsrc;
+        src_len = strlen(src_text);
+      }
+%>
+<table class="b0"><% text_table_number_lines(out_f, src_text, src_len, 0, " class=\"b0\""); %></table></div>
+<%
+      xfree(src_text); src_text = 0;
+    }
+  }
+%>
+
+<%
+  txt_flags = serve_make_report_read_path(cs, txt_path, sizeof(txt_path), &info);
+  if (txt_flags >= 0) {
+    if (generic_read_file(&txt_text, 0, &txt_size, txt_flags, 0,
+                          txt_path, 0) >= 0) {
+%>
+
+<div id="output">
+<h2><s:tr>Style checker output</s:tr></h2>
+<pre><s:v value="txt_text" /></pre></div>
+<%
+      xfree(txt_text); txt_text = 0; txt_size = 0;
+    }
+  }
+%>
+
+<hr/ style="clear: both;">
+
+
+<div class="h2-long" style="margin-top: 13px; margin-bottom: 5px;">
+<h2><s:tr>Send a message about this run</s:tr></h2></div>
+
+<p><textarea id="msg_text" name="msg_text" rows="20" cols="60"></textarea></p>
+
+<div class="buttons" style="margin-top: -13px;">
+<s:form id="run_comment">
+<s:hidden name="run_id" />
+<s:submit ac="priv-submit-run-just-ignore" />
+<s:submit ac="priv-submit-run-just-ok" />
+<s:button onclick="formatViolation()" label="Formatting rules violation" />
+<s:submit ac="priv-submit-run-comment" />
+<s:submit ac="priv-submit-run-comment-and-ignore" />
+<s:submit ac="priv-submit-run-comment-and-ok" />
+<s:submit ac="priv-set-run-rejected" />
+</div></s:form>
+
+<br />
+
+<%@include "priv_footer.csp"
+%><%
+  l10n_setlocale(0);
+cleanup:
+  html_armor_free(&ab);
+%>

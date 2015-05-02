@@ -1,13 +1,12 @@
 // This is an auto-generated file, do not edit
-// Generated 2013/11/02 20:35:09
 
-#include "problem_config_meta.h"
-#include "problem_config.h"
-#include "meta_generic.h"
+#include "ejudge/meta/problem_config_meta.h"
+#include "ejudge/problem_config.h"
+#include "ejudge/meta_generic.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 #include <string.h>
 #include <stdlib.h>
 

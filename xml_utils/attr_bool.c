@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: attr_bool.c 5677 2010-01-19 09:59:15Z cher $ */
+/* $Id: attr_bool.c 8210 2014-05-14 23:41:03Z cher $ */
 
-/* Copyright (C) 2004-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/expat_iface.h"
 
 #include <string.h>
 
@@ -45,6 +45,5 @@ xml_attr_bool(const struct xml_attr *attr, int *value_ptr)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: serve_state.c 7321 2013-01-27 18:56:13Z cher $ */
+/* $Id: serve_state.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,34 +15,32 @@
  * GNU General Public License for more details.
  */
 
-#include "serve_state.h"
-#include "filter_tree.h"
-#include "runlog.h"
-#include "team_extra.h"
-#include "teamdb.h"
-#include "clarlog.h"
-#include "prepare.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "userlist_proto.h"
-#include "userlist_clnt.h"
-#include "ejudge_plugin.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/filter_tree.h"
+#include "ejudge/runlog.h"
+#include "ejudge/team_extra.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/prepare.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/ejudge_plugin.h"
+#include "ejudge/csv.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/misctext.h"
+#include "ejudge/new-server.h"
+#include "ejudge/sformat.h"
+#include "ejudge/testing_report_xml.h"
+#include "ejudge/prepare_serve.h"
+#include "ejudge/userlist.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/win32_compat.h"
 
-// these includes are for the structure sizes array
-#include "csv.h"
-#include "ejudge_cfg.h"
-#include "misctext.h"
-#include "new-server.h"
-#include "sformat.h"
-#include "testing_report_xml.h"
-#include "prepare.h"
-#include "prepare_serve.h"
-#include "userlist.h"
-#include "xml_utils.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <sys/types.h>
@@ -50,8 +48,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <ctype.h>
-
-#include "win32_compat.h"
 
 serve_state_t
 serve_state_init(int contest_id)
@@ -1034,10 +1030,3 @@ serve_get_user_result_score(
   if (!state || user_id <= 0 || user_id >= state->user_result_a) return 0;
   return state->user_results[user_id].total_score;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
- * End:
- */

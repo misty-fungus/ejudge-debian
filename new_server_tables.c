@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_tables.c 7147 2012-11-06 12:20:11Z cher $ */
+/* $Id: new_server_tables.c 8238 2014-05-17 10:52:34Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,12 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
-
-#include "new-server.h"
-#include "new_server_proto.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/new-server.h"
+#include "ejudge/new_server_proto.h"
 
 #include <stdarg.h>
 

@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: run.c 7406 2013-10-05 10:45:38Z cher $ */
+/* $Id: run.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,35 +15,33 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/prepare.h"
+#include "ejudge/runlog.h"
+#include "ejudge/testinfo.h"
+#include "ejudge/interrupt.h"
+#include "ejudge/run_packet.h"
+#include "ejudge/curtime.h"
+#include "ejudge/full_archive.h"
+#include "ejudge/digest_io.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/startstop.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/nwrun_packet.h"
+#include "ejudge/prepare_dflt.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/misctext.h"
+#include "ejudge/run.h"
+#include "ejudge/super_run_packet.h"
+#include "ejudge/win32_compat.h"
 
-#include "prepare.h"
-#include "runlog.h"
-//#include "cr_serialize.h"
-#include "testinfo.h"
-#include "interrupt.h"
-#include "run_packet.h"
-#include "curtime.h"
-#include "full_archive.h"
-#include "digest_io.h"
-#include "filehash.h"
-#include "serve_state.h"
-#include "startstop.h"
-#include "ejudge_cfg.h"
-#include "nwrun_packet.h"
-#include "prepare_dflt.h"
-#include "fileutl.h"
-#include "errlog.h"
-#include "misctext.h"
-#include "run.h"
-#include "super_run_packet.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
-#include "reuse_integral.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/integral.h"
+#include "ejudge/exec.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -58,8 +56,6 @@
 #ifndef __MINGW32__
 #include <sys/vfs.h>
 #endif
-
-#include "win32_compat.h"
 
 #ifdef HAVE_TERMIOS_H
 #include <termios.h>
@@ -1161,10 +1157,3 @@ main(int argc, char *argv[])
   printf("  -s arch - specify architecture to skip testing\n");
   return code;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "tTask")
- * End:
- */

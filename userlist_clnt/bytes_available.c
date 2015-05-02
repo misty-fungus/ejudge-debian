@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: bytes_available.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id: bytes_available.c 8183 2014-05-14 10:26:11Z cher $ */
 
-/* Copyright (C) 2006-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-
+#include "ejudge/config.h"
 #include "userlist_clnt/private.h"
-#include "errlog.h"
+#include "ejudge/errlog.h"
 
 #include <sys/ioctl.h>
 #ifdef __linux__

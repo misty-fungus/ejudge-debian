@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: tex_dom_parse.c 6185 2011-03-27 15:16:29Z cher $ */
+/* $Id: tex_dom_parse.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,11 @@
  * GNU General Public License for more details.
  */
 
-#include "tex_dom.h"
+#include "ejudge/tex_dom.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_hash.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/hash.h"
 
 #include <string.h>
 #include <ctype.h>
@@ -689,14 +689,3 @@ tex_dom_free_result(tex_dom_result_t res)
   tex_dom_free(res->tree);
   return 0;
 }
-
-
-/*
- *  compile-command: "gcc -Wall -g -I. -I/home/cher/reuse/include -I/home/cher/reuse/include/ix86-linux -L. -L/home/cher/reuse/lib/ix86-linux ejudge_setup.c ncurses_utils.c tex_dom.c tex_dom_render.c -o ejudge_setup -lreuse -lmenu -lpanel -lncurses -lm"
- */
-
-/*
- * Local variables:
- *  compile-command: "gcc -Wall -g -I/home/cher/reuse/include -I/home/cher/reuse/include/ix86-linux -L/home/cher/reuse/lib/ix86-linux tex_dom.c tex_dom_parse.c tex_dom_render.c tex_dom_doc.c tex_dom_test.c -o tex_dom -lreuse -lm"
- * End:
- */

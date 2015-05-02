@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: edit-userlist.c 7615 2013-11-22 20:37:54Z cher $ */
+/* $Id: edit-userlist.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,22 +15,21 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/contests.h"
+#include "ejudge/userlist.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/misctext.h"
+#include "ejudge/ncurses_utils.h"
+#include "ejudge/compat.h"
 
-#include "userlist_clnt.h"
-#include "userlist_proto.h"
-#include "contests.h"
-#include "userlist.h"
-#include "ejudge_cfg.h"
-#include "xml_utils.h"
-#include "misctext.h"
-#include "ncurses_utils.h"
-#include "compat.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -5348,9 +5347,3 @@ main(int argc, char **argv)
   endwin();
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

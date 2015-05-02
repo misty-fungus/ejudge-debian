@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: csv.c 6135 2011-03-26 09:30:42Z cher $ */
+/* $Id: csv.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "csv.h"
+#include "ejudge/csv.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <string.h>
 #include <ctype.h>

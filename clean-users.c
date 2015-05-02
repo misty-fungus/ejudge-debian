@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: clean-users.c 7027 2012-09-16 13:38:18Z cher $ */
+/* $Id: clean-users.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2003-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,22 +15,21 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/userlist.h"
+#include "ejudge/contests.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/runlog.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/serve_state.h"
 
-#include "version.h"
-#include "ejudge_cfg.h"
-#include "userlist.h"
-#include "contests.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "runlog.h"
-#include "clarlog.h"
-#include "userlist_clnt.h"
-#include "userlist_proto.h"
-#include "serve_state.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <limits.h>
@@ -419,6 +418,5 @@ main(int argc, char **argv)
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
  * End:
  */

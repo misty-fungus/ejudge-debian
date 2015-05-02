@@ -1,10 +1,10 @@
 /* -*- c -*- */
-/* $Id: private.h 6152 2011-03-27 06:52:06Z cher $ */
+/* $Id: private.h 8531 2014-08-22 13:08:06Z cher $ */
 
 #ifndef __USERLIST_CLNT_PRIVATE_H__
 #define __USERLIST_CLNT_PRIVATE_H__
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,15 +22,15 @@
 #include <Python.h>
 #endif
 
-#include "userlist_clnt.h"
-#include "userlist_proto.h"
-#include "pathutl.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/pathutl.h"
 
 /* for python bindings we don't want reuse stuff... */
 #if !defined PYTHON
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 #endif
 
 #include <stdio.h>

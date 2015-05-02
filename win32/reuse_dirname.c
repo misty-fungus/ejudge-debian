@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: reuse_dirname.c 6528 2011-11-25 18:08:26Z cher $ */
+/* $Id: reuse_dirname.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This library is free software; you can redistribute it and/or
@@ -15,8 +15,8 @@
  * Lesser General Public License for more details.
  */
 
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 

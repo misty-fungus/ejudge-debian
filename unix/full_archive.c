@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: full_archive.c 6751 2012-04-18 12:00:57Z cher $ */
+/* $Id: full_archive.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,15 +15,14 @@
  * GNU General Public License for more details.
  */
 
-#include "full_archive.h"
+#include "ejudge/full_archive.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/fileutl.h"
 
-#include "pathutl.h"
-#include "errlog.h"
-#include "fileutl.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -606,6 +605,5 @@ cleanup:
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

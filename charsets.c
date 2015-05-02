@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: charsets.c 7516 2013-10-30 17:44:40Z cher $ */
+/* $Id: charsets.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,12 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/misctext.h"
 
-#include "misctext.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -409,10 +408,3 @@ charset_html_select(
   }
   fprintf(f, "</select>");
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

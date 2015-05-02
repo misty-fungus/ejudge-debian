@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: teamdb.c 7615 2013-11-22 20:37:54Z cher $ */
+/* $Id: teamdb.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,20 +15,19 @@
  * GNU General Public License for more details.
  */
 
-#include "teamdb.h"
-#include "teamdb_priv.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/teamdb_priv.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/base64.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/userlist_proto.h"
+#include "ejudge/userlist.h"
+#include "ejudge/xml_utils.h"
 
-#include "pathutl.h"
-#include "errlog.h"
-#include "base64.h"
-#include "userlist_clnt.h"
-#include "userlist_proto.h"
-#include "userlist.h"
-#include "xml_utils.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <string.h>

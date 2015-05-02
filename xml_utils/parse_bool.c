@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: parse_bool.c 6491 2011-10-21 06:16:54Z cher $ */
+/* $Id: parse_bool.c 8210 2014-05-14 23:41:03Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "errlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/errlog.h"
 
 #include <string.h>
 
@@ -66,6 +66,5 @@ xml_parse_bool(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

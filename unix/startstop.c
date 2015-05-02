@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: startstop.c 6983 2012-08-13 14:46:07Z cher $ */
+/* $Id: startstop.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2006-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,16 +15,15 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/version.h"
+#include "ejudge/startstop.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
 
-#include "startstop.h"
-#include "pathutl.h"
-#include "errlog.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -274,6 +273,5 @@ start_open_log(const unsigned char *log_path)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
  * End:
  */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: capexec.c 5512 2008-12-27 19:32:44Z cher $ */
+/* $Id: capexec.c 8173 2014-05-12 19:50:16Z cher $ */
 
-/* Copyright (C) 2000-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -30,7 +30,7 @@
  */
 
 #if defined HAVE_CONFIG_H && HAVE_CONFIG_H > 0
-#include "../config.h"
+#include "../include/ejudge/config.h"
 #endif
 
 #include <stdio.h>

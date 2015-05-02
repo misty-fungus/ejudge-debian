@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: reports.c 7583 2013-11-10 19:32:15Z cher $ */
+/* $Id: reports.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2007-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,27 +15,26 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/prepare.h"
+#include "ejudge/runlog.h"
+#include "ejudge/misctext.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/sformat.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/new-server.h"
+#include "ejudge/userlist.h"
+#include "ejudge/random.h"
+#include "ejudge/testing_report_xml.h"
+#include "ejudge/mime_type.h"
 
-#include "serve_state.h"
-#include "prepare.h"
-#include "runlog.h"
-#include "misctext.h"
-#include "archive_paths.h"
-#include "fileutl.h"
-#include "teamdb.h"
-#include "sformat.h"
-#include "xml_utils.h"
-#include "new-server.h"
-#include "userlist.h"
-#include "random.h"
-#include "testing_report_xml.h"
-#include "mime_type.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/exec.h"
 
 #include <stdio.h>
 #include <stdlib.h>

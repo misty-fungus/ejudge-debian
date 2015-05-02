@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: reuse_rgetlastname.c 6166 2011-03-27 10:27:54Z cher $ */
+/* $Id: reuse_rgetlastname.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This library is free software; you can redistribute it and/or
@@ -15,7 +15,7 @@
  * Lesser General Public License for more details.
  */
 
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 

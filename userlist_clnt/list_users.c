@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: list_users.c 7364 2013-02-09 20:19:53Z cher $ */
+/* $Id: list_users.c 8183 2014-05-14 10:26:11Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -16,8 +16,7 @@
  */
 
 #include "userlist_clnt/private.h"
-
-#include "errlog.h"
+#include "ejudge/errlog.h"
 
 int
 userlist_clnt_list_users(struct userlist_clnt *clnt,

@@ -1,7 +1,7 @@
 # -*- Makefile -*-
-# $Id: main.make 6188 2011-03-27 15:58:56Z cher $
+# $Id: main.make 8166 2014-05-12 12:46:43Z cher $
 
-# Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,7 @@ HFILES =
 CC = gcc
 LD = gcc
 
-CFLAGS = -I. -I../.. $(MYSQL_INCL_OPT) $(EXPAT_INCL_OPT) $(CDEBUGFLAGS) $(CCOMPFLAGS) $(CEXTRAFLAGS) $(WPTRSIGN)
+CFLAGS = -I. -I../.. -I../../include $(MYSQL_INCL_OPT) $(EXPAT_INCL_OPT) $(CDEBUGFLAGS) $(CCOMPFLAGS) $(CEXTRAFLAGS) $(WPTRSIGN)
 LDFLAGS = $(MYSQL_LIB_OPT) $(EXPAT_LIB_OPT) $(CDEBUGFLAGS) $(LDCOMPFLAGS) $(LDEXTRAFLAGS)
 LDLIBS = $(EXTRALIBS) $(MYSQL_LIBS) -lexpat -lm
 
@@ -42,7 +42,7 @@ distclean : clean
 	-rm -f Makefile
 
 deps.make : $(CFILES) $(HFILES)
-	../../cdeps -v RLDB_MYSQL_OFILES -I ../.. -g -c '$$(CC) $$(CFLAGS) -DPIC -fPIC' $(RLDB_MYSQL_CFILES) > deps.make
+	../../cdeps -v RLDB_MYSQL_OFILES -I ../.. -I ../../include -g -c '$$(CC) $$(CFLAGS) -DPIC -fPIC' $(RLDB_MYSQL_CFILES) > deps.make
 
 include deps.make
 

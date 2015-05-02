@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: new-client.c 7361 2013-02-09 19:09:22Z cher $ */
+/* $Id: new-client.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,21 +15,20 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/new_server_clnt.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/cgi.h"
+#include "ejudge/clntutil.h"
+#include "ejudge/errlog.h"
+#include "ejudge/parsecfg.h"
+#include "ejudge/xml_utils.h"
 
-#include "new_server_proto.h"
-#include "new_server_clnt.h"
-#include "pathutl.h"
-#include "cgi.h"
-#include "clntutil.h"
-#include "errlog.h"
-#include "parsecfg.h"
-#include "xml_utils.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -271,9 +270,3 @@ main(int argc, char *argv[])
 
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

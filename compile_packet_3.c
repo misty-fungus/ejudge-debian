@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: compile_packet_3.c 6172 2011-03-27 12:40:30Z cher $ */
+/* $Id: compile_packet_3.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,15 +15,15 @@
  * GNU General Public License for more details.
  */
 
-#include "compile_packet.h"
-#include "compile_packet_priv.h"
-#include "pathutl.h"
-#include "prepare.h"
-#include "runlog.h"
+#include "ejudge/compile_packet.h"
+#include "ejudge/compile_packet_priv.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/prepare.h"
+#include "ejudge/runlog.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_integral.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/integral.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -48,10 +48,3 @@ compile_request_packet_free(struct compile_request_packet *in_data)
   xfree(in_data);
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

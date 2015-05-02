@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: interrupt.c 5681 2010-01-19 10:02:25Z cher $ */
+/* $Id: interrupt.c 8198 2014-05-14 20:35:18Z cher $ */
 
-/* Copyright (C) 2004-2008 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "interrupt.h"
+#include "ejudge/interrupt.h"
 
 #include <signal.h>
 

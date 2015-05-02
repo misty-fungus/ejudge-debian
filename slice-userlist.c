@@ -1,15 +1,15 @@
 /* -*- mode: c -*- */
-/* $Id: slice-userlist.c 6135 2011-03-26 09:30:42Z cher $ */
+/* $Id: slice-userlist.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
-#include "config.h"
+#include "ejudge/config.h"
 
-#include "version.h"
-#include "ejudge_cfg.h"
-#include "userlist.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/userlist.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>

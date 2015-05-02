@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: ej_process.c 7223 2012-12-09 07:18:49Z cher $ */
+/* $Id: ej_process.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2005-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,13 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_process.h"
-#include "compat.h"
-#include "list_ops.h"
-#include "pollfds.h"
+#include "ejudge/ej_process.h"
+#include "ejudge/compat.h"
+#include "ejudge/list_ops.h"
+#include "ejudge/pollfds.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -1152,7 +1152,7 @@ msg(const unsigned char *path, const char *function, int lineno,
   va_end(args);
 
   int revision = 0;
-  sscanf("$Revision: 7223 $", "$" "Revision:%d", &revision);
+  sscanf("$Revision: 8530 $", "$" "Revision:%d", &revision);
 
   if (!path) {
     fprintf(stderr, "%s: %d: %d: %s\n", function, lineno, revision, buf);

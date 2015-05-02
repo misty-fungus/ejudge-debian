@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: diff.c 7581 2013-11-10 14:11:16Z cher $ */
+/* $Id: diff.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,20 +15,19 @@
  * GNU General Public License for more details.
  */
 
-#include "diff.h"
+#include "ejudge/diff.h"
+#include "ejudge/runlog.h"
+#include "ejudge/protocol.h"
+#include "ejudge/prepare.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/misctext.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/prepare_dflt.h"
 
-#include "runlog.h"
-#include "protocol.h"
-#include "prepare.h"
-#include "archive_paths.h"
-#include "fileutl.h"
-#include "serve_state.h"
-#include "misctext.h"
-#include "mime_type.h"
-#include "prepare_dflt.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/exec.h"
 
 #include <unistd.h>
 #include <fcntl.h>

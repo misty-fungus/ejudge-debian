@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: recv_packet.c 6155 2011-03-27 06:57:30Z cher $ */
+/* $Id: recv_packet.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -16,11 +16,11 @@
  */
 
 #include "new_server_clnt/new_server_clnt_priv.h"
-#include "new_server_proto.h"
-#include "errlog.h"
+#include "ejudge/new_server_proto.h"
+#include "ejudge/errlog.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <unistd.h>
 
@@ -105,6 +105,5 @@ new_server_clnt_recv_packet(new_server_conn_t conn, size_t *p_size, void **p_dat
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

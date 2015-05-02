@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: ej-import-contest.c 7454 2013-10-20 19:14:04Z cher $ */
+/* $Id: ej-import-contest.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2012-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,29 +15,28 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/contests.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/ej_process.h"
+#include "ejudge/problem_config.h"
+#include "ejudge/build_support.h"
+#include "ejudge/super-serve.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/super_html.h"
+#include "ejudge/prepare.h"
+#include "ejudge/meta/problem_config_meta.h"
+#include "ejudge/meta/prepare_meta.h"
+#include "ejudge/prepare_dflt.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/ej_import_packet.h"
 
-#include "ejudge_cfg.h"
-#include "contests.h"
-#include "fileutl.h"
-#include "ej_process.h"
-#include "problem_config.h"
-#include "build_support.h"
-#include "super-serve.h"
-#include "xml_utils.h"
-#include "super_html.h"
-#include "prepare.h"
-#include "problem_config_meta.h"
-#include "prepare_meta.h"
-#include "prepare_dflt.h"
-#include "pathutl.h"
-#include "ej_import_packet.h"
-
-#include "reuse_osdeps.h"
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <stdio.h>
 #include <string.h>

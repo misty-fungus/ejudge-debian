@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: clarlog.c 7352 2013-02-08 12:40:13Z cher $ */
+/* $Id: clarlog.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,26 +15,23 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-
-#include "clarlog.h"
-#include "cldb_plugin.h"
-#include "clarlog_state.h"
-
-#include "teamdb.h"
-#include "base64.h"
-
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/cldb_plugin.h"
+#include "ejudge/clarlog_state.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/base64.h"
 #include "unix/unix_fileutl.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "xml_utils.h"
-#include "charsets.h"
-#include "prepare.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/charsets.h"
+#include "ejudge/prepare.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <unistd.h>
 #include <errno.h>
@@ -624,9 +621,3 @@ ipv6_to_clar_entry(const ej_ip_t *p_ip, struct clar_entry_v1 *pe)
     pe->a.ip = p_ip->u.v4.addr;
   }
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

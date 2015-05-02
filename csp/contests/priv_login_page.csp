@@ -1,0 +1,44 @@
+<%
+/* $Id: priv_login_page.csp 8161 2014-05-10 11:21:55Z cher $ */
+%><%@include "priv_includes.csp"
+%><%
+%><%@set getter_name = "csp_get_priv_login_page"
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@set err_prefix = "NEW_SRV_ERR_"
+%><%@page csp_view_priv_login_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "priv_stdvars.csp"
+%><%
+  const unsigned char *login = NULL;
+  const unsigned char *password = NULL;
+  int contest_id = phr->contest_id;
+  const unsigned char *title = _("Login page");
+  int role;
+%><%
+%><s:read var="login" ignoreerrors="yes" /><%
+%><s:read var="password" ignoreerrors="yes" /><%
+
+  if (!phr->role) {
+    phr->role = USER_ROLE_OBSERVER;
+%><s:read var="role" default="0" ignoreerrors="yes" /><%
+    if (role >= USER_ROLE_CONTESTANT && role < USER_ROLE_LAST) {
+       phr->role = role;
+    }
+  }
+
+  l10n_setlocale(phr->locale_id);
+  phr->client_key = 0;
+%><%@include "priv_header.csp" 
+%><s:form>
+<table>
+<tr><td><s:tr>Login</s:tr>:</td><td><s:textfield size="32" name="login" /></td></tr>
+<tr><td><s:tr>Password</s:tr>:</td><td><s:password size="32" name="password" /></td></tr>
+<tr><td><s:tr>Contest</s:tr>:</td><td><s:textfield size="32" name="contest_id" checkExpr="&gt; 0" /></td></tr>
+<tr><td><s:tr>Role</s:tr>:</td><td><%  html_role_select(out_f, phr->role, 1, 0); %></td></tr>
+<tr><td><s:tr>Language</s:tr>:</td><td><% l10n_html_locale_select(out_f, phr->locale_id); %></td></tr>
+<tr><td>&nbsp;</td><td><s:submit ac="main-page" label="Submit" /></td></tr>
+</table>
+</s:form><%@include "priv_footer.csp"
+%><%
+  l10n_setlocale(0);
+  html_armor_free(&ab);
+%>

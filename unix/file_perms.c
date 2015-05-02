@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: file_perms.c 6161 2011-03-27 07:01:28Z cher $ */
+/* $Id: file_perms.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2009-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2009-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "file_perms.h"
-#include "misctext.h"
+#include "ejudge/file_perms.h"
+#include "ejudge/misctext.h"
 
-#include "reuse_osdeps.h"
+#include "ejudge/osdeps.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -96,6 +96,5 @@ file_perms_get(
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

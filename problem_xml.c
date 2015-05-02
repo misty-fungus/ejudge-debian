@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: problem_xml.c 6500 2011-10-29 14:03:52Z cher $ */
+/* $Id: problem_xml.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2007-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "problem_xml.h"
-#include "xml_utils.h"
+#include "ejudge/problem_xml.h"
+#include "ejudge/xml_utils.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <string.h>
 #include <errno.h>
@@ -836,9 +836,3 @@ problem_xml_add_example(problem_xml_t prob_xml, struct xml_tree *input_node, str
   xml_link_node_last(example, input_node);
   xml_link_node_last(example, output_node);
 }
-
-/*
- * Local variables:
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list")
- * End:
- */

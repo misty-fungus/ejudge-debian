@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: runlog.c 7625 2013-11-24 06:42:39Z cher $ */
+/* $Id: runlog.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,24 +15,23 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-
-#include "runlog.h"
-#include "teamdb.h"
-
-#include "pathutl.h"
-#include "errlog.h"
+#include "ejudge/config.h"
+#include "ejudge/runlog.h"
+#include "ejudge/teamdb.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
 #include "unix/unix_fileutl.h"
-#include "xml_utils.h"
-#include "random.h"
-#include "runlog_state.h"
-#include "rldb_plugin.h"
-#include "prepare.h"
-#include "ej_uuid.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/random.h"
+#include "ejudge/runlog_state.h"
+#include "ejudge/rldb_plugin.h"
+#include "ejudge/prepare.h"
+#include "ejudge/ej_uuid.h"
+#include "ejudge/win32_compat.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,8 +41,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-#include "win32_compat.h"
 
 #if CONF_HAS_LIBINTL - 0 == 1
 #include <libintl.h>
@@ -329,7 +326,7 @@ run_add_record(
   state->uuid_hash_last_added_index = -1;
   state->uuid_hash_last_added_run_id = -1;
   if (timestamp <= 0) {
-    err("run_add_record: invalid timestamp %ld", timestamp);
+    err("run_add_record: invalid timestamp %ld", (long) timestamp);
     return -1;
   }
   if (!is_hidden) {
@@ -1026,6 +1023,7 @@ run_check_duplicate(runlog_state_t state, int run_id)
   p = &state->runs[run_id];
 
   struct user_entry *ue = get_user_entry(state, p->user_id);
+  (void) ue;
   ASSERT(ue);
   ASSERT(ue->run_id_valid > 0); // run index is ok
 
@@ -1993,7 +1991,7 @@ runlog_check(
     }
     if (e->time < prev_time) {
       check_msg(1, ferr, "Run %d timestamp %" EJ_PRINTF_LLSPEC "d is less than previous %ld",
-                i, e->time, prev_time);
+                i, e->time, (long) prev_time);
       nerr++;
       continue;
     }
@@ -2179,14 +2177,14 @@ runlog_check(
         if (e->time < v->start_time) {
           check_msg(1, ferr,
                     "Run %d timestamp %" EJ_PRINTF_LLSPEC "d is less that virtual start %ld",
-                    i, e->time, v->start_time);
+                    i, e->time, (long) v->start_time);
           nerr++;
           continue;
         }
         if (v_stop_time && e->time > v_stop_time) {
           check_msg(1, ferr,
                     "Run %d timestamp %" EJ_PRINTF_LLSPEC "d is greater than virtual stop %ld",
-                    i, e->time, v_stop_time);
+                    i, e->time, (long) v_stop_time);
           nerr++;
           continue;
         }
@@ -2204,7 +2202,7 @@ runlog_check(
         if (stop_time && e->time > stop_time) {
           check_msg(1, ferr,
                     "Run %d timestamp %" EJ_PRINTF_LLSPEC "d is greater than contest stop %ld",
-                    i, e->time, stop_time);
+                    i, e->time, (long) stop_time);
           nerr++;
           continue;
         }
@@ -2685,6 +2683,7 @@ run_get_total_users(runlog_state_t state)
       for (int user_id = 1; user_id < user_id_bound; ++user_id) {
         user_count += map[user_id];
       }
+      xfree(map); map = NULL;
     }
     state->user_count = user_count;
   }
@@ -2813,9 +2812,3 @@ run_drop_uuid_hash(runlog_state_t state)
   state->uuid_hash_used = 0;
   xfree(state->uuid_hash); state->uuid_hash = NULL;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

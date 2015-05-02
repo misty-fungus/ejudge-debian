@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 7609 2013-11-21 23:25:26Z cher $ */
+/* $Id: rldb_mysql.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,26 +15,26 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
-#include "rldb_plugin.h"
-#include "runlog.h"
-#include "teamdb.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/rldb_plugin.h"
+#include "ejudge/runlog.h"
+#include "ejudge/teamdb.h"
 #include "../mysql-common/common_mysql.h"
 
 #define RUNS_ACCESS 
-#include "runlog_state.h"
+#include "ejudge/runlog_state.h"
 
-#include "errlog.h"
-#include "xml_utils.h"
-#include "contests.h"
-#include "prepare.h"
-#include "mime_type.h"
-#include "misctext.h"
-#include "compat.h"
+#include "ejudge/errlog.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/contests.h"
+#include "ejudge/prepare.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/misctext.h"
+#include "ejudge/compat.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <mysql.h>
 
@@ -169,7 +169,7 @@ do_create(struct rldb_mysql_state *state)
   if (mi->simple_fquery(md, create_runs_query, md->table_prefix) < 0)
     db_error_fail(md);
   if (mi->simple_fquery(md,
-                        "INSERT INTO %sconfig VALUES ('run_version', '5') ;",
+                        "INSERT INTO %sconfig VALUES ('run_version', '6') ;",
                         md->table_prefix) < 0)
     db_error_fail(md);
   return 0;

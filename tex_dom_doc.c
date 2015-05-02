@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: tex_dom_doc.c 6146 2011-03-26 10:47:14Z cher $ */
+/* $Id: tex_dom_doc.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2004-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,10 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "tex_dom.h"
+#include "ejudge/tex_dom.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 
@@ -241,9 +241,3 @@ tex_dom_free_doc(tex_doc_t pdoc)
   xfree(pdoc);
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "gcc -Wall -g -I/home/cher/reuse/include -I/home/cher/reuse/include/ix86-linux -L/home/cher/reuse/lib/ix86-linux tex_dom.c tex_dom_parse.c tex_dom_render.c tex_dom_doc.c tex_dom_test.c -o tex_dom -lreuse -lm"
- * End:
- */

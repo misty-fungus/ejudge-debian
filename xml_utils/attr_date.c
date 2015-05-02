@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: attr_date.c 6491 2011-10-21 06:16:54Z cher $ */
+/* $Id: attr_date.c 8210 2014-05-14 23:41:03Z cher $ */
 
-/* Copyright (C) 2006-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "xml_utils.h"
-#include "expat_iface.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/expat_iface.h"
 
 #include <string.h>
 
@@ -37,6 +37,5 @@ xml_attr_date(struct xml_attr *attr, time_t *value_ptr)
 /*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

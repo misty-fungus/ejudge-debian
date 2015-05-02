@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: base64.c 6147 2011-03-26 10:49:24Z cher $ */
+/* $Id: base64.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,10 @@
  * GNU General Public License for more details.
  */
 
-#include "base64.h"
+#include "ejudge/base64.h"
+#include "ejudge/errlog.h"
 
-#include "errlog.h"
-
-#include "reuse_logger.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 
@@ -231,17 +230,3 @@ base64_decode_str(char const *in, char *out, int *pflag)
   out[n] = 0;
   return n;
 }
-
-/**
- * NAME:    x
- * PURPOSE: x
- * ARGS:    x
- * RETURN:  x
- */
-
-/**
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

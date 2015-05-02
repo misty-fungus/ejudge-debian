@@ -1,9 +1,9 @@
-dnl $Id: configure.ac 7561 2013-11-07 13:56:00Z cher $
-dnl Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru>
+dnl $Id: configure.ac 8572 2014-08-30 07:49:10Z cher $
+dnl Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru>
 
-AC_INIT(ejudge,2.3)
+AC_INIT(ejudge,3)
 AC_PREREQ(2.59)
-AC_REVISION($Revision: 7561 $)
+AC_REVISION($Revision: 8572 $)
 
 AC_PREFIX_DEFAULT([/opt/ejudge])
 AC_PROG_INSTALL
@@ -80,6 +80,8 @@ AC_ARG_ENABLE([hidden-server-bins],AC_HELP_STRING([--enable-hidden-server-bins],
 AC_ARG_ENABLE([werror],AC_HELP_STRING([--enable-werror],[enable -Werror compilation flag]),[ac_cv_werror_flag=-Werror],[ac_cv_werror_flag=])
 AC_ARG_ENABLE([preserve-scripts],AC_HELP_STRING([--enable-preserve-scripts],[do not overwrite the existing language scripts]), [ac_cv_preserve_scripts=1],[ac_cv_preserve_scripts=])
 AC_ARG_ENABLE([lang-config-dir],AC_HELP_STRING([--enable-lang-config-dir],[install language config scripts into specified directory]),[ac_cv_lang_config_dir="${enableval}"],[ac_cv_lang_config_dir=])
+
+AC_ARG_WITH([rest],AC_HELP_STRING([--with-rest],[enable RESTful API]),[ac_cv_rest="$withval"])
 
 AC_ARG_WITH([httpd-cgi-bin-dir],AC_HELP_STRING([--with-httpd-cgi-bin-dir],[specify the path to the web serve CGI directory]),[ac_cv_httpd_cgi_bin_dir="${withval}"])
 AC_ARG_WITH([httpd-htdocs-dir],AC_HELP_STRING([--with-httpd-htdocs-dir],[specify the path to the web server HTML directory]),[ac_cv_httpd_htdocs_dir="${withval}"])
@@ -408,6 +410,33 @@ AC_CHECK_LIB([uuid],[uuid_parse],[ac_cv_has_lib_libuuid=-luuid],[ac_cv_has_lib_l
 dnl check regex library
 AC_CHECK_HEADER([regex.h],[ac_cv_has_regex=1],[ac_cv_has_regex=0])
 
+dnl check libelf library
+AC_CHECK_HEADER([libelf.h],[ac_cv_has_libelf=1],[ac_cv_has_libelf=0])
+if [[ x"${ac_cv_has_libelf}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
+then
+  AC_MSG_FAILURE([please install libelf development package])
+fi
+AC_CHECK_LIB([elf],[elf_begin],[ac_cv_has_libelf=1],[ac_cv_has_libelf=0])
+if [[ x"${ac_cv_has_libelf}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
+then
+  AC_MSG_FAILURE([please install libelf development package])
+fi
+
+dnl checl libdwarf library
+saved_LIBS="${LIBS}"
+LIBS="-lelf"
+AC_CHECK_HEADER([libdwarf/libdwarf.h],[ac_cv_has_libdwarf=1],[ac_cv_has_libdwarf=0])
+if [[ x"${ac_cv_has_libdwarf}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
+then
+  AC_MSG_FAILURE([please install libdwarf development package])
+fi
+AC_CHECK_LIB([dwarf],[dwarf_init],[ac_cv_has_libdwarf=1],[ac_cv_has_libdwarf=0])
+if [[ x"${ac_cv_has_libdwarf}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
+then
+  AC_MSG_FAILURE([please install libdwarf development package])
+fi
+LIBS="${saved_LIBS}"
+
 dnl Libcap checking stuff
 ac_cv_has_libcap=1
 if [[ x"${ac_cv_libcap_root}" = xno ]]
@@ -700,6 +729,7 @@ LIBS="${saved_LIBS}"
 
 dnl compiler warning checking
 saved_CC="${CC}"
+saved_CFLAGS="${CFLAGS}"
 AC_MSG_CHECKING([for annoying gcc warnings])
 CC="${CC} -Wall -Werror"
 AC_COMPILE_IFELSE([[
@@ -722,10 +752,12 @@ if [[ x"${ac_cv_annoying_warning}" = x1 ]]
 then
   AC_MSG_CHECKING([for -Wno-pointer-sign])
   CC="${saved_CC} -Wno-pointer-sign -Werror"
+  CFLAGS=
   AC_COMPILE_IFELSE([[
 int main(void)
 {
   unsigned char *str = "zzz";
+  (void) str;
   return 0;
 }
 ]],[
@@ -736,6 +768,7 @@ AC_MSG_RESULT([no])
 ])
 fi
 CC="${saved_CC}"
+CFLAGS="${saved_CFLAGS}"
 
 dnl check whether long long is supported
 AC_MSG_CHECKING([for long long type])
@@ -777,7 +810,9 @@ ac_cv_has___int64=""
 
 AC_MSG_CHECKING([for -m32 support])
 saved_CC="${CC}"
+saved_CFLAGS="${CFLAGS}"
 CC="${CC} -m32 -fPIC -DPIC"
+CFLAGS=`echo "${CFLAGS}" | sed s/-m32//g | sed s/-m64//g`
 AC_RUN_IFELSE([[
 #include <string.h>
 #include <stdio.h>
@@ -793,10 +828,13 @@ ac_cv_need_32=1
 AC_MSG_RESULT([no])
 ])
 CC="${saved_CC}"
+CFLAGS="${saved_CFLAGS}"
 
 AC_MSG_CHECKING([for -m64 support])
 saved_CC="${CC}"
+saved_CFLAGS="${CFLAGS}"
 CC="${CC} -m64 -fPIC -DPIC"
+CFLAGS=`echo "${CFLAGS}" | sed s/-m32//g | sed s/-m64//g`
 AC_RUN_IFELSE([[
 #include <string.h>
 #include <stdio.h>
@@ -812,6 +850,7 @@ ac_cv_need_64=1
 AC_MSG_RESULT([no])
 ])
 CC="${saved_CC}"
+CFLAGS="${saved_CFLAGS}"
 
 dnl localization stuff
 
@@ -1004,6 +1043,11 @@ then
   ac_cv_meta_cc=../new-c/bin/rcc
 else
   ac_cv_meta_cc=./scripts/rcc
+fi
+
+if [[ x"${ac_cv_rest}" = x ]]
+then
+  ac_cv_rest="/ej/"
 fi
 
 AC_SUBST(ac_cv_ejudge_arch)
@@ -1209,6 +1253,13 @@ AC_DEFINE_UNQUOTED(CONF_EXE_SUFFIX,"${ac_cv_exe_suffix}")
 AC_DEFINE_UNQUOTED(CONF_DIRSEP,"${ac_cv_dir_separator}")
 AC_DEFINE_UNQUOTED(CONF_PATHSEP,"${ac_cv_path_separator}")
 
+if [[ x"${ac_cv_rest}" != xno ]]
+then
+  ac_cv_rest_len=${#ac_cv_rest}
+  AC_DEFINE_UNQUOTED(EJUDGE_REST_PREFIX,"${ac_cv_rest}")
+  AC_DEFINE_UNQUOTED(EJUDGE_REST_PREFIX_LEN,${ac_cv_rest_len})
+fi
+
 if [[ x"${ac_cv_conf_64_bit}" != xyes ]]
 then
   AC_DEFINE(CONF_64_BIT, 1)
@@ -1230,7 +1281,10 @@ then
 fi
 
 AC_CONFIG_HEADERS([config.h])
-AC_OUTPUT(Makefile extra/Makefile extra/captest/Makefile checkers/Makefile scripts/Makefile ejudge-config.v scripts/festival plugins/mysql-common/Makefile plugins/mysql-userlist/Makefile plugins/mysql-clardb/Makefile plugins/mysql-rundb/Makefile python/Makefile python/streamio/Makefile style/ejudge-upgrade-web)
+AC_OUTPUT(Makefile extra/Makefile extra/captest/Makefile checkers/Makefile scripts/Makefile ejudge-config.v scripts/festival plugins/mysql-common/Makefile plugins/mysql-userlist/Makefile plugins/mysql-clardb/Makefile plugins/mysql-rundb/Makefile style/ejudge-upgrade-web cfront/Makefile reuse/Makefile csp/contests/Makefile csp/super-server/Makefile csp_header.make)
+
+#cp -p config.h include/reuse
+cp -p config.h include/ejudge
 
 chmod +x ejudge-config.v scripts/festival style/ejudge-upgrade-web
 

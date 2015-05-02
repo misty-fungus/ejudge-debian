@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: compile.c 7550 2013-11-06 18:16:46Z cher $ */
+/* $Id: compile.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,28 +22,26 @@
  * Note: this program must compile and work on win32
  */
 
-#include "config.h"
+#include "ejudge/config.h"
+#include "ejudge/prepare.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/parsecfg.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/interrupt.h"
+#include "ejudge/runlog.h"
+#include "ejudge/compile_packet.h"
+#include "ejudge/curtime.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/startstop.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/compat.h"
+#include "ejudge/ej_uuid.h"
 
-#include "prepare.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "parsecfg.h"
-#include "fileutl.h"
-//#include "cr_serialize.h"
-#include "interrupt.h"
-#include "runlog.h"
-#include "compile_packet.h"
-#include "curtime.h"
-#include "serve_state.h"
-#include "startstop.h"
-#include "ejudge_cfg.h"
-#include "compat.h"
-#include "ej_uuid.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
-#include "reuse_exec.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
+#include "ejudge/exec.h"
 
 #include <stdio.h>
 #include <stdlib.h>

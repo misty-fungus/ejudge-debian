@@ -1,7 +1,7 @@
 /* -*- mode: fundamental -*- */
-/* $Id: filter_scan.lex 7587 2013-11-11 16:53:34Z cher $ */
+/* $Id: filter_scan.lex 8234 2014-05-17 06:18:51Z cher $ */
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,9 +18,9 @@
 %{
 #define YYSTYPE struct filter_tree *
 
-#include "filter_expr.h"
-#include "filter_tree.h"
-#include "runlog.h"
+#include "ejudge/filter_expr.h"
+#include "ejudge/filter_tree.h"
+#include "ejudge/runlog.h"
 
 #include <stdio.h>
 #include <stdlib.h>

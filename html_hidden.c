@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: html_hidden.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id: html_hidden.c 8211 2014-05-15 08:23:47Z cher $ */
 
-/* Copyright (C) 2006-2007 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "mischtml.h"
+#include "ejudge/mischtml.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -40,6 +40,5 @@ html_hidden(FILE *fout, const unsigned char *var_name,
 /*
  * Local variables:
  *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
  * End:
  */

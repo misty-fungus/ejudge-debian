@@ -1,0 +1,170 @@
+<%
+/* $Id: main_page.csp 8584 2014-09-03 08:58:06Z cher $ */
+%><%@include "includes.csp"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@page csp_view_main_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    CspNewMainPage *pp = (CspNewMainPage *) pg;
+    const unsigned char *title = 0;
+    const unsigned char *subtitle = 0;
+    opcap_t caps = 0;
+
+    if (phr->priv_level < PRIV_LEVEL_JUDGE) FAIL(SSERV_ERR_PERM_DENIED);
+    if (ejudge_cfg_opcaps_find(phr->config, phr->login, &caps) < 0) FAIL(SSERV_ERR_PERM_DENIED);
+    if (phr->priv_level == PRIV_LEVEL_JUDGE) {
+        if (opcaps_check(caps, OPCAP_JUDGE_LOGIN) < 0) FAIL(SSERV_ERR_PERM_DENIED);
+    } else if (phr->priv_level == PRIV_LEVEL_ADMIN) {
+        if (opcaps_check(caps, OPCAP_MASTER_LOGIN) < 0) FAIL(SSERV_ERR_PERM_DENIED);
+    } else {
+        FAIL(SSERV_ERR_PERM_DENIED);
+    }
+%><%@include "header.csp"
+%>
+
+<div class="h2-long" style="margin-top: 0"><h2>Controls</h2></div>
+
+<div class="icons" style="margin-top: -25px; height: 57px; border-bottom: 1px solid rgb(207, 207, 207); margin-bottom: 0;">
+<div style="float: left;">
+   
+    <s:a ac="user-browse-page"><img src="<s:config name="style-prefix" />user_sh.png" alt="User editor" title="User editor" /></s:a>
+    <s:a ac="user-map-main-page"><img src="<s:config name="style-prefix" />mapping_sh.png" alt="System user mapping" title="System user mapping" /></s:a>
+    <s:a ac="caps-main-page"><img src="<s:config name="style-prefix" />capabilities_sh.png" alt="Global user capabilities" title="Global user capabilities" /></s:a>
+    <s:a ac="group-browse-page"><img src="<s:config name="style-prefix" />group_sh.png" alt="Group editor" title="Group editor" /></s:a>
+    <s:a ac="create-contest-page"><img src="<s:config name="style-prefix" />new_cont_sh.png" alt="Create new contest" title="Create new contest" /></s:a>
+    <s:a ac="main-page"><img src="<s:config name="style-prefix" />refresh_sh.png" alt="Refresh" title="Refresh" /></s:a>
+</div>
+<div class="icons-menu-txt" style="margin-top: 5px;">
+ <%
+    if (phr->ss->edited_cnts) {
+%><s:a ac="cnts-edit-cur-contest-page"><s:_>[Edit current contest]</s:_></s:a><%
+    }
+%>
+</div>
+</div>
+
+<table border="0" style="margin-left: -20px; margin-bottom: -25px; margin-top: 1px;">
+    <tr>
+        <td>
+            <s:form>
+<%
+    if ((phr->ss->flags & SID_STATE_SHOW_HIDDEN)) {
+%><s:submit ac="hide-hidden" label="Hide hidden contests" /><%
+    } else {
+%><s:submit ac="show-hidden" label="Show hidden contests" /><%
+    }
+%>
+            </s:form>
+        </td>
+        <td>
+            <s:form>
+<%
+  if ((phr->ss->flags & SID_STATE_SHOW_CLOSED)) {
+%><s:submit ac="hide-closed" label="Hide closed contests" /><%
+  } else {
+%><s:submit ac="show-closed" label="Show closed contests" /><%
+  }
+%>
+            </s:form>
+        </td>
+        <td>
+            <s:form>
+<%
+  if ((phr->ss->flags & SID_STATE_SHOW_UNMNG)) {
+%><s:submit ac="hide-unmng" label="Hide unmanageable contests" /><%
+  } else {
+%><s:submit ac="show-unmng" label="Show unmanageable contests" /><%
+  }
+%>
+            </s:form>
+        </td>
+    </tr>
+</table>
+
+<div class="h2-long"><h2>Contests</h2></div>
+
+<table class="table" border="1">
+    <tr>
+        <th>N</th>
+        <th>Id</th>
+        <th>Name</th>
+        <th>View details</th>
+        <th>Edit users</th>
+        <th>Edit settings</th>
+        <th>Edit tests</th>
+        <th>Judge</th>
+        <th>Master</th>
+        <th>User</th>
+        <th>Comment</th>
+    </tr>
+<%
+    for (int i = 0; i < pp->contests.u; ++i) {
+        CspContestInfo *ci = pp->contests.v[i];
+        if (!ci) continue;
+%>
+    <tr>
+        <td><s:v value="ci->serial" /></td>
+        <td><s:v value="ci->id" /></td>
+        <td><s:v value="ci->name" /></td>
+        <td><%
+        if (ci->details_enabled) {
+%><s:url name="DetailsUrl" ac="contest-page"><s:param name="contest_id" value="ci->id" /></s:url><s:a url="DetailsUrl"><s:_>Details</s:_></s:a><%
+        } else {
+%>&nbsp;<%
+        }
+%></td>
+        <td><%
+        if (ci->edit_users_enabled) {
+%><s:url name="UsersUrl" ac="user-browse-page"><s:param name="contest_id" value="ci->id" /></s:url><s:a url="UsersUrl"><s:_>Users</s:_></s:a><%
+        } else {
+%>&nbsp;<%
+        }
+%></td>
+        <td><%
+        if (ci->edit_settings_enabled) {
+%><s:url name="SettingsUrl" ac="cnts-start-edit-action"><s:param name="contest_id" value="ci->id" /></s:url><s:a url="SettingsUrl"><s:_>Settings</s:_></s:a><%
+        } else {
+%>&nbsp;<%
+        }
+%></td>
+        <td><%
+        if (ci->edit_tests_enabled) {
+%><s:url name="TestsUrl" ac="tests-main-page"><s:param name="contest_id" value="ci->id" /></s:url><s:a url="TestsUrl"><s:_>Tests</s:_></s:a><%
+        } else {
+%>&nbsp;<%
+        }
+%></td>
+        <td><%
+        if (ci->judge_enabled) {
+%><s:url name="JudgeUrl" script="judge" action="3"><s:param name="contest_id" value="ci->id" /></s:url><s:a url="JudgeUrl" target="_blank"><s:_>Judge</s:_></s:a><%
+        } else {
+%>&nbsp;<%
+        }
+%></td>
+        <td><%
+        if (ci->master_enabled) {
+%><s:url name="MasterUrl" script="master" action="3"><s:param name="contest_id" value="ci->id" /></s:url><s:a url="MasterUrl" target="_blank"><s:_>Master</s:_></s:a><%
+        } else {
+%>&nbsp;<%
+        }
+%></td>
+        <td><%
+        if (ci->user_enabled) {
+%><s:url name="ClientUrl" script="client" action="0" nosid="yes"><s:param name="contest_id" value="ci->id" /></s:url><s:a url="ClientUrl" target="_blank"><s:_>User</s:_></s:a><%
+        } else {
+%>&nbsp;<%
+        }
+%></td>
+        <td><s:v checkexpr="" value="ci->comment" /></td>
+    </tr>
+<%
+    }
+%>
+</table>
+
+<%@include "footer.csp"
+%><%
+  l10n_setlocale(0);
+cleanup:
+  html_armor_free(&ab);
+%>

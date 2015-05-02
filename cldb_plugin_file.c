@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: cldb_plugin_file.c 7339 2013-02-05 21:46:39Z cher $ */
+/* $Id: cldb_plugin_file.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,22 +15,21 @@
  * GNU General Public License for more details.
  */
 
-#include "cldb_plugin.h"
-#include "clarlog.h"
-#include "clarlog_state.h"
-
-#include "ejudge_cfg.h"
-#include "pathutl.h"
-#include "prepare.h"
-#include "errlog.h"
+#include "ejudge/cldb_plugin.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/clarlog_state.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/prepare.h"
+#include "ejudge/errlog.h"
 #include "unix/unix_fileutl.h"
-#include "xml_utils.h"
-#include "base64.h"
-#include "fileutl.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/base64.h"
+#include "ejudge/fileutl.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <unistd.h>
 #include <string.h>
@@ -648,10 +647,3 @@ modify_record_func(
   struct cldb_file_cnts *cs = (struct cldb_file_cnts*) cdata;
   return do_flush_entry(cs, clar_id);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

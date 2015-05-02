@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: lang_config_vis.c 7293 2013-01-23 20:52:50Z cher $ */
+/* $Id: lang_config_vis.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,18 +15,17 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/lang_config_vis.h"
+#include "ejudge/ncurses_utils.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/compat.h"
+#include "ejudge/varsubst.h"
 
-#include "ej_limits.h"
-#include "lang_config_vis.h"
-#include "ncurses_utils.h"
-#include "pathutl.h"
-#include "compat.h"
-#include "varsubst.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -1254,10 +1253,3 @@ lang_config_generate_compile_cfg(
 
   xfree(langs);
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "WINDOW" "ITEM" "PANEL" "MENU")
- * End:
- */

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: struct-sizes.c 7592 2013-11-13 17:32:40Z cher $ */
+/* $Id: struct-sizes.c 8232 2014-05-16 19:06:19Z cher $ */
 
-/* Copyright (C) 2007-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,17 +15,16 @@
  * GNU General Public License for more details.
  */
 
-#include "ej_types.h"
-#include "config.h"
-
-#include "protocol.h"
-#include "runlog.h"
-#include "clarlog.h"
-#include "prepare.h"
-#include "super-serve.h"
-#include "compile_packet_priv.h"
-#include "problem_config.h"
-#include "userlist.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/config.h"
+#include "ejudge/protocol.h"
+#include "ejudge/runlog.h"
+#include "ejudge/clarlog.h"
+#include "ejudge/prepare.h"
+#include "ejudge/super-serve.h"
+#include "ejudge/compile_packet_priv.h"
+#include "ejudge/problem_config.h"
+#include "ejudge/userlist.h"
 
 #include <stdio.h>
 

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: userlist_proto.c 5802 2010-05-23 13:45:27Z cher $ */
+/* $Id: userlist_proto.c 8233 2014-05-17 06:07:09Z cher $ */
 
-/* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include "userlist_proto.h"
+#include "ejudge/userlist_proto.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -171,10 +171,3 @@ userlist_str_to_request(const unsigned char *reqs)
       return i;
   return -1;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
- * End:
- */

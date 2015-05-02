@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: fix-db.c 7364 2013-02-09 20:19:53Z cher $ */
+/* $Id: fix-db.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,24 +15,23 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_types.h"
-#include "ej_limits.h"
-#include "version.h"
-
-#include "ejudge_cfg.h"
-#include "contests.h"
-#include "prepare.h"
-#include "common_plugin.h"
-#include "xml_utils.h"
-#include "compat.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_types.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/version.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/contests.h"
+#include "ejudge/prepare.h"
+#include "ejudge/common_plugin.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/compat.h"
 
 #define EJUDGE_SKIP_MYSQL 1
 #include "plugins/mysql-common/common_mysql.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <stdlib.h>

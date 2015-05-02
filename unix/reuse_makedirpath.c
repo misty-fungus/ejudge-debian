@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: reuse_makedirpath.c 6418 2011-09-07 05:22:55Z cher $ */
+/* $Id: reuse_makedirpath.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2002-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This library is free software; you can redistribute it and/or
@@ -15,8 +15,8 @@
  * Lesser General Public License for more details.
  */
 
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <errno.h>
 #include <string.h>
@@ -49,6 +49,12 @@ strip_trailing_slashes (char *path)
   while (last > 0 && path[last] == '/')
     path[last--] = '\0';
 }
+
+struct ptr_list
+{
+  char *dirname_end;
+  struct ptr_list *next;
+};
 
 /**
  * NAME:    make_path
@@ -90,11 +96,6 @@ make_path (const char *argpath,
     char *slash;
     int tmp_mode;             /* Initial perms for leading dirs.  */
     int re_protect;           /* Should leading dirs be unwritable? */
-    struct ptr_list
-    {
-      char *dirname_end;
-      struct ptr_list *next;
-    };
     struct ptr_list *p, *leading_dirs = NULL;
 
     /* If leading directories shouldn't be writable or executable,

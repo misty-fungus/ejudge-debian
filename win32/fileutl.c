@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: fileutl.c 6159 2011-03-27 06:59:55Z cher $ */
+/* $Id: fileutl.c 8530 2014-08-22 12:09:30Z cher $ */
 
-/* Copyright (C) 2000-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -15,14 +15,14 @@
  * Lesser General Public License for more details.
  */
 
-#include "fileutl.h"
-#include "pathutl.h"
-#include "errlog.h"
-#include "ej_limits.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/ej_limits.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <stdio.h>
 #include <windows.h>

@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: uldb_mysql.c 7627 2013-11-24 06:50:15Z cher $ */
+/* $Id: uldb_mysql.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,24 +15,24 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
-#include "errlog.h"
-#include "uldb_plugin.h"
-#include "xml_utils.h"
-#include "expat_iface.h"
-#include "ejudge_cfg.h"
-#include "pathutl.h"
-#include "userlist.h"
-#include "list_ops.h"
-#include "misctext.h"
-#include "random.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/errlog.h"
+#include "ejudge/uldb_plugin.h"
+#include "ejudge/xml_utils.h"
+#include "ejudge/expat_iface.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/userlist.h"
+#include "ejudge/list_ops.h"
+#include "ejudge/misctext.h"
+#include "ejudge/random.h"
 #include "../mysql-common/common_mysql.h"
-#include "compat.h"
+#include "ejudge/compat.h"
 
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #include <mysql.h>
 
@@ -2536,8 +2536,12 @@ set_team_passwd_func(
   char *cmd_t = 0;
   size_t cmd_z = 0;
   FILE *cmd_f = 0;
+  struct userlist_user_info *ui = 0;
 
   if (cur_time <= 0) cur_time = time(0);
+
+  if (fetch_or_create_user_info(state, user_id, contest_id, &ui) < 0)
+    goto fail;
 
   cmd_f = open_memstream(&cmd_t, &cmd_z);
   fprintf(cmd_f, "UPDATE %susers SET pwdmethod = %d, password = ",

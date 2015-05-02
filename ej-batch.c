@@ -1,7 +1,7 @@
 /* -*- c -*- */
-/* $Id: ej-batch.c 7581 2013-11-10 14:11:16Z cher $ */
+/* $Id: ej-batch.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2010-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,37 +15,36 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "ej_limits.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/version.h"
+#include "ejudge/mime_type.h"
+#include "ejudge/t3_packets.h"
+#include "ejudge/interrupt.h"
+#include "ejudge/startstop.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/errlog.h"
+#include "ejudge/misctext.h"
+#include "ejudge/parsecfg.h"
+#include "ejudge/contests.h"
+#include "ejudge/serve_state.h"
+#include "ejudge/prepare.h"
+#include "ejudge/list_ops.h"
+#include "ejudge/compile_packet.h"
+#include "ejudge/t3m_dir_listener.h"
+#include "ejudge/t3m_packet_class.h"
+#include "ejudge/t3m_submits.h"
+#include "ejudge/runlog.h"
+#include "ejudge/run_packet.h"
+#include "ejudge/testing_report_xml.h"
+#include "ejudge/zip_utils.h"
+#include "ejudge/xml_utils.h"
 
-#include "mime_type.h"
-#include "t3_packets.h"
-#include "interrupt.h"
-#include "startstop.h"
-#include "ejudge_cfg.h"
-#include "pathutl.h"
-#include "fileutl.h"
-#include "errlog.h"
-#include "misctext.h"
-#include "parsecfg.h"
-#include "contests.h"
-#include "serve_state.h"
-#include "prepare.h"
-#include "list_ops.h"
-#include "compile_packet.h"
-#include "t3m_dir_listener.h"
-#include "t3m_packet_class.h"
-#include "t3m_submits.h"
-#include "runlog.h"
-#include "run_packet.h"
-#include "testing_report_xml.h"
-#include "zip_utils.h"
-#include "xml_utils.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_logger.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/logger.h"
+#include "ejudge/osdeps.h"
 
 #if CONF_HAS_LIBZIP - 0 == 1
 #include <zip.h>
@@ -591,7 +590,8 @@ process_submit(
                             prob, lang,
                             1 /* no_db_flag */,
                             NULL /* uuid */,
-                            0 /* store_flags */);
+                            0 /* store_flags */,
+                            0 /* rejudge_flag */);
   if (r < 0) {
     // FIXME: handle error
     abort();
@@ -691,7 +691,8 @@ process_compile_packet(
                         0 /* compile_report_dir */,
                         0 /* comp_pkt */,
                         1 /* no_db_flag */,
-                        NULL /* uuid */);
+                        NULL /* uuid */,
+                        0 /* rejudge_flag */);
   if (r < 0) abort();
 
   return 0;
@@ -1567,9 +1568,3 @@ main(int argc, char *argv[])
 
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

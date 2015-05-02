@@ -1,7 +1,7 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-configure-compilers.c 7090 2012-10-25 19:58:21Z cher $ */
+/* $Id: ejudge-configure-compilers.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2012 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,17 +15,16 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "version.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/ncurses_utils.h"
+#include "ejudge/lang_config_vis.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/ejudge_cfg.h"
+#include "ejudge/fileutl.h"
+#include "ejudge/compat.h"
 
-#include "ncurses_utils.h"
-#include "lang_config_vis.h"
-#include "pathutl.h"
-#include "ejudge_cfg.h"
-#include "fileutl.h"
-#include "compat.h"
-
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <stdlib.h>
 #include <stdarg.h>
@@ -752,10 +751,3 @@ main(int argc, char **argv)
 
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "WINDOW" "ITEM" "PANEL" "MENU")
- * End:
- */

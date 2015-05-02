@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_5.c 6162 2011-03-27 07:07:27Z cher $ */
+/* $Id: super_html_5.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,18 +15,17 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-#include "version.h"
-#include "ej_limits.h"
+#include "ejudge/config.h"
+#include "ejudge/version.h"
+#include "ejudge/ej_limits.h"
+#include "ejudge/super_html.h"
+#include "ejudge/super-serve.h"
+#include "ejudge/super_proto.h"
+#include "ejudge/pathutl.h"
+#include "ejudge/errlog.h"
 
-#include "super_html.h"
-#include "super-serve.h"
-#include "super_proto.h"
-#include "pathutl.h"
-#include "errlog.h"
-
-#include "reuse_xalloc.h"
-#include "reuse_osdeps.h"
+#include "ejudge/xalloc.h"
+#include "ejudge/osdeps.h"
 
 #include <string.h>
 #include <ctype.h>
@@ -116,7 +115,7 @@ int
 super_serve_op_browse_problem_packages(
         FILE *log_f,
         FILE *out_f,
-        struct super_http_request_info *phr)
+        struct http_request_info *phr)
 {
   int retval = 0;
   const unsigned char *package = 0;
@@ -128,25 +127,25 @@ super_serve_op_browse_problem_packages(
   struct dirlist_entry *dls = 0;
   unsigned char buf[1024], jbuf[1024];
 
-  if (ss_cgi_param(phr, "package", &package) < 0)
-    FAIL(S_ERR_INV_PACKAGE);
+  if (hr_cgi_param(phr, "package", &package) < 0)
+    FAIL(SSERV_ERR_INV_PACKAGE);
   if (!package) package = "";
   if (!is_valid_package(pkgdir, sizeof(pkgdir), package))
-    FAIL(S_ERR_INV_PACKAGE);
+    FAIL(SSERV_ERR_INV_PACKAGE);
   snprintf(pkgroot, sizeof(pkgroot), "%s/problems", EJUDGE_CONTESTS_HOME_DIR);
   if (stat(pkgroot, &stb) < 0) {
     if (mkdir(pkgroot, 0755) < 0) {
       err("%s: mkdir %s failed: %s", __FUNCTION__, pkgroot, os_ErrorMsg());
-      FAIL(S_ERR_INV_PACKAGE);
+      FAIL(SSERV_ERR_INV_PACKAGE);
     }
     if (stat(pkgroot, &stb) < 0) {
       err("%s: stat %s failed: %s", __FUNCTION__, pkgroot, os_ErrorMsg());
-      FAIL(S_ERR_INV_PACKAGE);
+      FAIL(SSERV_ERR_INV_PACKAGE);
     }
   }
   if (!S_ISDIR(stb.st_mode)) {
     err("%s: %s is not a directory", __FUNCTION__, pkgroot);
-    FAIL(S_ERR_INV_PACKAGE);
+    FAIL(SSERV_ERR_INV_PACKAGE);
   }
 
   if (pkgdir[0]) {
@@ -156,15 +155,15 @@ super_serve_op_browse_problem_packages(
   }
   if (stat(pkgpath, &stb) < 0) {
     err("%s: directory %s does not exist", __FUNCTION__, pkgpath);
-    FAIL(S_ERR_INV_PACKAGE);
+    FAIL(SSERV_ERR_INV_PACKAGE);
   }
   if (!S_ISDIR(stb.st_mode)) {
     err("%s: %s is not a directory", __FUNCTION__, pkgpath);
-    FAIL(S_ERR_INV_PACKAGE);
+    FAIL(SSERV_ERR_INV_PACKAGE);
   }
   if (!(d = opendir(pkgpath))) {
     err("%s: cannot open directory %s", __FUNCTION__, pkgpath);
-    FAIL(S_ERR_INV_PACKAGE);
+    FAIL(SSERV_ERR_INV_PACKAGE);
   }
   while ((dd = readdir(d))) {
     if (!strcmp(dd->d_name, ".") || !strcmp(dd->d_name, "..")) continue;
@@ -222,7 +221,7 @@ super_serve_op_browse_problem_packages(
         snprintf(buf, sizeof(buf), "%s", dls[i].name);
       }
       snprintf(jbuf, sizeof(jbuf), "ssPackage(%d, '%s')",
-               SSERV_OP_BROWSE_PROBLEM_PACKAGES, buf);
+               SSERV_CMD_BROWSE_PROBLEM_PACKAGES, buf);
       fprintf(out_f, "<tr><td onClick=\"%s\" class=\"cnts_edit_legend\"><img src=\"%sicons/%s.png\" alt=\"folder\" /></td><td onClick=\"%s\" class=\"cnts_edit_legend\"><tt>%s</tt></td></tr>\n", jbuf, CONF_STYLE_PREFIX, "folder-16x16", jbuf, dls[i].name);
     }
     fprintf(out_f, "</table><br/>\n");
@@ -233,7 +232,7 @@ super_serve_op_browse_problem_packages(
     fprintf(out_f, "<table class=\"cnts_edit\">\n");
     for (; i < dl_u && dls[i].kind == DIRLIST_PROBLEM; ++i) {
       snprintf(jbuf, sizeof(jbuf), "ssEditProblem(%d, '%s', '%s')",
-               SSERV_OP_EDIT_PROBLEM, package, dls[i].name);
+               SSERV_CMD_EDIT_PROBLEM, package, dls[i].name);
       fprintf(out_f, "<tr><td onClick=\"%s\" class=\"cnts_edit_legend\"><img src=\"%sicons/%s.png\" alt=\"problem\" /></td><td onClick=\"%s\" class=\"cnts_edit_legend\"><tt>%s</tt></td></tr>\n", jbuf, CONF_STYLE_PREFIX, "edit_page-16x16", jbuf, dls[i].name);
     }
     fprintf(out_f, "</table><br/>\n");
@@ -241,11 +240,11 @@ super_serve_op_browse_problem_packages(
 
   fprintf(out_f, "<table class=\"cnts_edit\">\n");
   snprintf(jbuf, sizeof(jbuf), "ssPackageOp(%d, %d, '%s', arguments[0])",
-           SSERV_OP_CREATE_PACKAGE, SSERV_OP_BROWSE_PROBLEM_PACKAGES,
+           SSERV_CMD_CREATE_PACKAGE, SSERV_CMD_BROWSE_PROBLEM_PACKAGES,
            package);
   fprintf(out_f, "<tr><td class=\"cnts_edit_legend\">Create new package:&nbsp;</td><td class=\"cnts_edit_data\" width=\"200px\"><div class=\"cnts_edit_data\" dojoType=\"dijit.InlineEditBox\" onChange=\"%s\" autoSave=\"true\"></div></td></tr>\n", jbuf);
   snprintf(jbuf, sizeof(jbuf), "ssEditProblem(%d, '%s', arguments[0])",
-           SSERV_OP_CREATE_PROBLEM, package);
+           SSERV_CMD_CREATE_PROBLEM, package);
   fprintf(out_f, "<tr><td class=\"cnts_edit_legend\">Create new problem:&nbsp;</td><td class=\"cnts_edit_data\" width=\"200px\"><div class=\"cnts_edit_data\" dojoType=\"dijit.InlineEditBox\" onChange=\"%s\" autoSave=\"true\"></div></td></tr>\n", jbuf);
   fprintf(out_f, "</table><br/>\n");
 
@@ -258,7 +257,7 @@ super_serve_op_browse_problem_packages(
     buf[len] = 0;
     ss_dojo_button(out_f, "2", "back-32x32", "Level up",
                    "ssPackage(%d, \"%s\")",
-                   SSERV_OP_BROWSE_PROBLEM_PACKAGES, buf);
+                   SSERV_CMD_BROWSE_PROBLEM_PACKAGES, buf);
   }
   ss_write_html_footer(out_f);
 
@@ -274,7 +273,7 @@ int
 super_serve_op_package_operation(
         FILE *log_f,
         FILE *out_f,
-        struct super_http_request_info *phr)
+        struct http_request_info *phr)
 {
   int retval = 0;
   const unsigned char *package = 0;
@@ -284,28 +283,28 @@ super_serve_op_package_operation(
 
   phr->json_reply = 1;
 
-  if (ss_cgi_param(phr, "package", &package) < 0)
-    FAIL(S_ERR_INV_PACKAGE);
+  if (hr_cgi_param(phr, "package", &package) < 0)
+    FAIL(SSERV_ERR_INV_PACKAGE);
   if (!package) package = "";
   if (!is_valid_package(pkgdir, sizeof(pkgdir), package))
-    FAIL(S_ERR_INV_PACKAGE);
-  if (ss_cgi_param(phr, "item", &item) <= 0 || !item || !*item)
-    FAIL(S_ERR_INV_PACKAGE);
+    FAIL(SSERV_ERR_INV_PACKAGE);
+  if (hr_cgi_param(phr, "item", &item) <= 0 || !item || !*item)
+    FAIL(SSERV_ERR_INV_PACKAGE);
   if (!is_valid_dir(pkgname, sizeof(pkgname), item))
-    FAIL(S_ERR_INV_PACKAGE);
+    FAIL(SSERV_ERR_INV_PACKAGE);
 
   snprintf(pkgpath, sizeof(pkgpath), "%s/problems/%s",
            EJUDGE_CONTESTS_HOME_DIR, pkgdir);
   if (stat(pkgpath, &stb) < 0 || !S_ISDIR(stb.st_mode))
-    FAIL(S_ERR_INV_PACKAGE);
+    FAIL(SSERV_ERR_INV_PACKAGE);
 
-  switch (phr->opcode) {
-  case SSERV_OP_CREATE_PACKAGE:
+  switch (phr->action) {
+  case SSERV_CMD_CREATE_PACKAGE:
     snprintf(fpath, sizeof(fpath), "%s/%s", pkgpath, item);
     if (stat(fpath, &stb) >= 0)
-      FAIL(S_ERR_ITEM_EXISTS);
+      FAIL(SSERV_ERR_ITEM_EXISTS);
     if (mkdir(fpath, 0755) < 0)
-      FAIL(S_ERR_OPERATION_FAILED);
+      FAIL(SSERV_ERR_OPERATION_FAILED);
     break;
   default:
     abort();
@@ -321,15 +320,8 @@ int
 super_serve_op_edit_problem(
         FILE *log_f,
         FILE *out_f,
-        struct super_http_request_info *phr)
+        struct http_request_info *phr)
 {
   phr->json_reply = 1;
   return 1;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE" "va_list" "fd_set" "DIR")
- * End:
- */

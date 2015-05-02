@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: pass_fd.c 5682 2010-01-19 10:03:27Z cher $ */
+/* $Id: pass_fd.c 8237 2014-05-17 06:40:01Z cher $ */
 
-/* Copyright (C) 2004 Alexander Chernov <cher@ispras.ru> */
+/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,8 +15,8 @@
  * GNU General Public License for more details.
  */
 
-#include "super_clnt.h"
-#include "super_proto.h"
+#include "ejudge/super_clnt.h"
+#include "ejudge/super_proto.h"
 
 #include <stdlib.h>
 
@@ -40,9 +40,8 @@ super_clnt_pass_fd(int sock_fd, int nfd, int *fds)
   return super_clnt_do_pass_fd(sock_fd, nfd, fds);
 }
 
-/**
+/*
  * Local variables:
  *  compile-command: "make -C .."
- *  c-font-lock-extra-types: ("\\sw+_t" "FILE")
  * End:
  */

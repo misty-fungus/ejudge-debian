@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
-/* $Id: bitset.c 6355 2011-06-05 07:45:04Z cher $ */
+/* $Id: bitset.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2011-2014 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -15,9 +15,9 @@
  * GNU General Public License for more details.
  */
 
-#include "bitset.h"
+#include "ejudge/bitset.h"
 
-#include "reuse_xalloc.h"
+#include "ejudge/xalloc.h"
 
 #include <string.h>
 #include <stdlib.h>
