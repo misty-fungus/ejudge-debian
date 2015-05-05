@@ -1,10 +1,10 @@
 Index: ejudge-debian/scripts/runperl.in
 ===================================================================
---- ejudge-debian.orig/scripts/runperl.in	2015-04-01 23:24:06.000000000 +0400
-+++ ejudge-debian/scripts/runperl.in	2015-04-01 23:24:19.000000000 +0400
+--- ejudge-debian.orig/scripts/runperl.in
++++ ejudge-debian/scripts/runperl.in
 @@ -1,4 +1,4 @@
 -#!@ac_cv_contest_perl_path@
 +#!/usr/bin/env perl
- # $Id: runperl.in 5550 2009-02-19 18:14:43Z cher $
+ # $Id$
  # Copyright (c) 2005 Alexander Chernov
  

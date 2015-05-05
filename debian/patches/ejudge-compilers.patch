@@ -1,16 +1,3 @@
-Index: ejudge-debian/scripts/g++.in
-===================================================================
---- ejudge-debian.orig/scripts/g++.in
-+++ ejudge-debian/scripts/g++.in
-@@ -27,7 +27,7 @@ then
-     PATH="${GPPDIR}:${PATH}"
- fi
- 
--[ x"${EJUDGE_FLAGS}" = x ] && EJUDGE_FLAGS="-Wall -O2"
-+[ x"${EJUDGE_FLAGS}" = x ] && EJUDGE_FLAGS="-Wall -O2 -std=gnu++0x"
- 
- unset LANG
- unset LC_ALL
 Index: ejudge-debian/scripts/python3.in
 ===================================================================
 --- ejudge-debian.orig/scripts/python3.in
