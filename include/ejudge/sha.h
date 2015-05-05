@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: sha.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 #ifndef __SHA_H__
 #define __SHA_H__ 1

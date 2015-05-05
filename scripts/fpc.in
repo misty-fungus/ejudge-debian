@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: fpc.in 6701 2012-03-30 07:20:13Z cher $
+# $Id$
 # Copyright (c) 2002-2012 Alexander Chernov <cher@ejudge.ru>
 
 # using EJUDGE_FLAGS we may pass additional flags

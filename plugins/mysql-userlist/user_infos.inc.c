@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: user_infos.inc.c 5534 2008-12-31 10:26:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
 

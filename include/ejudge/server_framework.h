@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: server_framework.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 
 #ifndef __SERVER_FRAMEWORK_H__
 #define __SERVER_FRAMEWORK_H__

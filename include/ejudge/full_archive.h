@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: full_archive.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 #ifndef __FULL_ARCHIVE_H__
 #define __FULL_ARCHIVE_H__
 

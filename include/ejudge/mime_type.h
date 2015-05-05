@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: mime_type.h 8204 2014-05-14 22:06:18Z cher $ */
+/* $Id$ */
 #ifndef __MIME_TYPE_H__
 #define __MIME_TYPE_H__
 

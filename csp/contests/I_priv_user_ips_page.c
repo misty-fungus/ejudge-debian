@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: I_priv_user_ips_page.c 8532 2014-08-22 13:18:02Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 

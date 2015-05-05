@@ -1,7 +1,6 @@
 /* -*- mode:c -*- */
-/* $Id: ejudge-configure-compilers.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -345,10 +344,11 @@ visual_setup(unsigned char **keys, unsigned char **vals)
   lang_configure_screen(script_dir, script_in_dirs,
                         config_dir, tmp_work_dir,
                         config->compile_home_dir,
+                        NULL,
                         keys, vals, header, 0);
   while (lang_config_menu(script_dir, script_in_dirs, tmp_work_dir,
                           config->compile_home_dir,
-                          header, utf8_mode, &cur_item));
+                          header, NULL, utf8_mode, &cur_item));
 
   j = ncurses_yesno(0, "\\begin{center}\nSave the configuration updates?\n\\end{center}\n");
   if (j == 1) visual_save_config(header);
@@ -417,7 +417,7 @@ list_all_compilers(void)
 
   memset(&langs, 0, sizeof(langs));
   if (is_term && (env = getenv("COLUMNS")) && sscanf(env, "%d%n", &x, &n) == 1
-      && !env[n] && x > 0 && x < 10000 && (column_num = x));
+      && !env[n] && x > 0 && x < 10000 && (column_num = x)) {}
   if (is_term) {
     if (column_num < 10) column_num = 10;
     outbuf_size = column_num + 100;
@@ -744,7 +744,7 @@ main(int argc, char **argv)
   script_in_dirs[1] = script_in_dir1;
   script_in_dirs[2] = 0;
   lang_configure_batch(script_dir, script_in_dirs, config_dir, tmp_work_dir,
-                       config->compile_home_dir,
+                       config->compile_home_dir, NULL,
                        keys, vals, stderr);
   save_config_files(stderr, 0);
   if (tmp_work_dir[0]) remove_directory_recursively(tmp_work_dir, 0);

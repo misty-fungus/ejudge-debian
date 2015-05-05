@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 8215 2014-05-15 13:42:22Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -403,8 +402,6 @@ serve_audit_log(
         ...)
   __attribute__((format(printf, 10, 11)));
 
-void serve_packet_name(int run_id, int prio, unsigned char buf[]);
-
 int
 serve_compile_request(
         serve_state_t state,
@@ -428,7 +425,7 @@ serve_compile_request(
         const struct section_problem_data *prob,
         const struct section_language_data *lang,
         int no_db_flag,
-        const ruint32_t uuid[4],
+        const ej_uuid_t *puuid,
         int store_flags,
         int rejudge_flag)
 #if defined __GNUC__
@@ -460,7 +457,7 @@ serve_run_request(
         const unsigned char *compile_report_dir,
         const struct compile_reply_packet *comp_pkt,
         int no_db_flag,
-        ruint32_t uuid[4],
+        ej_uuid_t *puuid,
         int rejudge_flag);
 
 int serve_is_valid_status(serve_state_t state, int status, int mode);
@@ -515,6 +512,17 @@ serve_mark_by_mask(
         int mask_size,
         unsigned long *mask,
         int mark_value);
+
+void
+serve_tokenize_by_mask(
+        serve_state_t state,
+        int user_id,
+        const ej_ip_t *ip,
+        int ssl_flag,
+        int mask_size,
+        unsigned long *mask,
+        int token_count,
+        int token_flags);
 
 struct server_framework_job *
 serve_rejudge_problem(

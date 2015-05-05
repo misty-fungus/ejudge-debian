@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -179,7 +178,11 @@ cmd_login(
   }
 
   ns_get_session(phr->session_id, phr->client_key, 0);
-  fprintf(fout, "%016llx\n", phr->session_id);
+  if (phr->client_key) {
+    fprintf(fout, "%016llx-%016llx\n", phr->session_id, phr->client_key);
+  } else {
+    fprintf(fout, "%016llx\n", phr->session_id);
+  }
 
  cleanup:
   return retval;
@@ -686,7 +689,7 @@ cmd_clar_operation(
   int retval = 0;
   const unsigned char *s = 0;
   int clar_id = -1;
-  struct clar_entry_v1 ce;
+  struct clar_entry_v2 ce;
   unsigned char *msg_txt = 0;
   size_t msg_len = 0;
 
@@ -817,6 +820,9 @@ cmd_submit_run(
   /* check variant */
   switch (phr->role) {
   case USER_ROLE_CONTESTANT:
+    if (prob->disable_user_submit > 0) {
+      FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+    }
     if (hr_cgi_param(phr, "variant", &s) != 0)
       FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
     if (prob->variant_num > 0) {
@@ -1056,15 +1062,15 @@ cmd_submit_run(
   }
 
   gettimeofday(&precise_time, 0);
-  ruint32_t run_uuid[4];
+  ej_uuid_t run_uuid;
   int store_flags = 0;
-  ej_uuid_generate(run_uuid);
+  ej_uuid_generate(&run_uuid);
   if (global->uuid_run_store > 0 && run_get_uuid_hash_state(cs->runlog_state) >= 0 && ej_uuid_is_nonempty(run_uuid)) {
     store_flags = 1;
   }
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
-                          run_size, shaval, run_uuid,
+                          run_size, shaval, &run_uuid,
                           &phr->ip, phr->ssl_flag,
                           phr->locale_id, phr->user_id,
                           prob->id, lang_id, eoln_type,
@@ -1075,7 +1081,7 @@ cmd_submit_run(
 
   if (store_flags == 1) {
     arch_flags = uuid_archive_prepare_write_path(cs, run_path, sizeof(run_path),
-                                                 run_uuid, run_size, DFLT_R_UUID_SOURCE, 0, 0);
+                                                 &run_uuid, run_size, DFLT_R_UUID_SOURCE, 0, 0);
   } else {
     arch_flags = archive_prepare_write_path(cs, run_path, sizeof(run_path),
                                             global->run_archive_dir, run_id,
@@ -1110,7 +1116,7 @@ cmd_submit_run(
                                      lang->compiler_env,
                                      0, prob->style_checker_cmd,
                                      prob->style_checker_env,
-                                     -1, 0, 0, prob, lang, 0, run_uuid, store_flags,
+                                     -1, 0, 0, prob, lang, 0, &run_uuid, store_flags,
                                      0 /* rejudge_flag */)) < 0) {
         serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       }
@@ -1138,7 +1144,7 @@ cmd_submit_run(
                                        0 /* priority_adjustment */,
                                        0 /* notify flag */,
                                        prob, NULL /* lang */,
-                                       0 /* no_db_flag */, run_uuid, store_flags,
+                                       0 /* no_db_flag */, &run_uuid, store_flags,
                                        0 /* rejudge_flag */)) < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
@@ -1146,7 +1152,7 @@ cmd_submit_run(
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
                               0 /* rejudge_flag */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
@@ -1189,7 +1195,7 @@ cmd_submit_run(
                                        0 /* priority_adjustment */,
                                        0 /* notify flag */,
                                        prob, NULL /* lang */,
-                                       0 /* no_db_flag */, run_uuid, store_flags,
+                                       0 /* no_db_flag */, &run_uuid, store_flags,
                                        0 /* rejudge_flag */)) < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
         }
@@ -1199,7 +1205,7 @@ cmd_submit_run(
         if (serve_run_request(cs, cnts, stderr, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
                               0 /* rejudge_flag */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
@@ -1752,7 +1758,7 @@ do_dump_master_runs(
         orig_score = prob->full_score;
       snprintf(base_score_buf, sizeof(base_score_buf), "%d", orig_score);
       csv_rec[F_BASE_SCORE] = base_score_buf;
-      score = calc_kirov_score(0, 0, start_time, 0, 0, pe, prob, attempts, disq_attempts,
+      score = calc_kirov_score(0, 0, start_time, 0, 0, 0, pe, prob, attempts, disq_attempts,
                                prev_successes, &date_penalty, 0);
       snprintf(score_buf, sizeof(score_buf), "%d", score);
       csv_rec[F_TOTAL_SCORE] = score_buf;

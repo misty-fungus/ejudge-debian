@@ -1,7 +1,6 @@
 # -*- Makefile -*-
-# $Id: files.make 8298 2014-07-17 09:34:54Z cher $
 
-# Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -186,6 +185,7 @@ COMMON_CFILES=\
  nwrun_packet.c\
  opcaps.c\
  opcaps_2.c\
+ packet_name.c\
  parsecfg.c\
  parsecfg_2.c\
  pathutl.c\
@@ -216,6 +216,7 @@ COMMON_CFILES=\
  server_framework.c\
  serve_2.c\
  serve_state.c\
+ session.c\
  sformat.c\
  shellcfg_parse.c\
  stringset.c\
@@ -253,6 +254,7 @@ COMMON_CFILES=\
  userlist_check.c\
  userlist_proto.c\
  userlist_xml.c\
+ variant_map.c\
  varsubst.c\
  vcs.c\
  watched_file.c\
@@ -261,6 +263,7 @@ COMMON_CFILES=\
  xml_utils/attr_bool_byte.c\
  xml_utils/attr_date.c\
  xml_utils/attr_int.c\
+ xml_utils/attr_long_long.c\
  xml_utils/attr_ulong.c\
  xml_utils/elem_ip_mask.c\
  xml_utils/empty_text.c\
@@ -547,6 +550,7 @@ HFILES=\
  ./include/ejudge/nsdb_plugin.h\
  ./include/ejudge/nwrun_packet.h\
  ./include/ejudge/opcaps.h\
+ ./include/ejudge/packet_name.h\
  ./include/ejudge/parsecfg.h\
  ./include/ejudge/pathutl.h\
  ./include/ejudge/pollfds.h\
@@ -595,6 +599,7 @@ HFILES=\
  ./include/ejudge/uldb_plugin.h\
  ./include/ejudge/userlist.h\
  ./include/ejudge/userlist_clnt.h\
+ ./include/ejudge/variant_map.h\
  ./include/ejudge/varsubst.h\
  ./include/ejudge/vcs.h\
  ./include/ejudge/version.h\

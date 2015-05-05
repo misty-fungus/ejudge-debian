@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: pathutl.h 8208 2014-05-14 22:54:49Z cher $ */
+/* $Id$ */
 #ifndef __PATHUTL_H__
 #define __PATHUTL_H__
 

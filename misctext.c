@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: misctext.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -400,6 +399,17 @@ message_reply_subj(char const *intxt, char *outtxt)
   *s++ = '\n';
   *s = 0;
   return strlen(outtxt);
+}
+
+const unsigned char *
+skip_message_headers(const unsigned char *intxt)
+{
+  if (!intxt) return intxt;
+  const char *p = strstr(intxt, "\n\n");
+  if (p) return p + 2;
+  p = strstr(intxt, "\r\n\r\n");
+  if (p) return p + 4;
+  return intxt;
 }
 
 int
@@ -1506,6 +1516,18 @@ size_t_to_size_str(
   return buf;
 }
 
+void
+size_t_to_size_str_f(
+        FILE *f,
+        size_t num)
+{
+  if (!num) fprintf(f, "0");
+  else if (!(num % SIZE_G)) fprintf(f, "%" EJ_PRINTF_ZSPEC "uG", EJ_PRINTF_ZCAST(num / SIZE_G));
+  else if (!(num % SIZE_M)) fprintf(f, "%" EJ_PRINTF_ZSPEC "uM", EJ_PRINTF_ZCAST(num / SIZE_M));
+  else if (!(num % SIZE_K)) fprintf(f, "%" EJ_PRINTF_ZSPEC "uK", EJ_PRINTF_ZCAST(num / SIZE_K));
+  else fprintf(f, "%" EJ_PRINTF_ZSPEC "u", EJ_PRINTF_ZCAST(num));
+}
+
 /*
   parse an integral value in range -2147483648...2147483647 checking for overflow
  */
@@ -2079,6 +2101,22 @@ html_print_by_line(
     p = s;
   }
   putc('\n', f);
+}
+
+unsigned char *
+html_print_by_line_str(
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        unsigned char const *s,
+        size_t size)
+{
+  char *txt = 0;
+  size_t len = 0;
+  FILE *f = open_memstream(&txt, &len);
+  html_print_by_line(f, utf8_mode, max_file_length, max_line_length, s, size);
+  fclose(f); f = NULL;
+  return txt;
 }
 
 int

@@ -1,4 +1,4 @@
-// $Id: unpriv.js 5984 2010-08-18 07:31:05Z cher $
+// $Id$
 
 // Copyright (C) 2008-2010 Alexander Chernov <cher@ejudge.ru>
 

@@ -20,6 +20,7 @@
   char *audit_text = 0;
   size_t audit_text_size = 0;
   unsigned char title[1024];
+  int enable_main_menu = 0;
 
   if (ns_parse_run_id(out_f, phr, cnts, extra, &run_id, 0) < 0) {
     FAIL(NEW_SRV_ERR_INV_RUN_ID);
@@ -62,25 +63,25 @@
     <s:param name="run_id" value="run_id" />
 </s:url>
 
-<table class="b0"><tr>
-    <td class="b0"><s:a ac="main-page"><s:tr>Main page</s:tr></s:a></td>
-    <td class="b0"><s:a url="ViewSourceUrl"><s:tr>Source</s:tr></s:a></td>
-    <td class="b0"><s:a url="ViewReportUrl"><s:tr>Report</s:tr></s:a></td>
-    <td class="b0"><s:a url="ViewUserReportUrl"><s:tr>User report</s:tr></s:a></td>
-    <td class="b0"><s:a url="ViewAuditLogUrl"><s:tr>Audit log</s:tr></s:a></td>
-</tr></table>
-
-<hr/>
+<div id="main-menu">
+<ul>
+<li><s:a ac="main-page"><s:_>Main page</s:_></s:a></li>
+<li><s:a url="ViewSourceUrl"><s:_>Source</s:_></s:a></li>
+<li><s:a url="ViewReportUrl"><s:_>Report</s:_></s:a></li>
+<li><s:a url="ViewUserReportUrl"><s:_>User report</s:_></s:a></li>
+<li><s:a class="current" url="ViewAuditLogUrl"><s:_>Audit log</s:_></s:a></li>
+</ul></div>
+</div>
 
 <% if (!audit_text || !*audit_text) { %>
-<p><i><s:tr>Audit log is empty</s:tr></i></p>
+<p><i><s:_>Audit log is empty</s:_></i></p>
 <% } else { %>
 <pre><s:v value="audit_text" /></pre>
 <% } %>
 
 <%@include "priv_footer.csp"
 %><%
-  l10n_setlocale(0);
 cleanup:
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: libdropcaps.c 8173 2014-05-12 19:50:16Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 

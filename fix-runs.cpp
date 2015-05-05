@@ -1,4 +1,4 @@
-/* $Id: fix-runs.cpp 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id$ */
 
 extern "C" {
 #include "ejudge/config.h"

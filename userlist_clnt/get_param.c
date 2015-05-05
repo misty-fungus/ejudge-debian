@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: get_param.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005,2006 Alexander Chernov <cher@ejudge.ru> */
 

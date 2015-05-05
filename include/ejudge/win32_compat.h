@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: win32_compat.h 8191 2014-05-14 19:36:33Z cher $ */
+/* $Id$ */
 
 #ifndef __EJ_WIN32_COMPAT_H__
 #define __EJ_WIN32_COMPAT_H__

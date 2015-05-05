@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: mischtml.h 8211 2014-05-15 08:23:47Z cher $ */
+/* $Id$ */
 #ifndef __MISCHTML_H__
 #define __MISCHTML_H__
 

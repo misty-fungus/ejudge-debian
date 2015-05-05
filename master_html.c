@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: master_html.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -245,6 +244,14 @@ write_xml_tests_report(
   if (!(r = testing_report_parse_xml(txt))) {
     fprintf(f, "<p><big>Cannot parse XML file!</big></p>\n");
     fprintf(f, "<pre>%s</pre>\n", ARMOR(txt));
+    goto done;
+  }
+
+  if (r->compile_error) {
+    fprintf(f, "<h2><font color=\"red\">%s</font></h2>\n", run_status_str(r->status, 0, 0, 0, 0));
+    if (r->compiler_output) {
+      fprintf(f, "<pre>%s</pre>\n", ARMOR(r->compiler_output));
+    }
     goto done;
   }
 
@@ -628,7 +635,7 @@ generate_daily_statistics(
   int clar_total = 0, clar_total_today = 0, clar_from_judges = 0;
   int clar_to_judges = 0;
   time_t clar_time;
-  struct clar_entry_v1 clar;
+  struct clar_entry_v2 clar;
 
   /* u_tot             - total number of teams in index array
    * u_max             - maximal possible number of teams

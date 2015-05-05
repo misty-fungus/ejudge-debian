@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_clnt.h 8503 2014-08-17 15:37:49Z cher $ */
+/* $Id$ */
 
 #ifndef __SUPER_CLNT_H__
 #define __SUPER_CLNT_H__

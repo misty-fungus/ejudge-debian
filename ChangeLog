@@ -24446,7 +24446,7 @@
 2005-09-16  Alexander Chernov  <cher@ispras.ru>
 
 	* ejudge-setup.c, super_html_2.c:
-	$Id: ChangeLog 7368 2013-02-13 05:05:52Z cher $ is properly escaped in order not to be substutued by
+	$Id$ is properly escaped in order not to be substutued by
 	  the ejudge CVS.
 
 	* super_html_2.c:
@@ -24458,7 +24458,7 @@
 	  `SSERV_CMD_CNTS_COPY_ACCESS' is handled using `copy_contest_access';
 	(super_html_serve_probe_run) new function to handle
 	  `SSERV_CMD_SERVE_MNG_PROBE_RUN';
-	(super_html_commit_contest) "$Id: ChangeLog 7368 2013-02-13 05:05:52Z cher $" is printed to the header of the
+	(super_html_commit_contest) "$Id$" is printed to the header of the
 	  new contest XML file and serve.cfg file;
 	  the new contest XML file is put under version control;
 	  version control for the serve.cfg is supported, but the new serve.cfg
@@ -37757,4 +37757,4 @@
 
 END
 
-	$Id: ChangeLog 7368 2013-02-13 05:05:52Z cher $
+	$Id$

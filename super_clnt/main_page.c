@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: main_page.c 8503 2014-08-17 15:37:49Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 

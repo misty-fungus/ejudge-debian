@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: lookup_cookie.c 7613 2013-11-22 20:21:36Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 

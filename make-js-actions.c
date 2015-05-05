@@ -1,4 +1,4 @@
-/* $Id: make-js-actions.c 8238 2014-05-17 10:52:34Z cher $ */
+/* $Id$ */
 
 #include <stdio.h>
 #include "ejudge/new-server.h"

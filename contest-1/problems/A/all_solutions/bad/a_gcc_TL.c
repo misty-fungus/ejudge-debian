@@ -1,4 +1,4 @@
-/* $Id: a_gcc_TL.c 6898 2012-06-18 11:31:43Z cher $ */
+/* $Id$ */
 
 #include <stdio.h>
 

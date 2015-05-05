@@ -1,7 +1,6 @@
 # -*- Makefile -*-
-# $Id: main.unix.make 8577 2014-09-01 19:24:58Z cher $
 
-# Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -154,7 +153,7 @@ BINTARGETS = ejudge-jobs-cmd ejudge-edit-users ejudge-setup ejudge-configure-com
 SERVERBINTARGETS = ej-compile ej-compile-control ej-run ej-nwrun ej-ncheck ej-batch ej-serve ej-users ej-users-control ej-jobs ej-jobs-control ej-super-server ej-super-server-control ej-contests ej-contests-control uudecode ej-convert-clars ej-convert-runs ej-fix-db ej-super-run ej-super-run-control ej-normalize ej-polygon ej-import-contest ej-page-gen
 CGITARGETS = users${CGI_PROG_SUFFIX} serve-control${CGI_PROG_SUFFIX} new-client${CGI_PROG_SUFFIX}
 TARGETS = ${SERVERBINTARGETS} ${BINTARGETS} ${CGITARGETS} newrevinfo
-STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/unpriv3.css style/ejudge3.css style/priv.js style/unpriv.js style/filter_expr.html style/sprintf.js style/ejudge3_ss.css
+STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/unpriv3.css style/ejudge3.css style/priv.js style/unpriv.js style/filter_expr.html style/sprintf.js style/ejudge3_ss.css style/ejudge_mobile.css
 
 all: prereq_all local_all subdirs_all mo
 local_all: $(TARGETS) ejudge-config
@@ -163,6 +162,7 @@ release:
 	rm -fr CVS db unix userlist_clnt win32 checkers/CVS checkers/.cvsignore checkers/Makefile checkers/ChangeLog checkers/*.c checkers/*.o checkers/testinfo.h extra/CVS extra/.cvsignore extra/Makefile extra/*.c extra/*.o scripts/CVS .build .cvsignore ChangeLog OLDNEWS TODO *.c *.h *.o *.a *.make *.po makefile *.lex *.y
 
 prereq_all: version.o
+	$(MAKE) -C libdwarf DESTDIR="${DESTDIR}" all
 	$(MAKE) -C reuse DESTDIR="${DESTDIR}" all
 	$(MAKE) -C cfront DESTDIR="${DESTDIR}" all
 
@@ -221,6 +221,7 @@ local_install: ${TARGETS} ejudge-config po mo
 	install -m 0644 csp_header.make "${DESTDIR}${prefix}/lib/ejudge/make"
 
 install: local_install
+	$(MAKE) -C libdwarf DESTDIR="${DESTDIR}" install
 	$(MAKE) -C reuse DESTDIR="${DESTDIR}" install
 	$(MAKE) -C cfront DESTDIR="${DESTDIR}" install
 	$(MAKE) -C scripts DESTDIR="${DESTDIR}" install
@@ -296,12 +297,12 @@ ej-import-contest: ${IC_OBJECTS}
 	${LD} ${LDFLAGS} $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} ${LIBCURL} ${LIBZIP} -ldl
 
 ej-page-gen: ${G_OBJECTS} libuserlist_clnt.a libnew_server_clnt.a
-	${LD} ${LDFLAGS} -Wl,--whole-archive $^ -o $@ ${LDLIBS} -ldwarf -lelf ${EXPAT_LIB} ${LIBZIP} -ldl -lpanel${NCURSES_SUFFIX} -lmenu${NCURSES_SUFFIX} -lncurses${NCURSES_SUFFIX} ${LIBUUID} -Wl,--no-whole-archive
+	${LD} ${LDFLAGS} -Wl,--whole-archive $^ -o $@ ${LDLIBS} libdwarf/libdwarf/libdwarf.a -lelf ${EXPAT_LIB} ${LIBZIP} -ldl -lpanel${NCURSES_SUFFIX} -lmenu${NCURSES_SUFFIX} -lncurses${NCURSES_SUFFIX} ${LIBUUID} -Wl,--no-whole-archive
 ej-page-gen.debug : ej-page-gen
 	objcopy --only-keep-debug $< $@
 
 ej-convert-clars: ${CU_OBJECTS}
-	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a libplatform.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl
+	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a libplatform.a -o $@ ${LDLIBS} ${EXPAT_LIB} ${LIBUUID} -ldl
 
 ej-convert-runs: ${CR_OBJECTS}
 	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl ${LIBUUID}
@@ -352,7 +353,7 @@ struct-sizes : struct-sizes.o
 	$(LD) $(LDFLAGS) $^ -o $@ $(LDLIBS) ${EXPAT_LIB}
 
 ejudge-install.sh : ejudge-setup
-	./ejudge-setup -b
+	./ejudge-setup -b -i scripts/lang_ids.cfg
 
 local_clean:
 	-rm -f *.o *~ *.a $(TARGETS) revinfo newrevinfo version.c $(ARCH)/*.o ejudge.po mkChangeLog2 userlist_clnt/*.o xml_utils/*.o super_clnt/*.o cdeps deps.make filter_expr.[ch] filter_scan.c users users${CGI_PROG_SUFFIX} ejudge-config serve-control serve-control${CGI_PROG_SUFFIX} prjutils2/*.o make-js-actions new_server_clnt/*.o mktable struct-sizes *.debug
@@ -370,6 +371,7 @@ subdir_clean:
 	$(MAKE) -C csp/super-server DESTDIR="${DESTDIR}" clean
 	$(MAKE) -C cfront clean
 	$(MAKE) -C reuse clean
+	#$(MAKE) -C libdwarf clean
 
 
 local_distclean :
@@ -389,6 +391,7 @@ subdir_distclean :
 	$(MAKE) -C csp/super-server DESTDIR="${DESTDIR}" distclean
 	$(MAKE) -C cfront distclean
 	$(MAKE) -C reuse distclean
+	-$(MAKE) -C libdwarf distclean
 
 pristine : distclean
 	rm -f configure
@@ -526,5 +529,8 @@ reuse/objs/libreuse.a :
 
 cfront/ej-cfront : reuse/objs/libreuse.a
 	$(MAKE) -C cfront all
+
+include/libdwarf-internal/dwarf.h include/libdwarf-internal/libdwarf.h libdwarf/libdwarf/libdwarf.a:
+	$(MAKE) -C libdwarf all
 
 include deps.make

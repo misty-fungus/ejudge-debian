@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: version.h 8178 2014-05-13 09:19:36Z cher $ */
+/* $Id$ */
 #ifndef __VERSION_H__
 #define __VERSION_H__
 

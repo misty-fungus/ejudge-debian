@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: control.c 8237 2014-05-17 06:40:01Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 

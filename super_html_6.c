@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_6.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2011-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2011-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -9784,6 +9783,10 @@ super_serve_op_IMPORT_FROM_POLYGON_PAGE(
           cl, "Polygon URL", cl, ARMOR(saved_url));
   fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" checked=\"checked\" /></td></tr>\n",
           cl, "Assume max_vm_size == max_stack_size", cl, "max_stack_size");
+  fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" checked=\"checked\" /></td></tr>\n",
+          cl, "Ignore additional solutions", cl, "ignore_solutions");
+  fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" /></td></tr>\n",
+          cl, "Fetch latest available packet (do not generate)", cl, "fetch_latest_available");
   
   fprintf(out_f, "<tr><td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></tr></td>\n",
           cl, SSERV_CMD_IMPORT_FROM_POLYGON_ACTION, "Import");
@@ -9820,6 +9823,8 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
   const unsigned char *language_priority = NULL;
   int save_auth_flag = 0;
   int max_stack_size_flag = 0;
+  int ignore_solutions_flag = 0;
+  int fetch_latest_available_flag = 0;
   struct polygon_packet *pp = NULL;
   const struct contest_desc *cnts = ss->edited_cnts;
   struct update_state *us = NULL;
@@ -9943,6 +9948,8 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
   }
 
   if (hr_cgi_param(phr, "max_stack_size", &s) > 0) max_stack_size_flag = 1;
+  if (hr_cgi_param(phr, "ignore_solutions", &s) > 0) ignore_solutions_flag = 1;
+  if (hr_cgi_param(phr, "fetch_latest_available", &s) > 0) fetch_latest_available_flag = 1;
 
   if (hr_cgi_param(phr, "language_priority", &s) > 0 && *s) {
     if (!strcmp(s, "ru,en")
@@ -10006,6 +10013,8 @@ super_serve_op_IMPORT_FROM_POLYGON_ACTION(
 
   pp = polygon_packet_alloc();
   pp->enable_max_stack_size = max_stack_size_flag;
+  pp->ignore_solutions = ignore_solutions_flag;
+  pp->fetch_latest_available = fetch_latest_available_flag;
   pp->create_mode = 1;
   pp->polygon_url = polygon_url; polygon_url = NULL;
   pp->login = polygon_login; polygon_login = NULL;
@@ -10223,6 +10232,25 @@ super_serve_op_DOWNLOAD_PROGRESS_PAGE(
     } else if (us->pid_file && (f = fopen(us->pid_file, "r"))) {
       if (fscanf(f, "%d", &pid) <= 0 || pid <= 0) pid = 0;
       fclose(f); f = NULL;
+
+      // check that the process still exists
+      if (kill(pid, 0) < 0) {
+        // the process does not exists, so create status file
+        if (us->log_file) {
+          if ((f = fopen(us->log_file, "a")) != NULL) {
+            fprintf(f, "\nej-polygon process has terminated unexpectedly!\n");
+            fclose(f); f = NULL;
+          }
+        }
+        if (us->status_file) {
+          if ((f = fopen(us->status_file, "w")) != NULL) {
+            fprintf(f, "127\n0\n");
+            fclose(f); f = NULL;
+            return super_serve_op_DOWNLOAD_PROGRESS_PAGE(log_f, out_f, phr);
+          }
+        }
+      }
+
       snprintf(buf, sizeof(buf), "serve-control: %s, download in progress", phr->html_name);
     } else if (us->start_time > 0 && cur_time < us->start_time + 5) {
       snprintf(buf, sizeof(buf), "serve-control: %s, download started", phr->html_name);
@@ -10799,6 +10827,10 @@ super_serve_op_UPDATE_FROM_POLYGON_PAGE(
           cl, "Save auth info", cl, "save_auth");
   fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"text\" size=\"60\" name=\"polygon_url\" value=\"%s\" /></td></tr>\n",
           cl, "Polygon URL", cl, ARMOR(saved_url));
+  fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" checked=\"checked\" /></td></tr>\n",
+          cl, "Ignore additional solutions", cl, "ignore_solutions");
+  fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" /></td></tr>\n",
+          cl, "Fetch latest available packet (do not generate)", cl, "fetch_latest_available");
   
   fprintf(out_f, "<tr><td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></tr></td>\n",
           cl, SSERV_CMD_UPDATE_FROM_POLYGON_ACTION, "Update");
@@ -10830,6 +10862,8 @@ super_serve_op_UPDATE_FROM_POLYGON_ACTION(
   unsigned char *polygon_password = NULL;
   unsigned char *polygon_url = NULL;
   int save_auth_flag = 0;
+  int ignore_solutions_flag = 0;
+  int fetch_latest_available_flag = 0;
   struct polygon_packet *pp = NULL;
   const struct contest_desc *cnts = NULL;
   struct update_state *us = NULL;
@@ -10912,6 +10946,9 @@ super_serve_op_UPDATE_FROM_POLYGON_ACTION(
 
   if (hr_cgi_param(phr, "save_auth", &s) > 0) save_auth_flag = 1;
 
+  if (hr_cgi_param(phr, "ignore_solutions", &s) > 0) ignore_solutions_flag = 1;
+  if (hr_cgi_param(phr, "fetch_latest_available", &s) > 0) fetch_latest_available_flag = 1;
+
   if ((r = hr_cgi_param(phr, "polygon_url", &s)) < 0) {
     fprintf(log_f, "polygon url is invalid\n");
     FAIL(SSERV_ERR_INV_OPER);
@@ -10973,6 +11010,8 @@ super_serve_op_UPDATE_FROM_POLYGON_ACTION(
   snprintf(start_path, sizeof(start_path), "%s/ej-polygon", EJUDGE_SERVER_BIN_PATH);
 
   pp = polygon_packet_alloc();
+  pp->ignore_solutions = ignore_solutions_flag;
+  pp->fetch_latest_available = fetch_latest_available_flag;
   pp->polygon_url = polygon_url; polygon_url = NULL;
   pp->login = polygon_login; polygon_login = NULL;
   pp->password = polygon_password; polygon_password = NULL;
@@ -11316,6 +11355,10 @@ super_serve_op_IMPORT_CONTEST_FROM_POLYGON_PAGE(
           cl, "Polygon URL", cl, ARMOR(saved_url));
   fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" checked=\"checked\" /></td></tr>\n",
           cl, "Assume max_vm_size == max_stack_size", cl, "max_stack_size");
+  fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" checked=\"checked\" /></td></tr>\n",
+          cl, "Ignore additional solutions", cl, "ignore_solutions");
+  fprintf(out_f, "<tr><td%s>%s:</td><td%s><input type=\"checkbox\" name=\"%s\" value=\"1\" /></td></tr>\n",
+          cl, "Fetch latest available packet (do not generate)", cl, "fetch_latest_available");
   
   fprintf(out_f, "<tr><td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></tr></td>\n",
           cl, SSERV_CMD_IMPORT_FROM_POLYGON_ACTION, "Import");

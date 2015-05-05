@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: tsc.h 8192 2014-05-14 19:40:35Z cher $ */
+/* $Id$ */
 #ifndef __TSC_H__
 #define __TSC_H__
 

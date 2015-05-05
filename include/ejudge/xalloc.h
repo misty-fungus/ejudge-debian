@@ -1,4 +1,4 @@
-/* $Id: xalloc.h 8528 2014-08-22 11:25:35Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_XALLOC_H__
 #define __REUSE_XALLOC_H__

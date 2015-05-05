@@ -1,10 +1,9 @@
 /* -*- c -*- */
-/* $Id: new-server.h 8583 2014-09-02 19:36:37Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -264,6 +263,8 @@ enum
   NEW_SRV_ACTION_IGNORE_DISPLAYED_2,
   NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_1,
   NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_2,
+  NEW_SRV_ACTION_TOKENIZE_DISPLAYED_1,
+  NEW_SRV_ACTION_TOKENIZE_DISPLAYED_2,
   NEW_SRV_ACTION_UPDATE_ANSWER,
   NEW_SRV_ACTION_UPSOLVING_CONFIG_1,
   NEW_SRV_ACTION_UPSOLVING_CONFIG_2,
@@ -286,6 +287,7 @@ enum
   NEW_SRV_ACTION_ASSIGN_CYPHERS_2,
   NEW_SRV_ACTION_VIEW_EXAM_INFO,
   NEW_SRV_ACTION_PRIV_SUBMIT_PAGE,
+  NEW_SRV_ACTION_USE_TOKEN,
 
   /* new-register stuff */
   NEW_SRV_ACTION_REG_CREATE_ACCOUNT_PAGE,
@@ -319,6 +321,7 @@ enum
   NEW_SRV_ACTION_VIEW_IP_USERS,
   NEW_SRV_ACTION_CHANGE_FINISH_TIME,
   NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK,
+  NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_REJECT,
   NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE,
   NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK,
   NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED,
@@ -375,22 +378,11 @@ struct contest_extra
 {
   int contest_id;
 
-  //struct watched_file header;
-  //struct watched_file menu_1;
-  //struct watched_file menu_2;
-  //struct watched_file menu_3;
-  //struct watched_file separator;
-  //struct watched_file footer;
-  //struct watched_file priv_header;
-  //struct watched_file priv_footer;
   struct watched_file copyright;
   struct watched_file welcome;
   struct watched_file reg_welcome;
 
   const unsigned char *header_txt;
-  //const unsigned char *menu_1_txt;
-  //const unsigned char *menu_2_txt;
-  //const unsigned char *menu_3_txt;
   const unsigned char *footer_txt;
   const unsigned char *separator_txt;
   const unsigned char *copyright_txt;
@@ -544,6 +536,17 @@ ns_write_priv_all_runs(FILE *f,
                        struct contest_extra *extra,
                        int first_run_set, int first_run, int last_run_set, int last_run,
                        unsigned char const *filter_expr);
+
+// clar filter options
+enum
+{
+  CLAR_FILTER_ALL_CLARS = 1,
+  CLAR_FILTER_UNANS_CLARS_COMMENTS,
+  CLAR_FILTER_ALL_CLARS_COMMENTS,
+  CLAR_FILTER_CLARS_TO_ALL,
+  CLAR_FILTER_NONE, // show even empty entries
+};
+
 void
 ns_write_all_clars(
         FILE *f,
@@ -769,7 +772,9 @@ ns_write_olympiads_user_runs(
         struct contest_extra *extra,
         int all_runs,
         int prob_id,
-        const unsigned char *table_class);
+        const unsigned char *table_class,
+        const struct UserProblemInfo *pinfo,
+        int back_action);
 
 int
 new_server_cmd_handler(FILE *fout, struct http_request_info *phr);
@@ -790,40 +795,16 @@ struct client_state *ns_get_client_by_id(int client_id);
 void ns_send_reply(struct client_state *p, int answer);
 void ns_new_autoclose(struct client_state *p, void *, size_t);
 
+struct UserProblemInfo;
 void
 ns_get_user_problems_summary(
         const serve_state_t cs,
         int user_id,
+        const unsigned char *user_login,
         int accepting_mode,
-        unsigned char *solved_flag,   /* whether the problem was OK */
-        unsigned char *accepted_flag, /* whether the problem was accepted */
-        unsigned char *pending_flag,  /* whether there are pending runs */
-        unsigned char *trans_flag,    /* whether there are transient runs */
-        unsigned char *pr_flag,       /* whether there are pending review runs */
-        int *best_run,                /* the number of the best run */
-        int *attempts,                /* the number of previous attempts */
-        int *disqualified,            /* the number of prev. disq. attempts */
-        int *best_score,              /* the best score for the problem */
-        int *prev_successes,          /* the number of prev. successes */
-        int *all_attempts);           /* all attempts count */
-
-void
-ns_write_user_problems_summary(
-        const struct contest_desc *cnts,
-        const serve_state_t cs,
-        FILE *fout,
-        int user_id,
-        int accepting_mode,
-        const unsigned char *table_class,
-        unsigned char *solved_flag,   /* whether the problem was OK */
-        unsigned char *accepted_flag, /* whether the problem was accepted */
-        unsigned char *pr_flag,       /* whether there are pending review runs */
-        unsigned char *pending_flag,  /* whether there are pending runs */
-        unsigned char *trans_flag,    /* whether there are transient runs */
-        int *best_run,                /* the number of the best run */
-        int *attempts,                /* the number of previous attempts */
-        int *disqualified,            /* the number of prev. disq. attempts */
-        int *best_score);             /* the best score for the problem */
+        time_t start_time,
+        time_t stop_time,
+        struct UserProblemInfo *pinfo); /* user problem info */
 
 int ns_insert_variant_num(unsigned char *buf, size_t size,
                           const unsigned char *file, int variant);
@@ -946,6 +927,7 @@ ns_submit_run(
 extern int utf8_mode;
 extern time_t server_start_time;
 
+struct UserProblemInfo;
 void
 new_write_user_runs(
         const serve_state_t,
@@ -953,7 +935,11 @@ new_write_user_runs(
         struct http_request_info *phr,
         unsigned int show_flags,
         int prob_id,
-        const unsigned char *table_class);
+        const unsigned char *table_class,
+        const struct UserProblemInfo *pinfo,
+        int back_action,
+        time_t start_time,
+        time_t stop_time);
 
 void
 new_write_user_clars(
@@ -971,6 +957,7 @@ write_xml_team_testing_report(
         struct http_request_info *phr,
         int output_only,
         int is_marked,
+        int token_flags,
         const unsigned char *txt,
         const unsigned char *table_class);
 
@@ -1040,17 +1027,7 @@ ns_get_register_url(
         const struct contest_desc *cnts,
         const struct http_request_info *phr);
 
-void
-ns_get_problem_status(
-        serve_state_t cs,
-        int user_id,
-        const unsigned char *user_login,
-        int accepting_mode,
-        time_t start_time,
-        time_t stop_time,
-        const unsigned char *solved_flag,
-        const unsigned char *accepted_flag,
-        unsigned char *pstat);
+struct UserProblemInfo;
 
 // problem status flags
 enum
@@ -1067,8 +1044,7 @@ html_problem_selection(
         serve_state_t cs,
         FILE *fout,
         struct http_request_info *phr,
-        const unsigned char *solved_flag,
-        const unsigned char *accepted_flag,
+        const struct UserProblemInfo *pinfo,
         const unsigned char *var_name,
         int light_mode,
         time_t start_time);
@@ -1092,5 +1068,11 @@ get_last_source(serve_state_t cs, int user_id, int prob_id);
 
 int
 get_last_answer_select_one(serve_state_t cs, int user_id, int prob_id);
+
+int
+compute_available_tokens(
+        serve_state_t cs,
+        const struct section_problem_data *prob,
+        time_t start_time);
 
 #endif /* __NEW_SERVER_H__ */

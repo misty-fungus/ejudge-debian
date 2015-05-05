@@ -2,7 +2,7 @@
 #ifndef __META_GEN_H__
 #define __META_GEN_H__
 
-/* $Id: meta_gen.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 

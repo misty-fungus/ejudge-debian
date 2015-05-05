@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html_input_password.c 8211 2014-05-15 08:23:47Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2007 Alexander Chernov <cher@ejudge.ru> */
 

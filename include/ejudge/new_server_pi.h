@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: new_server_pi.h 8250 2014-05-25 20:38:29Z cher $ */
 #ifndef __NEW_SERVER_PI_H__
 #define __NEW_SERVER_PI_H__
 
-/* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -105,13 +104,30 @@ typedef struct TestingQueueArray
   struct TestingQueueEntry *v;
 } TestingQueueArray;
 
-inline int
-ej_fix_prio(int val)
+#define ej_fix_prio(x) (((x) < -16)?-16:(((x) > 15)?15:(x)))
+
+/* === For unprivileged main page === */
+
+typedef struct UserProblemInfo
 {
-  if (val < -16) val = -16;
-  if (val > 15) val = 15;
-  return val;
-}
+    time_t deadline;
+    int best_run;
+    int attempts;
+    int disqualified;
+    int best_score;
+    int prev_successes; // previous successes of other users on this problem
+    int all_attempts;
+    int eff_attempts; // all attempts except IGNORED and COMPILE_ERR
+    int token_count;  // tokens spent on the problem
+    unsigned char solved_flag;
+    unsigned char accepted_flag;
+    unsigned char pending_flag;
+    unsigned char pr_flag;
+    unsigned char trans_flag;
+    unsigned char status;
+    unsigned char last_untokenized;
+    unsigned char marked_flag;
+} UserProblemInfo;
 
 #endif /* __NEW_SERVER_PI_H__ */
 

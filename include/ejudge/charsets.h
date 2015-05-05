@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: charsets.h 8202 2014-05-14 21:53:32Z cher $ */
+/* $Id$ */
 #ifndef __CHARSETS_H__
 #define __CHARSETS_H__
 

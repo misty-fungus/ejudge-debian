@@ -1,14 +1,13 @@
 # -*- mode: po; coding: UTF-8 -*-
 # ejudge messages catalog
-# $Id: ejudge.ru_RU.UTF-8.po 8585 2014-09-03 08:58:22Z cher $
-# Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru>
+# Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru>
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: ejudge 2.3\n"
+"Project-Id-Version: ejudge 3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2014-09-03 12:49+0400\n"
-"PO-Revision-Date: 2014-09-01 23:24+0400\n"
+"POT-Creation-Date: 2015-01-16 19:00+0300\n"
+"PO-Revision-Date: 2015-01-16 19:01+0300\n"
 "Last-Translator: Alexander Chernov <cher@ejudge.ru>\n"
 "Language-Team: Russian <ru@li.org>\n"
 "Language: ru\n"
@@ -29,8 +28,22 @@ msgstr ""
 "\n"
 
 #, c-format
+msgid " (%d of %d)"
+msgstr " (%d из %d)"
+
+#, c-format
+msgid " (%d token(s) used)"
+msgstr " (использовано: %d)"
+
+#, c-format
 msgid " / <b>%d unread message(s)</b>"
 msgstr " / <b>%d непрочитанных сообщений</b>"
+
+msgid " or standard input"
+msgstr " или стандартный поток ввода"
+
+msgid " or standard output"
+msgstr " или стандартный поток вывода"
 
 msgid "(no subject)"
 msgstr "(без темы)"
@@ -76,7 +89,7 @@ msgid ""
 "<b>Note</b>, that you must log in 24 hours after the form is filled and "
 "submitted, or your registration will be cancelled!"
 msgstr ""
-"<b>Обратите внимание</b>, что Вы должны зайти в систему в течении 24 часов "
+"<b>Обратите внимание</b>, что Вы должны зайти в систему в течение 24 часов "
 "после заполнения и посылки анкеты, или в противном случае Ваша регистрация "
 "будет отменена!"
 
@@ -304,28 +317,74 @@ msgid "<p>You may define up to %d members.</p>"
 msgstr "<p>Вы можете добавить до %d членов команды.</p>"
 
 #, c-format
-msgid "<u>--- Checker output ---</u>\n"
-msgstr "<u>--- Вывод проверяющей программы ---</u>\n"
+msgid "<tr%s><td colspan=\"2\">Page %d of %d.</td></tr>\n"
+msgstr "<tr%s><td colspan=\"2\">Страница %d из %d.</td></tr>\n"
+
+#, c-format
+msgid "<u>--- Checker output: file is binary, size %lld ---</u>\n"
+msgstr ""
+"<u>--- Вывод проверяющей программы: файл бинарный, размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Checker output: file is too large, original size %lld ---</u>\n"
+msgstr ""
+"<u>--- Вывод проверяющей программы: файл слишком велик, размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Checker output: size %lld ---</u>\n"
+msgstr "<u>--- Вывод проверяющей программы: размер %lld ---</u>\n"
 
 #, c-format
 msgid "<u>--- Command line arguments ---</u>\n"
 msgstr "<u>--- Аргументы командной строки ---</u>\n"
 
 #, c-format
-msgid "<u>--- Correct ---</u>\n"
-msgstr "<u>--- Правильный ответ ---</u>\n"
+msgid "<u>--- Correct: file is binary, size %lld ---</u>\n"
+msgstr "<u>--- Правильный ответ: файл бинарный, размер %lld ---</u>\n"
 
 #, c-format
-msgid "<u>--- Input ---</u>\n"
-msgstr "<u>--- Входные данные ---</u>\n"
+msgid "<u>--- Correct: file is too large, original size %lld ---</u>\n"
+msgstr "<u>--- Правильный ответ: файл слишком велик, размер %lld ---</u>\n"
 
 #, c-format
-msgid "<u>--- Output ---</u>\n"
-msgstr "<u>--- Результат работы программы ---</u>\n"
+msgid "<u>--- Correct: size %lld ---</u>\n"
+msgstr "<u>--- Правильный ответ: размер %lld ---</u>\n"
 
 #, c-format
-msgid "<u>--- Stderr ---</u>\n"
-msgstr "<u>--- Ошибки ---</u>\n"
+msgid "<u>--- Input: file is binary, size %lld ---</u>\n"
+msgstr "<u>--- Входные данные: файл бинарный, размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Input: file is too large, original size %lld ---</u>\n"
+msgstr "<u>--- Входные данные: файл слишком велик, размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Input: size %lld ---</u>\n"
+msgstr "<u>--- Входные данные: размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Output: file is binary, size %lld ---</u>\n"
+msgstr "<u>--- Результат работы: файл бинарный, размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Output: file is too large, original size %lld ---</u>\n"
+msgstr "<u>--- Результат работы: файл слишком велик, размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Output: size %lld ---</u>\n"
+msgstr "<u>--- Результат работы: размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Stderr: file is binary, size %lld ---</u>\n"
+msgstr "<u>--- Поток ошибок: файл бинарный, размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Stderr: file is too large, original size %lld ---</u>\n"
+msgstr "<u>--- Поток ошибок: файл слишком велик, размер %lld ---</u>\n"
+
+#, c-format
+msgid "<u>--- Stderr: size %lld ---</u>\n"
+msgstr "<u>--- Поток ошибок: размер %lld ---</u>\n"
 
 msgid "A request parameter is invalid. Please, contact the site administrator."
 msgstr ""
@@ -370,6 +429,9 @@ msgstr "Добавить роль ЭКЗАМЕНАТОРА"
 
 msgid "Add OBSERVER"
 msgstr "Добавить роль НАБЛЮДАТЕЛЯ"
+
+msgid "Add a new run comment"
+msgstr "Добавить комментарий к программе"
 
 msgid "Add a new user specifying his/her User Id"
 msgstr "Добавить нового пользователя, задавая его User Id"
@@ -450,6 +512,12 @@ msgstr "Все изменения в старом турнире будут по
 msgid "All clars"
 msgstr "Все сообщения"
 
+msgid "All clars and comments"
+msgstr "Все вопросы и комментарии"
+
+msgid "All entries"
+msgstr "Все записи"
+
 msgid "Allow"
 msgstr "Разрешить"
 
@@ -464,6 +532,12 @@ msgstr "Разрешить просмотр краткого протокола"
 
 msgid "Allow viewing source code"
 msgstr "Разрешить просмотр исходного текста"
+
+msgid "Allow viewing the final scores"
+msgstr "Разрешить просмотр итогового балла"
+
+msgid "Allow viewing the judge comment of the valuer"
+msgstr "Разрешить просмотр комментария для судей, полученного от программы оценивания"
 
 #, c-format
 msgid "An e-mail messages is sent to the address <tt>%s</tt>."
@@ -631,9 +705,6 @@ msgstr "Сменить язык"
 msgid "Change duration"
 msgstr "Изменить длительность"
 
-msgid "Change judging priorities"
-msgstr "Изменить приоритет проверки"
-
 msgid "Change language"
 msgstr "Сменить язык"
 
@@ -642,6 +713,9 @@ msgstr "Сменить пароль"
 
 msgid "Change status"
 msgstr "Изменить статус"
+
+msgid "Change tokens for displayed runs"
+msgstr "Изменить токены отображённых посылок"
 
 msgid "Change!"
 msgstr "Изменить!"
@@ -675,6 +749,9 @@ msgstr "Проверить настройки турнира"
 msgid "Check failed"
 msgstr "Ошибка проверяющей системы"
 
+msgid "Check failed runs"
+msgstr "Посылки с ошибкой проверяющей системы"
+
 msgid "Checker output"
 msgstr "Вывод проверяющей программы"
 
@@ -707,6 +784,9 @@ msgstr "Сообщения отключены"
 
 msgid "Clars"
 msgstr "Сообщения"
+
+msgid "Clars to all"
+msgstr "Сообщения всем участникам"
 
 msgid "Clear"
 msgstr "Очистить"
@@ -811,6 +891,12 @@ msgstr "Ошибка компиляции"
 
 msgid "Compiled"
 msgstr "Скомпилировано"
+
+msgid "Compiler output"
+msgstr "Вывод компилятора"
+
+msgid "Compiler/style checker output"
+msgstr "Вывод компилятора и программы проверки стиля"
 
 msgid "Compiling and running"
 msgstr "Компилируется и тестируется"
@@ -1023,8 +1109,14 @@ msgstr "ДИСКВАЛИФИЦИРОВАТЬ пользователей"
 msgid "Database error"
 msgstr "Ошибка базы данных"
 
+msgid "Date penalty"
+msgstr "Штраф по дате сдачи"
+
 msgid "Deactivate"
 msgstr "Деактивировать"
+
+msgid "Deadline"
+msgstr "Срок сдачи"
 
 msgid "Deadline for this problem is expired"
 msgstr "Срок сдачи данной задачи истёк"
@@ -1132,6 +1224,9 @@ msgstr "Объяснение причины дисквалификации"
 msgid "Disqualified"
 msgstr "Дисквалифицирован"
 
+msgid "Disqualified runs"
+msgstr "Дисквалифицированные посылки"
+
 msgid "Disqualified?"
 msgstr "Дисквалифицирован?"
 
@@ -1179,6 +1274,9 @@ msgstr "Конфигурация загружаемых посылок"
 
 msgid "Download selected runs"
 msgstr "Загрузить выбранные посылки"
+
+msgid "Dump data"
+msgstr "Выгрузить данные"
 
 msgid "Dump runs in CSV format"
 msgstr "Вывести базу посылок в CSV-формате"
@@ -1474,6 +1572,9 @@ msgstr "Полный путь"
 msgid "Full rejudge displayed runs"
 msgstr "Полностью перепроверить отображённые посылки"
 
+msgid "Full score"
+msgstr "Полный балл"
+
 msgid "Fully rejudge displayed runs"
 msgstr "Полностью перепроверить отображённые посылки"
 
@@ -1501,6 +1602,9 @@ msgstr "Общие поля регистрационной анкеты"
 msgid "General settings (contest.xml)"
 msgstr "Общие настройки (contest.xml)"
 
+msgid "Generate contest passwords"
+msgstr "Перегенерировать турнирные пароли"
+
 msgid "Generate random contest passwords"
 msgstr "Сгенерировать случайные турнирные пароли"
 
@@ -1512,6 +1616,9 @@ msgstr "Сгенерировать случайные регистрационн
 
 msgid "Generate random registration passwords!"
 msgstr "Сгенерировать случайные регистрационные пароли!"
+
+msgid "Generate registration passwords"
+msgstr "Перегенерировать регистрационные пароли"
 
 msgid "Global settings (serve.cfg)"
 msgstr "Глобальные настройки (serve.cfg)"
@@ -1627,7 +1734,7 @@ msgstr ""
 "в этом письме регистрационное имя и пароль при входе в систему\n"
 "по адресу: %Vu.\n"
 "\n"
-"Обратите внимание, что если Вы не сделаете этого в течении 24 часов\n"
+"Обратите внимание, что если Вы не сделаете этого в течение 24 часов\n"
 "с момента отсылки данного письма, регистрация будет аннулирована.\n"
 "\n"
 "регистрационное имя: %Ul\n"
@@ -1664,7 +1771,7 @@ msgstr ""
 "в этом письме регистрационное имя и пароль при входе в систему\n"
 "по адресу: %Vu.\n"
 "\n"
-"Обратите внимание, что если Вы не сделаете этого в течении 24 часов\n"
+"Обратите внимание, что если Вы не сделаете этого в течение 24 часов\n"
 "с момента отсылки данного письма, регистрация будет аннулирована.\n"
 "\n"
 "регистрационное имя: %Ul\n"
@@ -2240,6 +2347,9 @@ msgstr "Максимальное случайное число"
 msgid "May"
 msgstr "Май"
 
+msgid "May change!"
+msgstr "Может измениться!"
+
 msgid "Memory limit"
 msgstr "Ограничение памяти"
 
@@ -2535,6 +2645,9 @@ msgstr "Подключившиеся пользователи"
 msgid "Open"
 msgstr "Открыть"
 
+msgid "Open date"
+msgstr "Дата открытия"
+
 msgid "Open for participation"
 msgstr "Открыт для участия"
 
@@ -2802,6 +2915,9 @@ msgstr ""
 "Значение приоритета должно находиться в интервале [-16, 15]. Чем меньше "
 "значение приоритета, тем выше приоритет."
 
+msgid "Privileged users"
+msgstr "Привилегированные пользователи"
+
 msgid "Privileged users page"
 msgstr "Список привилегированных пользователей"
 
@@ -2817,9 +2933,6 @@ msgstr "Столбец Problem не определен\n"
 
 msgid "Problem configuration error"
 msgstr "Ошибка конфигурации задачи"
-
-msgid "Problem deadline"
-msgstr "Срок окончания сдачи"
 
 msgid "Problem filter expression"
 msgstr "Условие отбора задач"
@@ -2927,6 +3040,9 @@ msgstr "Только чтение?"
 msgid "Real time (sec)"
 msgstr "Астр. время (с)"
 
+msgid "Real time limit"
+msgstr "Ограничение реального времени"
+
 msgid "Recover forgot password"
 msgstr "Восстановить забытый пароль"
 
@@ -2989,6 +3105,9 @@ msgstr "Правила регистрации"
 
 msgid "Registration time"
 msgstr "Время регистрации на турнир"
+
+msgid "Regular users"
+msgstr "Обычные пользователи"
 
 msgid "Rejected"
 msgstr "Отклонено"
@@ -3151,6 +3270,9 @@ msgstr "Посылка"
 msgid "Run ID"
 msgstr "Номер решения"
 
+msgid "Run comments"
+msgstr "Комментарии к программе"
+
 msgid "Run filter expression"
 msgstr "Условие отбора посылок"
 
@@ -3159,6 +3281,9 @@ msgstr "Эта посылка не может быть изменена"
 
 msgid "Run log update failed"
 msgstr "Обновление журнала посылок не удалось"
+
+msgid "Run penalty"
+msgstr "Штраф за посылку"
 
 msgid "Run selection"
 msgstr "Выбор посылок"
@@ -3172,11 +3297,20 @@ msgstr "Ошибка выполнения"
 msgid "Running..."
 msgstr "Выполняется..."
 
+msgid "Runs accepted for testing"
+msgstr "Посылок, принятых на проверку"
+
 msgid "Runs being processed"
 msgstr "Обрабатываемые посылки"
 
 msgid "Runs pending review"
 msgstr "Посылок ожидает подтверждения"
+
+msgid "Runs pending testing"
+msgstr "Посылок ожидающих тестирования"
+
+msgid "Runs to change token info:"
+msgstr "Посылки для изменения информации о токене:"
 
 msgid "STATUS UPDATE FAILED!"
 msgstr "ОШИБКА ОБНОВЛЕНИЯ СТАТУСА!"
@@ -3204,6 +3338,9 @@ msgstr "Баллы"
 
 msgid "Score adjustment"
 msgstr "Поправка баллов"
+
+msgid "Score bonus"
+msgstr "Бонусные баллы"
 
 #, c-format
 msgid "Score column is undefined\n"
@@ -3254,9 +3391,6 @@ msgstr "Выбрать вариант"
 msgid "Send a message"
 msgstr "Отправить сообщение судьям"
 
-msgid "Send a message about this run"
-msgstr "Отправить комментарий к программе"
-
 msgid "Send a message to judges"
 msgstr "Отправить сообщение судьям"
 
@@ -3274,6 +3408,9 @@ msgstr "Отправить комментарий к программе"
 
 msgid "Send run comment and OK run"
 msgstr "Отправить комментарий к программе и принять посылку"
+
+msgid "Send run comment and REJECT run"
+msgstr "Отправить комментарий к программе и отклонить посылку"
 
 msgid "Send run comment and ignore run"
 msgstr "Отправить комментарий к программе и игнорировать посылку"
@@ -3396,6 +3533,9 @@ msgstr "Показать детали"
 msgid "Show hidden contests"
 msgstr "Показать скрытые турниры"
 
+msgid "Show tests"
+msgstr "Разрешить просмотр согласно правилам видимости тестов"
+
 msgid "Show unmanageable contests"
 msgstr "Показать неуправляемые турниры"
 
@@ -3440,6 +3580,9 @@ msgstr "Текст для этой посылки недоступен"
 
 msgid "Squeeze runs"
 msgstr "Сжать журнал"
+
+msgid "Stack limit"
+msgstr "Ограничение размера стека"
 
 msgid "Standings"
 msgstr "Положение участников"
@@ -3528,9 +3671,6 @@ msgstr "Улица, дом, квартира"
 
 msgid "Student"
 msgstr "Студент"
-
-msgid "Style checker output"
-msgstr "Вывод программы проверки стиля"
 
 msgid "Subject"
 msgstr "Тема"
@@ -3869,6 +4009,15 @@ msgstr "Кому (рег. номер)"
 msgid "To user login"
 msgstr "Кому (рег. имя)"
 
+msgid "Token counter"
+msgstr "Число использованных токенов"
+
+msgid "Tokenize displayed runs"
+msgstr "Редактировать токены отображённых посылок"
+
+msgid "Tokenize displayed runs!"
+msgstr "Изменить токены отображённых посылок!"
+
 msgid "Too few lines in CSV file"
 msgstr "В CSV-файле слишком мало строк"
 
@@ -4007,6 +4156,9 @@ msgstr "Использовать номер посылки"
 msgid "Use source language or content type suffix"
 msgstr "Использовать суффикс языка или типа файла"
 
+msgid "Use token"
+msgstr "Открыть протокол"
+
 msgid "Use user Id"
 msgstr "Использовать идентификатор пользователя"
 
@@ -4133,9 +4285,6 @@ msgstr "Варианты (variant.map)"
 msgid "View"
 msgstr "Просмотр"
 
-msgid "View IP addresses for users"
-msgstr "Посмотреть IP-адреса пользователей"
-
 msgid "View all"
 msgstr "Посмотреть всё"
 
@@ -4148,14 +4297,8 @@ msgstr "Просмотреть турнирные пароли"
 msgid "View details"
 msgstr "Посмотреть детали"
 
-msgid "View examination information"
-msgstr "Посмотреть информацию об экзаменуемых"
-
 msgid "View last 15"
 msgstr "Смотреть последние 15"
-
-msgid "View privileged users"
-msgstr "Посмотреть список привилегированных пользователей"
 
 msgid "View registration passwords"
 msgstr "Просмотреть регистрационные пароли"
@@ -4172,23 +4315,11 @@ msgstr "Посмотреть serve.cfg"
 msgid "View source"
 msgstr "Посмотреть исходный текст"
 
-msgid "View standings"
-msgstr "Посмотреть положение участников"
-
 msgid "View submitted answer"
 msgstr "Сданный ответ"
 
-msgid "View testing queue"
-msgstr "Просмотр очереди тестирования"
-
 msgid "View the problem statement and send a submission"
 msgstr "Посмотреть условие задачи и отправить решение"
-
-msgid "View users for IP addresses"
-msgstr "Просмотр пользователей по IP-адресам"
-
-msgid "View who is currently online"
-msgstr "Посмотреть подключившихся пользователей"
 
 msgid "Viewing advisors"
 msgstr "Просмотр руководителей"
@@ -4353,23 +4484,27 @@ msgstr ""
 "пароль для входа в систему. Этот пароль необходимо использовать для первого "
 "входа в систему, после чего его можно будет поменять."
 
-#, c-format
-msgid "You submit has been commented\n"
-msgstr "Ваша посылка была прокомментирована\n"
-
-#, c-format
-msgid "You submit has been commented and accepted\n"
-msgstr "Ваша посылка была прокомментирована и принята\n"
-
-#, c-format
-msgid "You submit has been commented and ignored\n"
-msgstr "Ваша посылка была прокомментирована и проигнорирована\n"
-
 msgid ""
 "Your request has caused an internal server error. Please, report it as a bug."
 msgstr ""
 "Ваш запрос вызвал внутреннюю ошибку сервера. Пожалуйста, сообщите об этом "
 "как об ошибке."
+
+#, c-format
+msgid "Your submit has been commented\n"
+msgstr "Ваша посылка была прокомментирована\n"
+
+#, c-format
+msgid "Your submit has been commented and accepted\n"
+msgstr "Ваша посылка была прокомментирована и принята\n"
+
+#, c-format
+msgid "Your submit has been commented and ignored\n"
+msgstr "Ваша посылка была прокомментирована и проигнорирована\n"
+
+#, c-format
+msgid "Your submit has been commented and rejected\n"
+msgstr "Ваша посылка была прокомментирована и отклонена\n"
 
 #, c-format
 msgid "Your submit has been commented in contest %d"
@@ -4757,12 +4892,3 @@ msgstr "ошибка записи"
 
 msgid "write error to server"
 msgstr "ошибка записи данных на сервер"
-
-#~ msgid "[Create new contest (New interface)]"
-#~ msgstr "[Создать новый турнир (Новый интерфейс)]"
-
-#~ msgid "[Edit current contest (New interface)]"
-#~ msgstr "[Редактировать текущий турнир (Новый интерфейс)]"
-
-#~ msgid "Registration data"
-#~ msgstr "Регистрационные данные"

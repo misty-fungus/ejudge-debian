@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: sock_op_put_fds.c 5513 2008-12-27 19:36:41Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
 

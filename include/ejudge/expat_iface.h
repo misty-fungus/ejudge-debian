@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: expat_iface.h 8209 2014-05-14 23:12:55Z cher $ */
+/* $Id$ */
 
 #ifndef __EXPAT_IFACE_H__
 #define __EXPAT_IFACE_H__ 1

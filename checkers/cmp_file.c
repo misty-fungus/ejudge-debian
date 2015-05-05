@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: cmp_file.c 7460 2013-10-21 21:35:57Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2004-2013 Alexander Chernov <cher@ejudge.ru> */
 

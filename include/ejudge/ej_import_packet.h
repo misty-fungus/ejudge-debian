@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_import_packet.h 8218 2014-05-15 15:02:06Z cher $ */
+/* $Id$ */
 #ifndef __EJ_IMPORT_PACKET_H__
 #define __EJ_IMPORT_PACKET_H__
 

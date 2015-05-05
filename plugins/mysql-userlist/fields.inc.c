@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: fields.inc.c 5047 2008-09-10 21:33:25Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
 

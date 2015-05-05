@@ -1,4 +1,4 @@
-/* $Id: mkChangeLog.c 7753 2014-01-03 19:59:12Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 1999-2005 Alexander Chernov <cher@ispras.ru> */
 
@@ -428,7 +428,7 @@ exitfunc(void)
 }
 
 static char const cvsid[] =
-"$Id: mkChangeLog.c 7753 2014-01-03 19:59:12Z cher $";
+"$Id$";
 static char const version[] = "1.0";
 static char const copyright[] =
 "Copyright (C) 1999-2005 Alexander Chernov <cher@ispras.ru>\n\n"

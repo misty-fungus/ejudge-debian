@@ -1,5 +1,5 @@
 /* -*- mode: C -*- */
-/* $Id: writehf.c 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 

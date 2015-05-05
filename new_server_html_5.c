@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_5.c 8583 2014-09-02 19:36:37Z cher $ */
 
-/* Copyright (C) 2007-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2007-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -86,11 +85,13 @@ get_client_url(
   return buf;
 }
 
+/*
 static const unsigned char * const form_row_attrs[]=
 {
   " bgcolor=\"#d0d0d0\"",
   " bgcolor=\"#e0e0e0\"",
 };
+*/
 
 extern const unsigned char * const ns_symbolic_action_table[];
 
@@ -1618,7 +1619,7 @@ action_error_page(
           ARMOR(text));
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
   html_armor_free(&ab);
 }
@@ -2064,7 +2065,7 @@ submit_general_editing(
     ns_refresh_page(fout, phr, NEW_SRV_ACTION_REG_VIEW_GENERAL, 0);
   }
 
-  l10n_setlocale(0);
+  l10n_resetlocale();
   xfree(log_t);
 }
 

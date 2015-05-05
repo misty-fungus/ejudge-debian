@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: style_archive.c 8204 2014-05-14 22:06:18Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: csv.h 8207 2014-05-14 22:34:55Z cher $ */
+/* $Id$ */
 #ifndef __CSV_H__
 #define __CSV_H__
 

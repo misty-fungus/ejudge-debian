@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: html.h 8232 2014-05-16 19:06:19Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -126,6 +125,7 @@ calc_kirov_score(
         time_t start_time,
         int separate_user_score,
         int user_mode,
+        int token_flags,
         const struct run_entry *pe,
         const struct section_problem_data *pr,
         int attempts,
@@ -188,6 +188,11 @@ score_view_display(
         size_t size,
         const struct section_problem_data *prob,
         int score);
+void
+score_view_display_f(
+        FILE *out_f,
+        const struct section_problem_data *prob,
+        int score);
 
 /* run field selection flags */
 enum
@@ -219,6 +224,7 @@ enum
   RUN_VIEW_RUN_UUID,
   RUN_VIEW_EOLN_TYPE,
   RUN_VIEW_STORE_FLAGS,
+  RUN_VIEW_TOKENS,
 
   RUN_VIEW_LAST,
 
@@ -234,5 +240,14 @@ enum
   | (1 << RUN_VIEW_TEST)
   | (1 << RUN_VIEW_SCORE)
 };
+
+struct testing_report_file_content;
+struct html_armor_buffer;
+void
+html_print_testing_report_file_content(
+        FILE *out_f,
+        struct html_armor_buffer *pab,
+        struct testing_report_file_content *fc,
+        int type);
 
 #endif /* __HTML_H__ */

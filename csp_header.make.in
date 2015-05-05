@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: csp_header.make.in 8257 2014-05-27 19:09:19Z cher $
+# $Id$
 
 # Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 

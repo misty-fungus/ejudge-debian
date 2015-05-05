@@ -1,7 +1,7 @@
 { Copyright(c) SPb-IFMO CTD Developers, 2000 }
 { Copyright(c) Anton Sukhanov, 1996 }
 
-{ $Id: testlib.pas 4561 2007-12-02 10:58:25Z cher $ }
+{ $Id$ }
 
 { Evaluating programs support stuff }
 

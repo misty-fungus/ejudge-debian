@@ -1,4 +1,4 @@
-/* $Id: positions.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_POSITIONS_H__
 #define __REUSE_POSITIONS_H__

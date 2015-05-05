@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: checkutils.h 5911 2010-06-26 08:47:12Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
 

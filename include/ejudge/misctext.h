@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: misctext.h 8211 2014-05-15 08:23:47Z cher $ */
 #ifndef __MISCTEXT_H__
 #define __MISCTEXT_H__
 
-/* Copyright (C) 2000-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -181,6 +180,10 @@ size_t_to_size_str(
         unsigned char *buf,
         size_t buf_size,
         size_t num);
+void
+size_t_to_size_str_f(
+        FILE *f,
+        size_t num);
 
 void
 text_table_number_lines(
@@ -257,6 +260,13 @@ html_print_by_line(
         int max_line_length,
         unsigned char const *s,
         size_t size);
+unsigned char *
+html_print_by_line_str(
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        unsigned char const *s,
+        size_t size);
 
 int
 size_str_to_num(const unsigned char *str, int *p_num);
@@ -270,5 +280,8 @@ size_t csv_armored_memlen(char const *str, size_t size);
 size_t csv_armored_strlen(char const *str);
 int csv_armor_needed(const unsigned char *str, size_t *psz);
 const unsigned char *csv_armor_buf(struct html_armor_buffer *pb, const unsigned char *s);
+
+const unsigned char *
+skip_message_headers(const unsigned char *intxt);
 
 #endif /* __MISCTEXT_H__ */

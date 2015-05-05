@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: iterators.h 8199 2014-05-14 20:41:28Z cher $ */
+/* $Id$ */
 
 #ifndef __ITERATORS_H__
 #define __ITERATORS_H__

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: list_all_users.c 5801 2010-05-23 13:28:20Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 

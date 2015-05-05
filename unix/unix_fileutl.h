@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: unix_fileutl.h 5681 2010-01-19 10:02:25Z cher $ */
+/* $Id$ */
 #ifndef __UNIX_FILEUTL_H__
 #define __UNIX_FILEUTL_H__
 

@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.win32.in 7758 2014-01-03 21:26:55Z cher $
+# $Id$
 # @configure_input@
 
 # Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */

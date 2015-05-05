@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: build_support.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 #ifndef __BUILD_SUPPORT_H__
 #define __BUILD_SUPPORT_H__
 

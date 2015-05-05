@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super-serve.h 8218 2014-05-15 15:02:06Z cher $ */
+/* $Id$ */
 #ifndef __SUPER_SERVE_H__
 #define __SUPER_SERVE_H__
 
@@ -155,6 +155,7 @@ struct sid_state
   int *loc_cs_map;              /* map from local ids to compile ids */
   int *cs_loc_map;              /* reverse map */
   unsigned char **lang_opts;
+  unsigned char **lang_libs;
   int *lang_flags;
 
   /* abstract problems */
@@ -208,9 +209,6 @@ struct sid_state
   unsigned char *stand2_footer_text;
   unsigned char *plog_header_text;
   unsigned char *plog_footer_text;
-
-  unsigned char *var_header_text;
-  unsigned char *var_footer_text;
 
   unsigned char *compile_home_dir;
 

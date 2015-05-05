@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new_server_match.h 8233 2014-05-17 06:07:09Z cher $ */
+/* $Id$ */
 
 #ifndef __NEW_SERVER_MATCH_H__
 #define __NEW_SERVER_MATCH_H__

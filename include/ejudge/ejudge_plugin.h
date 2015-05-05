@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ejudge_plugin.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 
 #ifndef __EJUDGE_PLUGIN_H__
 #define __EJUDGE_PLUGIN_H__

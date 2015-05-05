@@ -1,5 +1,5 @@
 #!/bin/bash
-# $Id: runjava.in 5550 2009-02-19 18:14:43Z cher $
+# $Id$
 # Copyright (c) 2004-2008 Alexander Chernov <cher@ejudge.ru>
 
 # assume that we have single argument

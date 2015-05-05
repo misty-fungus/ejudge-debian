@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: cfrontenv.h 7720 2014-01-03 10:41:03Z cher $ */
+/* $Id$ */
 
 #ifndef __CFRONTENV_H__
 #define __CFRONTENV_H__

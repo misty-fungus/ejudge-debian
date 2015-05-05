@@ -1,7 +1,6 @@
 /* -*- mode: fundamental -*- */
-/* $Id: filter_expr.y 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -182,6 +181,10 @@ static void *filter_expr_user_data;
 %token TOK_CUREOLN_TYPE "cureoln_type"
 %token TOK_STORE_FLAGS "store_flags"
 %token TOK_CURSTORE_FLAGS "curstore_flags"
+%token TOK_TOKEN_FLAGS "token_flags"
+%token TOK_CURTOKEN_FLAGS "curtoken_flags"
+%token TOK_TOKEN_COUNT "token_count"
+%token TOK_CURTOKEN_COUNT "curtoken_count"
 %token TOK_INUSERGROUPINT
 %token TOK_INT       "int"
 %token TOK_STRING    "string"
@@ -395,8 +398,14 @@ exprA :
 | "eoln_type" { $1->kind = TOK_CUREOLN_TYPE; $$ = $1; }
 | "cureoln_type" { $$ = $1; }
 | "store_flags" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
-| "store_flags" { $1->kind = TOK_STORE_FLAGS; $$ = $1; }
+| "store_flags" { $1->kind = TOK_CURSTORE_FLAGS; $$ = $1; }
 | "curstore_flags" { $$ = $1; }
+| "token_flags" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
+| "token_flags" { $1->kind = TOK_CURTOKEN_FLAGS; $$ = $1; }
+| "curtoken_flags" { $$ = $1; }
+| "token_count" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }
+| "token_count" { $1->kind = TOK_CURTOKEN_COUNT; $$ = $1; }
+| "curtoken_count" { $$ = $1; }
 | "total_score" { $1->kind = TOK_CURTOTAL_SCORE; $$ = $1; }
 | "cypher" { $1->kind = TOK_CURCYPHER; $$ = $1; }
 | "cypher" '(' expr0 ')' { $1->v.t[0] = check_int($3); $$ = $1; }

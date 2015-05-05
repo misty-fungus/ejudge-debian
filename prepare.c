@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: prepare.c 8586 2014-09-03 09:17:39Z cher $ */
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -31,6 +30,7 @@
 #include "ejudge/serve_state.h"
 #include "ejudge/xml_utils.h"
 #include "ejudge/compat.h"
+#include "ejudge/variant_map.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -331,6 +331,8 @@ static const struct config_parse_info section_global_params[] =
 
   GLOBAL_PARAM(load_user_group, "x"),
 
+  GLOBAL_PARAM(tokens, "S"),
+
   GLOBAL_PARAM(compile_max_vm_size, "z"),
   GLOBAL_PARAM(compile_max_stack_size, "z"),
   GLOBAL_PARAM(compile_max_file_size, "z"),
@@ -366,6 +368,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(score_latest, "d"),
   PROBLEM_PARAM(score_latest_or_unmarked, "d"),
   PROBLEM_PARAM(score_latest_marked, "d"),
+  PROBLEM_PARAM(score_tokenized, "d"),
   PROBLEM_PARAM(time_limit, "d"),
   PROBLEM_PARAM(time_limit_millis, "d"),
   PROBLEM_PARAM(real_time_limit, "d"),
@@ -394,7 +397,12 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(disable_testing, "d"),
   PROBLEM_PARAM(disable_user_submit, "d"),
   PROBLEM_PARAM(disable_tab, "d"),
+  PROBLEM_PARAM(unrestricted_statement, "d"),
   PROBLEM_PARAM(restricted_statement, "d"),
+  PROBLEM_PARAM(hide_file_names, "d"),
+  PROBLEM_PARAM(hide_real_time_limit, "d"),
+  PROBLEM_PARAM(enable_tokens, "d"),
+  PROBLEM_PARAM(tokens_for_user_ac, "d"),
   PROBLEM_PARAM(disable_submit_after_ok, "d"),
   PROBLEM_PARAM(disable_security, "d"),
   PROBLEM_PARAM(enable_compilation, "d"),
@@ -410,6 +418,8 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(ignore_unmarked, "d"),
   PROBLEM_PARAM(disable_stderr, "d"),
   PROBLEM_PARAM(enable_process_group, "d"),
+  PROBLEM_PARAM(hide_variant, "d"),
+  PROBLEM_PARAM(autoassign_variants, "d"),
   PROBLEM_PARAM(enable_text_form, "d"),
   PROBLEM_PARAM(stand_ignore_score, "d"),
   PROBLEM_PARAM(stand_last_column, "d"),
@@ -477,6 +487,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(style_checker_cmd, "s"),
   PROBLEM_PARAM(test_checker_cmd, "S"),
   PROBLEM_PARAM(init_cmd, "S"),
+  PROBLEM_PARAM(start_cmd, "S"),
   PROBLEM_PARAM(solution_src, "S"),
   PROBLEM_PARAM(solution_cmd, "S"),
   PROBLEM_PARAM(test_pat, "s"),
@@ -488,6 +499,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(score_bonus, "s"),
   PROBLEM_PARAM(open_tests, "s"),
   PROBLEM_PARAM(final_open_tests, "s"),
+  PROBLEM_PARAM(token_open_tests, "S"),
   PROBLEM_PARAM(statement_file, "s"),
   PROBLEM_PARAM(alternatives_file, "s"),
   PROBLEM_PARAM(plugin_file, "s"),
@@ -500,6 +512,8 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(extid, "S"),
   PROBLEM_PARAM(normalization, "s"),
   PROBLEM_PARAM(super_run_dir, "S"),
+  PROBLEM_PARAM(tokens, "S"),
+  PROBLEM_PARAM(umask, "S"),
 
   { 0, 0, 0, 0 }
 };
@@ -825,6 +839,8 @@ global_init_func(struct generic_section_config *gp)
   p->compile_max_vm_size = -1L;
   p->compile_max_stack_size = -1L;
   p->compile_max_file_size = -1L;
+
+  p->enable_tokens = -1;
 }
 
 static void free_user_adjustment_info(struct user_adjustment_info*);
@@ -850,7 +866,7 @@ prepare_global_free_func(struct generic_section_config *gp)
   sarray_free(p->stand_row_attr);
   sarray_free(p->stand_page_row_attr);
   sarray_free(p->stand_page_col_attr);
-  prepare_free_variant_map(p->variant_map);
+  variant_map_free(p->variant_map);
   free_user_adjustment_info(p->user_adjustment_info);
   free_user_adjustment_map(p->user_adjustment_map);
   xfree(p->unhandled_vars);
@@ -863,6 +879,8 @@ prepare_global_free_func(struct generic_section_config *gp)
   xfree(p->contest_stop_cmd);
   sarray_free(p->load_user_group);
   xfree(p->super_run_dir);
+  xfree(p->tokens);
+  xfree(p->token_info);
 
   memset(p, 0xab, sizeof(*p));
   xfree(p);
@@ -913,6 +931,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->score_latest = -1;
   p->score_latest_or_unmarked = -1;
   p->score_latest_marked = -1;
+  p->score_tokenized = -1;
   p->time_limit = -1;
   p->time_limit_millis = -1;
   p->real_time_limit = -1;
@@ -943,7 +962,11 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->disable_testing = -1;
   p->disable_user_submit = -1;
   p->disable_tab = -1;
-  p->restricted_statement = -1;
+  p->unrestricted_statement = -1;
+  p->hide_file_names = -1;
+  p->hide_real_time_limit = -1;
+  p->enable_tokens = -1;
+  p->tokens_for_user_ac = -1;
   p->disable_submit_after_ok = -1;
   p->disable_security = -1;
   p->enable_compilation = -1;
@@ -959,6 +982,8 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->ignore_unmarked = -1;
   p->disable_stderr = -1;
   p->enable_process_group = -1;
+  p->hide_variant = -1;
+  p->autoassign_variants = -1;
   p->enable_text_form = -1;
   p->stand_ignore_score = -1;
   p->stand_last_column = -1;
@@ -996,10 +1021,14 @@ prepare_problem_free_func(struct generic_section_config *gp)
   xfree(p->x_score_tests);
   xfree(p->test_checker_cmd);
   xfree(p->init_cmd);
+  xfree(p->start_cmd);
   xfree(p->solution_src);
   xfree(p->solution_cmd);
   xfree(p->super_run_dir);
   xfree(p->test_score_list);
+  xfree(p->tokens);
+  xfree(p->token_info);
+  xfree(p->umask);
   sarray_free(p->test_sets);
   sarray_free(p->date_penalty);
   sarray_free(p->group_start_date);
@@ -1025,6 +1054,8 @@ prepare_problem_free_func(struct generic_section_config *gp)
   xfree(p->score_bonus_val);
   xfree(p->open_tests_val);
   xfree(p->final_open_tests_val);
+  xfree(p->token_open_tests);
+  xfree(p->token_open_tests_val);
   prepare_free_testsets(p->ts_total, p->ts_infos);
   free_deadline_penalties(p->dp_total, p->dp_infos);
   free_personal_deadlines(p->pd_total, p->pd_infos);
@@ -1653,8 +1684,8 @@ parse_personal_deadlines(char **pdstr, int *p_total,
     if (sscanf(pdstr[i], "%s%s%s%n", s1, s2, s3, &n) == 3 && !pdstr[i][n]) {
       strcat(s2, " ");
       strcat(s2, s3);
-    } else if (!sscanf(pdstr[i], "%s%s%n", s1, s2, &n) == 2 && !pdstr[i][n]) {
-    } else if (!sscanf(pdstr[i], "%s%n", s1, &n) == 1 && !pdstr[i][n]) {
+    } else if (sscanf(pdstr[i], "%s%s%n", s1, s2, &n) == 2 && !pdstr[i][n]) {
+    } else if (sscanf(pdstr[i], "%s%n", s1, &n) == 1 && !pdstr[i][n]) {
       strcpy(s2, "2038/01/19");
     }
 
@@ -1720,483 +1751,6 @@ prepare_free_group_dates(struct group_dates *gd)
   }
   xfree(gd->info);
   memset(gd, 0, sizeof(*gd));
-}
-
-void
-prepare_free_variant_map(struct variant_map *p)
-{
-  int i;
-
-  if (!p) return;
-
-  for (i = 0; i < p->u; i++) {
-    xfree(p->v[i].login);
-    xfree(p->v[i].name);
-    xfree(p->v[i].variants);
-  }
-  xfree(p->prob_map);
-  xfree(p->prob_rev_map);
-  xfree(p->v);
-  xfree(p->user_map);
-  memset(p, 0xab, sizeof(*p));
-  xfree(p);
-}
-
-static int
-get_variant_map_version(
-        FILE *log_f,            /* to write diagnostic messages */
-        FILE *f,                /* to read from */
-        FILE *head_f)           /* to write the file header (m.b. NULL) */
-{
-  int vintage = -1;
-  int c;
-  const unsigned char *const pvm = "parse_variant_map";
-
-  /* in stream mode ignore everything before variant_map,
-     including <?xml ... ?>, <!-- ... -->
-  */
-  if ((c = getc(f)) == EOF) goto unexpected_EOF;
-  if (head_f) putc(c, head_f);
-  while (isspace(c)) {
-    c = getc(f);
-    if (head_f) putc(c, head_f);
-  }
-  if (c == EOF) goto unexpected_EOF;
-  if (c != '<') goto invalid_header;
-  if ((c = getc(f)) == EOF) goto unexpected_EOF;
-  if (head_f) putc(c, head_f);
-  if (c == '?') {
-    if ((c = getc(f)) == EOF) goto unexpected_EOF;
-    if (head_f) putc(c, head_f);
-    while (1) {
-      if (c != '?') {
-        if ((c = getc(f)) == EOF) goto unexpected_EOF;
-        if (head_f) putc(c, head_f);
-        continue;
-      }
-      if ((c = getc(f)) == EOF) goto unexpected_EOF;
-      if (head_f) putc(c, head_f);
-      if (c == '>') break;
-    }
-    if ((c = getc(f)) == EOF) goto unexpected_EOF;
-    if (head_f) putc(c, head_f);
-  }
-  while (1) {
-    while (isspace(c)) {
-      c = getc(f);
-      if (head_f) putc(c, head_f);
-    }
-    if (c == EOF) goto unexpected_EOF;
-    if (c != '<') goto invalid_header;
-    if ((c = getc(f)) == EOF) goto unexpected_EOF;
-    if (head_f) putc(c, head_f);
-    if (c == 'v') break;
-    if (c != '!') goto invalid_header;
-    if ((c = getc(f)) == EOF) goto unexpected_EOF;
-    if (head_f) putc(c, head_f);
-    while (1) {
-      if (c != '-') {
-        if ((c = getc(f)) == EOF) goto unexpected_EOF;
-        if (head_f) putc(c, head_f);
-        continue;
-      }
-      if ((c = getc(f)) == EOF) goto unexpected_EOF;
-      if (head_f) putc(c, head_f);
-      if (c == '>') break;
-    }
-    if ((c = getc(f)) == EOF) goto unexpected_EOF;
-    if (head_f) putc(c, head_f);
-  }
-  ungetc(c, f);
-
-  if (fscanf(f, "variant_map version = \"%d\" >", &vintage) != 1)
-    goto invalid_header;
-  //if (head_f) fprintf(head_f, "ariant_map version = \"%d\" >", vintage);
-  if ((c = getc(f)) == EOF) goto unexpected_EOF;
-  //if (head_f) putc(c, head_f);
-  while (c != '\n') {
-    if ((c = getc(f)) == EOF)
-      goto unexpected_EOF;
-    //if (head_f) putc(c, head_f);
-  }
-
-  return vintage;
-
- unexpected_EOF:
-  fprintf(log_f, "%s: unexpected EOF in variant map file header\n", pvm);
-  return -1;
-
- invalid_header:
-  fprintf(log_f, "%s: invalid variant map file header\n", pvm);
-  return -1;
-}
-
-static int
-parse_vm_v1(
-        FILE *log_f,
-        const unsigned char *path,
-        FILE *f,
-        struct variant_map *pmap,
-        FILE *foot_f)
-{
-  unsigned char buf[1200];
-  unsigned char login_buf[sizeof(buf)];
-  unsigned char *p, *q;
-  int len, n, j, v, c, rowcnt;
-  const unsigned char * const pvm = "parse_variant_map";
-  char *eptr;
-
-  while (fgets(buf, sizeof(buf), f)) {
-    if ((p = strchr(buf, '#'))) *p = 0;
-    len = strlen(buf);
-    if (len > 1024) {
-      fprintf(log_f, "%s: line is too long in '%s'\n", pvm, path);
-      goto failed;
-    }
-    while (len > 0 && isspace(buf[len - 1])) buf[--len] = 0;
-    if (!len) continue;
-    if (!strcmp(buf, "</variant_map>")) break;
-
-    if (pmap->u >= pmap->a) {
-      pmap->a *= 2;
-      pmap->v = (typeof(pmap->v)) xrealloc(pmap->v,
-                                           pmap->a * sizeof(pmap->v[0]));
-    }
-    memset(&pmap->v[pmap->u], 0, sizeof(pmap->v[0]));
-
-    p = buf;
-    if (sscanf(p, "%s%n", login_buf, &n) != 1) {
-      fprintf(log_f, "%s: cannot read team login\n", pvm);
-      goto failed;
-    }
-    p += n;
-    pmap->v[pmap->u].login = xstrdup(login_buf);
-
-    // count the number of digits in the row
-    q = p;
-    rowcnt = 0;
-    while (1) {
-      while (isspace(*q)) q++;
-      if (!*q) break;
-      if (*q < '0' || *q > '9') goto invalid_variant_line;
-      errno = 0;
-      v = strtol(q, &eptr, 10);
-      if (errno) goto invalid_variant_line;
-      q = eptr;
-      if (*q && !isspace(*q)) goto invalid_variant_line;
-      rowcnt++;
-    }
-
-    pmap->v[pmap->u].var_num = rowcnt;
-    XCALLOC(pmap->v[pmap->u].variants, rowcnt + 1);
-
-    for (j = 1; j <= rowcnt; j++) {
-      if (sscanf(p, "%d%n", &v, &n) != 1) abort();
-      if (v < 0) goto invalid_variant_line;
-      p += n;
-      pmap->v[pmap->u].variants[j] = v;
-    }
-    pmap->u++;
-  }
-  if (foot_f) {
-    while ((c = getc(f)) != EOF)
-      putc(c, foot_f);
-  }
-  return 0;
-
- invalid_variant_line:
-  fprintf(log_f, "%s: invalid variant line `%s' for user %s\n",
-          pvm, buf, login_buf);
-  goto failed;
-
- failed:
-  return -1;
-}
-
-static int
-parse_vm_v2(
-        FILE *log_f,
-        const unsigned char *path,
-        FILE *f,
-        struct variant_map *pmap,
-        FILE *foot_f)
-{
-  unsigned char buf[1200];
-  unsigned char login_buf[sizeof(buf)];
-  unsigned char *p, *q;
-  char *eptr;
-  int len, n, j, v, c, rowcnt;
-  const unsigned char * const pvm = "parse_variant_map";
-
-  while (fgets(buf, sizeof(buf), f)) {
-    if ((p = strchr(buf, '#'))) *p = 0;
-    len = strlen(buf);
-    if (len > 1024) {
-      fprintf(log_f, "%s: line is too long in '%s'\n", pvm, path);
-      goto failed;
-    }
-    while (len > 0 && isspace(buf[len - 1])) buf[--len] = 0;
-    if (!len) continue;
-    if (!strcmp(buf, "</variant_map>")) break;
-
-    if (pmap->u >= pmap->a) {
-      pmap->a *= 2;
-      pmap->v = (typeof(pmap->v)) xrealloc(pmap->v,
-                                           pmap->a * sizeof(pmap->v[0]));
-    }
-    memset(&pmap->v[pmap->u], 0, sizeof(pmap->v[0]));
-
-    p = buf;
-    if (sscanf(p, "%s%n", login_buf, &n) != 1) {
-      fprintf(log_f, "%s: cannot read team login\n", pvm);
-      goto failed;
-    }
-    p += n;
-    pmap->v[pmap->u].login = xstrdup(login_buf);
-
-    if (sscanf(p, " variant %d%n", &v, &n) == 1) {
-      if (v < 0) {
-        fprintf(log_f, "%s: invalid variant\n", pvm);
-        goto failed;
-      }
-      p += n;
-      pmap->v[pmap->u].real_variant = v;
-      if (!*p) {
-        pmap->u++;
-        continue;
-      }
-      if (sscanf(p, " virtual %d%n", &v, &n) != 1 || v < 0) {
-        fprintf(log_f, "%s: invalid virtual variant\n", pvm);
-        goto failed;
-      }
-      pmap->v[pmap->u].virtual_variant = v;
-      pmap->u++;
-      continue;
-    }
-
-    // count the number of digits in the row
-    q = p;
-    rowcnt = 0;
-    while (1) {
-      while (isspace(*q)) q++;
-      if (!*q) break;
-      if (*q < '0' || *q > '9') goto invalid_variant_line;
-      errno = 0;
-      v = strtol(q, &eptr, 10);
-      if (errno) goto invalid_variant_line;
-      q = eptr;
-      if (*q && !isspace(*q)) goto invalid_variant_line;
-      rowcnt++;
-    }
-
-    pmap->v[pmap->u].var_num = rowcnt;
-    XCALLOC(pmap->v[pmap->u].variants, rowcnt + 1);
-
-    for (j = 1; j <= rowcnt; j++) {
-      if (sscanf(p, "%d%n", &v, &n) != 1) abort();
-      if (v < 0) goto invalid_variant_line;
-      p += n;
-      pmap->v[pmap->u].variants[j] = v;
-    }
-    pmap->u++;
-  }
-  if (foot_f) {
-    while ((c = getc(f)) != EOF)
-      putc(c, foot_f);
-  }
-  return 0;
-
- invalid_variant_line:
-  fprintf(log_f, "%s: invalid variant line `%s' for user %s\n",
-          pvm, buf, login_buf);
-  goto failed;
-
- failed:
-  return -1;
-}
-
-struct variant_map *
-prepare_parse_variant_map(
-        FILE *log_f,
-        serve_state_t state,
-        const unsigned char *path,
-        unsigned char **p_header_txt,
-        unsigned char **p_footer_txt)
-{
-  int vintage, i, j, k, var_prob_num;
-  FILE *f = 0;
-  struct variant_map *pmap = 0;
-  const unsigned char * const pvm = "parse_variant_map";
-  FILE *head_f = 0, *foot_f = 0;
-  char *head_t = 0, *foot_t = 0;
-#if HAVE_OPEN_MEMSTREAM - 0
-  size_t head_z = 0, foot_z = 0;
-#endif
-  const struct section_problem_data *prob;
-  int *newvar;
-
-#if HAVE_OPEN_MEMSTREAM - 0
-  if (p_header_txt) {
-    head_f = open_memstream(&head_t, &head_z);
-  }
-  if (p_footer_txt) {
-    foot_f = open_memstream(&foot_t, &foot_z);
-  }
-#endif
-
-  XCALLOC(pmap, 1);
-  pmap->a = 16;
-  XCALLOC(pmap->v, pmap->a);
-
-  if (state) {
-    XCALLOC(pmap->prob_map, state->max_prob + 1);
-    XCALLOC(pmap->prob_rev_map, state->max_prob + 1);
-    pmap->var_prob_num = 0;
-    for (i = 1; i <= state->max_prob; i++) {
-      if (!state->probs[i] || state->probs[i]->variant_num <= 0) continue;
-      pmap->prob_map[i] = ++pmap->var_prob_num;
-      pmap->prob_rev_map[pmap->var_prob_num] = i;
-    }
-  }
-
-  if (!(f = fopen(path, "r"))) {
-    fprintf(log_f, "%s: cannot open variant map file '%s'\b", pvm, path);
-    goto failed;
-  }
-  if ((vintage = get_variant_map_version(log_f, f, head_f)) < 0) goto failed;
-
-  switch (vintage) {
-  case 1:
-    if (parse_vm_v1(log_f, path, f, pmap, foot_f) < 0) goto failed;
-    break;
-  case 2:
-    if (parse_vm_v2(log_f, path, f, pmap, foot_f) < 0) goto failed;
-    break;
-  default:
-    fprintf(log_f, "%s: cannot handle variant map file '%s' version %d\n",
-            pvm, path, vintage);
-    goto failed;
-  }
-
-  if (ferror(f)) {
-    fprintf(log_f, "%s: input error from '%s'\n", pvm, path);
-    goto failed;
-  }
-
-  if (state) {
-    for (i = 0; i < pmap->u; i++) {
-      if (pmap->v[i].real_variant > 0) {
-        XCALLOC(pmap->v[i].variants, pmap->var_prob_num + 1);
-        for (j = 1; j <= pmap->var_prob_num; j++) {
-          pmap->v[i].variants[j] = pmap->v[i].real_variant;
-        }
-      } else {
-        if (pmap->v[i].var_num > pmap->var_prob_num) {
-          pmap->v[i].var_num = pmap->var_prob_num;
-        } else if (pmap->v[i].var_num < pmap->var_prob_num) {
-          int *vv = 0;
-          XCALLOC(vv, pmap->var_prob_num + 1);
-          if (pmap->v[i].variants) {
-            memcpy(vv, pmap->v[i].variants,
-                   (pmap->v[i].var_num + 1) * sizeof(vv[0]));
-          }
-          xfree(pmap->v[i].variants);
-          pmap->v[i].variants = vv;
-          pmap->v[i].var_num = pmap->var_prob_num;
-        }
-        if (pmap->v[i].var_num != pmap->var_prob_num) {
-          fprintf(log_f, "%s: invalid number of entries for user %s\n",
-                  pvm, pmap->v[i].login);
-          goto failed;
-        }
-      }
-
-      for (j = 1; j <= pmap->var_prob_num; j++) {
-        k = pmap->prob_rev_map[j];
-        ASSERT(k > 0 && k <= state->max_prob);
-        prob = state->probs[k];
-        ASSERT(prob && prob->variant_num > 0);
-        if (pmap->v[i].real_variant > prob->variant_num) {
-          fprintf(log_f, "%s: variant %d is invalid for (%s, %s)\n",
-                  pvm, pmap->v[i].variants[j], pmap->v[i].login,
-                  prob->short_name);
-          goto failed;
-        }
-      }
-    }
-  } else {
-    // set pmap->var_prob_num based on the given variant specifications
-    // FIXME: super_html_3.c expects, that variants are listed starting
-    // from 0, but parse_variant_map parses variants starting from 1...
-    var_prob_num = 0;
-    for (i = 0; i < pmap->u; i++) {
-      if (pmap->v[i].var_num > var_prob_num)
-        var_prob_num = pmap->v[i].var_num;
-    }
-    for (i = 0; i < pmap->u; i++) {
-      if (pmap->v[i].var_num < var_prob_num) {
-        XCALLOC(newvar, var_prob_num + 1);
-        memcpy(newvar, pmap->v[i].variants, (pmap->v[i].var_num + 1) * sizeof(newvar[0]));
-        xfree(pmap->v[i].variants);
-        pmap->v[i].variants = newvar;
-        pmap->v[i].var_num = var_prob_num;
-      }
-      memmove(pmap->v[i].variants, pmap->v[i].variants + 1, pmap->v[i].var_num * sizeof(newvar[0]));
-    }
-    pmap->var_prob_num = var_prob_num;
-
-    /*
-    fprintf(stderr, "Parsed variant map version %d\n", vintage);
-    for (i = 0; i < pmap->u; i++) {
-      fprintf(stderr, "%s: ", pmap->v[i].login);
-      for (j = 0; j < pmap->var_prob_num; j++)
-        fprintf(stderr, "%d ",
-                pmap->v[i].variants[j]);
-      fprintf(stderr, "\n");
-    }
-    */
-  }
-  
-  if (head_f) {
-    close_memstream(head_f);
-    head_f = 0;
-  }
-  if (p_header_txt) {
-    *p_header_txt = head_t;
-    head_t = 0;
-  }
-  xfree(head_t); head_t = 0;
-
-  if (foot_f) {
-    close_memstream(foot_f);
-    foot_f = 0;
-  }
-  if (p_footer_txt) {
-    *p_footer_txt = foot_t;
-    foot_t = 0;
-  }
-  xfree(foot_t); foot_t = 0;
-
-  fclose(f);
-  return pmap;
-
- failed:
-  if (pmap) {
-    for (i = 0; i < pmap->u; i++) {
-      xfree(pmap->v[i].login);
-      xfree(pmap->v[i].name);
-      xfree(pmap->v[i].variants);
-    }
-    xfree(pmap->user_map);
-    xfree(pmap->v);
-    xfree(pmap->prob_map);
-    xfree(pmap->prob_rev_map);
-    xfree(pmap);
-  }
-  if (f) fclose(f);
-  if (head_f) fclose(head_f);
-  xfree(head_t);
-  return 0;
 }
 
 static void
@@ -2455,6 +2009,178 @@ prepare_unparse_secure_exec_type(int value)
 {
   if (value < 0 || value >= SEXEC_TYPE_LAST) value = 0;
   return secure_exec_type_str[value];
+}
+
+static int
+parse_tokens_periodic(
+        const unsigned char *start,
+        const unsigned char **p_end,
+        int *p_sign,
+        int *p_value1,
+        int *p_value2)
+{
+  int ss = 1;
+  const unsigned char *p = start, *ep;
+  if (*p == '+') {
+  } else if (*p == '-') {
+    ss = -1;
+  } else {
+    return 0;
+  }
+  ++p;
+  errno = 0;
+  int value1 = strtol(p, (char**) &ep, 10);
+  if (errno) return 0;
+  p = ep;
+  while (isspace(*p)) ++p;
+  if (*p != '/') return 0;
+  ++p;
+  while (isspace(*p)) ++p;
+  if (*p < '0' || *p > '9') return 0; 
+  long long value2 = strtol(p, (char**) &ep, 10);
+  if (errno) return 0;
+  p = ep;
+  while (isspace(*p)) ++p;
+  if (*p == 's' || *p == 'S') {
+    ++p;
+  } else if (*p == 'm' || *p == 'M') {
+    value2 *= 60;
+    ++p;
+  } else if (*p == 'h' || *p == 'H') {
+    value2 *= 60 * 60;
+    ++p;
+  } else if (*p == 'd' || *p == 'D') {
+    value2 *= 60 * 60 * 24;
+    ++p;
+  } else if (*p == 'w' || *p == 'W') {
+    value2 *= 60 * 60 * 24 * 7;
+    ++p;
+  }
+  if (value2 < INT_MIN || value2 > INT_MAX) {
+    return 0;
+  }
+
+  *p_end = p;
+  *p_sign = ss;
+  *p_value1 = value1;
+  *p_value2 = value2;
+  return 1;
+}
+
+static int
+parse_tokens_cost(
+        const unsigned char *start,
+        const unsigned char **p_end,
+        int *p_sign,
+        int *p_value1,
+        int *p_value2)
+{
+  // valid flags: FinalScore(1),BasicOpenTests,TokenOpenTests,FinalOpenTests
+  int ss = 1;
+  const unsigned char *p = start, *ep;
+  while (isspace(*p)) ++p;
+  if (*p == '+') {
+  } else if (*p == '-') {
+    ss = -1;
+  } else {
+    return 0;
+  }
+  ++p;
+  errno = 0;
+  int value1 = strtol(p, (char**) &ep, 10);
+  if (errno) return 0;
+  p = ep;
+  while (isspace(*p)) ++p;
+  if (*p != '/') return 0;
+  ++p;
+  int value2 = 0;
+  while (1) {
+    while (isspace(*p)) ++p;
+    if (!strncasecmp(p, "finalscore", 10)) {
+      value2 |= TOKEN_FINALSCORE_BIT;
+      p += 10;
+    } else if (!strncasecmp(p, "basicopentests", 14)){
+      value2 &= ~TOKEN_TESTS_MASK;
+      value2 |= TOKEN_BASICTESTS_BIT;
+      p += 14;
+    } else if (!strncasecmp(p, "tokenopentests", 14)){
+      value2 &= ~TOKEN_TESTS_MASK;
+      value2 |= TOKEN_TOKENTESTS_BIT;
+      p += 14;
+    } else if (!strncasecmp(p, "finalopentests", 14)) {
+      value2 &= ~TOKEN_TESTS_MASK;
+      value2 |= TOKEN_FINALTESTS_BIT;
+      p += 14;
+    } else if (!strncasecmp(p, "valuerjudgecomment", 18)) {
+      value2 |= TOKEN_VALUER_JUDGE_COMMENT_BIT;
+      p += 18;
+    } else {
+      break;
+    }
+    while (isspace(*p)) ++p;
+    if (*p != ',') break;
+    ++p;
+  }
+
+  *p_end = p;
+  *p_sign = ss;
+  *p_value1 = value1;
+  *p_value2 = value2;
+  return 1;
+}
+
+struct token_info *
+prepare_parse_tokens(FILE *log_f, const unsigned char *tokens)
+{
+  if (!tokens || !*tokens) return NULL;
+
+  const unsigned char *ep, *p = tokens;
+  // INITIAL+-PERIODIC/INTERVAL+-COST/FLAGS
+  // interval is in seconds > 0
+  errno = 0;
+  int initial_count = strtol(p, (char**) &ep, 10);
+  if (errno) {
+    fprintf(log_f, "prepare_parse_tokens: '%s': initial_count is invalid\n", tokens);
+    return NULL;
+  }
+  p = ep;
+  int periodic_sign = 0, periodic_val1 = 0, periodic_val2 = 0;
+  int cost_sign = 0, cost_val1 = 0, cost_val2 = 0;
+  while (isspace(*p)) ++p;
+  if (*p) {
+    if (!parse_tokens_periodic(p, &p, &periodic_sign, &periodic_val1, &periodic_val2)) {
+      // failed, so restarting from the same place
+      if (!parse_tokens_cost(p, &p, &cost_sign, &cost_val1, &cost_val2)) {
+        fprintf(log_f, "prepare_parse_tokens: '%s': invalid token specification\n", tokens);
+        return NULL;
+      }
+    } else {
+      while (isspace(*p)) ++p;
+      if (*p) {
+        if (!parse_tokens_cost(p, &p, &cost_sign, &cost_val1, &cost_val2)) {
+          fprintf(log_f, "prepare_parse_tokens: '%s': invalid token specification\n", tokens);
+          return NULL;
+        }
+      }
+    }
+    while (isspace(*p)) ++p;
+  }
+  if (*p) {
+    fprintf(log_f, "prepare_parse_tokens: '%s': garbage after specification\n", tokens);
+    return NULL;
+  }
+
+  struct token_info *ti = NULL;
+  XCALLOC(ti, 1);
+  ti->initial_count = initial_count;
+  ti->time_sign = periodic_sign;
+  ti->time_increment = periodic_val1;
+  ti->time_interval = periodic_val2;
+  ti->open_sign = cost_sign;
+  ti->open_cost = cost_val1;
+  ti->open_flags = cost_val2;
+
+  return ti;
 }
 
 static void
@@ -3190,6 +2916,11 @@ set_defaults(
     }
   }
 
+  if (mode == PREPARE_SERVE && g->tokens && g->tokens[0]) {
+    if (!(g->token_info = prepare_parse_tokens(stderr, g->tokens)))
+      return -1;
+  }
+
   for (i = 1; i <= state->max_lang && mode != PREPARE_RUN; i++) {
     if (!(lang = state->langs[i])) continue;
     if (!lang->short_name[0]) {
@@ -3421,7 +3152,11 @@ set_defaults(
 
     prepare_set_prob_value(CNTSPROB_disable_user_submit, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_tab, prob, aprob, g);
-    prepare_set_prob_value(CNTSPROB_restricted_statement, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_unrestricted_statement, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_hide_file_names, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_hide_real_time_limit, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_enable_tokens, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_tokens_for_user_ac, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_submit_after_ok, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_auto_testing, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_testing, prob, aprob, g);
@@ -3444,6 +3179,8 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_ignore_unmarked, prob, aprob, g);    
     prepare_set_prob_value(CNTSPROB_disable_stderr, prob, aprob, g);    
     prepare_set_prob_value(CNTSPROB_enable_process_group, prob, aprob, g);    
+    prepare_set_prob_value(CNTSPROB_hide_variant, prob, aprob, g);    
+    prepare_set_prob_value(CNTSPROB_autoassign_variants, prob, aprob, g);    
     prepare_set_prob_value(CNTSPROB_enable_text_form, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_stand_ignore_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_stand_last_column, prob, aprob, g);
@@ -3465,6 +3202,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_score_latest, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest_or_unmarked, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest_marked, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_score_tokenized, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit_millis, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_real_time_limit, prob, aprob, g);
@@ -3488,6 +3226,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_style_checker_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_test_checker_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_init_cmd, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_start_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_solution_src, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_solution_cmd, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_super_run_dir, prob, aprob, g);
@@ -3504,6 +3243,10 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_source_footer, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_normalization, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_max_user_run_count, prob, aprob, g);
+
+    if (prob->enable_tokens > 0) {
+      g->enable_tokens = 1;
+    }
 
     if (prob->priority_adjustment == -1000 && si != -1 &&
         aprob->priority_adjustment != -1000) {
@@ -3791,6 +3534,16 @@ set_defaults(
                                      &prob->final_open_tests_count) < 0)
           return -1;
       }
+      if (prob->token_open_tests && prob->token_open_tests[0]) {
+        if (prepare_parse_open_tests(stderr, prob->token_open_tests,
+                                     &prob->token_open_tests_val,
+                                     &prob->token_open_tests_count) < 0)
+          return -1;
+      }
+      if (prob->tokens && prob->tokens[0]) {
+        if (!(prob->token_info = prepare_parse_tokens(stderr, prob->tokens)))
+          return -1;
+      }
     }
 
     if (!prob->input_file[0] && si != -1 && aprob->input_file[0]) {
@@ -3855,7 +3608,7 @@ set_defaults(
         err("There are variant problems, but no variant file name");
         return -1;
       }
-      g->variant_map = prepare_parse_variant_map(stderr, state, g->variant_map_file, 0, 0);
+      g->variant_map = variant_map_parse(stderr, state, g->variant_map_file);
       if (!g->variant_map) return -1;
     }
   }
@@ -4543,27 +4296,23 @@ create_dirs(serve_state_t state, int mode)
   return 0;
 }
 
-int
+static int
 parse_version_string(int *pmajor, int *pminor, int *ppatch, int *pbuild)
 {
   const unsigned char *p = compile_version;
   int n, x;
 
-  if (sscanf(p, "%d.%dpre%d #%d%n", pmajor, pminor, ppatch, pbuild, &n) == 4
-      && !p[n]) {
+  if (sscanf(p, "%d.%dpre%d #%d%n", pmajor, pminor, ppatch, pbuild, &n) == 4 && !p[n]) {
     *ppatch = -*ppatch;
-  } else if (sscanf(p, "%d.%dpre%d%n", pmajor, pminor, ppatch, &n) == 3
-             && !p[n]) {
+  } else if (sscanf(p, "%d.%dpre%d%n", pmajor, pminor, ppatch, &n) == 3 && !p[n]) {
     *ppatch = -*ppatch;
     *pbuild = 0;
-  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d) #%d%n", pmajor, pminor, ppatch,
-                    pbuild, &x, &n) == 5 && !p[n]) {
-  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d)%n", pmajor, pminor, ppatch,
-                    pbuild, &n) == 4 && !p[n]) {
-  } else if (sscanf(p, "%d.%d.%d #%d%n", pmajor, pminor, ppatch, pbuild, &n)==4
-             && !p[n]) {
-  } else if (sscanf(p, "%d.%d.%d%n", pmajor, pminor, ppatch, &n) == 3
-             && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (GIT %x) #%d%n", pmajor, pminor, ppatch, pbuild, &x, &n) == 5 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (GIT %x)%n", pmajor, pminor, ppatch, pbuild, &n) == 4 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d) #%d%n", pmajor, pminor, ppatch, pbuild, &x, &n) == 5 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d)%n", pmajor, pminor, ppatch, pbuild, &n) == 4 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d #%d%n", pmajor, pminor, ppatch, pbuild, &n)==4 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d%n", pmajor, pminor, ppatch, &n) == 3 && !p[n]) {
     *pbuild = 0;
   } else {
     err("cannot parse version string %s", compile_version);
@@ -5168,6 +4917,7 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->score_latest < 0) prob->score_latest = 0;
   if (prob->score_latest_or_unmarked < 0) prob->score_latest_or_unmarked = 0;
   if (prob->score_latest_marked < 0) prob->score_latest_marked = 0;
+  if (prob->score_tokenized < 0) prob->score_tokenized = 0;
   if (prob->time_limit < 0) prob->time_limit = 0;
   if (prob->time_limit_millis < 0) prob->time_limit_millis = 0;
   if (prob->real_time_limit < 0) prob->real_time_limit = 0;
@@ -5610,6 +5360,9 @@ prepare_copy_problem(const struct section_problem_data *in)
   if (in->init_cmd) {
     out->init_cmd = xstrdup(in->init_cmd);
   }
+  if (in->start_cmd) {
+    out->start_cmd = xstrdup(in->start_cmd);
+  }
   if (in->solution_src) {
     out->solution_src = xstrdup(in->solution_src);
   }
@@ -5631,12 +5384,21 @@ prepare_copy_problem(const struct section_problem_data *in)
   out->score_bonus_val = 0;
   out->open_tests_val = 0;
   out->final_open_tests_val = 0;
+  out->token_open_tests = 0;
+  out->token_open_tests_val = 0;
   out->unhandled_vars = 0;
   out->score_view = 0;
   out->score_view_score = 0;
   out->score_view_text = 0;
   out->xml.p = 0;
   out->extid = 0;
+  if (in->tokens) {
+    out->tokens = xstrdup(in->tokens);
+  }
+  out->token_info = 0;
+  if (in->umask) {
+    out->umask = xstrdup(in->umask);
+  }
 
   return out;
 }
@@ -5755,6 +5517,11 @@ prepare_set_prob_value(
     if (out->score_latest_marked == -1) out->score_latest_marked = 0;
     break;
 
+  case CNTSPROB_score_tokenized:
+    if (out->score_tokenized < 0 && abstr) out->score_tokenized = abstr->score_tokenized;
+    if (out->score_tokenized < 0) out->score_tokenized = 0;
+    break;
+
   case CNTSPROB_time_limit:
     if (out->time_limit == -1 && abstr) out->time_limit = abstr->time_limit;
     if (out->time_limit == -1) out->time_limit = 0;
@@ -5851,11 +5618,39 @@ prepare_set_prob_value(
       out->disable_tab = 0;
     break;
 
-  case CNTSPROB_restricted_statement:
-    if (out->restricted_statement == -1 && abstr)
-      out->restricted_statement = abstr->restricted_statement;
-    if (out->restricted_statement == -1)
-      out->restricted_statement = 0;
+  case CNTSPROB_unrestricted_statement:
+    if (out->unrestricted_statement == -1 && abstr)
+      out->unrestricted_statement = abstr->unrestricted_statement;
+    if (out->unrestricted_statement == -1)
+      out->unrestricted_statement = 0;
+    break;
+
+  case CNTSPROB_hide_file_names:
+    if (out->hide_file_names < 0 && abstr)
+      out->hide_file_names = abstr->hide_file_names;
+    if (out->hide_file_names < 0)
+      out->hide_file_names = 0;
+    break;
+
+  case CNTSPROB_hide_real_time_limit:
+    if (out->hide_real_time_limit < 0 && abstr)
+      out->hide_real_time_limit = abstr->hide_real_time_limit;
+    if (out->hide_real_time_limit < 0)
+      out->hide_real_time_limit = 0;
+    break;
+
+  case CNTSPROB_enable_tokens:
+    if (out->enable_tokens < 0 && abstr)
+      out->enable_tokens = abstr->enable_tokens;
+    if (out->enable_tokens < 0)
+      out->enable_tokens = 0;
+    break;
+
+  case CNTSPROB_tokens_for_user_ac:
+    if (out->tokens_for_user_ac < 0 && abstr)
+      out->tokens_for_user_ac = abstr->tokens_for_user_ac;
+    if (out->tokens_for_user_ac < 0)
+      out->tokens_for_user_ac = 0;
     break;
 
   case CNTSPROB_disable_submit_after_ok:
@@ -6018,6 +5813,16 @@ prepare_set_prob_value(
   case CNTSPROB_enable_process_group:
     if (out->enable_process_group < 0 && abstr)
       out->enable_process_group = abstr->enable_process_group;
+    break;
+
+  case CNTSPROB_hide_variant:
+    if (out->hide_variant < 0 && abstr)
+      out->hide_variant = abstr->hide_variant;
+    break;
+
+  case CNTSPROB_autoassign_variants:
+    if (out->autoassign_variants < 0 && abstr)
+      out->autoassign_variants = abstr->autoassign_variants;
     break;
 
   case CNTSPROB_enable_text_form:
@@ -6394,6 +6199,22 @@ prepare_set_prob_value(
     }
     break;
 
+  case CNTSPROB_start_cmd:
+    if (!out->start_cmd && abstr && abstr->start_cmd) {
+      sformat_message(tmp_buf, sizeof(tmp_buf), 0, abstr->start_cmd,
+                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      out->start_cmd = xstrdup(tmp_buf);
+    }
+    if (out->start_cmd && out->start_cmd[0]
+        && global && global->advanced_layout <= 0
+        && !os_IsAbsolutePath(out->start_cmd)) {
+      snprintf(tmp_buf, sizeof(tmp_buf), "%s/%s", global->checker_dir,
+               out->start_cmd);
+      xfree(out->start_cmd);
+      out->start_cmd = xstrdup(tmp_buf);
+    }
+    break;
+
   case CNTSPROB_solution_src:
     if (!out->solution_src && abstr && abstr->solution_src) {
       sformat_message(tmp_buf, sizeof(tmp_buf), 0, abstr->solution_src,
@@ -6506,6 +6327,9 @@ prepare_set_prob_value(
   case CNTSPROB_final_open_tests:
     break;
 
+  case CNTSPROB_token_open_tests:
+    break;
+
   default:
     abort();
   }
@@ -6523,7 +6347,8 @@ static const int prob_settable_list[] =
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
   CNTSPROB_binary_input, CNTSPROB_binary, CNTSPROB_ignore_exit_code,
   CNTSPROB_olympiad_mode,
-  CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_score_latest_marked, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
+  CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_score_latest_marked, CNTSPROB_score_tokenized,
+  CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
   CNTSPROB_real_time_limit, CNTSPROB_interactor_time_limit, CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac,
   CNTSPROB_team_enable_rep_view, CNTSPROB_team_enable_ce_view,
   CNTSPROB_team_show_judge_report, CNTSPROB_show_checker_comment, CNTSPROB_ignore_compile_errors,
@@ -6534,13 +6359,14 @@ static const int prob_settable_list[] =
   CNTSPROB_min_tests_to_accept, CNTSPROB_checker_real_time_limit,
   CNTSPROB_disable_auto_testing, CNTSPROB_disable_testing,
   CNTSPROB_disable_user_submit, CNTSPROB_disable_tab,
-  CNTSPROB_restricted_statement, CNTSPROB_disable_submit_after_ok,
+  CNTSPROB_unrestricted_statement, CNTSPROB_hide_file_names, CNTSPROB_hide_real_time_limit,
+  CNTSPROB_enable_tokens, CNTSPROB_tokens_for_user_ac, CNTSPROB_disable_submit_after_ok,
   CNTSPROB_disable_security, CNTSPROB_enable_compilation,
   CNTSPROB_skip_testing, CNTSPROB_variable_full_score, CNTSPROB_hidden,
   CNTSPROB_priority_adjustment, CNTSPROB_spelling, CNTSPROB_stand_hide_time,
   CNTSPROB_advance_to_next, CNTSPROB_disable_ctrl_chars,
   CNTSPROB_valuer_sets_marked, CNTSPROB_ignore_unmarked,
-  CNTSPROB_disable_stderr, CNTSPROB_enable_process_group,
+  CNTSPROB_disable_stderr, CNTSPROB_enable_process_group, CNTSPROB_hide_variant, CNTSPROB_autoassign_variants,
   CNTSPROB_enable_text_form,
   CNTSPROB_stand_ignore_score, CNTSPROB_stand_last_column,
   CNTSPROB_score_multiplier, CNTSPROB_prev_runs_to_show,
@@ -6551,7 +6377,7 @@ static const int prob_settable_list[] =
   CNTSPROB_test_dir, CNTSPROB_test_sfx,
   CNTSPROB_corr_dir, CNTSPROB_corr_sfx, CNTSPROB_info_dir, CNTSPROB_info_sfx,
   CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx, CNTSPROB_tgzdir_sfx, CNTSPROB_input_file,
-  CNTSPROB_output_file, CNTSPROB_test_score_list, CNTSPROB_score_tests,
+  CNTSPROB_output_file, CNTSPROB_test_score_list, CNTSPROB_tokens, CNTSPROB_umask, CNTSPROB_score_tests,
   CNTSPROB_test_sets, CNTSPROB_deadline, CNTSPROB_start_date,
   CNTSPROB_variant_num, CNTSPROB_date_penalty, CNTSPROB_group_start_date,
   CNTSPROB_group_deadline, CNTSPROB_disable_language,
@@ -6562,14 +6388,14 @@ static const int prob_settable_list[] =
   CNTSPROB_start_env, CNTSPROB_lang_time_adj,
   CNTSPROB_lang_time_adj_millis, CNTSPROB_check_cmd, CNTSPROB_valuer_cmd,
   CNTSPROB_interactor_cmd, CNTSPROB_style_checker_cmd,
-  CNTSPROB_test_checker_cmd, CNTSPROB_init_cmd, CNTSPROB_solution_src, CNTSPROB_solution_cmd,
+  CNTSPROB_test_checker_cmd, CNTSPROB_init_cmd, CNTSPROB_start_cmd, CNTSPROB_solution_src, CNTSPROB_solution_cmd,
   CNTSPROB_test_pat, CNTSPROB_corr_pat, CNTSPROB_info_pat, CNTSPROB_tgz_pat,
   CNTSPROB_tgzdir_pat,
   CNTSPROB_personal_deadline, CNTSPROB_score_bonus, CNTSPROB_statement_file,
   CNTSPROB_alternatives_file, CNTSPROB_plugin_file, CNTSPROB_xml_file,
   CNTSPROB_alternative, CNTSPROB_stand_attr, CNTSPROB_source_header,
   CNTSPROB_source_footer, CNTSPROB_score_view,
-  CNTSPROB_open_tests, CNTSPROB_final_open_tests,
+  CNTSPROB_open_tests, CNTSPROB_final_open_tests, CNTSPROB_token_open_tests,
   CNTSPROB_normalization, CNTSPROB_super_run_dir, CNTSPROB_lang_max_vm_size, CNTSPROB_lang_max_stack_size,
 
   0
@@ -6598,6 +6424,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_score_latest] = 1,
   [CNTSPROB_score_latest_or_unmarked] = 1,
   [CNTSPROB_score_latest_marked] = 1,
+  [CNTSPROB_score_tokenized] = 1,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
@@ -6627,7 +6454,11 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_testing] = 1,
   [CNTSPROB_disable_user_submit] = 1,
   [CNTSPROB_disable_tab] = 1,
-  [CNTSPROB_restricted_statement] = 1,
+  [CNTSPROB_unrestricted_statement] = 1,
+  [CNTSPROB_hide_file_names] = 1,
+  [CNTSPROB_hide_real_time_limit] = 1,
+  [CNTSPROB_enable_tokens] = 1,
+  [CNTSPROB_tokens_for_user_ac] = 1,
   [CNTSPROB_disable_submit_after_ok] = 1,
   [CNTSPROB_disable_security] = 1,
   [CNTSPROB_enable_compilation] = 1,
@@ -6643,6 +6474,8 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_ignore_unmarked] = 1,
   [CNTSPROB_disable_stderr] = 1,
   [CNTSPROB_enable_process_group] = 1,
+  [CNTSPROB_hide_variant] = 1,
+  [CNTSPROB_autoassign_variants] = 1,
   [CNTSPROB_enable_text_form] = 1,
   [CNTSPROB_stand_ignore_score] = 1,
   [CNTSPROB_stand_last_column] = 1,
@@ -6706,6 +6539,7 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_style_checker_cmd] = 1,
   [CNTSPROB_test_checker_cmd] = 1,
   [CNTSPROB_init_cmd] = 1,
+  [CNTSPROB_start_cmd] = 1,
   [CNTSPROB_solution_src] = 1,
   [CNTSPROB_solution_cmd] = 1,
   [CNTSPROB_test_pat] = 1,
@@ -6727,11 +6561,14 @@ static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_score_view] = 1,
   [CNTSPROB_open_tests] = 1,
   [CNTSPROB_final_open_tests] = 1,
+  [CNTSPROB_token_open_tests] = 1,
   [CNTSPROB_normalization] = 1,
   [CNTSPROB_super_run_dir] = 1,
+  [CNTSPROB_tokens] = 1,
+  [CNTSPROB_umask] = 1,
 };
 
-static const int prob_inheritable_list[] =
+static const int prob_inheritable_list[] __attribute__((unused)) =
 {
   CNTSPROB_scoring_checker, CNTSPROB_interactive_valuer, CNTSPROB_disable_pe, CNTSPROB_disable_wtl,
   CNTSPROB_manual_checking,  
@@ -6740,7 +6577,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
   CNTSPROB_binary_input, CNTSPROB_binary,
   CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode, CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked,
-  CNTSPROB_score_latest_marked,
+  CNTSPROB_score_latest_marked, CNTSPROB_score_tokenized,
   CNTSPROB_time_limit, CNTSPROB_time_limit_millis, CNTSPROB_real_time_limit,
   CNTSPROB_interactor_time_limit,
   CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac, CNTSPROB_team_enable_rep_view,
@@ -6753,7 +6590,8 @@ static const int prob_inheritable_list[] =
   CNTSPROB_min_tests_to_accept, CNTSPROB_checker_real_time_limit,
   CNTSPROB_disable_auto_testing, CNTSPROB_disable_testing,
   CNTSPROB_disable_user_submit, CNTSPROB_disable_tab,
-  CNTSPROB_restricted_statement, CNTSPROB_disable_submit_after_ok,
+  CNTSPROB_unrestricted_statement, CNTSPROB_hide_file_names, CNTSPROB_hide_real_time_limit,
+  CNTSPROB_enable_tokens, CNTSPROB_tokens_for_user_ac, CNTSPROB_disable_submit_after_ok,
   CNTSPROB_disable_security, CNTSPROB_enable_compilation,
   CNTSPROB_skip_testing, CNTSPROB_variable_full_score,
   CNTSPROB_hidden, CNTSPROB_priority_adjustment, CNTSPROB_spelling,
@@ -6761,6 +6599,8 @@ static const int prob_inheritable_list[] =
   CNTSPROB_disable_ctrl_chars, CNTSPROB_valuer_sets_marked,
   CNTSPROB_ignore_unmarked, CNTSPROB_disable_stderr,
   CNTSPROB_enable_process_group,
+  CNTSPROB_hide_variant,
+  CNTSPROB_autoassign_variants,
   CNTSPROB_enable_text_form, CNTSPROB_stand_ignore_score,
   CNTSPROB_stand_last_column, CNTSPROB_score_multiplier,
   CNTSPROB_prev_runs_to_show, CNTSPROB_max_user_run_count,
@@ -6771,7 +6611,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_test_dir, CNTSPROB_test_sfx, CNTSPROB_corr_dir, CNTSPROB_corr_sfx,
   CNTSPROB_info_dir, CNTSPROB_info_sfx, CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx,
   CNTSPROB_tgzdir_sfx,
-  CNTSPROB_input_file, CNTSPROB_output_file, CNTSPROB_test_score_list,
+  CNTSPROB_input_file, CNTSPROB_output_file, CNTSPROB_test_score_list, CNTSPROB_tokens, CNTSPROB_umask,
   CNTSPROB_score_tests, CNTSPROB_test_sets, CNTSPROB_deadline,
   CNTSPROB_start_date, CNTSPROB_variant_num, CNTSPROB_date_penalty,
   CNTSPROB_group_start_date, CNTSPROB_group_deadline,
@@ -6782,7 +6622,7 @@ static const int prob_inheritable_list[] =
   CNTSPROB_lang_time_adj,
   CNTSPROB_lang_time_adj_millis, CNTSPROB_check_cmd, CNTSPROB_valuer_cmd,
   CNTSPROB_interactor_cmd, CNTSPROB_style_checker_cmd,
-  CNTSPROB_test_checker_cmd, CNTSPROB_init_cmd, CNTSPROB_solution_src, CNTSPROB_solution_cmd,
+  CNTSPROB_test_checker_cmd, CNTSPROB_init_cmd, CNTSPROB_start_cmd, CNTSPROB_solution_src, CNTSPROB_solution_cmd,
   CNTSPROB_test_pat, CNTSPROB_corr_pat,
   CNTSPROB_info_pat, CNTSPROB_tgz_pat, CNTSPROB_tgzdir_pat, CNTSPROB_personal_deadline,
   CNTSPROB_score_bonus, CNTSPROB_statement_file, CNTSPROB_alternatives_file,
@@ -6814,6 +6654,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_score_latest] = 1,
   [CNTSPROB_score_latest_or_unmarked] = 1,
   [CNTSPROB_score_latest_marked] = 1,
+  [CNTSPROB_score_tokenized] = 1,
   [CNTSPROB_time_limit] = 1,
   [CNTSPROB_time_limit_millis] = 1,
   [CNTSPROB_real_time_limit] = 1,
@@ -6843,7 +6684,11 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_testing] = 1,
   [CNTSPROB_disable_user_submit] = 1,
   [CNTSPROB_disable_tab] = 1,
-  [CNTSPROB_restricted_statement] = 1,
+  [CNTSPROB_unrestricted_statement] = 1,
+  [CNTSPROB_hide_file_names] = 1,
+  [CNTSPROB_hide_real_time_limit] = 1,
+  [CNTSPROB_enable_tokens] = 1,
+  [CNTSPROB_tokens_for_user_ac] = 1,
   [CNTSPROB_disable_submit_after_ok] = 1,
   [CNTSPROB_disable_security] = 1,
   [CNTSPROB_enable_compilation] = 1,
@@ -6859,6 +6704,8 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_ignore_unmarked] = 1,
   [CNTSPROB_disable_stderr] = 1,
   [CNTSPROB_enable_process_group] = 1,
+  [CNTSPROB_hide_variant] = 1,
+  [CNTSPROB_autoassign_variants] = 1,
   [CNTSPROB_enable_text_form] = 1,
   [CNTSPROB_stand_ignore_score] = 1,
   [CNTSPROB_stand_last_column] = 1,
@@ -6915,6 +6762,7 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_style_checker_cmd] = 1,
   [CNTSPROB_test_checker_cmd] = 1,
   [CNTSPROB_init_cmd] = 1,
+  [CNTSPROB_start_cmd] = 1,
   [CNTSPROB_solution_src] = 1,
   [CNTSPROB_solution_cmd] = 1,
   [CNTSPROB_test_pat] = 1,
@@ -6936,6 +6784,8 @@ static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_score_view] = 1,
   [CNTSPROB_normalization] = 1,
   [CNTSPROB_super_run_dir] = 1,
+  [CNTSPROB_tokens] = 1,
+  [CNTSPROB_umask] = 1,
 
   0,
 };
@@ -6964,6 +6814,7 @@ static const struct section_problem_data prob_undef_values =
   .score_latest = -1,
   .score_latest_or_unmarked = -1,
   .score_latest_marked = -1,
+  .score_tokenized = -1,
   .real_time_limit = -1,
   .time_limit = -1,
   .time_limit_millis = -1,
@@ -6992,7 +6843,11 @@ static const struct section_problem_data prob_undef_values =
   .checker_real_time_limit = -1,
   .disable_user_submit = -1,
   .disable_tab = -1,
-  .restricted_statement = -1,
+  .unrestricted_statement = -1,
+  .hide_file_names = -1,
+  .hide_real_time_limit = -1,
+  .enable_tokens = -1,
+  .tokens_for_user_ac = -1,
   .disable_submit_after_ok = -1,
   .disable_auto_testing = -1,
   .disable_testing = -1,
@@ -7010,6 +6865,8 @@ static const struct section_problem_data prob_undef_values =
   .ignore_unmarked = -1,
   .disable_stderr = -1,
   .enable_process_group = -1,
+  .hide_variant = -1,
+  .autoassign_variants = -1,
   .enable_text_form = -1,
   .stand_ignore_score = -1,
   .stand_last_column = -1,
@@ -7048,7 +6905,6 @@ static const struct section_problem_data prob_undef_values =
   .info_pat = { 1, 0 },
   .tgz_pat = { 1, 0 },
   .tgzdir_pat = { 1, 0 },
-  .type = -1,
   .test_sets = 0,
   .deadline = -1,
   .start_date = -1,
@@ -7074,6 +6930,7 @@ static const struct section_problem_data prob_undef_values =
   .style_checker_cmd = { 1, 0 },
   .test_checker_cmd = 0,
   .init_cmd = 0,
+  .start_cmd = 0,
   .solution_src = 0,
   .solution_cmd = 0,
   .lang_time_adj = 0,
@@ -7093,6 +6950,8 @@ static const struct section_problem_data prob_undef_values =
   .score_view = 0,
   .normalization = { 0 },
   .super_run_dir = NULL,
+  .tokens = NULL,
+  .umask = NULL,
 };
 
 static const struct section_problem_data prob_default_values =
@@ -7118,6 +6977,7 @@ static const struct section_problem_data prob_default_values =
   .score_latest = 0,
   .score_latest_or_unmarked = 0,
   .score_latest_marked = 0,
+  .score_tokenized = 0,
   .real_time_limit = 0,
   .time_limit = 0,
   .time_limit_millis = 0,
@@ -7146,7 +7006,11 @@ static const struct section_problem_data prob_default_values =
   .checker_real_time_limit = 0,
   .disable_user_submit = 0,
   .disable_tab = 0,
-  .restricted_statement = 0,
+  .unrestricted_statement = 0,
+  .hide_file_names = 0,
+  .hide_real_time_limit = 0,
+  .enable_tokens = 0,
+  .tokens_for_user_ac = 0,
   .disable_submit_after_ok = 0,
   .disable_auto_testing = 0,
   .disable_testing = 0,
@@ -7164,6 +7028,8 @@ static const struct section_problem_data prob_default_values =
   .ignore_unmarked = 0,
   .disable_stderr = 0,
   .enable_process_group = 0,
+  .hide_variant = 0,
+  .autoassign_variants = 0,
   .enable_text_form = 0,
   .stand_ignore_score = 0,
   .stand_last_column = 0,
@@ -7214,6 +7080,7 @@ static const struct section_problem_data prob_default_values =
   .style_checker_cmd = "",
   .test_checker_cmd = 0,
   .init_cmd = 0,
+  .start_cmd = 0,
   .solution_src = 0,
   .solution_cmd = 0,
   .score_bonus = "",
@@ -7226,6 +7093,8 @@ static const struct section_problem_data prob_default_values =
   .max_process_count = -1,
   .normalization = "",
   .super_run_dir = NULL,
+  .tokens = NULL,
+  .umask = NULL,
 };
 
 static const int prob_global_map[CNTSPROB_LAST_FIELD] =
@@ -7268,6 +7137,7 @@ static const unsigned char prob_format_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_style_checker_cmd] = 1,
   [CNTSPROB_test_checker_cmd] = 1,
   [CNTSPROB_init_cmd] = 1,
+  [CNTSPROB_start_cmd] = 1,
   [CNTSPROB_solution_src] = 1,
   [CNTSPROB_solution_cmd] = 1,
   [CNTSPROB_statement_file] = 1,
@@ -7718,11 +7588,25 @@ int
 cntsprob_get_test_visibility(
         const struct section_problem_data *prob,
         int num,
-        int final_mode)
+        int final_mode,
+        int token_flags)
 {
   if (!prob) return TV_NORMAL;
   if (final_mode && prob->final_open_tests_val) {
     if (num <= 0 || num >= prob->final_open_tests_count)
+      return TV_NORMAL;
+    return prob->final_open_tests_val[num];
+  }
+  if ((token_flags & TOKEN_TESTS_MASK) == TOKEN_BASICTESTS_BIT) {
+    if (!prob->open_tests_val || num <= 0 || num >= prob->open_tests_count)
+      return TV_NORMAL;
+    return prob->open_tests_val[num];
+  } else if ((token_flags & TOKEN_TESTS_MASK) == TOKEN_TOKENTESTS_BIT) {
+    if (!prob->token_open_tests_val || num <= 0 || num >= prob->token_open_tests_count)
+      return TV_NORMAL;
+    return prob->token_open_tests_val[num];
+  } else if ((token_flags & TOKEN_TESTS_MASK) == TOKEN_FINALTESTS_BIT) {
+    if (!prob->final_open_tests_val || num <= 0 || num >= prob->final_open_tests_count)
       return TV_NORMAL;
     return prob->final_open_tests_val[num];
   }

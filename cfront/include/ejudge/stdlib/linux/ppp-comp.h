@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ppp-comp.h 7722 2014-01-03 13:06:28Z cher $ */
+/* $Id$ */
 /* Copyright (C) 2004 Alexander Chernov */
 
 /* This file is derived from `linux/ppp-comp.h' of the Linux Kernel.
@@ -31,7 +31,7 @@
  * OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS,
  * OR MODIFICATIONS.
  *
- * $Id: ppp-comp.h 7722 2014-01-03 13:06:28Z cher $
+ * $Id$
  */
 
 /*

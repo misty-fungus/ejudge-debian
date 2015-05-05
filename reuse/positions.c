@@ -1,4 +1,4 @@
-/* $Id: positions.c 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 1995-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Ich, Doktor Josef Grosch, Informatiker, Juli 1992 */

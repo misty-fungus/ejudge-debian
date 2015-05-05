@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: close.c 6014 2010-11-01 20:03:36Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new-server.c 8580 2014-09-02 14:51:45Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 

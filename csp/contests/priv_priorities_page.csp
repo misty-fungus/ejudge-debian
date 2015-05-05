@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_priorities_page.csp 8250 2014-05-25 20:38:29Z cher $ */
+/* $Id$ */
 %><%@include "priv_includes.csp"
 %><%
 %><%@set getter_name = "csp_get_priv_priorities_page"
@@ -12,6 +12,7 @@
     int glob_prio, prob_prio, static_prio, local_prio, total_prio;
     int prob_id;
     const unsigned char *title = NULL;
+    int enable_main_menu = 0;
 
     glob_prio = ej_fix_prio(global->priority_adjustment);
 
@@ -21,17 +22,19 @@
     title = _("Judging priorities");
 %><%@include "priv_header.csp"
 %>
+</div>
+
 <s:form>
 <table class="b1">
     <tr>
         <th class="b1">Id</th>
-        <th class="b1"><s:tr>Short name</s:tr></th>
-        <th class="b1"><s:tr>Long name</s:tr></th>
-        <th class="b1"><s:tr>Contest priority</s:tr></th>
-        <th class="b1"><s:tr>Problem priority</s:tr></th>
-        <th class="b1"><s:tr>Static priority</s:tr></th>
-        <th class="b1"><s:tr>Priority adjustment</s:tr></th>
-        <th class="b1"><s:tr>Total priority</s:tr></th>
+        <th class="b1"><s:_>Short name</s:_></th>
+        <th class="b1"><s:_>Long name</s:_></th>
+        <th class="b1"><s:_>Contest priority</s:_></th>
+        <th class="b1"><s:_>Problem priority</s:_></th>
+        <th class="b1"><s:_>Static priority</s:_></th>
+        <th class="b1"><s:_>Priority adjustment</s:_></th>
+        <th class="b1"><s:_>Total priority</s:_></th>
     </tr>
 <%
   for (prob_id = 1;
@@ -64,11 +67,11 @@
 
 <br/>
 
-<p><s:tr>Priority value must be in range [-16, 15]. The less the priority value, the more the judging priority.</s:tr></p>
+<p><s:_>Priority value must be in range [-16, 15]. The less the priority value, the more the judging priority.</s:_></p>
 
 <%@include "priv_footer.csp"
 %><%
-  l10n_setlocale(0);
 cleanup:
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

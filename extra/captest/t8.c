@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: t8.c 5602 2010-01-03 06:38:22Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
 

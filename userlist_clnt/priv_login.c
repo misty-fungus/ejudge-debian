@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: priv_login.c 7613 2013-11-22 20:21:36Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 

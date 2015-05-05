@@ -175,6 +175,7 @@ static struct meta_info_item meta_info_super_run_in_problem_packet_data[] =
   [META_SUPER_RUN_IN_PROBLEM_PACKET_interactor_cmd] = { META_SUPER_RUN_IN_PROBLEM_PACKET_interactor_cmd, 's', XSIZE(struct super_run_in_problem_packet, interactor_cmd), "interactor_cmd", XOFFSET(struct super_run_in_problem_packet, interactor_cmd) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_test_checker_cmd] = { META_SUPER_RUN_IN_PROBLEM_PACKET_test_checker_cmd, 's', XSIZE(struct super_run_in_problem_packet, test_checker_cmd), "test_checker_cmd", XOFFSET(struct super_run_in_problem_packet, test_checker_cmd) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_init_cmd] = { META_SUPER_RUN_IN_PROBLEM_PACKET_init_cmd, 's', XSIZE(struct super_run_in_problem_packet, init_cmd), "init_cmd", XOFFSET(struct super_run_in_problem_packet, init_cmd) },
+  [META_SUPER_RUN_IN_PROBLEM_PACKET_start_cmd] = { META_SUPER_RUN_IN_PROBLEM_PACKET_start_cmd, 's', XSIZE(struct super_run_in_problem_packet, start_cmd), "start_cmd", XOFFSET(struct super_run_in_problem_packet, start_cmd) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_solution_cmd] = { META_SUPER_RUN_IN_PROBLEM_PACKET_solution_cmd, 's', XSIZE(struct super_run_in_problem_packet, solution_cmd), "solution_cmd", XOFFSET(struct super_run_in_problem_packet, solution_cmd) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_max_vm_size] = { META_SUPER_RUN_IN_PROBLEM_PACKET_max_vm_size, 'Z', XSIZE(struct super_run_in_problem_packet, max_vm_size), "max_vm_size", XOFFSET(struct super_run_in_problem_packet, max_vm_size) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_max_data_size] = { META_SUPER_RUN_IN_PROBLEM_PACKET_max_data_size, 'Z', XSIZE(struct super_run_in_problem_packet, max_data_size), "max_data_size", XOFFSET(struct super_run_in_problem_packet, max_data_size) },
@@ -186,6 +187,7 @@ static struct meta_info_item meta_info_super_run_in_problem_packet_data[] =
   [META_SUPER_RUN_IN_PROBLEM_PACKET_spelling] = { META_SUPER_RUN_IN_PROBLEM_PACKET_spelling, 's', XSIZE(struct super_run_in_problem_packet, spelling), "spelling", XOFFSET(struct super_run_in_problem_packet, spelling) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_open_tests] = { META_SUPER_RUN_IN_PROBLEM_PACKET_open_tests, 's', XSIZE(struct super_run_in_problem_packet, open_tests), "open_tests", XOFFSET(struct super_run_in_problem_packet, open_tests) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_enable_process_group] = { META_SUPER_RUN_IN_PROBLEM_PACKET_enable_process_group, 'B', XSIZE(struct super_run_in_problem_packet, enable_process_group), "enable_process_group", XOFFSET(struct super_run_in_problem_packet, enable_process_group) },
+  [META_SUPER_RUN_IN_PROBLEM_PACKET_umask] = { META_SUPER_RUN_IN_PROBLEM_PACKET_umask, 's', XSIZE(struct super_run_in_problem_packet, umask), "umask", XOFFSET(struct super_run_in_problem_packet, umask) },
 };
 
 int meta_super_run_in_problem_packet_get_type(int tag)

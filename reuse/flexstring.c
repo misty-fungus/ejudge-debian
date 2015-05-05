@@ -1,4 +1,4 @@
-/* $Id: flexstring.c 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 1995-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <95/11/01 17:30:28 cher> */

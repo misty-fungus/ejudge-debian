@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: meta_generic.h 8214 2014-05-15 13:23:59Z cher $ */
+/* $Id$ */
 
 #ifndef __META_GENERIC_H__
 #define __META_GENERIC_H__

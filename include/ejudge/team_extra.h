@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: team_extra.h 8232 2014-05-16 19:06:19Z cher $ */
+/* $Id$ */
 
 #ifndef __TEAM_EXTRA_H__
 #define __TEAM_EXTRA_H__

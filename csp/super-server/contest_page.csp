@@ -1,5 +1,5 @@
 <%
-/* $Id: contest_page.csp 8559 2014-08-27 16:42:59Z cher $ */
+/* $Id$ */
 %><%@include "includes.csp"
 %><%@set getter_name = "csp_get_contest_page"
 %><%@set ac_prefix = "SSERV_CMD_"
@@ -493,7 +493,7 @@
 
 <%@include "footer.csp"
 %><%
-  l10n_setlocale(0);
 cleanup:
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

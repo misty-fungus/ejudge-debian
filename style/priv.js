@@ -1,5 +1,5 @@
 /* -*- mode: java; coding: utf-8 -*- */
-// $Id: priv.js 7842 2014-02-04 13:54:24Z cher $
+// $Id$
 
 // Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru>
 
@@ -672,7 +672,8 @@ var ej_valid_fields =
   23 : "Saved Result",
   24 : "UUID",
   25 : "EOLN Type",
-  26 : "Storage Flags"
+  26 : "Storage Flags",
+  27 : "Tokens"
 }
 
 function ej_field_popup(field_mask)

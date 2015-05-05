@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: compat.h 8190 2014-05-14 19:29:48Z cher $ */
+/* $Id$ */
 #ifndef __COMPAT_H__
 #define __COMPAT_H__
 

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: polygon_packet.h 8218 2014-05-15 15:02:06Z cher $ */
+/* $Id$ */
 #ifndef __POLYGON_PACKET_H__
 #define __POLYGON_PACKET_H__
 
@@ -38,7 +38,9 @@ struct polygon_packet
     int sleep_interval;
     ejintbool_t enable_max_stack_size;
     ejintbool_t create_mode;
+    ejintbool_t ignore_solutions;
     int retry_count;
+    ejintbool_t fetch_latest_available;
 
     unsigned char *polygon_url;
     unsigned char *login;

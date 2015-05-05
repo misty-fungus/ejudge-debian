@@ -1,8 +1,9 @@
 <%
-/* $Id: cnts_edit_cur_variant_page.csp 8507 2014-08-18 12:40:47Z cher $ */
+/* $Id$ */
 %><%@include "includes.csp"
 %><%
 #include "ejudge/prepare_serve.h"
+#include "ejudge/variant_map.h"
 
 #include <ctype.h>
 %><%@set getter_name = "csp_get_cnts_edit_cur_variant_page"
@@ -68,7 +69,7 @@ static const unsigned char * const form_row_attrs[]=
   }
   if (var_prob_num <= 0) {
 %><h2>Contest does not have variant problems</h2><%
-    prepare_free_variant_map(global->variant_map);
+    variant_map_free(global->variant_map);
     global->variant_map = 0;
     goto bottom_links;
   }
@@ -82,15 +83,14 @@ static const unsigned char * const form_row_attrs[]=
     vmap = global->variant_map;
     if (!vmap || vmap->prob_map_size != phr->ss->prob_a || vmap->prob_rev_map_size <= 0) {
 %><h2>Variant map is obsolete</h2><%
-      prepare_free_variant_map(global->variant_map);
+      variant_map_free(global->variant_map);
       global->variant_map = 0;
       goto bottom_links;
     }
   } else {
     FILE *vlog_f = open_memstream(&vlog_s, &vlog_z);
     int r = super_html_update_variant_map(vlog_f, cnts->id, phr->userlist_clnt,
-                                          cnts, global, phr->ss->prob_a, phr->ss->probs,
-                                          &phr->ss->var_header_text, &phr->ss->var_footer_text);
+                                          cnts, global, phr->ss->prob_a, phr->ss->probs);
     fclose(vlog_f); vlog_f = 0;
     if (r < 0) {
 %><h2>Variant map cannot be edited</h2>
@@ -118,7 +118,7 @@ static const unsigned char * const form_row_attrs[]=
 %>
 
 <table border="0">
-    <s:htr attr="head_row_attr">
+    <s:tr attr="head_row_attr">
         <th>User Id</th>
         <th>User Login</th>
         <th>User Name</th>
@@ -132,14 +132,14 @@ static const unsigned char * const form_row_attrs[]=
   }
 %>
         <th>Action</th>
-    </s:htr>
+    </s:tr>
 <%
   int i;
   for (i = 0; i < vmap->u; ++i) {
 %>
     <s:form>
         <s:hidden name="row" value="i" checkExpr=">= 0" />
-        <s:htr attr="form_row_attrs[row ^= 1]">
+        <s:tr attr="form_row_attrs[row ^= 1]">
             <td><%
     if (vmap->v[i].user_id > 0) {
 %><s:v value="vmap->v[i].user_id" /><%
@@ -174,7 +174,7 @@ static const unsigned char * const form_row_attrs[]=
     }
 %>
             <td><s:submit ac="prob-change-variants" label="Change"/><s:submit ac="prob-delete-variants" label="Delete row"/></td>
-        </s:htr>
+        </s:tr>
     </s:form>
 <%
   }
@@ -205,7 +205,7 @@ bottom_links: ;
 
 <%@include "footer.csp"
 %><%
-  l10n_setlocale(0);
 cleanup:
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

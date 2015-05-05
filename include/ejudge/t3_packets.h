@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: t3_packets.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 #ifndef __T3_PACKETS_H__
 #define __T3_PACKETS_H__
 

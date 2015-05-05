@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: userlist-server.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1663,7 +1662,7 @@ send_registration_email(
   if (email_subject == NULL) {
     email_subject = _("You have been registered");
   }
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
   const unsigned char *sender_address = get_email_sender(cnts);
   int retval = send_email_message(u->email, sender_address, NULL, email_subject, email_text);
@@ -1961,7 +1960,7 @@ cmd_register_new_2(struct client_state *p,
     xfree(buf);
     xfree(email_tmpl);
 
-    l10n_setlocale(0);
+    l10n_resetlocale();
   }
 }
 
@@ -2201,7 +2200,7 @@ cmd_register_new(struct client_state *p,
     default_remove_user(user_id);
     xfree(buf);
     xfree(email_tmpl);
-    l10n_setlocale(0);
+    l10n_resetlocale();
     send_reply(p, -ULS_ERR_EMAIL_FAILED);
     info("%s -> failed (e-mail)", logbuf);
     return;
@@ -2209,7 +2208,7 @@ cmd_register_new(struct client_state *p,
 
   xfree(buf);
   xfree(email_tmpl);
-  l10n_setlocale(0);
+  l10n_resetlocale();
   send_reply(p,ULS_OK);
   info("%s -> ok, %d", logbuf, u->id);
 }
@@ -5757,7 +5756,7 @@ list_user_info(FILE *f, int contest_id, const struct contest_desc *d,
           d->name, gettext(status_str_map[c->status]));
   fprintf(f, "</table>\n");
 
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
 }
 
@@ -5792,7 +5791,7 @@ do_list_users(FILE *f, int contest_id, const struct contest_desc *d,
   if (!iter || !iter->has_next(iter)) {
     fprintf(f, "<p%s>%s</p>\n",
             d->users_par_style, _("No users registered for this contest"));
-    l10n_setlocale(0);
+    l10n_resetlocale();
     if (iter) iter->destroy(iter);
     return;
   }
@@ -5923,7 +5922,7 @@ do_list_users(FILE *f, int contest_id, const struct contest_desc *d,
     default_unlock_user(u);
   }
   fprintf(f, "</table>\n");
-  l10n_setlocale(0);
+  l10n_resetlocale();
   format_s = free_table_spec(format_n, format_s);
   legend_s = free_table_spec(legend_n, legend_s);
   iter->destroy(iter);
@@ -6585,11 +6584,18 @@ cmd_generate_team_passwords_2(
   const struct userlist_contest *c;
   unsigned char buf[16];
   ptr_iterator_t iter;
-  const struct contest_desc *cnts;
+  const struct contest_desc *cnts = NULL;
   unsigned char logbuf[1024];
+  int errcode = 0;
 
   snprintf(logbuf, sizeof(logbuf), "GENERATE_TEAM_PASSWORDS_2: %d, %d",
            p->user_id, data->contest_id);
+
+  if ((errcode = contests_get(data->contest_id, &cnts)) < 0) {
+    err("%s -> invalid contest: %s", logbuf, contests_strerror(-errcode));
+    send_reply(p, -ULS_ERR_BAD_CONTEST_ID);
+    return;
+  }
 
   if (is_admin(p, logbuf) < 0) return;
   if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
@@ -9573,7 +9579,7 @@ cmd_get_groups(
            p->user_id, data->data);
 
   /* space-separated list of group names */
-  if (data->info_len <= 0 || data->info_len > 64 * 1024) {
+  if (data->info_len <= 0 /* || data->info_len > 64 * 1024 */) {
     err("%s -> invalid size %d", logbuf, data->info_len);
     send_reply(p, -ULS_ERR_INVALID_SIZE);
     goto cleanup;
@@ -10361,7 +10367,7 @@ static void (*cmd_table[])() =
   [ULS_GET_GROUP_INFO] =        cmd_get_group_info,
   [ULS_PRIV_CHECK_PASSWORD] =   cmd_priv_check_password,
 
-  [ULS_LAST_CMD] 0
+  [ULS_LAST_CMD] = 0
 };
 
 static int (*check_table[])() =
@@ -10465,7 +10471,7 @@ static int (*check_table[])() =
   [ULS_LIST_ALL_USERS_4] =      check_pk_list_users_2,
   [ULS_GET_GROUP_INFO] =        check_pk_map_contest,
 
-  [ULS_LAST_CMD] 0
+  [ULS_LAST_CMD] = 0
 };
 
 static void

@@ -18,7 +18,7 @@
 # Short-Description: ejudge programming contest management system
 ### END INIT INFO
 
-# $Id: ejudge 8548 2014-08-25 14:52:24Z cher $
+# $Id$
 
 USER="ejudge"
 NAME="ejudge"

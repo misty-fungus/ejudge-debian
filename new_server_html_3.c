@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_3.c 8583 2014-09-02 19:36:37Z cher $ */
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -44,6 +43,8 @@
 #if !defined CONF_STYLE_PREFIX
 #define CONF_STYLE_PREFIX "/ejudge/"
 #endif
+
+#pragma GCC diagnostic ignored "-Wformat-security" 
 
 #define ARMOR(s)  html_armor_buf(&ab, s)
 
@@ -348,7 +349,7 @@ ns_html_err_no_perm(FILE *fout,
           _("Try again"));
 
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
 }
 
@@ -425,7 +426,7 @@ ns_html_err_simple_registered(
   }
 
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
 }
 
@@ -482,7 +483,7 @@ ns_html_err_inv_param(FILE *fout,
   fprintf(fout, "<p>%s</p>\n",
           _("A request parameter is invalid. Please, contact the site administrator."));
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 }
 
 void
@@ -537,7 +538,7 @@ ns_html_err_service_not_available(FILE *fout,
   fprintf(fout, "<p>%s</p>\n",
           _("Service that you requested is not available."));
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 }
 
 void
@@ -600,7 +601,7 @@ ns_html_err_cnts_unavailable(FILE *fout,
   }
 
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 }
 
 void
@@ -658,7 +659,7 @@ ns_html_err_ul_server_down(FILE *fout,
   fprintf(fout, "<p>%s</p>\n",
           _("The user database server is currently not available. Please, retry the request later."));
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 }
 
 void
@@ -714,7 +715,7 @@ ns_html_err_internal_error(FILE *fout,
   fprintf(fout, "<p>%s</p>\n",
           _("Your request has caused an internal server error. Please, report it as a bug."));
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 }
 
 void
@@ -777,7 +778,7 @@ ns_html_err_inv_session(FILE *fout,
   fprintf(fout, "</ul>\n");
   fprintf(fout, _("<p>Note, that the exact reason is not reported due to security reasons.</p>"));
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 }
 
 static int
@@ -857,7 +858,7 @@ ns_html_err_registration_incomplete(
   fprintf(fout,
           _("<p>You cannot participate in the contest because your registration is incomplete. Please, %sgo back to the registration forms%s and fill up them correctly.</p>\n"), a_open, a_close);
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
 }
 
@@ -900,7 +901,7 @@ ns_html_err_disqualified(
   }
 
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
 }
 
@@ -962,5 +963,5 @@ ns_html_error(
   xfree(phr->log_t); phr->log_t = NULL;
   phr->log_z = 0;
   ns_footer(fout, footer, copyright, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 }

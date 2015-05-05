@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -81,6 +80,7 @@ calc_kirov_score(
         time_t start_time,
         int separate_user_score,
         int user_mode,
+        int token_flags,
         const struct run_entry *pe,
         const struct section_problem_data *pr,
         int attempts,
@@ -98,7 +98,7 @@ calc_kirov_score(
   ASSERT(pr);
   ASSERT(attempts >= 0);
 
-  if (separate_user_score > 0 && user_mode > 0 && pe->is_saved) {
+  if (separate_user_score > 0 && user_mode > 0 && pe->is_saved && !(token_flags & TOKEN_FINALSCORE_BIT)) {
     status = pe->saved_status;
     if (status == RUN_PENDING_REVIEW) status = RUN_OK;
     init_score = pe->saved_score;
@@ -265,9 +265,15 @@ write_html_run_status(
 
   separate_user_score = global->separate_user_score > 0 && state->online_view_judge_score <= 0;
   if (separate_user_score > 0 && pe->is_saved && user_mode) {
-    status = pe->saved_status;
-    score = pe->saved_score;
-    test = pe->saved_test;
+    if (pe->token_count > 0 && (pe->token_flags & TOKEN_FINALSCORE_BIT)) {
+      status = pe->status;
+      score = pe->score;
+      test = pe->test;
+    } else {
+      status = pe->saved_status;
+      score = pe->saved_score;
+      test = pe->saved_test;
+    }
   } else {
     status = pe->status;
     score = pe->score;
@@ -435,7 +441,7 @@ write_html_run_status(
       fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
     } else {
       calc_kirov_score(score_str, sizeof(score_str),
-                       start_time, separate_user_score, user_mode,
+                       start_time, separate_user_score, user_mode, pe->token_flags,
                        pe, pr, attempts,
                        disq_attempts, prev_successes, 0, 0);
       fprintf(f, "<td%s>%s</td>", cl, score_str);
@@ -546,7 +552,7 @@ write_text_run_status(
     fprintf(f, ";");
   } else {
     calc_kirov_score(score_str, sizeof(score_str),
-                     start_time, separate_user_score, user_mode,
+                     start_time, separate_user_score, user_mode, pe->token_flags,
                      pe, pr, attempts,
                      disq_attempts, prev_successes, 0, 1);
     fprintf(f, "%s;", score_str);
@@ -903,6 +909,29 @@ score_view_display(
   return buf;
 }
 
+void
+score_view_display_f(
+        FILE *out_f,
+        const struct section_problem_data *prob,
+        int score)
+{
+  int i;
+
+  if (!prob || !prob->score_view || !prob->score_view[0] || !prob->score_view_score) {
+    if (score < 0) score = 0;
+    fprintf(out_f, "%d", score);
+    return;
+  }
+
+  for (i = 0; prob->score_view[i] && prob->score_view_score[i] != score; i++);
+  if (!prob->score_view[i]) {
+    if (score < 0) score = 0;
+    fprintf(out_f, "%d", score);
+  } else {
+    fprintf(out_f, "%s", prob->score_view_text[i]);
+  }
+}
+
 static void
 get_problem_map(
         const serve_state_t state,
@@ -1031,6 +1060,10 @@ do_write_kirov_standings(
   int prev_prob = -1, row_ind = 0, group_ind = 1;
   int total_trans = 0;
   int total_prs = 0;
+  int total_pending = 0;
+  int total_accepted = 0;
+  int total_disqualified = 0;
+  int total_check_failed = 0;
   struct standings_style ss;
   int sort_flag;
   struct sformat_extra_data fed;
@@ -1040,6 +1073,7 @@ do_write_kirov_standings(
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   struct filter_env env;
   int separate_user_score = 0;
+  int token_flags = 0;
 
   memset(&env, 0, sizeof(env));
 
@@ -1286,7 +1320,12 @@ do_write_kirov_standings(
         continue;
     }
 
-    if (separate_user_score > 0 && user_mode && pe->is_saved) {
+    token_flags = 0;
+    if (user_mode && user_id > 0 && user_id == pe->user_id) {
+      token_flags = pe->token_flags;
+    }
+
+    if (separate_user_score > 0 && user_mode && pe->is_saved && !(pe->token_flags & TOKEN_FINALSCORE_BIT)) {
       run_status = pe->saved_status;
       run_score = pe->saved_score;
       if (run_status == RUN_OK && !prob->variable_full_score) {
@@ -1438,7 +1477,7 @@ do_write_kirov_standings(
       if (prob->score_latest_or_unmarked > 0) {
         if (run_status == RUN_OK) {
           score = calc_kirov_score(0, 0, start_time,
-                                   separate_user_score, user_mode,
+                                   separate_user_score, user_mode, token_flags,
                                    pe, prob, att_num[up_ind],
                                    disq_num[up_ind],
                                    full_sol[up_ind]?RUN_TOO_MANY:succ_att[pind],
@@ -1464,7 +1503,7 @@ do_write_kirov_standings(
           last_success_run = k;
         } else if (run_status == RUN_PARTIAL || (run_status == RUN_WRONG_ANSWER_ERR && prob->type != 0)) {
           score = calc_kirov_score(0, 0, start_time,
-                                   separate_user_score, user_mode,
+                                   separate_user_score, user_mode, token_flags,
                                    pe, prob, att_num[up_ind],
                                    disq_num[up_ind], RUN_TOO_MANY, 0, 0);
           if (pe->is_marked) {
@@ -1495,17 +1534,23 @@ do_write_kirov_standings(
         } else if (run_status == RUN_DISQUALIFIED) {
           if (!full_sol[up_ind]) sol_att[up_ind]++;
           disq_num[up_ind]++;
+          ++total_disqualified;
         } else if (run_status == RUN_PENDING_REVIEW) {
           pr_flag[up_ind] = 1;
           ++total_prs;
-        } else if (run_status == RUN_PENDING
-                   || run_status == RUN_ACCEPTED
-                   || run_status == RUN_COMPILING
+        } else if (run_status == RUN_PENDING) {
+          ++trans_num[up_ind];
+          ++total_pending;
+        } else if (run_status == RUN_ACCEPTED) {
+          ++trans_num[up_ind];
+          ++total_accepted;
+        } else if (run_status == RUN_COMPILING
                    || run_status == RUN_RUNNING) {
           trans_num[up_ind]++;
           total_trans++;
         } else if (run_status == RUN_CHECK_FAILED) {
           cf_num[up_ind]++;
+          ++total_check_failed;
         } else {
           /* something strange... */
         }
@@ -1516,7 +1561,7 @@ do_write_kirov_standings(
             marked_flag[up_ind] = pe->is_marked;
             if (!full_sol[up_ind]) sol_att[up_ind]++;
             score = calc_kirov_score(0, 0, start_time,
-                                     separate_user_score, user_mode,
+                                     separate_user_score, user_mode, token_flags,
                                      pe, prob, att_num[up_ind],
                                      disq_num[up_ind],
                                      full_sol[up_ind]?RUN_TOO_MANY:succ_att[pind],
@@ -1580,7 +1625,7 @@ do_write_kirov_standings(
             marked_flag[up_ind] = pe->is_marked;
             if (!full_sol[up_ind]) sol_att[up_ind]++;
             score = calc_kirov_score(0, 0, start_time,
-                                     separate_user_score, user_mode,
+                                     separate_user_score, user_mode, token_flags,
                                      pe, prob, att_num[up_ind],
                                      disq_num[up_ind], RUN_TOO_MANY, 0, 0);
             if (prob->score_latest > 0 || score > prob_score[up_ind]) {
@@ -1596,7 +1641,7 @@ do_write_kirov_standings(
         } else if (run_status == RUN_WRONG_ANSWER_ERR && prob->type != 0) {
           if (!full_sol[up_ind]) sol_att[up_ind]++;
           score = calc_kirov_score(0, 0, start_time,
-                                   separate_user_score, user_mode,
+                                   separate_user_score, user_mode, token_flags,
                                    pe, prob, att_num[up_ind],
                                    disq_num[up_ind], RUN_TOO_MANY, 0, 0);
           if (prob->score_latest > 0 || score > prob_score[up_ind]) {
@@ -1616,17 +1661,23 @@ do_write_kirov_standings(
         } else if (run_status == RUN_DISQUALIFIED) {
           if (!full_sol[up_ind]) sol_att[up_ind]++;
           disq_num[up_ind]++;
+          ++total_disqualified;
         } else if (run_status == RUN_PENDING_REVIEW) {
           pr_flag[up_ind] = 1;
           ++total_prs;
-        } else if (run_status == RUN_PENDING
-                   || run_status == RUN_ACCEPTED
-                   || run_status == RUN_COMPILING
+        } else if (run_status == RUN_PENDING) {
+          ++trans_num[up_ind];
+          ++total_pending;
+        } else if (run_status == RUN_ACCEPTED) {
+          ++trans_num[up_ind];
+          ++total_accepted;
+        } else if (run_status == RUN_COMPILING
                    || run_status == RUN_RUNNING) {
           trans_num[up_ind]++;
           total_trans++;
         } else if (run_status == RUN_CHECK_FAILED) {
           cf_num[up_ind]++;
+          ++total_check_failed;
         } else {
           /* something strange... */
         }
@@ -1905,12 +1956,13 @@ do_write_kirov_standings(
         write_standings_header(state, cnts, f, client_flag, 0, header_str, 0);
 
       /* print "Last success" information */
+      fprintf(f, "<table class=\"table-14\">\n");
       if (last_success_run >= 0) {
         duration_str(global->show_astr_time,
                      runs[last_success_run].time, start_time,
                      dur_str, sizeof(dur_str));
 
-        fprintf(f, "<p%s>%s: %s, ",
+        fprintf(f, "<tr%s><td>%s:</td><td>%s, ",
                 ss.success_attr, _("Last success"), dur_str);
         if (global->team_info_url[0]) {
           teamdb_export_team(state->teamdb_state,
@@ -1941,14 +1993,14 @@ do_write_kirov_standings(
         if (global->prob_info_url[0]) {
           fprintf(f, "</a>");
         }
-        fprintf(f, ".</p>\n");
+        fprintf(f, ".</td></tr>\n");
       }
       /* print "Last submit" information */
       if (last_submit_run >= 0) {
         duration_str(global->show_astr_time,
                      runs[last_submit_run].time, start_time,
                      dur_str, sizeof(dur_str));
-        fprintf(f, "<p%s>%s: %s, ",
+        fprintf(f, "<tr%s><td>%s:</td><td>%s, ",
                 ss.success_attr, _("Last submit"), dur_str);
         if (global->team_info_url[0]) {
           teamdb_export_team(state->teamdb_state,
@@ -1979,25 +2031,49 @@ do_write_kirov_standings(
         if (global->prob_info_url[0]) {
           fprintf(f, "</a>");
         }
-        fprintf(f, ".</p>\n");
+        fprintf(f, ".</td></tr>\n");
       }
       if (total_trans) {
-        fprintf(f, "<p%s>%s: %d</p>",
-                ss.success_attr, _("Runs being processed"), total_trans);
+        row_attr = "";
+        if (ss.trans_attr && ss.trans_attr[0]) row_attr = ss.trans_attr;
+        fprintf(f, "<tr%s><td%s>%s:</td><td%s>%d</td></tr>",
+                ss.success_attr, row_attr, _("Runs being processed"), row_attr, total_trans);
       }
       if (total_prs > 0) {
-        fprintf(f, "<p%s>%s: %d</p>",
-                ss.success_attr, _("Runs pending review"), total_prs);
+        if (ss.pr_attr && ss.pr_attr[0]) row_attr = ss.pr_attr;
+        fprintf(f, "<tr%s><td%s>%s:</td><td%s>%d</td></tr>",
+                ss.success_attr, row_attr, _("Runs pending review"), row_attr, total_prs);
+      }
+      if (total_pending > 0) {
+        if (ss.trans_attr && ss.trans_attr[0]) row_attr = ss.trans_attr;
+        fprintf(f, "<tr%s><td%s>%s:</td><td%s>%d</td></tr>",
+                ss.success_attr, row_attr, _("Runs pending testing"), row_attr, total_pending);
+      }
+      if (total_accepted > 0) {
+        if (ss.trans_attr && ss.trans_attr[0]) row_attr = ss.trans_attr;
+        fprintf(f, "<tr%s><td%s>%s:</td><td%s>%d</td></tr>",
+                ss.success_attr, row_attr, _("Runs accepted for testing"), row_attr, total_accepted);
+      }
+      if (total_disqualified > 0) {
+        if (ss.disq_attr && ss.disq_attr[0]) row_attr = ss.disq_attr;
+        fprintf(f, "<tr%s><td%s>%s:</td><td%s>%d</td></tr>",
+                ss.success_attr, row_attr, _("Disqualified runs"), row_attr, total_disqualified);
+      }
+      if (total_check_failed > 0) {
+        if (ss.fail_attr && ss.fail_attr[0]) row_attr = ss.fail_attr;
+        fprintf(f, "<tr%s><td%s>%s:</td><td%s>%d</td></tr>",
+                ss.success_attr, row_attr, _("Check failed runs"), row_attr, total_check_failed);
       }
 
       if (total_pages > 1) {
-        fprintf(f, _("<p%s>Page %d of %d.</p>\n"),
+        fprintf(f, _("<tr%s><td colspan=\"2\">Page %d of %d.</td></tr>\n"),
                 ss.page_cur_attr, current_page, total_pages);
 
         write_kirov_page_table(&ss, f, total_pages, current_page, pgrefs,
                                t_sort, tot_full, tot_score, pg_n1, pg_n2,
                                pr_attrs, pc_attrs);
       }
+      fprintf(f, "</table>\n");
 
       /* print table header */
       fprintf(f, "<table%s><tr%s><th%s>%s</th><th%s>%s</th>",
@@ -4421,4 +4497,104 @@ write_public_log(
   generic_copy_file(REMOVE, stat_dir, tbuf, "",
                     SAFE, stat_dir, name, "");
   return;
+}
+
+void
+html_print_testing_report_file_content(
+        FILE *out_f,
+        struct html_armor_buffer *pab,
+        struct testing_report_file_content *fc,
+        int type)
+{
+  switch (type) {
+  case TESTING_REPORT_INPUT:
+    if (fc->is_too_big) {
+      fprintf(out_f, _("<u>--- Input: file is too large, original size %lld ---</u>\n"), fc->orig_size);
+    } else if (fc->is_base64) {
+      fprintf(out_f, _("<u>--- Input: file is binary, size %lld ---</u>\n"), fc->size);
+    } else {
+      fprintf(out_f, _("<u>--- Input: size %lld ---</u>\n"), fc->size);
+    }
+    break;
+  case TESTING_REPORT_OUTPUT:
+    if (fc->is_too_big) {
+      fprintf(out_f, _("<u>--- Output: file is too large, original size %lld ---</u>\n"), fc->orig_size);
+    } else if (fc->is_base64) {
+      fprintf(out_f, _("<u>--- Output: file is binary, size %lld ---</u>\n"), fc->size);
+    } else {
+      fprintf(out_f, _("<u>--- Output: size %lld ---</u>\n"), fc->size);
+    }
+    break;
+  case TESTING_REPORT_CORRECT:
+    if (fc->is_too_big) {
+      fprintf(out_f, _("<u>--- Correct: file is too large, original size %lld ---</u>\n"), fc->orig_size);
+    } else if (fc->is_base64) {
+      fprintf(out_f, _("<u>--- Correct: file is binary, size %lld ---</u>\n"), fc->size);
+    } else {
+      fprintf(out_f, _("<u>--- Correct: size %lld ---</u>\n"), fc->size);
+    }
+    break;
+  case TESTING_REPORT_ERROR:
+    if (fc->is_too_big) {
+      fprintf(out_f, _("<u>--- Stderr: file is too large, original size %lld ---</u>\n"), fc->orig_size);
+    } else if (fc->is_base64) {
+      fprintf(out_f, _("<u>--- Stderr: file is binary, size %lld ---</u>\n"), fc->size);
+    } else {
+      fprintf(out_f, _("<u>--- Stderr: size %lld ---</u>\n"), fc->size);
+    }
+    break;
+  case TESTING_REPORT_CHECKER:
+    if (fc->is_too_big) {
+      fprintf(out_f, _("<u>--- Checker output: file is too large, original size %lld ---</u>\n"), fc->orig_size);
+    } else if (fc->is_base64) {
+      fprintf(out_f, _("<u>--- Checker output: file is binary, size %lld ---</u>\n"), fc->size);
+    } else {
+      fprintf(out_f, _("<u>--- Checker output: size %lld ---</u>\n"), fc->size);
+    }
+    break;
+  default:
+    abort();
+  }
+
+  if (fc->is_too_big) {
+  } else if (fc->is_base64) {
+    const unsigned char * const *at = html_get_armor_table();
+    int b64len = strlen(fc->data);
+    unsigned char *data = xmalloc(b64len + 1);
+    int size = base64_decode(fc->data, b64len, data, NULL);
+
+    for (int offset = 0; offset < size; offset += 16) {
+      fprintf(out_f, "%06x", offset);
+      for (int i = 0; i < 16; ++i) {
+        int off2 = offset + i;
+        if (off2 < size) {
+          fprintf(out_f, " %02x", data[off2]);
+        } else {
+          fprintf(out_f, "   ");
+        }
+      }
+      fprintf(out_f, " ");
+      for (int i = 0; i < 16; ++i) {
+        int off2 = offset + i;
+        if (off2 < size) {
+          if (data[off2] >= ' ' && data[off2] < 127) {
+            const unsigned char *ate = at[data[off2]];
+            if (ate) {
+              fprintf(out_f, "%s", ate);
+            } else {
+              putc(data[off2], out_f);
+            }
+          } else {
+            fprintf(out_f, ".");
+          }
+        } else {
+          fprintf(out_f, " ");
+        }
+      }
+      fprintf(out_f, "\n");
+    }
+    xfree(data);
+  } else {
+    fprintf(out_f, "%s\n", html_armor_buf(pab, fc->data));
+  }
 }

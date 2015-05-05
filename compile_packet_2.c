@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: compile_packet_2.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -138,10 +137,10 @@ compile_request_packet_write(
   out_data->max_stack_size = cvt_host_to_bin_64(in_data->max_stack_size);
   out_data->max_file_size = cvt_host_to_bin_64(in_data->max_file_size);
   out_data->use_uuid = cvt_host_to_bin_32(in_data->use_uuid);
-  out_data->uuid[0] = cvt_host_to_bin_32(in_data->uuid[0]);
-  out_data->uuid[1] = cvt_host_to_bin_32(in_data->uuid[1]);
-  out_data->uuid[2] = cvt_host_to_bin_32(in_data->uuid[2]);
-  out_data->uuid[3] = cvt_host_to_bin_32(in_data->uuid[3]);
+  out_data->uuid.v[0] = cvt_host_to_bin_32(in_data->uuid.v[0]);
+  out_data->uuid.v[1] = cvt_host_to_bin_32(in_data->uuid.v[1]);
+  out_data->uuid.v[2] = cvt_host_to_bin_32(in_data->uuid.v[2]);
+  out_data->uuid.v[3] = cvt_host_to_bin_32(in_data->uuid.v[3]);
   out_data->style_checker_len = cvt_host_to_bin_32(style_checker_len);
   out_data->src_sfx_len = cvt_host_to_bin_32(src_sfx_len);
   out_data->run_block_len = cvt_host_to_bin_32(in_data->run_block_len);
@@ -188,7 +187,7 @@ compile_request_packet_write(
   return 0;
 
  failed:
-  err("compile_request_packet_write: error %s, %d", "$Revision: 8531 $", errcode);
+  err("compile_request_packet_write: error %s, %d", "$Revision$", errcode);
   xfree(out_data);
   return -1;
 }

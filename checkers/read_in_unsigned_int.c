@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: read_in_unsigned_int.c 5913 2010-06-27 03:52:08Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2004-2010 Alexander Chernov <cher@ejudge.ru> */
 

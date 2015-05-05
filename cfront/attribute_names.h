@@ -1,5 +1,5 @@
 /* -*- mode: C -*- */
-/* $Id: attribute_names.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 #ifndef __ATTRIBUTE_NAMES_H__
 #define __ATTRIBUTE_NAMES_H__

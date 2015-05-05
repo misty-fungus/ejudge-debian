@@ -1,9 +1,8 @@
-dnl $Id: configure.ac 8572 2014-08-30 07:49:10Z cher $
-dnl Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru>
+dnl Copyright (C) 2004-2015 Alexander Chernov <cher@ejudge.ru>
 
 AC_INIT(ejudge,3)
 AC_PREREQ(2.59)
-AC_REVISION($Revision: 8572 $)
+AC_REVISION($Revision$)
 
 AC_PREFIX_DEFAULT([/opt/ejudge])
 AC_PROG_INSTALL
@@ -405,7 +404,15 @@ AC_CHECK_LIB([curl],[curl_easy_init],[ac_cv_has_lib_libcurl=-lcurl],[ac_cv_has_l
 
 dnl check libuuid library
 AC_CHECK_HEADER([uuid/uuid.h],[ac_cv_has_libuuid=1],[ac_cv_has_libuuid=0])
+if [[ x"${ac_cv_has_libuuid}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
+then
+  AC_MSG_FAILURE([please install libuuid development package])
+fi
 AC_CHECK_LIB([uuid],[uuid_parse],[ac_cv_has_lib_libuuid=-luuid],[ac_cv_has_lib_libuuid=])
+if [[ x"${ac_cv_has_libuuid}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
+then
+  AC_MSG_FAILURE([please install libuuid development package])
+fi
 
 dnl check regex library
 AC_CHECK_HEADER([regex.h],[ac_cv_has_regex=1],[ac_cv_has_regex=0])
@@ -423,19 +430,19 @@ then
 fi
 
 dnl checl libdwarf library
-saved_LIBS="${LIBS}"
-LIBS="-lelf"
-AC_CHECK_HEADER([libdwarf/libdwarf.h],[ac_cv_has_libdwarf=1],[ac_cv_has_libdwarf=0])
-if [[ x"${ac_cv_has_libdwarf}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
-then
-  AC_MSG_FAILURE([please install libdwarf development package])
-fi
-AC_CHECK_LIB([dwarf],[dwarf_init],[ac_cv_has_libdwarf=1],[ac_cv_has_libdwarf=0])
-if [[ x"${ac_cv_has_libdwarf}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
-then
-  AC_MSG_FAILURE([please install libdwarf development package])
-fi
-LIBS="${saved_LIBS}"
+dnl saved_LIBS="${LIBS}"
+dnl LIBS="-lelf"
+dnl AC_CHECK_HEADER([libdwarf/libdwarf.h],[ac_cv_has_libdwarf=1],[ac_cv_has_libdwarf=0])
+dnl if [[ x"${ac_cv_has_libdwarf}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
+dnl then
+dnl   AC_MSG_FAILURE([please install libdwarf development package])
+dnl fi
+dnl AC_CHECK_LIB([dwarf],[dwarf_init],[ac_cv_has_libdwarf=1],[ac_cv_has_libdwarf=0])
+dnl if [[ x"${ac_cv_has_libdwarf}" != x1 -a x"${ac_cv_ejudge_arch}" != xwin32 ]]
+dnl then
+dnl   AC_MSG_FAILURE([please install libdwarf development package])
+dnl fi
+dnl LIBS="${saved_LIBS}"
 
 dnl Libcap checking stuff
 ac_cv_has_libcap=1
@@ -1281,10 +1288,15 @@ then
 fi
 
 AC_CONFIG_HEADERS([config.h])
+
+AC_CONFIG_SUBDIRS([libdwarf])
+
 AC_OUTPUT(Makefile extra/Makefile extra/captest/Makefile checkers/Makefile scripts/Makefile ejudge-config.v scripts/festival plugins/mysql-common/Makefile plugins/mysql-userlist/Makefile plugins/mysql-clardb/Makefile plugins/mysql-rundb/Makefile style/ejudge-upgrade-web cfront/Makefile reuse/Makefile csp/contests/Makefile csp/super-server/Makefile csp_header.make)
 
 #cp -p config.h include/reuse
 cp -p config.h include/ejudge
+cp -p libdwarf/libdwarf/dwarf.h include/libdwarf-internal
+cp -p libdwarf/libdwarf/libdwarf.h include/libdwarf-internal
 
 chmod +x ejudge-config.v scripts/festival style/ejudge-upgrade-web
 

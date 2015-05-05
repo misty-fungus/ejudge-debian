@@ -1,5 +1,5 @@
 <%
-/* $Id: problem_packages_page.csp 8319 2014-07-18 14:37:00Z cher $ */
+/* $Id$ */
 %><%@include "includes.csp"
 %><%@set getter_name = "csp_get_problem_packages_page"
 %><%@set ac_prefix = "SSERV_CMD_"
@@ -15,7 +15,7 @@
 
 <%@include "footer.csp"
 %><%
-  l10n_setlocale(0);
 //cleanup:
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

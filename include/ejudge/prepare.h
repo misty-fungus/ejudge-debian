@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: prepare.h 8474 2014-08-17 07:03:26Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -115,6 +114,17 @@ struct user_adjustment_info
   int adjustment;
 };
 struct user_adjustment_map;
+
+struct token_info
+{
+  int initial_count;  // initial token count
+  int time_sign;      // sign (+/-) of the time term
+  int time_increment; // periodic token increment
+  int time_interval;  // period length (s)
+  int open_sign;      // sign (+/-) of the open term
+  int open_cost;      // token cost
+  int open_flags;     // what opens by paying
+};
 
 /* sizeof(struct section_global_data) == 350132/350296 */
 struct section_global_data
@@ -717,6 +727,14 @@ struct section_global_data
   /** the user groups to load */
   char **load_user_group;
 
+  /** global tokens specification */
+  unsigned char *tokens;
+
+  struct token_info *token_info META_ATTRIB((meta_private));
+
+  // set to 1 if there exist a tokenized problem
+  int enable_tokens META_ATTRIB((meta_private));
+
   /** INTERNAL: text with unhandled variables */
   unsigned char *unhandled_vars;
 
@@ -795,6 +813,8 @@ struct section_problem_data
   ejintbool_t score_latest_or_unmarked;
   /** for KIROV contests: score the latest marked submit */
   ejintbool_t score_latest_marked;
+  /** for KIROV contests: score only the tokenized submits (with tokens spent on them) */
+  ejintbool_t score_tokenized;
   /** maximum astronomical time for a problem (seconds) */
   int real_time_limit;
   /** time limit in seconds */
@@ -849,8 +869,18 @@ struct section_problem_data
   ejintbool_t disable_user_submit;
   /** no problem tab for this problem in problem_navigation mode */
   ejintbool_t disable_tab;
-  /** do not show problem statement after problem expiration */
+  /** do show problem statement after problem expiration */
+  ejintbool_t unrestricted_statement;
+  /** for compatibility with old configs */
   ejintbool_t restricted_statement;
+  /** hide input/output file names from problem submit page */
+  ejintbool_t hide_file_names;
+  /** hide information about real time limit */
+  ejintbool_t hide_real_time_limit;
+  /** enable tokens for this problem */
+  ejintbool_t enable_tokens;
+  /** enable tokens only for user AC status */
+  ejintbool_t tokens_for_user_ac;
   /** disable submission after this problem is solved */
   ejintbool_t disable_submit_after_ok;
   /** do not test this problem automatically */
@@ -923,6 +953,13 @@ struct section_problem_data
   unsigned char output_file[256];
   /** scores for individual tests */
   unsigned char *test_score_list;
+  /** token specification */
+  unsigned char *tokens;
+  /** process umask */
+  unsigned char *umask;
+
+  struct token_info *token_info META_ATTRIB((meta_private));
+
   /** number of tests for Moscow scoring */
   unsigned char score_tests[256];
   /** name of the built-in checker */
@@ -953,6 +990,8 @@ struct section_problem_data
   ejintbool_t disable_stderr;
   /** use process groups */
   ejintbool_t enable_process_group;
+  /** hide variant number from user */
+  ejintbool_t hide_variant;
 
   /** printf pattern for the test files */
   unsigned char test_pat[32];
@@ -985,6 +1024,8 @@ struct section_problem_data
   time_t deadline;
   /** time for opening this problem for submission */
   time_t start_date;
+  /** autoassign variants? */
+  ejintbool_t autoassign_variants;
   /** number of variants for this problem */
   int variant_num;
 
@@ -1033,6 +1074,8 @@ struct section_problem_data
   unsigned char *test_checker_cmd;
   /** start/stop init-style interactor */
   unsigned char *init_cmd;
+  /** proxy to start the program being tested */
+  unsigned char *start_cmd;
   /** solution source file */
   unsigned char *solution_src;
   /** solution command */
@@ -1070,6 +1113,11 @@ struct section_problem_data
   unsigned char final_open_tests[256];
   int final_open_tests_count META_ATTRIB((meta_private));
   int *final_open_tests_val META_ATTRIB((meta_private));
+
+  /** test visibility purchasable by tokens */
+  unsigned char *token_open_tests;
+  int token_open_tests_count META_ATTRIB((meta_private));
+  int *token_open_tests_val META_ATTRIB((meta_private));
 
   /** max virtual size limit  */
   size_t max_vm_size;
@@ -1333,9 +1381,13 @@ void prepare_unparse_unhandled_global(FILE *f,
                                       const struct section_global_data *global);
 int prepare_check_forbidden_global(FILE *f, const struct section_global_data *global);
 
-void prepare_unparse_lang(FILE *f, const struct section_language_data *lang,
-                          const unsigned char *long_name,
-                          const unsigned char *options);
+void
+prepare_unparse_lang(
+        FILE *f,
+        const struct section_language_data *lang,
+        const unsigned char *long_name,
+        const unsigned char *options,
+        const unsigned char *libs);
 void prepare_unparse_unhandled_lang(FILE *f,
                                     const struct section_language_data *lang);
 int prepare_check_forbidden_lang(FILE *f, const struct section_language_data *lang);
@@ -1381,12 +1433,6 @@ void prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
                                         struct section_global_data *global);
 void prepare_set_concr_problem_defaults(struct section_problem_data *prob,
                                         struct section_global_data *global);
-struct variant_map;
-void prepare_free_variant_map(struct variant_map *p);
-
-void prepare_unparse_variants(FILE *f, const struct variant_map *vmap,
-                              const unsigned char *header,
-                              const unsigned char *footer);
 
 int *prepare_parse_score_tests(const unsigned char *str, int score);
 const unsigned char *prepare_unparse_problem_type(int val);
@@ -1401,13 +1447,8 @@ prepare_insert_variant_num(
         const unsigned char *file,
         int variant);
 
-struct variant_map *
-prepare_parse_variant_map(
-        FILE *log_f,
-        serve_state_t state,
-        const unsigned char *path,
-        unsigned char **p_header_txt,
-        unsigned char **p_footer_txt);
+struct token_info *
+prepare_parse_tokens(FILE *log_f, const unsigned char *tokens);
 
 /* This is INTENTIONALLY not an `extern' variable */
 struct ejudge_cfg;
@@ -1463,7 +1504,8 @@ int
 cntsprob_get_test_visibility(
         const struct section_problem_data *prob,
         int num,
-        int final_mode);
+        int final_mode,
+        int token_flags);
 
 int
 prepare_parse_test_score_list(

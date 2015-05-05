@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: meta.make 8535 2014-08-22 13:45:56Z cher $
+# $Id$
 
 # Copyright (C) 2011-2014 Alexander Chernov <cher@ejudge.ru> */
 

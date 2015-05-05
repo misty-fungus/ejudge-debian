@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_serve_pi.c 8377 2014-07-30 06:33:03Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 

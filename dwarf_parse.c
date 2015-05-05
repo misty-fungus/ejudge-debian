@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: dwarf_parse.c 8565 2014-08-28 13:31:40Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -31,8 +31,8 @@
 #include <errno.h>
 #include <limits.h>
 
-#include <libdwarf/dwarf.h>
-#include <libdwarf/libdwarf.h>
+#include <libdwarf-internal/dwarf.h>
+#include <libdwarf-internal/libdwarf.h>
 
 typedef struct DieMapEntry
 {
@@ -628,8 +628,11 @@ parse_base_type_die(
         goto done;
     if (s_dwarf_attr_2(log_f, path, die, DW_AT_encoding, &enc_attr) <= 0)
         goto done;
-    if (s_dwarf_attr_2(log_f, path, die, DW_AT_name, &name_attr) <= 0)
+    if (s_dwarf_attr_2(log_f, path, die, DW_AT_name, &name_attr) <= 0) {
+        // this happens on Debian
+        retval = 0;
         goto done;
+    }
 
     Dwarf_Unsigned bs = 0;
     Dwarf_Unsigned enc = 0;
@@ -1452,6 +1455,7 @@ static const struct TopDieParseTable top_die_table[] =
     { DW_TAG_subroutine_type, NODE_FUNCTION_TYPE, "function", parse_function_type_die },
     { DW_TAG_variable, 0, NULL, NULL },
     { DW_TAG_subprogram, NODE_SUBROUTINE, "subprogram", parse_subroutine_die },
+    { DW_TAG_dwarf_procedure, 0, NULL, NULL },
 
     { 0 },
 };

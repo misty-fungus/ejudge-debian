@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: bitset.h 8193 2014-05-14 19:45:55Z cher $ */
+/* $Id$ */
 
 #ifndef __BITSET_H__
 #define __BITSET_H__

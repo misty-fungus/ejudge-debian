@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: ej-page-gen.c 8545 2014-08-23 10:35:54Z cher $ */
 
-/* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -3480,7 +3479,7 @@ handle_redirect_open(
 }
 
 static int
-handle_htr_open(
+handle_tr_open(
         FILE *log_f,
         TypeContext *cntx,
         ProcessorState *ps,
@@ -3518,7 +3517,7 @@ handle_htr_open(
 }
 
 static int
-handle_htr_close(
+handle_tr_close(
         FILE *log_f,
         TypeContext *cntx,
         ProcessorState *ps,
@@ -4051,7 +4050,7 @@ handle_checkbox_open(
 }
 
 static int
-handle_tr_open(
+handle_gettext_open(
         FILE *log_f,
         TypeContext *cntx,
         ProcessorState *ps,
@@ -4063,7 +4062,7 @@ handle_tr_open(
 }
 
 static int
-handle_tr_close(
+handle_gettext_close(
         FILE *log_f,
         TypeContext *cntx,
         ProcessorState *ps,
@@ -4598,8 +4597,7 @@ struct ElementInfo
 
 static const struct ElementInfo element_handlers[] =
 {
-    { "s:tr", handle_tr_open, handle_tr_close },
-    { "s:_", handle_tr_open, handle_tr_close },
+    { "s:_", handle_gettext_open, handle_gettext_close },
     { "s:a", handle_a_open, handle_a_close },
     { "s:submit", handle_submit_open, NULL },
     { "s:v", handle_v_open, NULL },
@@ -4623,7 +4621,7 @@ static const struct ElementInfo element_handlers[] =
     { "s:ac", handle_ac_open, NULL },
     { "s:read", handle_read_open, NULL },
     { "s:numselect", handle_numselect_open, NULL },
-    { "s:htr", handle_htr_open, handle_htr_close },
+    { "s:tr", handle_tr_open, handle_tr_close },
     { "s:redirect", handle_redirect_open, NULL },
     { "s:help", handle_help_open, NULL },
 
@@ -4791,8 +4789,17 @@ size_t_type_handler(
         const HtmlElement *elem,
         TypeInfo *type_info)
 {
-    // handle "format"?
-    fprintf(prg_f, "fprintf(out_f, \"%%zu\", (size_t)(%s));\n", text);
+    HtmlAttribute *at = NULL;
+    if (elem) {
+        at = html_element_find_attribute(elem, "format");
+    }
+    if (at && !strcmp(at->value, "V")) {
+        fprintf(prg_f, "size_t_to_size_str_f(out_f, (size_t)(%s));\n", text);
+    } else if (at) {
+        fprintf(prg_f, "fprintf(out_f, \"%%%szu\", (size_t)(%s));\n", at->value, text);
+    } else {
+        fprintf(prg_f, "fprintf(out_f, \"%%zu\", (size_t)(%s));\n", text);
+    }
 }
 
 static void
@@ -4851,7 +4858,7 @@ ej_uuid_type_handler(
         const HtmlElement *elem,
         TypeInfo *type_info)
 {
-    fprintf(prg_f, "fputs(ej_uuid_unparse((%s), \"\"), out_f);\n", text);
+    fprintf(prg_f, "fputs(ej_uuid_unparse(&(%s), \"\"), out_f);\n", text);
 }
 
 static void

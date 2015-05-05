@@ -2,7 +2,7 @@
 #ifndef __TREE_H__
 #define __TREE_H__
 
-/* $Id: tree.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 

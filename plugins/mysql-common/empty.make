@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: empty.make 5258 2008-11-09 20:04:07Z cher $
+# $Id$
 
 # Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: testing_report_xml.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,6 +23,7 @@
 #include "ejudge/runlog.h"
 #include "ejudge/digest_io.h"
 #include "ejudge/misctext.h"
+#include "ejudge/ej_uuid.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -89,6 +89,7 @@ enum
   TR_T_TTCELLS,
   TR_T_TTCELL,
   TR_T_COMPILER_OUTPUT,
+  TR_T_UUID,
 
   TR_T_LAST_TAG,
 };
@@ -144,6 +145,12 @@ enum
   TR_A_USER_SCORE,
   TR_A_USER_MAX_SCORE,
   TR_A_USER_RUN_TESTS,
+  TR_A_COMPILE_ERROR,
+  TR_A_CONTEST_ID,
+  TR_A_SIZE,
+  TR_A_TOO_BIG,
+  TR_A_ORIGINAL_SIZE,
+  TR_A_BASE64,
 
   TR_A_LAST_ATTR,
 };
@@ -172,6 +179,7 @@ static const char * const elem_map[] =
   [TR_T_TTCELLS] = "ttcells",
   [TR_T_TTCELL] = "ttcell",
   [TR_T_COMPILER_OUTPUT] = "compiler_output",
+  [TR_T_UUID] = "uuid",
 
   [TR_T_LAST_TAG] = 0,
 };
@@ -227,6 +235,12 @@ static const char * const attr_map[] =
   [TR_A_USER_SCORE] = "user-score",
   [TR_A_USER_MAX_SCORE] = "user-max-score",
   [TR_A_USER_RUN_TESTS] = "user-run-tests",
+  [TR_A_COMPILE_ERROR] = "compile-error",
+  [TR_A_CONTEST_ID] = "contest-id",
+  [TR_A_SIZE] = "size",
+  [TR_A_TOO_BIG] = "too-big",
+  [TR_A_ORIGINAL_SIZE] = "original-size",
+  [TR_A_BASE64] = "base64",
 
   [TR_A_LAST_ATTR] = 0,
 };
@@ -266,6 +280,86 @@ parse_scoring(const unsigned char *str, int *px)
 static struct testing_report_test * testing_report_test_free(struct testing_report_test *p);
 
 static int
+parse_file(
+        struct xml_tree *t,
+        struct testing_report_file_content *fc)
+{
+  long long size = -1;
+  int oversized = 0;
+  long long orig_size = -1;
+  int base64 = 0;
+  for (struct xml_attr *a = t->first; a; a = a->next) {
+    switch (a->tag) {
+    case TR_A_SIZE:
+      {
+        long long x = -1;
+        if (xml_attr_long_long(a, &x) < 0) goto failure;
+        if (x < 0) {
+          xml_err_attr_invalid(a);
+          goto failure;
+        }
+        size = x;
+      }
+      break;
+    case TR_A_TOO_BIG:
+      {
+        int x;
+        if (xml_attr_bool(a, &x) < 0) goto failure;
+        oversized = x;
+      }
+      break;
+    case TR_A_ORIGINAL_SIZE:
+      {
+        long long x = -1;
+        if (xml_attr_long_long(a, &x) < 0) goto failure;
+        if (x < 0) {
+          xml_err_attr_invalid(a);
+          goto failure;
+        }
+        orig_size = x;
+      }
+      break;
+    case TR_A_BASE64:
+      {
+        int x;
+        if (xml_attr_bool(a, &x) < 0) goto failure;
+        base64 = x;
+      }
+      break;
+    default:
+      xml_err_attr_not_allowed(t, a);
+      goto failure;
+    }
+  }
+  if (t->first_down) {
+    xml_err_nested_elems(t);
+    goto failure;
+  }
+  if (oversized) {
+    if (orig_size < 0) {
+      orig_size = 0;
+    }
+    fc->data = NULL;
+    fc->size = 0;
+    fc->is_too_big = oversized;
+    fc->orig_size = orig_size;
+    fc->is_base64 = 0;
+  } else {
+    if (size < 0) size = strlen(t->text);
+    fc->data = t->text; t->text = 0;
+    fc->size = size;
+    fc->is_too_big = 0;
+    fc->orig_size = -1;
+    fc->is_base64 = base64;
+  }
+
+  return 0;
+
+failure:
+  return -1;
+}
+
+static int
 parse_test(struct xml_tree *t, testing_report_xml_t r)
 {
   struct testing_report_test *p = 0, *q = 0;
@@ -280,7 +374,7 @@ parse_test(struct xml_tree *t, testing_report_xml_t r)
   }
   if (xml_empty_text(t) < 0) goto failure;
 
-  XCALLOC(p, 1);
+  p = testing_report_test_alloc(-1, -1);
   p->num = -1;
   p->status = -1;
   p->time = -1;
@@ -455,19 +549,19 @@ parse_test(struct xml_tree *t, testing_report_xml_t r)
       if (xml_leaf_elem(t2, &q->args, 1, 1) < 0) goto failure;
       break;
     case TR_T_INPUT:
-      if (xml_leaf_elem(t2, &q->input, 1, 1) < 0) goto failure;
+      if (parse_file(t2, &q->input) < 0) goto failure;
       break;
     case TR_T_OUTPUT:
-      if (xml_leaf_elem(t2, &q->output, 1, 1) < 0) goto failure;
+      if (parse_file(t2, &q->output) < 0) goto failure;
       break;
     case TR_T_CORRECT:
-      if (xml_leaf_elem(t2, &q->correct, 1, 1) < 0) goto failure;
+      if (parse_file(t2, &q->correct) < 0) goto failure;
       break;
     case TR_T_STDERR:
-      if (xml_leaf_elem(t2, &q->error, 1, 1) < 0) goto failure;
+      if (parse_file(t2, &q->error) < 0) goto failure;
       break;
     case TR_T_CHECKER:
-      if (xml_leaf_elem(t2, &q->checker, 1, 1) < 0) goto failure;
+      if (parse_file(t2, &q->checker) < 0) goto failure;
       break;
 
     default:
@@ -708,6 +802,14 @@ parse_testing_report(struct xml_tree *t, testing_report_xml_t r)
 
   for (a = t->first; a; a = a->next) {
     switch (a->tag) {
+    case TR_A_CONTEST_ID:
+      if (xml_attr_int(a, &x) < 0) return -1;
+      if (x <= 0) {
+        xml_err_attr_invalid(a);
+        return -1;
+      }
+      r->contest_id = x;
+      break;
     case TR_A_RUN_ID:
       if (xml_attr_int(a, &x) < 0) return -1;
       if (x < 0 || x > EJ_MAX_RUN_ID) {
@@ -772,6 +874,11 @@ parse_testing_report(struct xml_tree *t, testing_report_xml_t r)
     case TR_A_MAX_MEMORY_USED_AVAILABLE:
       if (xml_attr_bool(a, &x) < 0) return -1;
       r->max_memory_used_available = x;
+      break;
+
+    case TR_A_COMPILE_ERROR:
+      if (xml_attr_bool(a, &x) < 0) return -1;
+      r->compile_error = x;
       break;
 
       /*
@@ -1070,6 +1177,21 @@ parse_testing_report(struct xml_tree *t, testing_report_xml_t r)
     case TR_T_COMPILER_OUTPUT:
       if (xml_leaf_elem(t2, &r->compiler_output, 1, 1) < 0) return -1;
       break;
+    case TR_T_UUID:
+      {
+        unsigned char *uuid = NULL;
+        if (xml_leaf_elem(t2, &uuid, 1, 1) < 0) {
+          xfree(uuid);
+          return -1;
+        }
+        if (ej_uuid_parse(uuid, &r->uuid) < 0) {
+          xml_err(t2, "invalid value of <uuid>");
+          xfree(uuid);
+          return -1;
+        }
+        xfree(uuid);
+      }
+      break;
     case TR_T_TESTS:
       if (was_tests) {
         xml_err(t2, "duplicated element <tests>");
@@ -1136,11 +1258,11 @@ testing_report_test_free(struct testing_report_test *p)
   xfree(p->exit_comment); p->exit_comment = 0;
 
   xfree(p->args); p->args = 0;
-  xfree(p->input); p->input = 0;
-  xfree(p->output); p->output = 0;
-  xfree(p->correct); p->correct = 0;
-  xfree(p->error); p->error = 0;
-  xfree(p->checker); p->checker = 0;
+  xfree(p->input.data); p->input.data = 0;
+  xfree(p->output.data); p->output.data = 0;
+  xfree(p->correct.data); p->correct.data = 0;
+  xfree(p->error.data); p->error.data = 0;
+  xfree(p->checker.data); p->checker.data = 0;
 
   xfree(p);
   return 0;
@@ -1199,25 +1321,50 @@ testing_report_free(testing_report_xml_t r)
   return 0;
 }
 
+struct testing_report_test *
+testing_report_test_alloc(int num, int status)
+{
+  struct testing_report_test *trt = calloc(1, sizeof(*trt));
+  trt->num = num;
+  trt->status = status;
+  trt->input.size = -1;
+  trt->input.orig_size = -1;
+  trt->output.size = -1;
+  trt->output.orig_size = -1;
+  trt->correct.size = -1;
+  trt->correct.orig_size = -1;
+  trt->error.size = -1;
+  trt->error.orig_size = -1;
+  trt->checker.size = -1;
+  trt->checker.orig_size = -1;
+  return trt;
+}
+
 testing_report_xml_t
-testing_report_alloc(int run_id, int judge_id)
+testing_report_alloc(int contest_id, int run_id, int judge_id)
 {
   testing_report_xml_t r = 0;
   XCALLOC(r, 1);
+  r->contest_id = contest_id;
   r->run_id = run_id;
   r->judge_id = judge_id;
   r->status = RUN_CHECK_FAILED;
   r->scoring_system = -1;
   r->marked_flag = -1;
+  r->user_status = -1;
+  r->user_tests_passed = -1;
+  r->user_score = -1;
+  r->user_max_score = -1;
+  r->user_run_tests = -1;
   return r;
 }
 
 static const char * const scoring_system_strs[] =
 {
-  [SCORE_ACM] "ACM",
-  [SCORE_KIROV] "KIROV",
-  [SCORE_OLYMPIAD] "OLYMPIAD",
-  [SCORE_MOSCOW] "MOSCOW",
+  [SCORE_ACM] = "ACM",
+  [SCORE_KIROV] = "KIROV",
+  [SCORE_OLYMPIAD] = "OLYMPIAD",
+  [SCORE_MOSCOW] = "MOSCOW",
 };
 static const unsigned char *
 unparse_scoring_system(unsigned char *buf, size_t size, int val)
@@ -1269,19 +1416,41 @@ unparse_string_attr(
 }
 
 static void
-unparse_file_contents(
+unparse_digest_attr(
         FILE *out,
-        int utf8_mode,
-        int max_file_length,
-        int max_line_length,
-        int elem_index,
-        const unsigned char *str,
-        int size)
+        int attr_index,
+        const void *raw)
 {
-  if (size >= 0) {
-    fprintf(out, "      <%s>", elem_map[elem_index]);
-    html_print_by_line(out, utf8_mode, max_file_length, max_line_length,
-                       str, size);
+  const unsigned int *v = raw;
+  if (v[0] || v[1] || v[2] || v[3] || v[4]) {
+    fprintf(out, "  %s=\"", attr_map[attr_index]);
+    digest_to_file(out, DIGEST_SHA1, raw);
+    fprintf(out, "\"");
+  } 
+}
+
+static void
+unparse_file_content(
+        FILE *out,
+        struct html_armor_buffer *pab,
+        int elem_index,
+        struct testing_report_file_content *fc)
+{
+  if (fc->size >= 0) {
+    fprintf(out, "      <%s", elem_map[elem_index]);
+    if (fc->is_too_big) {
+      unparse_bool_attr(out, TR_A_TOO_BIG, 1);
+      fprintf(out, " %s=\"%lld\"", attr_map[TR_A_ORIGINAL_SIZE], fc->orig_size);
+      fprintf(out, " />\n");
+      return;
+    }
+
+    fprintf(out, " %s=\"%lld\"", attr_map[TR_A_SIZE], fc->size);
+    unparse_bool_attr(out, TR_A_BASE64, fc->is_base64);
+    fprintf(out, ">");
+    if (fc->data) {
+      fprintf(out, "%s", html_armor_buf(pab, fc->data));
+    }
     fprintf(out, "</%s>\n", elem_map[elem_index]);
   }
 }
@@ -1313,12 +1482,16 @@ testing_report_unparse_xml(
           attr_map[TR_A_SCORING], scoring,
           attr_map[TR_A_RUN_TESTS], r->run_tests);
 
+  if (r->contest_id > 0) {
+    fprintf(out, " %s=\"%d\"", attr_map[TR_A_CONTEST_ID], r->contest_id);
+  }
   unparse_bool_attr(out, TR_A_ARCHIVE_AVAILABLE, r->archive_available);
   unparse_bool_attr(out, TR_A_REAL_TIME_AVAILABLE, r->real_time_available);
   unparse_bool_attr(out, TR_A_MAX_MEMORY_USED_AVAILABLE,
                     r->max_memory_used_available);
   unparse_bool_attr(out, TR_A_CORRECT_AVAILABLE, r->correct_available);
   unparse_bool_attr(out, TR_A_INFO_AVAILABLE, r->info_available);
+  unparse_bool_attr(out, TR_A_COMPILE_ERROR, r->compile_error);
   if (r->variant > 0) {
     fprintf(out, " %s=\"%d\"", attr_map[TR_A_VARIANT], r->variant);
   }
@@ -1387,6 +1560,10 @@ testing_report_unparse_xml(
   }
   fprintf(out, " >\n");
 
+  if (r->uuid.v[0] || r->uuid.v[1] || r->uuid.v[2] || r->uuid.v[3]) {
+    fprintf(out, "  <%s>%s</%s>\n", elem_map[TR_T_UUID], ej_uuid_unparse(&r->uuid, NULL), elem_map[TR_T_UUID]);
+  }
+
   unparse_string_elem(out, &ab, TR_T_COMMENT, r->comment);
   unparse_string_elem(out, &ab, TR_T_VALUER_COMMENT, r->valuer_comment);
   unparse_string_elem(out, &ab, TR_T_VALUER_JUDGE_COMMENT,
@@ -1426,41 +1603,36 @@ testing_report_unparse_xml(
       if (r->scoring_system == SCORE_OLYMPIAD && r->accepting_mode <= 0) {
         fprintf(out, " %s=\"%d\" %s=\"%d\"",
                 attr_map[TR_A_NOMINAL_SCORE], t->nominal_score,
-                attr_map[TR_A_SCORE], r->score);
+                attr_map[TR_A_SCORE], t->score);
       } else if (r->scoring_system == SCORE_KIROV) {
         fprintf(out, " %s=\"%d\" %s=\"%d\"",
                 attr_map[TR_A_NOMINAL_SCORE], t->nominal_score,
-                attr_map[TR_A_SCORE], r->score);
+                attr_map[TR_A_SCORE], t->score);
       }
       unparse_string_attr(out, &ab, TR_A_COMMENT, t->comment);
       unparse_string_attr(out, &ab, TR_A_TEAM_COMMENT, t->team_comment);
       unparse_string_attr(out, &ab, TR_A_EXIT_COMMENT, t->exit_comment);
       unparse_string_attr(out, &ab, TR_A_CHECKER_COMMENT, t->checker_comment);
-      unparse_string_attr(out, &ab, TR_A_INPUT_DIGEST, t->input_digest);
-      unparse_string_attr(out, &ab, TR_A_CORRECT_DIGEST, t->correct_digest);
-      unparse_string_attr(out, &ab, TR_A_INFO_DIGEST, t->info_digest);
+      unparse_digest_attr(out, TR_A_INPUT_DIGEST, t->input_digest);
+      unparse_digest_attr(out, TR_A_CORRECT_DIGEST, t->correct_digest);
+      unparse_digest_attr(out, TR_A_INFO_DIGEST, t->info_digest);
       unparse_bool_attr(out, TR_A_OUTPUT_AVAILABLE, t->output_available);
       unparse_bool_attr(out, TR_A_STDERR_AVAILABLE, t->stderr_available);
       unparse_bool_attr(out, TR_A_CHECKER_OUTPUT_AVAILABLE,
                         t->checker_output_available);
       unparse_bool_attr(out, TR_A_ARGS_TOO_LONG, t->args_too_long);
       if (t->visibility > 0) {
-        fprintf(out, " %s=\"%d\"", attr_map[TR_A_VISIBILITY], t->visibility);
+        fprintf(out, " %s=\"%s\"", attr_map[TR_A_VISIBILITY], test_visibility_unparse(t->visibility));
       }
       fprintf(out, " >\n");
 
       unparse_string_elem(out, &ab, TR_T_ARGS, t->args);
 
-      unparse_file_contents(out, utf8_mode, max_file_length, max_line_length,
-                            TR_T_INPUT, t->input, t->input_size);
-      unparse_file_contents(out, utf8_mode, max_file_length, max_line_length,
-                            TR_T_OUTPUT, t->output, t->output_size);
-      unparse_file_contents(out, utf8_mode, max_file_length, max_line_length,
-                            TR_T_CORRECT, t->correct, t->correct_size);
-      unparse_file_contents(out, utf8_mode, max_file_length, max_line_length,
-                            TR_T_STDERR, t->error, t->error_size);
-      unparse_file_contents(out, utf8_mode, max_file_length, max_line_length,
-                            TR_T_CHECKER, t->checker, t->checker_size);
+      unparse_file_content(out, &ab, TR_T_INPUT, &t->input);
+      unparse_file_content(out, &ab, TR_T_OUTPUT, &t->output);
+      unparse_file_content(out, &ab, TR_T_CORRECT, &t->correct);
+      unparse_file_content(out, &ab, TR_T_STDERR, &t->error);
+      unparse_file_content(out, &ab, TR_T_CHECKER, &t->checker);
       fprintf(out, "    </%s>\n", elem_map[TR_T_TEST]);
     }
     fprintf(out, "  </%s>\n", elem_map[TR_T_TESTS]);
@@ -1513,4 +1685,47 @@ testing_report_unparse_xml(
 
   fprintf(out, "</%s>\n", elem_map[TR_T_TESTING_REPORT]);
   html_armor_free(&ab);
+}
+
+void
+testing_report_to_str(
+        char **pstr,
+        size_t *psize,
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        testing_report_xml_t r)
+{
+  FILE *f = open_memstream(pstr, psize);
+  fprintf(f, "Content-type: text/xml\n\n");
+  fprintf(f, "<?xml version=\"1.0\" encoding=\"%s\"?>\n", EJUDGE_CHARSET);
+  testing_report_unparse_xml(f, utf8_mode, max_file_length, max_line_length, r);
+  fclose(f); f = NULL;
+}
+
+int
+testing_report_to_file(
+        const unsigned char *path,
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        testing_report_xml_t r)
+{
+  FILE *f = fopen(path, "w");
+  if (!f) {
+    return -1;
+  }
+  fprintf(f, "Content-type: text/xml\n\n");
+  fprintf(f, "<?xml version=\"1.0\" encoding=\"%s\"?>\n", EJUDGE_CHARSET);
+  testing_report_unparse_xml(f, utf8_mode, max_file_length, max_line_length, r);
+  if (ferror(f)) {
+    fclose(f);
+    return -1;
+  }
+  if (fflush(f) < 0) {
+    fclose(f);
+    return -1;
+  }
+  fclose(f); f = NULL;
+  return 0;
 }

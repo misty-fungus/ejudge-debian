@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: private.h 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id$ */
 
 #ifndef __USERLIST_CLNT_PRIVATE_H__
 #define __USERLIST_CLNT_PRIVATE_H__

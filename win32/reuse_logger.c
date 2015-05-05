@@ -1,4 +1,4 @@
-/* $Id: reuse_logger.c 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 1999-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 23:50:19 cher> */

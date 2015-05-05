@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: expat_iface.c 7753 2014-01-03 19:59:12Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2010 Alexander Chernov <cher@ejudge.ru> */
 

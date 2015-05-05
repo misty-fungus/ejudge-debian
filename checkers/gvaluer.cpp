@@ -1,5 +1,4 @@
-/* $Id: gvaluer.cpp 7834 2014-02-03 19:17:14Z cher $ */
-/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -70,6 +69,46 @@ static bool user_score_flag;
 static bool interactive_flag;
 static bool rejudge_flag;
 
+static int parse_status(const string &str)
+{
+    if (str.length() != 2) return -1;
+    char c1 = toupper(str[0]);
+    char c2 = toupper(str[1]);
+    if (c1 == 'A') {
+        if (c2 == 'C') return RUN_ACCEPTED;
+    } else if (c1 == 'C') {
+        if (c2 == 'E') return RUN_COMPILE_ERR;
+        if (c2 == 'F') return RUN_CHECK_FAILED;
+    } else if (c1 == 'D') {
+        if (c2 == 'Q') return RUN_DISQUALIFIED;
+    } else if (c1 == 'I') {
+        if (c2 == 'G') return RUN_IGNORED;
+    } else if (c1 == 'M') {
+        if (c2 == 'L') return RUN_MEM_LIMIT_ERR;
+    } else if (c1 == 'O') {
+        if (c2 == 'K') return RUN_OK;
+    } else if (c1 == 'P') {
+        if (c2 == 'D') return RUN_PENDING;
+        if (c2 == 'E') return RUN_PRESENTATION_ERR;
+        if (c2 == 'R') return RUN_PENDING_REVIEW;
+        if (c2 == 'T') return RUN_PARTIAL;
+    } else if (c1 == 'S') {
+        if (c2 == 'E') return RUN_SECURITY_ERR;
+        if (c2 == 'K') return RUN_SKIPPED;
+        if (c2 == 'V') return RUN_STYLE_ERR;
+    } else if (c1 == 'R') {
+        if (c2 == 'J') return RUN_REJECTED;
+        if (c2 == 'T') return RUN_RUN_TIME_ERR;
+    } else if (c1 == 'T') {
+        if (c2 == 'L') return RUN_TIME_LIMIT_ERR;
+    } else if (c1 == 'W') {
+        if (c2 == 'A') return RUN_WRONG_ANSWER_ERR;
+        if (c2 == 'T') return RUN_WALL_TIME_LIMIT_ERR;
+    }
+
+    return -1;
+}
+
 class ConfigParser;
 class Group
 {
@@ -82,9 +121,12 @@ class Group
     bool sets_marked = false;
     bool skip = false;
     bool skip_if_not_rejudge = false;
+    bool stat_to_judges = false;
+    bool test_all = false;
     int score = 0;
     int test_score = -1;
     int pass_if_count = -1;
+    int user_status = -1;
 
     int passed_count = 0;
     int total_score = 0;
@@ -122,11 +164,17 @@ public:
     void set_skip_if_not_rejudge(bool skip) { this->skip_if_not_rejudge = skip; }
     bool get_skip_if_not_rejudge() const { return skip_if_not_rejudge; }
 
+    void set_stat_to_judges(bool stat) { this->stat_to_judges = stat; }
+    bool get_stat_to_judges() const { return stat_to_judges; }
+
     void set_score(int score) { this->score = score; }
     int get_score() const { return score; }
 
     void set_pass_if_count(int count) { this->pass_if_count = count; }
     int get_pass_if_count() const { return pass_if_count; }
+
+    void set_test_all(bool value) { test_all = value; }
+    bool get_test_all() const { return test_all; }
 
     void inc_passed_count() { ++passed_count; }
     int get_passed_count() const { return passed_count; }
@@ -142,6 +190,9 @@ public:
 
     void set_test_score(int ts) { test_score = ts; }
     int get_test_score() const { return test_score; }
+
+    void set_user_status(int user_status) { this->user_status = user_status; }
+    int get_user_status() const { return user_status; }
 
     bool meet_requirements(const ConfigParser &cfg, const Group *& grp) const;
 
@@ -339,6 +390,16 @@ public:
                 if (t_type != ';') parse_error("';' expected");
                 next_token();
                 g.set_skip_if_not_rejudge(true);
+            } else if (token == "stat_to_judges") {
+                next_token();
+                if (t_type != ';') parse_error("';' expected");
+                next_token();
+                g.set_stat_to_judges(true);
+            } else if (token == "test_all") {
+                next_token();
+                if (t_type != ';') parse_error("';' expected");
+                next_token();
+                g.set_test_all(true);
             } else if (token == "score") {
                 next_token();
                 if (t_type != T_IDENT) parse_error("NUM expected");
@@ -381,6 +442,15 @@ public:
                 if (t_type != ';') parse_error("';' expected");
                 next_token();
                 g.set_pass_if_count(count);
+            } else if (token == "user_status") {
+                next_token();
+                if (t_type != T_IDENT) parse_error("status expected");
+                int user_status = parse_status(token);
+                if (user_status < 0) parse_error("invalid user_status");
+                next_token();
+                if (t_type != ';') parse_error("';' expected");
+                next_token();
+                g.set_user_status(user_status);
             } else {
                 break;
             }
@@ -570,7 +640,7 @@ main(int argc, char *argv[])
             g->inc_passed_count();
             g->add_total_score();
             ++test_num;
-        } else if (g->get_test_score() >= 0) {
+        } else if (g->get_test_score() >= 0 || g->get_test_all()) {
             // by-test score, just go on
             ++test_num;
         } else {
@@ -616,6 +686,9 @@ main(int argc, char *argv[])
     FILE *fcmt = fopen(argv[1], "w");
     if (!fcmt) die("cannot open file '%s' for writing", argv[1]);
 
+    FILE *fjcmt = fopen(argv[2], "w");
+    if (!fjcmt) die("cannot open file '%s' for writing", argv[2]);
+
     int score = 0, user_status = RUN_OK, user_score = 0, user_tests_passed = 0;
     for (const Group &g : parser.get_groups()) {
         if (g.has_comment()) {
@@ -635,14 +708,22 @@ main(int argc, char *argv[])
             }
             if (!failed) valuer_marked = 1;
         }
+        int group_score = g.calc_score();
+        if (g.get_stat_to_judges()) {
+            fprintf(fjcmt, "Группа тестов %s: тесты %d-%d: балл %d\n",
+                    g.get_group_id().c_str(), g.get_first(), g.get_last(), group_score);
+
+        }
         if (g.get_offline()) {
-            score += g.calc_score();
+            score += group_score;
         } else {
             user_tests_passed += g.get_passed_count();
-            score += g.calc_score();
-            user_score += g.calc_score();
+            score += group_score;
+            user_score += group_score;
             if (!g.is_passed()) {
                 user_status = RUN_PARTIAL;
+            } else if (g.get_user_status() >= 0) {
+                user_status = g.get_user_status();
             }
         }
     }

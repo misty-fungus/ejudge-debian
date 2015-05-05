@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 8218 2014-05-15 15:02:06Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
-/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -53,6 +52,7 @@ struct problem_config_section
   ejintbool_t score_latest;
   ejintbool_t score_latest_or_unmarked;
   ejintbool_t score_latest_marked;
+  ejintbool_t score_tokenized;
   ejintbool_t use_ac_not_ok;
   ejintbool_t ignore_prev_ac;
   ejintbool_t team_enable_rep_view;
@@ -68,7 +68,11 @@ struct problem_config_section
   ejintbool_t accept_partial;
   ejintbool_t disable_user_submit;
   ejintbool_t disable_tab;
-  ejintbool_t restricted_statement;
+  ejintbool_t unrestricted_statement;
+  ejintbool_t hide_file_names;
+  ejintbool_t hide_real_time_limit;
+  ejintbool_t enable_tokens;
+  ejintbool_t tokens_for_user_ac;
   ejintbool_t disable_submit_after_ok;
   ejintbool_t disable_auto_testing;
   ejintbool_t disable_testing;
@@ -86,6 +90,7 @@ struct problem_config_section
   ejintbool_t ignore_unmarked;
   ejintbool_t disable_stderr;
   ejintbool_t enable_process_group;
+  ejintbool_t hide_variant;
 
   int id;
   int real_time_limit;
@@ -152,13 +157,17 @@ struct problem_config_section
   unsigned char *style_checker_cmd;
   unsigned char *test_checker_cmd;
   unsigned char *init_cmd;
+  unsigned char *start_cmd;
   unsigned char *solution_src;
   unsigned char *solution_cmd;
   unsigned char *score_bonus;
   unsigned char *open_tests;
   unsigned char *final_open_tests;
+  unsigned char *token_open_tests;
   unsigned char *extid;
   unsigned char *revision;
+  unsigned char *tokens;
+  unsigned char *umask;
 
   char **test_sets;
   char **date_penalty;

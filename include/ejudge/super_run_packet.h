@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_run_packet.h 8218 2014-05-15 15:02:06Z cher $ */
+/* $Id$ */
 #ifndef __SUPER_RUN_PACKET_H__
 #define __SUPER_RUN_PACKET_H__
 
@@ -150,6 +150,7 @@ struct super_run_in_problem_packet
   unsigned char *interactor_cmd;
   unsigned char *test_checker_cmd;
   unsigned char *init_cmd;
+  unsigned char *start_cmd;
   unsigned char *solution_cmd;
   size_t max_vm_size;
   size_t max_data_size;
@@ -161,6 +162,7 @@ struct super_run_in_problem_packet
   unsigned char *spelling;
   unsigned char *open_tests;
   ejintbool_t enable_process_group;
+  unsigned char *umask;
 
   int type_val META_ATTRIB((meta_hidden));
 };

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new_server_clnt.h 8237 2014-05-17 06:40:01Z cher $ */
+/* $Id$ */
 
 #ifndef __NEW_SERVER_CLNT_H__
 #define __NEW_SERVER_CLNT_H__

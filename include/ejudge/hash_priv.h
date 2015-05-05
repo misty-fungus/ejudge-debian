@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: hash_priv.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_HASHP_H__
 #define __REUSE_HASHP_H__

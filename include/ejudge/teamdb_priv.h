@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: teamdb_priv.h 8238 2014-05-17 10:52:34Z cher $ */
+/* $Id$ */
 #ifndef __TEAMDB_PRIV_H__
 #define __TEAMDB_PRIV_H__
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: clang++-32-version.in 7510 2013-10-30 05:59:31Z cher $
+# $Id$
 # Copyright (c) 2013 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"

@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: runlog_xml.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -120,6 +119,8 @@ enum
   RUNLOG_A_PASSED_MODE,
   RUNLOG_A_EOLN_TYPE,
   RUNLOG_A_STORE_FLAGS,
+  RUNLOG_A_TOKEN_FLAGS,
+  RUNLOG_A_TOKEN_COUNT,
 
   RUNLOG_LAST_ATTR,
 };
@@ -141,7 +142,7 @@ static const char * const elem_map[] =
   [RUNLOG_T_XML_REPORT]   = "xml_report",
   [RUNLOG_T_FULL_ARCHIVE] = "full_archive",
 
-  [RUNLOG_LAST_TAG] 0,
+  [RUNLOG_LAST_TAG] = 0,
 };
 static const char * const attr_map[] =
 {
@@ -188,12 +189,14 @@ static const char * const attr_map[] =
   [RUNLOG_A_PASSED_MODE]      = "passed_mode",
   [RUNLOG_A_EOLN_TYPE]        = "eoln_type",
   [RUNLOG_A_STORE_FLAGS]      = "store_flags",
+  [RUNLOG_A_TOKEN_FLAGS]      = "token_flags",
+  [RUNLOG_A_TOKEN_COUNT]      = "token_count",
 
-  [RUNLOG_LAST_ATTR] 0,
+  [RUNLOG_LAST_ATTR] = 0,
 };
 static size_t const elem_sizes[RUNLOG_LAST_TAG] =
 {
-  [RUNLOG_T_RUN] sizeof(struct run_element),
+  [RUNLOG_T_RUN] = sizeof(struct run_element),
 };
 
 static struct xml_parse_spec runlog_parse_spec =
@@ -499,7 +502,7 @@ process_run_elements(struct xml_tree *xt, struct run_xml_helpers *helper)
       case RUNLOG_A_RUN_UUID:
 #if CONF_HAS_LIBUUID - 0 != 0
         if (xa->text && xa->text[0]) {
-          ej_uuid_parse(xa->text, xr->r.run_uuid);
+          ej_uuid_parse(xa->text, &xr->r.run_uuid);
         }
 #endif
         break;
@@ -521,6 +524,22 @@ process_run_elements(struct xml_tree *xt, struct run_xml_helpers *helper)
           goto invalid_attr_value;
         if (iv < -1) goto invalid_attr_value;
         xr->r.store_flags = iv;
+        break;
+      case RUNLOG_A_TOKEN_FLAGS:
+        if (!xa->text) goto empty_attr_value;
+        n = 0;
+        if (sscanf(xa->text, "%d %n", &iv, &n) != 1 || xa->text[n])
+          goto invalid_attr_value;
+        if (iv < -1) goto invalid_attr_value;
+        xr->r.token_flags = iv;
+        break;
+      case RUNLOG_A_TOKEN_COUNT:
+        if (!xa->text) goto empty_attr_value;
+        n = 0;
+        if (sscanf(xa->text, "%d %n", &iv, &n) != 1 || xa->text[n])
+          goto invalid_attr_value;
+        if (iv < -1) goto invalid_attr_value;
+        xr->r.token_count = iv;
         break;
       default:
         return xml_err_attr_not_allowed(xt, xa);
@@ -894,8 +913,8 @@ unparse_runlog_xml(
     if (ts < 0) ts = 0;
     fprintf(f, " %s=\"%ld\"", attr_map[RUNLOG_A_TIME], ts);
 #if CONF_HAS_LIBUUID - 0 != 0
-    if (pp->run_uuid[0] || pp->run_uuid[1] || pp->run_uuid[2] || pp->run_uuid[3]) {
-      fprintf(f, " %s=\"%s\"", attr_map[RUNLOG_A_RUN_UUID], ej_uuid_unparse(pp->run_uuid, ""));
+    if (pp->run_uuid.v[0] || pp->run_uuid.v[1] || pp->run_uuid.v[2] || pp->run_uuid.v[3]) {
+      fprintf(f, " %s=\"%s\"", attr_map[RUNLOG_A_RUN_UUID], ej_uuid_unparse(&pp->run_uuid, ""));
     }
 #endif
     if (!external_mode && pp->size > 0) {
@@ -998,6 +1017,12 @@ unparse_runlog_xml(
     }
     if (pp->store_flags > 0) {
       fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_STORE_FLAGS], pp->store_flags);
+    }
+    if (pp->token_flags > 0) {
+      fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_TOKEN_FLAGS], pp->token_flags);
+    }
+    if (pp->token_count > 0) {
+      fprintf(f, " %s=\"%d\"", attr_map[RUNLOG_A_TOKEN_COUNT], pp->token_count);
     }
     if (!source_mode || pp->status >= RUN_MAX_STATUS) {
       fprintf(f, "/>\n");

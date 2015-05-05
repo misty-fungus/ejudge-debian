@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: eq_long_double.c 5511 2008-12-27 19:31:19Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2008 Alexander Chernov <cher@ejudge.ru> */
 

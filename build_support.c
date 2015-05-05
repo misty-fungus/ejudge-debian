@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: build_support.c 8586 2014-09-03 09:17:39Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 

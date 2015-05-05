@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: cntsregs.inc.c 5279 2008-11-12 18:46:15Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
 

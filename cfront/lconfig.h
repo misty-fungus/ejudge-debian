@@ -1,5 +1,5 @@
 /* -*- mode: C -*- */
-/* $Id: lconfig.h 7720 2014-01-03 10:41:03Z cher $ */
+/* $Id$ */
 
 #ifndef __LCONFIG_H__
 #define __LCONFIG_H__

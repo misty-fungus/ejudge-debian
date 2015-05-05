@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: zip_utils.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 #ifndef __ZIP_UTILS_H__
 #define __ZIP_UTILS_H__
 

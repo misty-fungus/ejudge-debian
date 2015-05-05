@@ -1,4 +1,4 @@
-/* $Id: uudecode.c 5675 2010-01-19 09:52:11Z cher $ */
+/* $Id$ */
 
 static const char cright_years_z[] =
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: make-vg-version.in 7183 2012-11-20 15:11:13Z cher $
+# $Id$
 # Copyright (c) 2012 Alexander Chernov <cher@ejudge.ru>
 
 # This is a version script for a generic build system.

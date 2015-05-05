@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: filter_eval.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -129,7 +128,7 @@ is_missing_source(
 
   if (re->store_flags == 1) {
     if ((src_flags = uuid_archive_make_read_path(cs, src_path, sizeof(src_path),
-                                                 re->run_uuid, DFLT_R_UUID_SOURCE, 0)) < 0)
+                                                 &re->run_uuid, DFLT_R_UUID_SOURCE, 0)) < 0)
       return 1;
   } else {
     if ((src_flags = archive_make_read_path(cs, src_path, sizeof(src_path),
@@ -278,6 +277,8 @@ do_eval(struct filter_env *env,
   case TOK_PASSED_MODE:
   case TOK_EOLN_TYPE:
   case TOK_STORE_FLAGS:
+  case TOK_TOKEN_FLAGS:
+  case TOK_TOKEN_COUNT:
     if ((c = do_eval(env, t->v.t[0], &r1)) < 0) return c;
     ASSERT(r1.kind == TOK_INT_L);
     if (r1.v.i < 0) r1.v.i = env->rtotal + r1.v.i;
@@ -307,7 +308,7 @@ do_eval(struct filter_env *env,
     case TOK_UUID:
       res->kind = TOK_STRING_L;
       res->type = FILTER_TYPE_STRING;
-      res->v.s = envdup(env, ej_uuid_unparse(env->rentries[r1.v.i].run_uuid, ""));
+      res->v.s = envdup(env, ej_uuid_unparse(&env->rentries[r1.v.i].run_uuid, ""));
       break;
     case TOK_IP:
       res->kind = TOK_IP_L;
@@ -563,6 +564,16 @@ do_eval(struct filter_env *env,
       res->type = FILTER_TYPE_INT;
       res->v.i = !!env->rentries[r1.v.i].store_flags;
       break;
+    case TOK_TOKEN_FLAGS:
+      res->kind = TOK_INT_L;
+      res->type = FILTER_TYPE_INT;
+      res->v.i = !!env->rentries[r1.v.i].token_flags;
+      break;
+    case TOK_TOKEN_COUNT:
+      res->kind = TOK_INT_L;
+      res->type = FILTER_TYPE_INT;
+      res->v.i = !!env->rentries[r1.v.i].token_count;
+      break;
     default:
       abort();
     }
@@ -609,7 +620,7 @@ do_eval(struct filter_env *env,
   case TOK_CURUUID:
     res->kind = TOK_STRING_L;
     res->type = FILTER_TYPE_STRING;
-    res->v.s = envdup(env, ej_uuid_unparse(env->cur->run_uuid, ""));
+    res->v.s = envdup(env, ej_uuid_unparse(&env->cur->run_uuid, ""));
     break;
   case TOK_CURIP:
     res->kind = TOK_IP_L;
@@ -857,6 +868,16 @@ do_eval(struct filter_env *env,
     res->kind = TOK_INT_L;
     res->type = FILTER_TYPE_INT;
     res->v.i = env->cur->store_flags;
+    break;
+  case TOK_CURTOKEN_FLAGS:
+    res->kind = TOK_INT_L;
+    res->type = FILTER_TYPE_INT;
+    res->v.i = env->cur->token_flags;
+    break;
+  case TOK_CURTOKEN_COUNT:
+    res->kind = TOK_INT_L;
+    res->type = FILTER_TYPE_INT;
+    res->v.i = env->cur->token_count;
     break;
   case TOK_CURTOTAL_SCORE:
     res->kind = TOK_INT_L;

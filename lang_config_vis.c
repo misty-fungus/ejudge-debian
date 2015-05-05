@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: lang_config_vis.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -315,6 +314,7 @@ static void
 parse_lang_id_file(
         const unsigned char *script_dir,
         const unsigned char *compile_home_dir,
+        const unsigned char *extra_lang_ids_file,
         FILE *err_f,
         WINDOW *win)
 {
@@ -349,6 +349,14 @@ parse_lang_id_file(
     goto cleanup;
   }
 #endif
+
+  if (extra_lang_ids_file) {
+    if (process_lang_id_file(log_f, extra_lang_ids_file) < 0) {
+      close_memstream(log_f); log_f = NULL;
+      log_printf(err_f, win, "%s", log_t);
+      goto cleanup;
+    }
+  }
 
   close_memstream(log_f); log_f = 0;
   xfree(log_t); log_t = 0; log_z = 0;
@@ -788,6 +796,7 @@ reconfigure_all_languages(
         const unsigned char *config_dir,
         const unsigned char *working_dir,
         const unsigned char *compile_home_dir,
+        const unsigned char *extra_lang_ids_file,
         unsigned char **keys,
         unsigned char **values,
         FILE *log_f,
@@ -799,7 +808,7 @@ reconfigure_all_languages(
   int len;
 
   update_language_scripts(script_dir, script_in_dirs, log_f, win);
-  parse_lang_id_file(script_dir, compile_home_dir, log_f, win);
+  parse_lang_id_file(script_dir, compile_home_dir, extra_lang_ids_file, log_f, win);
 
   if (!(d = opendir(script_dir))) {
     return;
@@ -840,6 +849,7 @@ lang_configure_screen(
         const unsigned char *config_dir,
         const unsigned char *working_dir,
         const unsigned char *compile_home_dir,
+        const unsigned char *extra_lang_ids_file,
         unsigned char **keys,
         unsigned char **values,
         const unsigned char *header,
@@ -874,7 +884,7 @@ lang_configure_screen(
   doupdate();
 
   reconfigure_all_languages(script_dir, script_in_dirs, config_dir,
-                            working_dir, compile_home_dir,
+                            working_dir, compile_home_dir, extra_lang_ids_file,
                             keys, values, 0, in_win);
 
   if (!batch_mode) {
@@ -896,12 +906,13 @@ lang_configure_batch(
         const unsigned char *config_dir,
         const unsigned char *working_dir,
         const unsigned char *compile_home_dir,
+        const unsigned char *extra_lang_ids_file,
         unsigned char **keys,
         unsigned char **values,
         FILE *log_f)
 {
   reconfigure_all_languages(script_dir, script_in_dirs, config_dir,
-                            working_dir, compile_home_dir,
+                            working_dir, compile_home_dir, extra_lang_ids_file,
                             keys, values, log_f, 0);
 }
 
@@ -920,6 +931,7 @@ lang_config_menu(
         const unsigned char *working_dir,
         const unsigned char *compile_home_dir,
         const unsigned char *header,
+        const unsigned char *extra_lang_ids_file,
         int utf8_mode,
         int *p_cur_item)
 {
@@ -940,6 +952,7 @@ lang_config_menu(
 
   lang_configure_screen(script_dir, script_in_dirs, 0,
                         working_dir, compile_home_dir,
+                        extra_lang_ids_file,
                         0, 0, header, 0);
   assign_lang_ids();
 
@@ -1013,14 +1026,14 @@ lang_config_menu(
       c = getch();
       cmd = -1;
       switch (c) {
-      case 'q': case 'Q': case 'Ê' & 255: case 'ê' & 255: case 'G' & 31:
+      case 'q': case 'Q': /*case 'Ê' & 255: case 'ê' & 255:*/ case 'G' & 31:
       case 033:
         c = 'q';
         goto menu_done;
       case '\n': case '\r':
         c = '\n';
         goto menu_done;
-      case 'b': case 'B': case 'É' & 255: case 'é' & 255:
+      case 'b': case 'B': /*case 'É' & 255: case 'é' & 255:*/
         c = 'b';
         goto menu_done;
       case KEY_UP: case KEY_LEFT:

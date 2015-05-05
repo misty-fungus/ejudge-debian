@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: userlist.h 8229 2014-05-16 12:33:02Z cher $ */
+/* $Id$ */
 
 #ifndef __USERLIST_H__
 #define __USERLIST_H__

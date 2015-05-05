@@ -2,7 +2,7 @@
 #ifndef __POS_H__
 #define __POS_H__
 
-/* $Id: pos.h 7720 2014-01-03 10:41:03Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 

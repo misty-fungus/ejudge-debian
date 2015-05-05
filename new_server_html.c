@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 8583 2014-09-02 19:36:37Z cher $ */
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -56,6 +55,7 @@
 #include "ejudge/prepare_dflt.h"
 #include "ejudge/new_server_match.h"
 #include "ejudge/external_action.h"
+#include "ejudge/new_server_pi.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -86,6 +86,8 @@
 #define ARMOR(s)  html_armor_buf(&ab, (s))
 #define URLARMOR(s)  url_armor_buf(&ab, s)
 #define FAIL(c) do { retval = -(c); goto cleanup; } while (0)
+
+#pragma GCC diagnostic ignored "-Wformat-security" 
 
 enum { CONTEST_EXPIRE_TIME = 300 };
 static struct contest_extra **extras = 0;
@@ -1037,7 +1039,7 @@ html_error_status_page(FILE *fout,
           ns_aref(url, sizeof(url), phr, back_action, "%s", urlextra),
           _("Back"));
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
 }
                        
@@ -1635,7 +1637,7 @@ priv_add_priv_user_by_login(FILE *fout,
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   int retval = 0;
 
-  if ((r = hr_cgi_param(phr, "add_login", &login)) < 0 || !s) {
+  if ((r = hr_cgi_param(phr, "add_login", &login)) < 0 || !login) {
     ns_error(log_f, NEW_SRV_ERR_INV_USER_LOGIN);
     goto cleanup;
   }
@@ -2750,15 +2752,15 @@ priv_submit_run(FILE *fout,
   sha_buffer(run_text, run_size, shaval);
   gettimeofday(&precise_time, 0);
 
-  ruint32_t run_uuid[4];
+  ej_uuid_t run_uuid;
   int store_flags = 0;
-  ej_uuid_generate(run_uuid);
+  ej_uuid_generate(&run_uuid);
   if (global->uuid_run_store > 0 && run_get_uuid_hash_state(cs->runlog_state) >= 0 && ej_uuid_is_nonempty(run_uuid)) {
     store_flags = 1;
   }
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
-                          run_size, shaval, run_uuid,
+                          run_size, shaval, &run_uuid,
                           &phr->ip, phr->ssl_flag,
                           phr->locale_id, phr->user_id,
                           prob_id, lang_id, eoln_type,
@@ -2771,7 +2773,7 @@ priv_submit_run(FILE *fout,
 
   if (store_flags == 1) {
     arch_flags = uuid_archive_prepare_write_path(cs, run_path, sizeof(run_path),
-                                                 run_uuid, run_size, DFLT_R_UUID_SOURCE, 0, 0);
+                                                 &run_uuid, run_size, DFLT_R_UUID_SOURCE, 0, 0);
   } else {
     arch_flags = archive_prepare_write_path(cs, run_path, sizeof(run_path),
                                             global->run_archive_dir, run_id,
@@ -2809,7 +2811,7 @@ priv_submit_run(FILE *fout,
                                      lang->compiler_env,
                                      0, prob->style_checker_cmd,
                                      prob->style_checker_env,
-                                     -1, 0, 0, prob, lang, 0, run_uuid,
+                                     -1, 0, 0, prob, lang, 0, &run_uuid,
                                      store_flags, 0 /* rejudge_flag */)) < 0) {
         serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       }
@@ -2838,7 +2840,7 @@ priv_submit_run(FILE *fout,
                                   0 /* notify flag */,
                                   prob, NULL /* lang */,
                                   0 /* no_db_flag */,
-                                  run_uuid,
+                                  &run_uuid,
                                   store_flags,
                                   0 /* rejudge_flag*/);
         if (r < 0) {
@@ -2848,7 +2850,7 @@ priv_submit_run(FILE *fout,
         if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
                               0 /* rejudge_flag */) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto cleanup;
@@ -2881,7 +2883,7 @@ priv_submit_run(FILE *fout,
                                   0 /* notify flag */,
                                   prob, NULL /* lang */,
                                   0 /* no_db_flag */,
-                                  run_uuid,
+                                  &run_uuid,
                                   store_flags,
                                   0 /* rejudge_flag */);
         if (r < 0) {
@@ -2891,7 +2893,7 @@ priv_submit_run(FILE *fout,
         if (serve_run_request(cs, cnts, log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 0,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
                               0 /* rejudge_flag */) < 0) {
           ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
           goto cleanup;
@@ -3036,6 +3038,7 @@ priv_submit_clar(
   text3 = alloca(subj_len + text_len + 32);
   text3_len = sprintf(text3, "Subject: %s\n\n%s\n", subj2, text2);
 
+  ej_uuid_t clar_uuid = {};
   gettimeofday(&precise_time, 0);
   if ((clar_id = clar_add_record(cs->clarlog_state,
                                  precise_time.tv_sec,
@@ -3044,13 +3047,20 @@ priv_submit_clar(
                                  &phr->ip,
                                  phr->ssl_flag,
                                  0, user_id, 0, phr->user_id,
-                                 hide_flag, phr->locale_id, 0, 0, 0,
-                                 utf8_mode, NULL, subj2)) < 0) {
+                                 hide_flag, phr->locale_id,
+                                 0 /* in_reply_to */,
+                                 NULL /* in_reply_uuid */,
+                                 0 /* run_id */,
+                                 NULL /* run_uuid */,
+                                 0 /* appeal_flag */,
+                                 0 /* old_run_status */,
+                                 0 /* new_run_status */,
+                                 utf8_mode, NULL, subj2, &clar_uuid)) < 0) {
     ns_error(log_f, NEW_SRV_ERR_CLARLOG_UPDATE_FAILED);
     goto cleanup;
   }
 
-  if (clar_add_text(cs->clarlog_state, clar_id, text3, text3_len) < 0) {
+  if (clar_add_text(cs->clarlog_state, clar_id, &clar_uuid, text3, text3_len) < 0) {
     ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
     goto cleanup;
   }
@@ -3076,9 +3086,7 @@ priv_submit_clar(
     fprintf(msg_f, "%s\n", text3);
     fprintf(msg_f, "\n-\nRegards,\nthe ejudge contest management system (www.ejudge.ru)\n");
     close_memstream(msg_f); msg_f = 0;
-    if (cnts->default_locale_num > 0) {
-      l10n_setlocale(cnts->default_locale_num);
-    }
+    l10n_resetlocale();
     serve_send_email_to_user(ejudge_config, cnts, cs, user_id, nsubj, msg_t);
     xfree(msg_t); msg_t = 0; msg_z = 0;
   }
@@ -3149,7 +3157,7 @@ priv_set_run_style_error_status(
 
   if (re.store_flags == 1) {
     rep_flags = uuid_archive_prepare_write_path(cs, rep_path, sizeof(rep_path),
-                                                re.run_uuid, text2_len, DFLT_R_UUID_XML_REPORT, 0, 0);
+                                                &re.run_uuid, text2_len, DFLT_R_UUID_XML_REPORT, 0, 0);
   } else {
     rep_flags = archive_prepare_write_path(cs, rep_path, sizeof(rep_path),
                                            global->xml_report_archive_dir, run_id,
@@ -3238,6 +3246,23 @@ priv_submit_run_comment(
   text3 = alloca(subj_len + text_len + 32);
   text3_len = sprintf(text3, "Subject: %s\n\n%s\n", subj2, text2);
 
+  int old_status = 0;
+  int new_status = 0;
+  if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT) {
+  } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE) {
+    old_status = re.status + 1;
+    new_status = RUN_IGNORED + 1;
+  } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_REJECT) {
+    old_status = re.status + 1;
+    new_status = RUN_REJECTED + 1;
+  } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK) {
+    old_status = re.status + 1;
+    new_status = RUN_OK + 1;
+  } else {
+    abort();
+  }
+
+  ej_uuid_t clar_uuid = {};
   gettimeofday(&precise_time, 0);
   if ((clar_id = clar_add_record(cs->clarlog_state,
                                  precise_time.tv_sec,
@@ -3246,19 +3271,28 @@ priv_submit_run_comment(
                                  &phr->ip,
                                  phr->ssl_flag,
                                  0, re.user_id, 0, phr->user_id,
-                                 0, phr->locale_id, 0, run_id + 1, 0,
-                                 utf8_mode, NULL, subj2)) < 0) {
+                                 0, phr->locale_id,
+                                 0 /* in_reply_to */,
+                                 NULL /* in_reply_uuid */,
+                                 run_id + 1,
+                                 &re.run_uuid,
+                                 0 /* appeal_flag */,
+                                 old_status,
+                                 new_status,
+                                 utf8_mode, NULL, subj2, &clar_uuid)) < 0) {
     ns_error(log_f, NEW_SRV_ERR_CLARLOG_UPDATE_FAILED);
     goto cleanup;
   }
 
-  if (clar_add_text(cs->clarlog_state, clar_id, text3, text3_len) < 0) {
+  if (clar_add_text(cs->clarlog_state, clar_id, &clar_uuid, text3, text3_len) < 0) {
     ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
     goto cleanup;
   }
 
   if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE) {
     run_change_status_4(cs->runlog_state, run_id, RUN_IGNORED);
+  } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_REJECT) {
+    run_change_status_4(cs->runlog_state, run_id, RUN_REJECTED);
   } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK) {
     struct section_problem_data *prob = 0;
     int full_score = 0;
@@ -3288,6 +3322,9 @@ priv_submit_run_comment(
   } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE) {
     audit_cmd = "comment-run-ignore";
     status = RUN_IGNORED;
+  } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_REJECT) {
+    audit_cmd = "comment-run-rejuect";
+    status = RUN_REJECTED;
   } else {
     abort();
   }
@@ -3308,11 +3345,13 @@ priv_submit_run_comment(
              cnts->id);
     msg_f = open_memstream(&msg_t, &msg_z);
     if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE) {
-      fprintf(msg_f, _("You submit has been commented and ignored\n"));
+      fprintf(msg_f, _("Your submit has been commented and ignored\n"));
+    } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_REJECT) {
+      fprintf(msg_f, _("Your submit has been commented and rejected\n"));
     } else if (phr->action == NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK) {
-      fprintf(msg_f, _("You submit has been commented and accepted\n"));
+      fprintf(msg_f, _("Your submit has been commented and accepted\n"));
     } else {
-      fprintf(msg_f, _("You submit has been commented\n"));
+      fprintf(msg_f, _("Your submit has been commented\n"));
     }
     fprintf(msg_f, _("Contest: %d (%s)\n"), cnts->id, cnts->name);
     fprintf(msg_f, "Run Id: %d\n", run_id);
@@ -3323,9 +3362,7 @@ priv_submit_run_comment(
     fprintf(msg_f, "%s\n", text3);
     fprintf(msg_f, "\n-\nRegards,\nthe ejudge contest management system (www.ejudge.ru)\n");
     close_memstream(msg_f); msg_f = 0;
-    if (cnts->default_locale_num > 0) {
-      l10n_setlocale(cnts->default_locale_num);
-    }
+    l10n_resetlocale();
     serve_send_email_to_user(ejudge_config, cnts, cs, re.user_id, nsubj, msg_t);
     xfree(msg_t); msg_t = 0; msg_z = 0;
   }
@@ -3352,7 +3389,7 @@ priv_clar_reply(
   const unsigned char *errmsg;
   const unsigned char *s, *reply_txt;
   int in_reply_to, n, clar_id, from_id;
-  struct clar_entry_v1 clar;
+  struct clar_entry_v2 clar;
   unsigned char *reply_txt_2;
   size_t reply_len;
   unsigned char *orig_txt = 0;
@@ -3409,7 +3446,7 @@ priv_clar_reply(
     reply_txt = _("No.");
     break;
   }
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
   reply_len = strlen(reply_txt);
   if (reply_len > 128 * 1024 * 1024) {
@@ -3433,7 +3470,7 @@ priv_clar_reply(
   l10n_setlocale(clar.locale_id);
   new_subj = alloca(orig_len + 64);
   new_subj_len = message_reply_subj(orig_txt, new_subj);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
   quoted_len = message_quoted_size(orig_txt);
   quoted = alloca(quoted_len + 16);
@@ -3445,6 +3482,7 @@ priv_clar_reply(
   from_id = clar.from;
   if (phr->action == NEW_SRV_ACTION_CLAR_REPLY_ALL) from_id = 0;
 
+  ej_uuid_t clar_uuid = {};
   gettimeofday(&precise_time, 0);
   clar_id = clar_add_record(cs->clarlog_state,
                             precise_time.tv_sec,
@@ -3453,17 +3491,23 @@ priv_clar_reply(
                             &phr->ip,
                             phr->ssl_flag,
                             0, from_id, 0, phr->user_id, 0,
-                            clar.locale_id, in_reply_to + 1, 0, 0,
+                            clar.locale_id, in_reply_to + 1,
+                            &clar.uuid,
+                            0 /* run_id*/,
+                            NULL /* run_uuid */,
+                            0 /* appeal_flag */,
+                            0 /* old_run_status */,
+                            0 /* new_run_status */,
                             utf8_mode, NULL,
-                            clar_get_subject(cs->clarlog_state,
-                                             in_reply_to));
+                            clar_get_subject(cs->clarlog_state, in_reply_to),
+                            &clar_uuid);
 
   if (clar_id < 0) {
     ns_error(log_f, NEW_SRV_ERR_CLARLOG_UPDATE_FAILED);
     goto cleanup;
   }
 
-  if (clar_add_text(cs->clarlog_state, clar_id, msg, msg_len) < 0) {
+  if (clar_add_text(cs->clarlog_state, clar_id, &clar_uuid, msg, msg_len) < 0) {
     ns_error(log_f, NEW_SRV_ERR_DISK_WRITE_ERROR);
     goto cleanup;
   }
@@ -3492,9 +3536,7 @@ priv_clar_reply(
     fprintf(msg_f, "%s\n", msg);
     fprintf(msg_f, "\n-\nRegards,\nthe ejudge contest management system (www.ejudge.ru)\n");
     close_memstream(msg_f); msg_f = 0;
-    if (cnts->default_locale_num > 0) {
-      l10n_setlocale(cnts->default_locale_num);
-    }
+    l10n_resetlocale();
     serve_send_email_to_user(ejudge_config, cnts, cs, from_id, nsubj, msg_t);
     xfree(msg_t); msg_t = 0; msg_z = 0;
   }
@@ -3620,7 +3662,7 @@ priv_clear_run(FILE *fout, FILE *log_f,
     FAIL(NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
 
   if (re.store_flags == 1) {
-    uuid_archive_remove(cs, re.run_uuid, 0);
+    uuid_archive_remove(cs, &re.run_uuid, 0);
   } else {
     archive_remove(cs, global->run_archive_dir, run_id, 0);
     archive_remove(cs, global->xml_report_archive_dir, run_id, 0);
@@ -4194,6 +4236,60 @@ priv_clear_displayed(FILE *fout,
 }
 
 static int
+priv_tokenize_displayed(
+        FILE *fout,
+        FILE *log_f,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
+{
+  serve_state_t cs = extra->serve_state;
+  unsigned long *mask = 0;
+  size_t mask_size = 0;
+  int retval = 0;
+  int token_count = 0;
+  int token_flags = 0;
+  const unsigned char *s = 0;
+
+  if (ns_parse_run_mask(phr, 0, 0, &mask_size, &mask) < 0) goto invalid_param;
+  if (!mask_size) FAIL(NEW_SRV_ERR_NO_RUNS_TO_REJUDGE);
+  if (opcaps_check(phr->caps, OPCAP_EDIT_RUN) < 0)
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+
+  if (hr_cgi_param_int(phr, "token_count", &token_count) < 0)
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  if (token_count < 0 || token_count > 1000000)
+    FAIL(NEW_SRV_ERR_INV_PARAM);
+  s = NULL;
+  if (hr_cgi_param(phr, "finalscore_bit", &s) > 0 && s != NULL)
+    token_flags |= TOKEN_FINALSCORE_BIT;
+  s = NULL;
+  if (hr_cgi_param(phr, "valuer_judge_comment_bit", &s) > 0 && s != NULL)
+    token_flags |= TOKEN_VALUER_JUDGE_COMMENT_BIT;
+  s = NULL;
+  if (hr_cgi_param(phr, "tests_bits", &s) > 0 && s != NULL) {
+    if (!strcmp(s, "2")) {
+      token_flags |= TOKEN_BASICTESTS_BIT;
+    } else if (!strcmp(s, "4")) {
+      token_flags |= TOKEN_TOKENTESTS_BIT;
+    } else if (!strcmp(s, "6")) {
+      token_flags |= TOKEN_FINALTESTS_BIT;
+    }
+  }
+
+  serve_tokenize_by_mask(cs, phr->user_id, &phr->ip, phr->ssl_flag, mask_size, mask, token_count, token_flags);
+
+ cleanup:
+  xfree(mask);
+  return retval;
+
+ invalid_param:
+  ns_html_err_inv_param(fout, phr, 0, 0);
+  xfree(mask);
+  return -1;
+}
+
+static int
 priv_rejudge_displayed(FILE *fout,
                        FILE *log_f,
                        struct http_request_info *phr,
@@ -4510,15 +4606,15 @@ priv_new_run(FILE *fout,
   if (!lang) lang_id = 0;
   gettimeofday(&precise_time, 0);
 
-  ruint32_t run_uuid[4];
+  ej_uuid_t run_uuid;
   int store_flags = 0;
-  ej_uuid_generate(run_uuid);
+  ej_uuid_generate(&run_uuid);
   if (global->uuid_run_store > 0 && run_get_uuid_hash_state(cs->runlog_state) >= 0 && ej_uuid_is_nonempty(run_uuid)) {
     store_flags = 1;
   }
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
-                          run_size, shaval, run_uuid,
+                          run_size, shaval, &run_uuid,
                           &phr->ip, phr->ssl_flag, phr->locale_id,
                           user_id, prob_id, lang_id, 0, variant,
                           is_hidden, mime_type, store_flags);
@@ -4527,7 +4623,7 @@ priv_new_run(FILE *fout,
 
   if (store_flags == 1) {
     arch_flags = uuid_archive_prepare_write_path(cs, run_path, sizeof(run_path),
-                                                 run_uuid, run_size, DFLT_R_UUID_SOURCE, 0, 0);
+                                                 &run_uuid, run_size, DFLT_R_UUID_SOURCE, 0, 0);
   } else {
     arch_flags = archive_prepare_write_path(cs, run_path, sizeof(run_path),
                                             global->run_archive_dir, run_id,
@@ -4553,11 +4649,13 @@ priv_new_run(FILE *fout,
   return retval;
 }
 
+/*
 static const unsigned char * const form_row_attrs[]=
 {
   " bgcolor=\"#d0d0d0\"",
   " bgcolor=\"#e0e0e0\"",
 };
+*/
 
 static const unsigned char * const confirmation_headers[NEW_SRV_ACTION_LAST] =
 {
@@ -4724,7 +4822,7 @@ priv_confirmation_page(FILE *fout,
   fprintf(fout, "</form></td></tr></table>\n");
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
   xfree(run_mask);
   return 0;
@@ -4888,7 +4986,7 @@ priv_examiners_page(
             phr->contest_id, extra->contest_arm, _("Add new run"));
   ns_examiners_page(fout, log_f, phr, cnts, extra);
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
   //cleanup:
   return retval;
@@ -5185,7 +5283,7 @@ priv_upload_runlog_csv_1(
 
   fprintf(fout, "</form>\n");
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   return retval;
@@ -5268,7 +5366,7 @@ priv_upload_runlog_csv_2(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -5304,7 +5402,7 @@ priv_upload_runlog_xml_1(
 
   fprintf(fout, "</form>\n");
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   return retval;
@@ -5366,7 +5464,7 @@ priv_upload_runlog_xml_2(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -5643,7 +5741,7 @@ priv_assign_cyphers_2(
   }
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   xfree(csv_reply);
@@ -5886,7 +5984,7 @@ priv_print_user_exam_protocol(
   r = ns_print_user_exam_protocol(cnts, cs, ff, user_id, locale_id,
                                   use_user_printer, full_report, use_cypher);
   close_memstream(ff); ff = 0;
-  if (locale_id > 0) l10n_setlocale(0);
+  if (locale_id > 0) l10n_resetlocale();
 
   l10n_setlocale(phr->locale_id);
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
@@ -5912,7 +6010,7 @@ priv_print_user_exam_protocol(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -5989,7 +6087,7 @@ priv_print_users_exam_protocol(
                                      use_user_printer, full_report, use_cypher);
   }
   close_memstream(ff); ff = 0;
-  if (locale_id > 0) l10n_setlocale(0);
+  if (locale_id > 0) l10n_resetlocale();
 
   l10n_setlocale(phr->locale_id);
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
@@ -6015,7 +6113,7 @@ priv_print_users_exam_protocol(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -6055,7 +6153,7 @@ priv_print_problem_exam_protocol(
   ff = open_memstream(&log_text, &log_size);
   r = ns_print_prob_exam_protocol(cnts, cs, ff, prob_id, locale_id, 1);
   close_memstream(ff); ff = 0;
-  if (locale_id > 0) l10n_setlocale(0);
+  if (locale_id > 0) l10n_resetlocale();
 
   l10n_setlocale(phr->locale_id);
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
@@ -6081,7 +6179,7 @@ priv_print_problem_exam_protocol(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -6226,6 +6324,7 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_CLEAR_DISPLAYED_2] = priv_clear_displayed,
   [NEW_SRV_ACTION_IGNORE_DISPLAYED_2] = priv_clear_displayed,
   [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_2] = priv_clear_displayed,
+  [NEW_SRV_ACTION_TOKENIZE_DISPLAYED_2] = priv_tokenize_displayed,
   [NEW_SRV_ACTION_UPSOLVING_CONFIG_2] = priv_upsolving_operation,
   [NEW_SRV_ACTION_UPSOLVING_CONFIG_3] = priv_upsolving_operation,
   [NEW_SRV_ACTION_UPSOLVING_CONFIG_4] = priv_upsolving_operation,
@@ -6241,6 +6340,7 @@ static action_handler2_t priv_actions_table_2[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_SET_PRIORITIES] = priv_set_priorities,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE] = priv_submit_run_comment,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK] = priv_submit_run_comment,
+  [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_REJECT] = priv_submit_run_comment,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE] = priv_simple_change_status,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK] = priv_simple_change_status,
   [NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED] = priv_set_run_style_error_status,
@@ -6320,7 +6420,7 @@ priv_generic_operation(FILE *fout,
   }
   if (r < 0) {
     error_page(fout, phr, 1, r);
-    r = 0;
+    return;
   }
   rr = r;
   if (!r) r = ns_priv_next_state[phr->action];
@@ -6457,7 +6557,9 @@ priv_get_file(
   if (generic_read_file(&file_bytes, 0, &file_size, 0, 0, fpath, "") < 0)
     FAIL(NEW_SRV_ERR_INV_FILE_NAME);
 
-  fprintf(fout, "Content-type: %s\n\n", content_type);
+  fprintf(fout, "Content-type: %s\n", content_type);
+  fprintf(fout, "Content-Disposition: attachment; filename=\"%s\"\n", s);
+  fprintf(fout, "\n");
   fwrite(file_bytes, 1, file_size, fout);
 
  cleanup:
@@ -6622,6 +6724,7 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_IGNORE_DISPLAYED_2] = priv_generic_operation,
   [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_1] = priv_generic_page,
   [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_2] = priv_generic_operation,
+  [NEW_SRV_ACTION_TOKENIZE_DISPLAYED_2] = priv_generic_operation,
   [NEW_SRV_ACTION_UPSOLVING_CONFIG_2] = priv_generic_operation,
   [NEW_SRV_ACTION_UPSOLVING_CONFIG_3] = priv_generic_operation,
   [NEW_SRV_ACTION_UPSOLVING_CONFIG_4] = priv_generic_operation,
@@ -6648,6 +6751,7 @@ static action_handler_t actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_SET_PRIORITIES] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK] = priv_generic_operation,
+  [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_REJECT] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK] = priv_generic_operation,
   [NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED] = priv_generic_operation,
@@ -6700,6 +6804,7 @@ static const unsigned char * const external_priv_action_names[NEW_SRV_ACTION_LAS
   [NEW_SRV_ACTION_VIEW_REPORT] = "priv_report_page",
   [NEW_SRV_ACTION_VIEW_TESTING_QUEUE] = "priv_testing_queue_page",
   [NEW_SRV_ACTION_LOGIN_PAGE] = "priv_login_page",
+  [NEW_SRV_ACTION_TOKENIZE_DISPLAYED_1] = "priv_tokenize_displayed_1_page",
 };
 
 static const int external_priv_action_aliases[NEW_SRV_ACTION_LAST] =
@@ -6759,6 +6864,10 @@ error_page(
 {
   const unsigned char * const * error_names = external_unpriv_error_names;
   ExternalActionState **error_states = external_unpriv_error_states;
+
+  if (phr->log_f) {
+    fclose(phr->log_f); phr->log_f = 0;
+  }
 
   if (phr->log_t && !*phr->log_t) {
     xfree(phr->log_t); phr->log_t = NULL; phr->log_z = 0;
@@ -6895,6 +7004,8 @@ privileged_entry_point(
       goto cleanup;
     }
   }
+
+  if (phr->locale_id < 0) phr->locale_id = 0;
 
   if (phr->contest_id < 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts) {
     fprintf(phr->log_f, "invalid contest_id %d", phr->contest_id);
@@ -7193,8 +7304,12 @@ unprivileged_page_login(FILE *fout, struct http_request_info *phr)
 {
   const unsigned char *login = 0;
   const unsigned char *password = 0;
+  const unsigned char *prob_name = 0;
   int r;
   const struct contest_desc *cnts = 0;
+  unsigned char prob_name_2[1024];
+  unsigned char prob_name_3[1024];
+  int action = NEW_SRV_ACTION_MAIN_PAGE;
 
   if ((r = hr_cgi_param(phr, "login", &login)) < 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse login");
@@ -7250,8 +7365,18 @@ unprivileged_page_login(FILE *fout, struct http_request_info *phr)
     }
   }
 
+  hr_cgi_param(phr, "prob_name", &prob_name);
+  prob_name_3[0] = 0;
+  if (prob_name && prob_name[0]) {
+    url_armor_string(prob_name_2, sizeof(prob_name_2), prob_name);
+    action = NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT;
+    snprintf(prob_name_3, sizeof(prob_name_3), "lt=1&prob_name=%s", prob_name_2);
+  } else {
+    snprintf(prob_name_3, sizeof(prob_name_3), "lt=1");
+  }
+
   ns_get_session(phr->session_id, phr->client_key, 0);
-  ns_refresh_page(fout, phr, NEW_SRV_ACTION_MAIN_PAGE, "lt=1");
+  ns_refresh_page(fout, phr, action, prob_name_3);
 }
 
 static void
@@ -7418,6 +7543,176 @@ unpriv_print_run(FILE *fout,
 }
 
 int
+compute_available_tokens(
+        serve_state_t cs,
+        const struct section_problem_data *prob,
+        time_t start_time)
+{
+  const struct section_global_data *global = cs->global;
+  int available_tokens = 0;
+
+  if (global->token_info) {
+    available_tokens += global->token_info->initial_count;
+  }
+  if (prob->token_info) {
+    available_tokens += prob->token_info->initial_count;
+  }
+  if (start_time > 0 && cs->current_time > start_time) {
+    long long td = (long long) cs->current_time - start_time;
+    if (global->token_info) {
+      if (global->token_info->time_sign > 0) {
+        available_tokens += global->token_info->time_increment * (td / global->token_info->time_interval);
+      } else if (global->token_info->time_sign < 0) {
+        available_tokens -= global->token_info->time_increment * (td / global->token_info->time_interval);
+      }
+    }
+    if (prob->token_info) {
+      if (prob->token_info->time_sign > 0) {
+        available_tokens += prob->token_info->time_increment * (td / prob->token_info->time_interval);
+      } else if (prob->token_info->time_sign < 0) {
+        available_tokens -= prob->token_info->time_increment * (td / prob->token_info->time_interval);
+      }
+    }
+  }
+  if (available_tokens < 0) available_tokens = 0;
+  return available_tokens;
+}
+
+static void
+unpriv_use_token(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
+{
+  serve_state_t cs = extra->serve_state;
+  int run_id;
+  struct run_entry re;
+  const struct section_global_data *global = cs->global;
+  const struct section_problem_data *prob = 0;
+  int back_action = 0;
+  unsigned char param_buf[1024];
+  time_t start_time = 0, stop_time = 0;
+
+  if (unpriv_parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0)
+    goto cleanup;
+  if (re.prob_id <= 0 || re.prob_id > cs->max_prob || !(prob = cs->probs[re.prob_id])) {
+    error_page(fout, phr, 0, NEW_SRV_ERR_INV_PROB_ID);
+    goto cleanup;
+  }
+
+  hr_cgi_param_int_opt(phr, "back_action", &back_action, 0);
+  param_buf[0] = 0;
+  if (back_action == NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT) {
+    snprintf(param_buf, sizeof(param_buf), "prob_id=%d", re.prob_id);
+  } else if (back_action == NEW_SRV_ACTION_VIEW_SUBMISSIONS) {
+    // nothing
+  } else {
+    back_action = NEW_SRV_ACTION_MAIN_PAGE;
+  }
+
+  if (global->is_virtual) {
+    start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
+    stop_time = run_get_virtual_stop_time(cs->runlog_state, phr->user_id, cs->current_time);
+  } else {
+    start_time = run_get_start_time(cs->runlog_state);
+    stop_time = run_get_stop_time(cs->runlog_state);
+  }
+
+  if (cs->clients_suspended) goto back_action;
+  if (start_time <= 0) goto back_action;
+  if (stop_time > 0) goto back_action;
+
+  if (prob->enable_tokens <= 0 || !prob->token_info || !prob->token_info->open_sign || prob->token_info->open_cost <= 0) {
+    goto back_action;
+  }
+
+  if ((re.token_flags & prob->token_info->open_flags) == prob->token_info->open_flags) {
+    // nothing new to open
+    goto back_action;
+  }
+
+  if (!run_is_team_report_available(re.status)) {
+    goto back_action;
+  }
+
+  int separate_user_score = global->separate_user_score > 0 && cs->online_view_judge_score <= 0;
+  int status = re.status;
+  if (separate_user_score > 0 && re.is_saved) {
+    status = re.saved_status;
+  }
+  if (separate_user_score && prob->tokens_for_user_ac > 0 && re.is_saved && re.saved_status != RUN_ACCEPTED) {
+    goto back_action;
+  }
+
+  switch (status) {
+  case RUN_OK:
+  case RUN_RUN_TIME_ERR:
+  case RUN_TIME_LIMIT_ERR:
+  case RUN_PRESENTATION_ERR:
+  case RUN_WRONG_ANSWER_ERR:
+  case RUN_PARTIAL:
+  case RUN_ACCEPTED:
+  case RUN_DISQUALIFIED:
+  case RUN_MEM_LIMIT_ERR:
+  case RUN_SECURITY_ERR:
+  case RUN_WALL_TIME_LIMIT_ERR:
+  case RUN_PENDING_REVIEW:
+  case RUN_REJECTED:
+    /*
+    if (prob->team_enable_rep_view > 0) {
+      ns_refresh_page(fout, phr, back_action, param_buf);
+      goto cleanup;
+    }
+    */
+    break;
+
+  case RUN_COMPILE_ERR:
+  case RUN_STYLE_ERR:
+    if (prob->team_enable_ce_view > 0 || prob->team_enable_rep_view > 0) {
+      goto back_action;
+    }
+    break;
+
+    /*
+      case RUN_CHECK_FAILED:
+      case RUN_IGNORED:
+      case RUN_PENDING:
+      case RUN_SKIPPED:
+    */
+  default:
+    goto back_action;
+  }
+
+  // count the amount of spent and available tokens
+  int available_tokens = compute_available_tokens(cs, prob, start_time) - run_count_tokens(cs->runlog_state, phr->user_id, prob->id);
+  if (available_tokens < 0) available_tokens = 0;
+  if (available_tokens < prob->token_info->open_cost) {
+    error_page(fout, phr, 0, NEW_SRV_ERR_PERMISSION_DENIED);
+    goto cleanup;
+  }
+
+  re.token_flags = prob->token_info->open_flags;
+  re.token_count = prob->token_info->open_cost;
+  if (run_set_entry(cs->runlog_state, run_id, RE_TOKEN_FLAGS | RE_TOKEN_COUNT, &re) < 0) {
+    error_page(fout, phr, 0, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
+    goto cleanup;
+  }
+
+  serve_audit_log(cs, run_id, &re, phr->user_id, &phr->ip, phr->ssl_flag,
+                  "use_token", "ok", -1, "  %d tokens used\n  %d new token flags\n", prob->token_info->open_cost,
+                  prob->token_info->open_flags);
+  ns_refresh_page(fout, phr, back_action, param_buf);
+
+cleanup:;
+  return;
+
+back_action:
+  ns_refresh_page(fout, phr, back_action, param_buf);
+  goto cleanup;
+}
+
+int
 ns_submit_run(
         FILE *log_f,
         struct http_request_info *phr,
@@ -7451,8 +7746,8 @@ ns_submit_run(
   char *ans_text = NULL;
   int skip_mime_type_test = 0;
   char *run_file = NULL;
-  ruint32_t run_uuid[4] = { 0, 0, 0, 0 };
-  ruint32_t *uuid_ptr = NULL;
+  ej_uuid_t run_uuid = { { 0, 0, 0, 0 } };
+  ej_uuid_t *uuid_ptr = NULL;
   int eoln_type = 0;
 
   if (!prob_param_name) prob_param_name = "prob_id";
@@ -7806,10 +8101,10 @@ ns_submit_run(
   if (enable_uuid) {
     const unsigned char *uuid_str = NULL;
     if (hr_cgi_param(phr, "uuid", &uuid_str) > 0 && uuid_str && *uuid_str) {
-      if (ej_uuid_parse(uuid_str, run_uuid) < 0) {
+      if (ej_uuid_parse(uuid_str, &run_uuid) < 0) {
         FAIL(NEW_SRV_ERR_INV_PARAM);
       }
-      uuid_ptr = run_uuid;
+      uuid_ptr = &run_uuid;
     }
   }
 
@@ -7875,8 +8170,8 @@ ns_submit_run(
 
   int store_flags = 0;
   if (uuid_ptr == NULL) {
-    ej_uuid_generate(run_uuid);
-    uuid_ptr = run_uuid;
+    ej_uuid_generate(&run_uuid);
+    uuid_ptr = &run_uuid;
   }
   if (global->uuid_run_store > 0 && run_get_uuid_hash_state(cs->runlog_state) >= 0 && ej_uuid_is_nonempty(run_uuid)) {
     store_flags = 1;
@@ -7956,7 +8251,7 @@ ns_submit_run(
                               prob->style_checker_env,
                               -1 /* accepting_mode */, 0 /* priority_adjustment */,
                               1 /* notify_flag */, prob, lang,
-                              0 /* no_db_flag */, run_uuid, store_flags,
+                              0 /* no_db_flag */, &run_uuid, store_flags,
                               0 /* rejudge_flag */);
     if (r < 0) {
       serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
@@ -7990,7 +8285,7 @@ ns_submit_run(
                                 0 /* priority_adjustment */,
                                 0 /* notify flag */,
                                 prob, NULL /* lang */,
-                                0 /* no_db_flag */, run_uuid, store_flags,
+                                0 /* no_db_flag */, &run_uuid, store_flags,
                                 0 /* rejudge_flag */);
       if (r < 0) {
         serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
@@ -8004,7 +8299,7 @@ ns_submit_run(
     r = serve_run_request(cs, cnts, log_f, run_text, run_size,
                           global->contest_id, run_id,
                           user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                          mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                          mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
                           0 /* rejudge_flag */);
     if (r < 0) {
       serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
@@ -8045,7 +8340,7 @@ ns_submit_run(
                               0 /* priority_adjustment */,
                               0 /* notify flag */,
                               prob, NULL /* lang */,
-                              0 /* no_db_flag */, run_uuid, store_flags,
+                              0 /* no_db_flag */, &run_uuid, store_flags,
                               0 /* rejudge_flag */);
     if (r < 0) {
       serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
@@ -8057,7 +8352,7 @@ ns_submit_run(
   r = serve_run_request(cs, cnts, log_f, run_text, run_size,
                         global->contest_id, run_id,
                         user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                        mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                        mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
                         0 /* rejudge_flag */);
   if (r < 0) {
     serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
@@ -8133,6 +8428,10 @@ unpriv_submit_run(
       || prob_id <= 0 || prob_id > cs->max_prob
       || !(prob = cs->probs[prob_id])) {
     FAIL2(NEW_SRV_ERR_INV_PROB_ID);
+  }
+
+  if (prob->disable_user_submit > 0) {
+    FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
   }
 
   // "STANDARD" problems need programming language identifier
@@ -8473,15 +8772,15 @@ unpriv_submit_run(
   // OK, so all checks are done, now we add this submit to the database
   gettimeofday(&precise_time, 0);
 
-  ruint32_t run_uuid[4];
+  ej_uuid_t run_uuid;
   int store_flags = 0;
-  ej_uuid_generate(run_uuid);
+  ej_uuid_generate(&run_uuid);
   if (global->uuid_run_store > 0 && run_get_uuid_hash_state(cs->runlog_state) >= 0 && ej_uuid_is_nonempty(run_uuid)) {
     store_flags = 1;
   }
   run_id = run_add_record(cs->runlog_state, 
                           precise_time.tv_sec, precise_time.tv_usec * 1000,
-                          run_size, shaval, run_uuid,
+                          run_size, shaval, &run_uuid,
                           &phr->ip, phr->ssl_flag,
                           phr->locale_id, phr->user_id,
                           prob_id, lang_id, eoln_type, 0, 0, mime_type, store_flags);
@@ -8492,7 +8791,7 @@ unpriv_submit_run(
 
   if (store_flags == 1) {
     arch_flags = uuid_archive_prepare_write_path(cs, run_path, sizeof(run_path),
-                                                 run_uuid, run_size, DFLT_R_UUID_SOURCE,
+                                                 &run_uuid, run_size, DFLT_R_UUID_SOURCE,
                                                  0, 0);
   } else {
     arch_flags = archive_prepare_write_path(cs, run_path, sizeof(run_path),
@@ -8530,7 +8829,7 @@ unpriv_submit_run(
                                      lang->compiler_env,
                                      0, prob->style_checker_cmd,
                                      prob->style_checker_env,
-                                     -1, 0, 1, prob, lang, 0, run_uuid, store_flags,
+                                     -1, 0, 1, prob, lang, 0, &run_uuid, store_flags,
                                      0 /* rejudge_flag */)) < 0) {
         serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
       }
@@ -8558,7 +8857,7 @@ unpriv_submit_run(
                                   0 /* priority_adjustment */,
                                   0 /* notify flag */,
                                   prob, NULL /* lang */,
-                                  0 /* no_db_flag */, run_uuid, store_flags,
+                                  0 /* no_db_flag */, &run_uuid, store_flags,
                                   0 /* rejudge_flag */);
         if (r < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
@@ -8567,7 +8866,7 @@ unpriv_submit_run(
         if (serve_run_request(cs, cnts, phr->log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
                               0 /* rejudge_flag */) < 0) {
           FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
         }
@@ -8617,7 +8916,7 @@ unpriv_submit_run(
                                   0 /* priority_adjustment */,
                                   0 /* notify flag */,
                                   prob, NULL /* lang */,
-                                  0 /* no_db_flag */, run_uuid, store_flags,
+                                  0 /* no_db_flag */, &run_uuid, store_flags,
                                   0 /* rejudge_flag */);
         if (r < 0) {
           serve_report_check_failed(ejudge_config, cnts, cs, run_id, serve_err_str(r));
@@ -8629,7 +8928,7 @@ unpriv_submit_run(
         if (serve_run_request(cs, cnts, phr->log_f, run_text, run_size,
                               global->contest_id, run_id,
                               phr->user_id, prob_id, 0, variant, 0, -1, -1, 1,
-                              mime_type, 0, phr->locale_id, 0, 0, 0, run_uuid,
+                              mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
                               0 /* rejudge_flag */) < 0) {
           FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
         }
@@ -8660,7 +8959,7 @@ unpriv_submit_run(
   }
 
 cleanup:;
-  l10n_setlocale(0);
+  l10n_resetlocale();
   xfree(utf8_str);
   return;
 
@@ -8771,6 +9070,7 @@ unpriv_submit_clar(FILE *fout,
     FAIL2(NEW_SRV_ERR_CLAR_QUOTA_EXCEEDED);
   }
 
+  ej_uuid_t clar_uuid = {};
   gettimeofday(&precise_time, 0);
   if ((clar_id = clar_add_record(cs->clarlog_state,
                                  precise_time.tv_sec,
@@ -8779,12 +9079,19 @@ unpriv_submit_clar(FILE *fout,
                                  &phr->ip,
                                  phr->ssl_flag,
                                  phr->user_id, 0, 0, 0, 0,
-                                 phr->locale_id, 0, 0, 0,
-                                 utf8_mode, NULL, subj3)) < 0) {
+                                 phr->locale_id,
+                                 0 /* in_reply_to */,
+                                 NULL /* in_reply_uuid */,
+                                 0 /* run_id */,
+                                 NULL /* run_uuid */,
+                                 0 /* appeal_flag */,
+                                 0 /* old_run_status */,
+                                 0 /* new_run_status */,
+                                 utf8_mode, NULL, subj3, &clar_uuid)) < 0) {
     FAIL2(NEW_SRV_ERR_CLARLOG_UPDATE_FAILED);
   }
 
-  if (clar_add_text(cs->clarlog_state, clar_id, text3, text3_len) < 0) {
+  if (clar_add_text(cs->clarlog_state, clar_id, &clar_uuid, text3, text3_len) < 0) {
     FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
   }
 
@@ -8897,6 +9204,7 @@ unpriv_submit_appeal(FILE *fout,
     FAIL2(NEW_SRV_ERR_CLAR_QUOTA_EXCEEDED);
   }
 
+  ej_uuid_t clar_uuid = {};
   gettimeofday(&precise_time, 0);
   if ((clar_id = clar_add_record(cs->clarlog_state,
                                  precise_time.tv_sec,
@@ -8905,12 +9213,19 @@ unpriv_submit_appeal(FILE *fout,
                                  &phr->ip,
                                  phr->ssl_flag,
                                  phr->user_id, 0, 0, 0, 0,
-                                 phr->locale_id, 0, 0, 1,
-                                 utf8_mode, NULL, subj3)) < 0) {
+                                 phr->locale_id,
+                                 0 /* in_reply_to */,
+                                 NULL /* in_reply_uuid */,
+                                 0 /* run_id */,
+                                 NULL /* run_uuid */,
+                                 1,
+                                 0 /* old_run_status */,
+                                 0 /* new_run_status */,
+                                 utf8_mode, NULL, subj3, &clar_uuid)) < 0) {
     FAIL2(NEW_SRV_ERR_CLARLOG_UPDATE_FAILED);
   }
 
-  if (clar_add_text(cs->clarlog_state, clar_id, text3, text3_len) < 0) {
+  if (clar_add_text(cs->clarlog_state, clar_id, &clar_uuid, text3, text3_len) < 0) {
     FAIL2(NEW_SRV_ERR_DISK_WRITE_ERROR);
   }
 
@@ -8947,7 +9262,7 @@ virtual_stop_callback(
   ns_print_user_exam_protocol(cnts, cs, tmpf, p->user_id, locale_id, 1, 0, 0);
   close_memstream(tmpf); tmpf = 0;
   xfree(tmps); tmps = 0; tmpz = 0;
-  if (locale_id > 0) l10n_setlocale(0);
+  if (locale_id > 0) l10n_resetlocale();
 }
 
 static void
@@ -9049,7 +9364,7 @@ unpriv_command(FILE *fout,
                                   0, 0);
       fclose(tmpf); tmpf = 0;
       xfree(tmps); tmps = 0; tmpz = 0;
-      if (locale_id > 0) l10n_setlocale(0);
+      if (locale_id > 0) l10n_resetlocale();
     }
 
     break;
@@ -9077,7 +9392,7 @@ unpriv_command(FILE *fout,
   }
 
 cleanup:;
-  l10n_setlocale(0);
+  l10n_resetlocale();
   return;
 
 fail:
@@ -9202,7 +9517,7 @@ unpriv_view_test(
   // report view is enabled by the problem configuration
   if (enable_rep_view < 0 && prob->team_show_judge_report > 0) enable_rep_view = 1;
   if (enable_rep_view < 0) {
-    int visibility = cntsprob_get_test_visibility(prob, test_num, cs->online_final_visibility);
+    int visibility = cntsprob_get_test_visibility(prob, test_num, cs->online_final_visibility, re.token_flags);
     if (visibility == TV_FULLIFMARKED) {
       visibility = TV_HIDDEN;
       if (re.is_marked) visibility = TV_FULL;
@@ -9253,8 +9568,7 @@ void
 html_problem_selection(serve_state_t cs,
                        FILE *fout,
                        struct http_request_info *phr,
-                       const unsigned char *solved_flag,
-                       const unsigned char *accepted_flag,
+                       const UserProblemInfo *pinfo,
                        const unsigned char *var_name,
                        int light_mode,
                        time_t start_time)
@@ -9274,7 +9588,7 @@ html_problem_selection(serve_state_t cs,
 
   for (i = 1; i <= cs->max_prob; i++) {
     if (!(prob = cs->probs[i])) continue;
-    if (!light_mode && prob->disable_submit_after_ok>0 && solved_flag[i])
+    if (!light_mode && prob->disable_submit_after_ok>0 && pinfo[i].solved_flag)
       continue;
     if (!serve_is_problem_started(cs, phr->user_id, prob))
       continue;
@@ -9302,7 +9616,7 @@ html_problem_selection(serve_state_t cs,
           // no such problem :(
           if (k > cs->max_prob) break;
           // this problem is not yet accepted or solved
-          if (!solved_flag[k] && !accepted_flag[k]) break;
+          if (!pinfo[k].solved_flag && !pinfo[k].accepted_flag) break;
         }
         if (prob->require[j]) continue;
       }
@@ -9468,95 +9782,6 @@ is_judged_virtual_olympiad(serve_state_t cs, int user_id)
   return (vs.judge_id > 0);
 }
 
-/*
-  *PROBLEM_PARAM(disable_user_submit, "d"),
-  *PROBLEM_PARAM(disable_tab, "d"),
-  *PROBLEM_PARAM(restricted_statement, "d"),
-  *PROBLEM_PARAM(disable_submit_after_ok, "d"),
-  *PROBLEM_PARAM(deadline, "s"),
-  *PROBLEM_PARAM(start_date, "s"),
-  *PROBLEM_PARAM(require, "x"),
-  *PROBLEM_PARAM(personal_deadline, "x"),
-*/
-
-void
-ns_get_problem_status(
-        serve_state_t cs,
-        int user_id,
-        const unsigned char *user_login,
-        int accepting_mode,
-        time_t start_time,
-        time_t stop_time,
-        const unsigned char *solved_flag,
-        const unsigned char *accepted_flag,
-        unsigned char *pstat)
-{
-  const struct section_problem_data *prob;
-  int prob_id, is_deadlined, k, j;
-  time_t user_deadline;
-
-  // nothing before contest start
-  if (start_time <= 0) return;
-
-  for (prob_id = 1; prob_id <= cs->max_prob; prob_id++) {
-    if (!(prob = cs->probs[prob_id])) continue;
-
-    // the problem is completely disabled before its start_date
-    if (!serve_is_problem_started(cs, user_id, prob))
-      continue;
-
-    // the problem is completely disabled before requirements are met
-    // check requirements
-    if (prob->require) {
-      for (j = 0; prob->require[j]; j++) {
-        for (k = 1; k <= cs->max_prob; k++) {
-          if (cs->probs[k]
-              && !strcmp(cs->probs[k]->short_name, prob->require[j]))
-            break;
-        }
-        // no such problem :(
-        if (k > cs->max_prob) break;
-        // this problem is not yet accepted or solved
-        if (!solved_flag[k] && !accepted_flag[k]) break;
-      }
-      // if the requirements are not met, skip this problem
-      if (prob->require[j]) continue;
-    }
-
-    // check problem deadline
-    is_deadlined = serve_is_problem_deadlined(cs, user_id, user_login,
-                                              prob, &user_deadline);
-
-    if (prob->restricted_statement <= 0 || !is_deadlined)
-      pstat[prob_id] |= PROB_STATUS_VIEWABLE;
-
-    if (!is_deadlined && prob->disable_user_submit <= 0
-        && (prob->disable_submit_after_ok <= 0 || !solved_flag[prob_id]))
-      pstat[prob_id] |= PROB_STATUS_SUBMITTABLE;
-
-    if (prob->disable_tab <= 0)
-      pstat[prob_id] |= PROB_STATUS_TABABLE;
-  }
-}
-
-static void
-write_row(
-        FILE *fout,
-        const unsigned char *row_label,
-        char *format,
-        ...)
-{
-  va_list args;
-  char buf[1024];
-
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format, args);
-  va_end(args);
-
-  fprintf(fout, "<tr><td class=\"b0\"><b>%s:</b></td><td class=\"b0\">%s</td></tr>\n",
-          row_label, buf);
-}
-
 void
 ns_unparse_statement(
         FILE *fout,
@@ -9598,34 +9823,6 @@ ns_unparse_statement(
     fprintf(fout, "<h3>");
     problem_xml_unparse_node(fout, pp->title, vars, vals);
     fprintf(fout, "</h3>");
-  }
-
-  if (prob->type == PROB_TYPE_STANDARD) {
-    fprintf(fout, "<table class=\"b0\">\n");
-    if (prob->use_stdin <= 0 && prob->input_file[0]) {
-      write_row(fout, _("Input file name"), "<tt>%s</tt>",
-                ARMOR(prob->input_file));
-    }
-    if (prob->use_stdout <= 0 && prob->output_file[0]) {
-      write_row(fout, _("Output file name"), "<tt>%s</tt>",
-                ARMOR(prob->output_file));
-    }
-    if (prob->time_limit_millis > 0) {
-      write_row(fout, _("Time limit"), "%d %s",
-                prob->time_limit_millis, _("ms"));
-    } else if (prob->time_limit > 0) {
-      write_row(fout, _("Time limit"), "%d %s", prob->time_limit, _("s"));
-    }
-    if (prob->max_vm_size > 0) {
-      if (!(prob->max_vm_size % (1024 * 1024))) {
-        write_row(fout, _("Memory limit"), "%zu M",
-                  prob->max_vm_size / (1024*1024));
-      } else {
-        write_row(fout, _("Memory limit"), "%zu",
-                  prob->max_vm_size);
-      }
-    }
-    fprintf(fout, "</table>\n");
   }
 
   if (pp->desc) {
@@ -9942,18 +10139,18 @@ unpriv_xml_update_answer(
     if (prob->require[i]) FAIL(NEW_SRV_ERR_NOT_ALL_REQ_SOLVED);
   }
 
-  ruint32_t run_uuid[4];
+  ej_uuid_t run_uuid;
   int store_flags = 0;
-  run_id = run_find(cs->runlog_state, -1, 0, phr->user_id, prob->id, 0, run_uuid, &store_flags);
+  run_id = run_find(cs->runlog_state, -1, 0, phr->user_id, prob->id, 0, &run_uuid, &store_flags);
   if (run_id < 0) {
     gettimeofday(&precise_time, 0);
-    ej_uuid_generate(run_uuid);
+    ej_uuid_generate(&run_uuid);
     if (global->uuid_run_store > 0 && run_get_uuid_hash_state(cs->runlog_state) >= 0 && ej_uuid_is_nonempty(run_uuid)) {
       store_flags = 1;
     }
     run_id = run_add_record(cs->runlog_state, 
                             precise_time.tv_sec, precise_time.tv_usec * 1000,
-                            run_size, shaval, run_uuid,
+                            run_size, shaval, &run_uuid,
                             &phr->ip, phr->ssl_flag,
                             phr->locale_id, phr->user_id,
                             prob_id, 0, 0, 0, 0, 0, store_flags);
@@ -9964,7 +10161,7 @@ unpriv_xml_update_answer(
 
   if (arch_flags == 1) {
     arch_flags = uuid_archive_prepare_write_path(cs, run_path, sizeof(run_path),
-                                                 run_uuid, run_size, DFLT_R_UUID_SOURCE, 0, 0);
+                                                 &run_uuid, run_size, DFLT_R_UUID_SOURCE, 0, 0);
   } else {
     arch_flags = archive_prepare_write_path(cs, run_path, sizeof(run_path),
                                             global->run_archive_dir, run_id,
@@ -10001,7 +10198,7 @@ unpriv_xml_update_answer(
     l10n_setlocale(phr->locale_id);
     fprintf(fout, "{ \"status\": %d, \"text\": \"%s\" }\n", -retval,
             ARMOR(ns_strerror_2(retval)));
-    l10n_setlocale(0);
+    l10n_resetlocale();
   }
 
   html_armor_free(&ab);
@@ -10044,14 +10241,14 @@ unpriv_get_file(
   if (cs->clients_suspended) FAIL(NEW_SRV_ERR_CLIENTS_SUSPENDED);
   if (start_time <= 0) FAIL(NEW_SRV_ERR_CONTEST_NOT_STARTED);
   if (stop_time > 0 && cs->current_time >= stop_time
-      && prob->restricted_statement > 0)
+      && prob->unrestricted_statement <= 0)
     FAIL(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
   if (!serve_is_problem_started(cs, phr->user_id, prob))
     FAIL(NEW_SRV_ERR_PROB_UNAVAILABLE);
 
   if (serve_is_problem_deadlined(cs, phr->user_id, phr->login,
                                  prob, &user_deadline)
-      && prob->restricted_statement > 0)
+      && prob->unrestricted_statement <= 0)
     FAIL(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
 
   // FIXME: check requisites
@@ -10100,7 +10297,10 @@ unpriv_get_file(
   if (generic_read_file(&file_bytes, 0, &file_size, 0, 0, fpath, "") < 0)
     FAIL(NEW_SRV_ERR_INV_FILE_NAME);
 
-  fprintf(fout, "Content-type: %s\n\n", content_type);
+  fprintf(fout, "Content-type: %s\n", content_type);
+  fprintf(fout, "Content-Disposition: attachment; filename=\"%s\"\n", s);
+  fprintf(fout, "\n");
+
   fwrite(file_bytes, 1, file_size, fout);
 
  cleanup:
@@ -10133,6 +10333,7 @@ static action_handler_t user_actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_JSON_USER_STATE] = unpriv_json_user_state,
   [NEW_SRV_ACTION_UPDATE_ANSWER] = unpriv_xml_update_answer,
   [NEW_SRV_ACTION_GET_FILE] = unpriv_get_file,
+  [NEW_SRV_ACTION_USE_TOKEN] = unpriv_use_token,
 };
 
 static const unsigned char * const external_unpriv_action_names[NEW_SRV_ACTION_LAST] =

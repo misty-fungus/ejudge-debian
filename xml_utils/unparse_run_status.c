@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: unparse_run_status.c 8227 2014-05-16 11:55:08Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 

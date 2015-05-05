@@ -1,4 +1,4 @@
-/* $Id: svn_xmllog.h 7753 2014-01-03 19:59:12Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2006-2010 Alexander Chernov <cher@ejudge.ru> */
 
