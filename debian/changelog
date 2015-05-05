@@ -1,9 +1,25 @@
-ejudge (3.0.1-1) UNRELEASED; urgency=medium
+ejudge (3.3.1-1~1.gbp9a9d6c) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @9a9d6cc1e7691059e52a1f7593e116e49c799deb **
 
   * [df7da3a] New upstream version 3.0.1
   * [065c4b7] added bzr-builder support
+  * [40e245c] New upstream version 3.0.2
+  * [68f9848] New upstream version 3.1.0
+  * [35d9eeb] New upstream version 3.2.0
+  * [2062330] New upstream version 3.2.2
+  * [b73582e] New upstream version 3.3.0
+  * [dd50ba4] New upstream version 3.3.1
+  * [a11f791] refreshed patches
+  * [fb217b1] removed ejudge po hacking from rules
+  * [b58f814] added --with-rest compile option
+  * [718b1fb] added libelf-dev and libdwarf-dev build dependencies
+  * [30ade24] fixed libdwarf include paths
+  * [5ea2c45] updated multiarch support in control
+  * [5af410c] dropped dojo dependency
+  * [9a9d6cc] refreshed patches
 
- -- Yaroslav Leonov <alximik43@gmail.com>  Sat, 02 May 2015 19:51:56 +0300
+ -- Yaroslav Leonov <alximik43@gmail.com>  Tue, 05 May 2015 13:52:45 +0300
 
 ejudge (2.3.29-5) unstable; urgency=medium
 
