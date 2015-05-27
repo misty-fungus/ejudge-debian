@@ -42,7 +42,7 @@ override_dh_auto_configure:
 
 .PHONY: override_dh_strip
 override_dh_strip:
-	dh_strip --dbg-package=ejudge-dbg
+	dh_strip --dbg-package=ejudge-dbg --exclude=ej-page-gen
 
 install_root:=$(CURDIR)/debian/ejudge
 .PHONY: override_dh_auto_install
