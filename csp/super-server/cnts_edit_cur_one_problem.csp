@@ -1,5 +1,5 @@
 <%
-/* $Id: cnts_edit_cur_one_problem.csp 8675 2014-10-21 06:17:22Z cher $ */
+/* $Id: cnts_edit_cur_one_problem.csp 8795 2014-12-11 22:25:52Z cher $ */
 %>
 <%
   int show_details = 0, show_adv = 0;
@@ -1382,6 +1382,22 @@
 <s:form>
     <s:hidden name="prob_id" check="false" />
     <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Umask value:</td>
+        <td><s:textfield name="param" value="prob->umask" size="48" maxlength="1024" checkExpr="" /></td>
+        <td><s:submit ac="prob-change-umask" label="Change" /><s:submit ac="prob-clear-umask" label="Clear" /></td>
+        <td><s:help ac="prob-change-umask" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
+  if (prob_type == PROB_TYPE_STANDARD && show_adv) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
         <td>Use separate process group?</td>
         <td><%
     if (is_abstract || !sup_prob) {
@@ -2237,6 +2253,62 @@
 %>
 
 <%
+  if (show_adv) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Enable tokens?</td>
+        <td><%
+    if (is_abstract || !sup_prob) {
+      int value = prob->enable_tokens == 1;
+%><s:yesno name="param" value="value" /><%
+    } else {
+      prepare_set_prob_value(CNTSPROB_enable_tokens, tmp_prob, sup_prob, global);
+%><s:yesno3 name="param" value="prob->enable_tokens" default="tmp_prob->enable_tokens" /><%
+    }
+%></td>
+        <td><s:submit ac="prob-change-enable-tokens" label="Change" /></td>
+        <td><s:help ac="prob-change-enable-tokens" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
+  if (show_adv) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Token specification:</td>
+        <td><s:textfield name="param" value="prob->tokens" size="48" maxlength="1024" checkExpr="" /></td>
+        <td><s:submit ac="prob-change-tokens" label="Change" /></td>
+        <td><s:help ac="prob-change-tokens" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
+  if (show_adv && !is_abstract) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Tests open for tokens:</td>
+        <td><s:textfield name="param" value="prob->token_open_tests" size="48" maxlength="1024" check="" /></td>
+        <td><s:submit ac="prob-change-token-open-tests" label="Change" /><s:submit ac="prob-clear-token-open-tests" label="Clear" /></td>
+        <td><s:help ac="prob-change-token-open-tests" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
   if (global->score_system == SCORE_OLYMPIAD) {
 %>
 <s:form>
@@ -3050,6 +3122,38 @@
 <s:form>
     <s:hidden name="prob_id" check="false" />
     <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Start proxy program:</td>
+        <td><%
+%><s:textfield name="param" value="prob->start_cmd" size="48" maxlength="1024" checkExpr="" /><%
+    if (is_abstract) {
+      if (!prob->start_cmd) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      prepare_set_prob_value(CNTSPROB_start_cmd, tmp_prob, sup_prob, global);
+      if (!prob->start_cmd) {
+        if (!tmp_prob->start_cmd || !tmp_prob->start_cmd[0]) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->start_cmd" /></i>)<%
+        }
+      }
+    }
+%></td>
+        <td><s:submit ac="prob-change-start-cmd" label="Change" /><s:submit ac="prob-clear-start-cmd" label="Change" /></td>
+        <td><s:help ac="prob-change-start-cmd" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
+  if (show_adv) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
         <td>Solution source name:</td>
         <td><%
 %><s:textfield name="param" value="prob->solution_src" size="48" maxlength="1024" checkExpr="" /><%
@@ -3354,6 +3458,54 @@
     }
 %></td>
         <td><s:help ac="prob-change-variant-num" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
+  if (show_adv) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Assign variants automatically?</td>
+        <td><%
+    if (is_abstract || !sup_prob) {
+      int value = (prob->autoassign_variants == 1);
+%><s:yesno name="param" value="value" /><%
+    } else {
+      prepare_set_prob_value(CNTSPROB_autoassign_variants, tmp_prob, sup_prob, global);
+%><s:yesno3 name="param" value="prob->autoassign_variants" default="tmp_prob->autoassign_variants" /><%
+    }
+%></td>
+        <td><s:submit ac="prob-change-autoassign-variants" label="Change" /></td>
+        <td><s:help ac="prob-change-autoassign-variants" /></td>
+    </s:tr>
+</s:form>
+<%
+  }
+%>
+
+<%
+  if (show_adv) {
+%>
+<s:form>
+    <s:hidden name="prob_id" check="false" />
+    <s:tr attr="form_row_attrs[row ^= 1]">
+        <td>Hide variant from user?</td>
+        <td><%
+    if (is_abstract || !sup_prob) {
+      int value = (prob->hide_variant == 1);
+%><s:yesno name="param" value="value" /><%
+    } else {
+      prepare_set_prob_value(CNTSPROB_hide_variant, tmp_prob, sup_prob, global);
+%><s:yesno3 name="param" value="prob->hide_variant" default="tmp_prob->hide_variant" /><%
+    }
+%></td>
+        <td><s:submit ac="prob-change-hide-variant" label="Change" /></td>
+        <td><s:help ac="prob-change-hide-variant" /></td>
     </s:tr>
 </s:form>
 <%

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej-import-contest.c 8675 2014-10-21 06:17:22Z cher $ */
+/* $Id: ej-import-contest.c 8795 2014-12-11 22:25:52Z cher $ */
 
 /* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -661,6 +661,7 @@ merge_problem_section(
         { CNTSPROB_disable_tab, META_PROBLEM_CONFIG_SECTION_disable_tab },
         { CNTSPROB_unrestricted_statement, META_PROBLEM_CONFIG_SECTION_unrestricted_statement },
         { CNTSPROB_hide_file_names, META_PROBLEM_CONFIG_SECTION_hide_file_names },
+        { CNTSPROB_enable_tokens, META_PROBLEM_CONFIG_SECTION_enable_tokens },
         { CNTSPROB_disable_submit_after_ok, META_PROBLEM_CONFIG_SECTION_disable_submit_after_ok },
         { CNTSPROB_disable_auto_testing, META_PROBLEM_CONFIG_SECTION_disable_auto_testing },
         { CNTSPROB_disable_testing, META_PROBLEM_CONFIG_SECTION_disable_testing },
@@ -678,6 +679,7 @@ merge_problem_section(
         { CNTSPROB_ignore_unmarked, META_PROBLEM_CONFIG_SECTION_ignore_unmarked },
         { CNTSPROB_disable_stderr, META_PROBLEM_CONFIG_SECTION_disable_stderr },
         { CNTSPROB_enable_process_group, META_PROBLEM_CONFIG_SECTION_enable_process_group },
+        { CNTSPROB_hide_variant, META_PROBLEM_CONFIG_SECTION_hide_variant },
 
         { 0, 0 },
     };
@@ -814,12 +816,16 @@ merge_problem_section(
         { CNTSPROB_style_checker_cmd, META_PROBLEM_CONFIG_SECTION_style_checker_cmd },
         { CNTSPROB_test_checker_cmd, META_PROBLEM_CONFIG_SECTION_test_checker_cmd },
         { CNTSPROB_init_cmd, META_PROBLEM_CONFIG_SECTION_init_cmd },
+        { CNTSPROB_start_cmd, META_PROBLEM_CONFIG_SECTION_start_cmd },
         { CNTSPROB_solution_src, META_PROBLEM_CONFIG_SECTION_solution_src },
         { CNTSPROB_solution_cmd, META_PROBLEM_CONFIG_SECTION_solution_cmd },
         { CNTSPROB_score_bonus, META_PROBLEM_CONFIG_SECTION_score_bonus },
         { CNTSPROB_open_tests, META_PROBLEM_CONFIG_SECTION_open_tests },
         { CNTSPROB_final_open_tests, META_PROBLEM_CONFIG_SECTION_final_open_tests },
+        { CNTSPROB_token_open_tests, META_PROBLEM_CONFIG_SECTION_token_open_tests },
         { CNTSPROB_standard_checker, META_PROBLEM_CONFIG_SECTION_standard_checker },
+        { CNTSPROB_tokens, META_PROBLEM_CONFIG_SECTION_tokens },
+        { CNTSPROB_umask, META_PROBLEM_CONFIG_SECTION_umask },
 
         { 0, 0 },
     };

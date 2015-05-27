@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: rldb_mysql.c 8698 2014-10-30 05:47:27Z cher $ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -248,7 +248,16 @@ do_open(struct rldb_mysql_state *state)
       return -1;
     run_version = 6;
   }
-  if (run_version != 6) {
+  if (run_version == 6) {
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN token_flags TINYINT NOT NULL DEFAULT 0 AFTER store_flags", md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "ALTER TABLE %sruns ADD COLUMN token_count TINYINT NOT NULL DEFAULT 0 AFTER token_flags", md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '7' WHERE config_key = 'run_version' ;", md->table_prefix) < 0)
+      return -1;
+    run_version = 7;
+  }
+  if (run_version != 7) {
     err("run_version == %d is not supported", run_version);
     return -1;
   }
@@ -461,15 +470,6 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->pages = ri.pages;
     re->ssl_flag = ri.ssl_flag;
     re->mime_type = mime_type;
-    /*
-    re->is_examinable = ri.is_examinable;
-    re->examiners[0] = ri.examiners0;
-    re->examiners[1] = ri.examiners1;
-    re->examiners[2] = ri.examiners2;
-    re->exam_score[0] = ri.exam_score0;
-    re->exam_score[1] = ri.exam_score1;
-    re->exam_score[2] = ri.exam_score2;
-    */
     re->is_marked = ri.is_marked;
     re->is_saved = ri.is_saved;
     re->saved_status = ri.saved_status;
@@ -478,6 +478,8 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->passed_mode = ri.passed_mode;
     re->eoln_type = ri.eoln_type;
     re->store_flags = ri.store_flags;
+    re->token_flags = ri.token_flags;
+    re->token_count = ri.token_count;
   }
   return 1;
 
@@ -933,12 +935,6 @@ generate_update_entry_clause(
     fprintf(f, "%sis_readonly = %d", sep, re->is_readonly);
     sep = comma;
   }
-  /*
-  if ((flags & RE_IS_EXAMINABLE)) {
-    fprintf(f, "%sis_examinable = %d", sep, re->is_examinable);
-    sep = comma;
-  }
-  */
   if ((flags & RE_MIME_TYPE)) {
     if (re->mime_type > 0) {
       fprintf(f, "%smime_type = '%s'", sep, mime_type_get_type(re->mime_type));
@@ -946,22 +942,6 @@ generate_update_entry_clause(
       fprintf(f, "%smime_type = NULL", sep);
     }
     sep = comma;
-  }
-  if ((flags & RE_EXAMINERS)) {
-    /*
-    fprintf(f, "%sexaminers0 = %d", sep, re->examiners[0]);
-    sep = comma;
-    fprintf(f, "%sexaminers1 = %d", sep, re->examiners[1]);
-    fprintf(f, "%sexaminers2 = %d", sep, re->examiners[2]);
-    */
-  }
-  if ((flags & RE_EXAM_SCORE)) {
-    /*
-    fprintf(f, "%sexam_score0 = %d", sep, re->exam_score[0]);
-    sep = comma;
-    fprintf(f, "%sexam_score1 = %d", sep, re->exam_score[1]);
-    fprintf(f, "%sexam_score2 = %d", sep, re->exam_score[2]);
-    */
   }
   if ((flags & RE_IS_MARKED)) {
     fprintf(f, "%sis_marked = %d", sep, re->is_marked);
@@ -993,6 +973,14 @@ generate_update_entry_clause(
   }
   if ((flags & RE_STORE_FLAGS)) {
     fprintf(f, "%sstore_flags = %d", sep, re->store_flags);
+    sep = comma;
+  }
+  if ((flags & RE_TOKEN_FLAGS)) {
+    fprintf(f, "%stoken_flags = %d", sep, re->token_flags);
+    sep = comma;
+  }
+  if ((flags & RE_TOKEN_COUNT)) {
+    fprintf(f, "%stoken_count = %d", sep, re->token_count);
     sep = comma;
   }
 
@@ -1070,15 +1058,6 @@ update_entry(
   if ((flags & RE_MIME_TYPE)) {
     dst->mime_type = src->mime_type;
   }
-  if ((flags & RE_IS_EXAMINABLE)) {
-    //dst->is_examinable = src->is_examinable;
-  }
-  if ((flags & RE_EXAMINERS)) {
-    //memcpy(dst->examiners, src->examiners, sizeof(dst->examiners));
-  }
-  if ((flags & RE_EXAM_SCORE)) {
-    //memcpy(dst->exam_score, src->exam_score, sizeof(dst->exam_score));
-  }
   if ((flags & RE_IS_MARKED)) {
     dst->is_marked = src->is_marked;
   }
@@ -1102,6 +1081,12 @@ update_entry(
   }
   if ((flags & RE_STORE_FLAGS)) {
     dst->store_flags = src->store_flags;
+  }
+  if ((flags & RE_TOKEN_FLAGS)) {
+    dst->token_flags = src->token_flags;
+  }
+  if ((flags & RE_TOKEN_COUNT)) {
+    dst->token_count = src->token_count;
   }
 }
 
@@ -1577,18 +1562,9 @@ put_entry_func(
   ri.is_imported = re->is_imported;
   ri.is_hidden = re->is_hidden;
   ri.is_readonly = re->is_readonly;
-  //ri.is_examinable = re->is_examinable;
   if (re->mime_type) {
     ri.mime_type = (unsigned char*) mime_type_get_type(re->mime_type);
   }
-  /*
-  ri.examiners0 = re->examiners[0];
-  ri.examiners1 = re->examiners[1];
-  ri.examiners2 = re->examiners[2];
-  ri.exam_score0 = re->exam_score[0];
-  ri.exam_score1 = re->exam_score[1];
-  ri.exam_score2 = re->exam_score[2];
-  */
   ri.last_change_time = curtime.tv_sec;
   ri.last_change_nsec = curtime.tv_usec * 1000;
   ri.is_marked = re->is_marked;
@@ -1599,6 +1575,8 @@ put_entry_func(
   ri.passed_mode = re->passed_mode;
   ri.eoln_type = re->eoln_type;
   ri.store_flags = re->store_flags;
+  ri.token_flags = re->token_flags;
+  ri.token_count = re->token_count;
 
   cmd_f = open_memstream(&cmd_t, &cmd_z);
   fprintf(cmd_f, "INSERT INTO %sruns VALUES ( ", state->md->table_prefix);

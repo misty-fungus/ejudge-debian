@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: html.h 8232 2014-05-16 19:06:19Z cher $ */
+/* $Id: html.h 8800 2014-12-28 17:42:54Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
@@ -126,6 +126,7 @@ calc_kirov_score(
         time_t start_time,
         int separate_user_score,
         int user_mode,
+        int token_flags,
         const struct run_entry *pe,
         const struct section_problem_data *pr,
         int attempts,
@@ -188,6 +189,11 @@ score_view_display(
         size_t size,
         const struct section_problem_data *prob,
         int score);
+void
+score_view_display_f(
+        FILE *out_f,
+        const struct section_problem_data *prob,
+        int score);
 
 /* run field selection flags */
 enum
@@ -219,6 +225,7 @@ enum
   RUN_VIEW_RUN_UUID,
   RUN_VIEW_EOLN_TYPE,
   RUN_VIEW_STORE_FLAGS,
+  RUN_VIEW_TOKENS,
 
   RUN_VIEW_LAST,
 

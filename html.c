@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: html.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: html.c 8800 2014-12-28 17:42:54Z cher $ */
 
 /* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -81,6 +81,7 @@ calc_kirov_score(
         time_t start_time,
         int separate_user_score,
         int user_mode,
+        int token_flags,
         const struct run_entry *pe,
         const struct section_problem_data *pr,
         int attempts,
@@ -98,7 +99,7 @@ calc_kirov_score(
   ASSERT(pr);
   ASSERT(attempts >= 0);
 
-  if (separate_user_score > 0 && user_mode > 0 && pe->is_saved) {
+  if (separate_user_score > 0 && user_mode > 0 && pe->is_saved && !(token_flags & TOKEN_FINALSCORE_BIT)) {
     status = pe->saved_status;
     if (status == RUN_PENDING_REVIEW) status = RUN_OK;
     init_score = pe->saved_score;
@@ -265,9 +266,15 @@ write_html_run_status(
 
   separate_user_score = global->separate_user_score > 0 && state->online_view_judge_score <= 0;
   if (separate_user_score > 0 && pe->is_saved && user_mode) {
-    status = pe->saved_status;
-    score = pe->saved_score;
-    test = pe->saved_test;
+    if (pe->token_count > 0 && (pe->token_flags & TOKEN_FINALSCORE_BIT)) {
+      status = pe->status;
+      score = pe->score;
+      test = pe->test;
+    } else {
+      status = pe->saved_status;
+      score = pe->saved_score;
+      test = pe->saved_test;
+    }
   } else {
     status = pe->status;
     score = pe->score;
@@ -435,7 +442,7 @@ write_html_run_status(
       fprintf(f, "<td%s>%s</td>", cl, _("N/A"));
     } else {
       calc_kirov_score(score_str, sizeof(score_str),
-                       start_time, separate_user_score, user_mode,
+                       start_time, separate_user_score, user_mode, pe->token_flags,
                        pe, pr, attempts,
                        disq_attempts, prev_successes, 0, 0);
       fprintf(f, "<td%s>%s</td>", cl, score_str);
@@ -546,7 +553,7 @@ write_text_run_status(
     fprintf(f, ";");
   } else {
     calc_kirov_score(score_str, sizeof(score_str),
-                     start_time, separate_user_score, user_mode,
+                     start_time, separate_user_score, user_mode, pe->token_flags,
                      pe, pr, attempts,
                      disq_attempts, prev_successes, 0, 1);
     fprintf(f, "%s;", score_str);
@@ -903,6 +910,29 @@ score_view_display(
   return buf;
 }
 
+void
+score_view_display_f(
+        FILE *out_f,
+        const struct section_problem_data *prob,
+        int score)
+{
+  int i;
+
+  if (!prob || !prob->score_view || !prob->score_view[0] || !prob->score_view_score) {
+    if (score < 0) score = 0;
+    fprintf(out_f, "%d", score);
+    return;
+  }
+
+  for (i = 0; prob->score_view[i] && prob->score_view_score[i] != score; i++);
+  if (!prob->score_view[i]) {
+    if (score < 0) score = 0;
+    fprintf(out_f, "%d", score);
+  } else {
+    fprintf(out_f, "%s", prob->score_view_text[i]);
+  }
+}
+
 static void
 get_problem_map(
         const serve_state_t state,
@@ -1040,6 +1070,7 @@ do_write_kirov_standings(
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   struct filter_env env;
   int separate_user_score = 0;
+  int token_flags = 0;
 
   memset(&env, 0, sizeof(env));
 
@@ -1286,7 +1317,12 @@ do_write_kirov_standings(
         continue;
     }
 
-    if (separate_user_score > 0 && user_mode && pe->is_saved) {
+    token_flags = 0;
+    if (user_mode && user_id > 0 && user_id == pe->user_id) {
+      token_flags = pe->token_flags;
+    }
+
+    if (separate_user_score > 0 && user_mode && pe->is_saved && !(pe->token_flags & TOKEN_FINALSCORE_BIT)) {
       run_status = pe->saved_status;
       run_score = pe->saved_score;
       if (run_status == RUN_OK && !prob->variable_full_score) {
@@ -1438,7 +1474,7 @@ do_write_kirov_standings(
       if (prob->score_latest_or_unmarked > 0) {
         if (run_status == RUN_OK) {
           score = calc_kirov_score(0, 0, start_time,
-                                   separate_user_score, user_mode,
+                                   separate_user_score, user_mode, token_flags,
                                    pe, prob, att_num[up_ind],
                                    disq_num[up_ind],
                                    full_sol[up_ind]?RUN_TOO_MANY:succ_att[pind],
@@ -1464,7 +1500,7 @@ do_write_kirov_standings(
           last_success_run = k;
         } else if (run_status == RUN_PARTIAL || (run_status == RUN_WRONG_ANSWER_ERR && prob->type != 0)) {
           score = calc_kirov_score(0, 0, start_time,
-                                   separate_user_score, user_mode,
+                                   separate_user_score, user_mode, token_flags,
                                    pe, prob, att_num[up_ind],
                                    disq_num[up_ind], RUN_TOO_MANY, 0, 0);
           if (pe->is_marked) {
@@ -1516,7 +1552,7 @@ do_write_kirov_standings(
             marked_flag[up_ind] = pe->is_marked;
             if (!full_sol[up_ind]) sol_att[up_ind]++;
             score = calc_kirov_score(0, 0, start_time,
-                                     separate_user_score, user_mode,
+                                     separate_user_score, user_mode, token_flags,
                                      pe, prob, att_num[up_ind],
                                      disq_num[up_ind],
                                      full_sol[up_ind]?RUN_TOO_MANY:succ_att[pind],
@@ -1580,7 +1616,7 @@ do_write_kirov_standings(
             marked_flag[up_ind] = pe->is_marked;
             if (!full_sol[up_ind]) sol_att[up_ind]++;
             score = calc_kirov_score(0, 0, start_time,
-                                     separate_user_score, user_mode,
+                                     separate_user_score, user_mode, token_flags,
                                      pe, prob, att_num[up_ind],
                                      disq_num[up_ind], RUN_TOO_MANY, 0, 0);
             if (prob->score_latest > 0 || score > prob_score[up_ind]) {
@@ -1596,7 +1632,7 @@ do_write_kirov_standings(
         } else if (run_status == RUN_WRONG_ANSWER_ERR && prob->type != 0) {
           if (!full_sol[up_ind]) sol_att[up_ind]++;
           score = calc_kirov_score(0, 0, start_time,
-                                   separate_user_score, user_mode,
+                                   separate_user_score, user_mode, token_flags,
                                    pe, prob, att_num[up_ind],
                                    disq_num[up_ind], RUN_TOO_MANY, 0, 0);
           if (prob->score_latest > 0 || score > prob_score[up_ind]) {

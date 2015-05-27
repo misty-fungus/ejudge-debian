@@ -1,4 +1,4 @@
-/* $Id: exec.h 8528 2014-08-22 11:25:35Z cher $ */
+/* $Id: exec.h 8796 2014-12-11 22:33:10Z cher $ */
 
 #ifndef __REUSE_EXEC_H__
 #define __REUSE_EXEC_H__
@@ -147,6 +147,7 @@ int task_SetMaxProcessCount(tpTask, int);
 int task_SetMaxPrioValue(tpTask, int);
 // RLIMIT_SIGPENDING
 int task_SetMaxPendingCount(tpTask, int);
+int task_SetUmask(tpTask, int);
 
 #ifdef __cplusplus
 }

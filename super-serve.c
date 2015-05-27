@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super-serve.c 8675 2014-10-21 06:17:22Z cher $ */
+/* $Id: super-serve.c 8795 2014-12-11 22:25:52Z cher $ */
 
 /* Copyright (C) 2003-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1328,8 +1328,6 @@ super_serve_clear_edited_contest(struct sid_state *p)
   xfree(p->stand2_footer_text); p->stand2_footer_text = 0;
   xfree(p->plog_header_text); p->plog_header_text = 0;
   xfree(p->plog_footer_text); p->plog_footer_text = 0;
-  xfree(p->var_header_text); p->var_header_text = 0;
-  xfree(p->var_footer_text); p->var_footer_text = 0;
   xfree(p->compile_home_dir); p->compile_home_dir = 0;
 }
 
@@ -1379,7 +1377,7 @@ super_serve_move_edited_contest(struct sid_state *dst, struct sid_state *src)
     SSSS_stand_header_text, SSSS_stand_footer_text,
     SSSS_stand2_header_text, SSSS_stand2_footer_text,
     SSSS_plog_header_text, SSSS_plog_footer_text,
-    SSSS_var_header_text, SSSS_var_footer_text, SSSS_compile_home_dir,
+    SSSS_compile_home_dir,
     0,
   };
   for (int i = 0; string_fields[i]; ++i) {
@@ -1931,6 +1929,7 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_DISABLE_TAB:
   case SSERV_CMD_PROB_CHANGE_UNRESTRICTED_STATEMENT:
   case SSERV_CMD_PROB_CHANGE_HIDE_FILE_NAMES:
+  case SSERV_CMD_PROB_CHANGE_ENABLE_TOKENS:
   case SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK:
   case SSERV_CMD_PROB_CHANGE_DISABLE_SECURITY:
   case SSERV_CMD_PROB_CHANGE_DISABLE_TESTING:
@@ -1946,6 +1945,10 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_VARIABLE_FULL_SCORE:
   case SSERV_CMD_PROB_CHANGE_TEST_SCORE_LIST:
   case SSERV_CMD_PROB_CLEAR_TEST_SCORE_LIST:
+  case SSERV_CMD_PROB_CHANGE_TOKENS:
+  case SSERV_CMD_PROB_CLEAR_TOKENS:
+  case SSERV_CMD_PROB_CHANGE_UMASK:
+  case SSERV_CMD_PROB_CLEAR_UMASK:
   case SSERV_CMD_PROB_CHANGE_SCORE_TESTS:
   case SSERV_CMD_PROB_CLEAR_SCORE_TESTS:
   case SSERV_CMD_PROB_CHANGE_TESTS_TO_ACCEPT:
@@ -1959,6 +1962,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED:
   case SSERV_CMD_PROB_CHANGE_DISABLE_STDERR:
   case SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP:
+  case SSERV_CMD_PROB_CHANGE_HIDE_VARIANT:
+  case SSERV_CMD_PROB_CHANGE_AUTOASSIGN_VARIANTS:
   case SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM:
   case SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE:
   case SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN:
@@ -2010,6 +2015,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_OPEN_TESTS:    
   case SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS:
   case SSERV_CMD_PROB_CLEAR_FINAL_OPEN_TESTS:    
+  case SSERV_CMD_PROB_CHANGE_TOKEN_OPEN_TESTS:
+  case SSERV_CMD_PROB_CLEAR_TOKEN_OPEN_TESTS:    
   case SSERV_CMD_PROB_CHANGE_LANG_COMPILER_ENV:
   case SSERV_CMD_PROB_CLEAR_LANG_COMPILER_ENV:
   case SSERV_CMD_PROB_CHANGE_CHECK_CMD:
@@ -2034,6 +2041,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV:
   case SSERV_CMD_PROB_CHANGE_INIT_CMD:
   case SSERV_CMD_PROB_CLEAR_INIT_CMD:
+  case SSERV_CMD_PROB_CHANGE_START_CMD:
+  case SSERV_CMD_PROB_CLEAR_START_CMD:
   case SSERV_CMD_PROB_CHANGE_INIT_ENV:
   case SSERV_CMD_PROB_CLEAR_INIT_ENV:
   case SSERV_CMD_PROB_CHANGE_START_ENV:
@@ -2099,6 +2108,8 @@ cmd_set_value(struct client_state *p, int len,
   case SSERV_CMD_GLOB_CHANGE_STAND_LOCALE:
   case SSERV_CMD_GLOB_CHANGE_CHECKER_LOCALE:
   case SSERV_CMD_GLOB_CLEAR_CHECKER_LOCALE:
+  case SSERV_CMD_GLOB_CHANGE_TOKENS:
+  case SSERV_CMD_GLOB_CLEAR_TOKENS:
   case SSERV_CMD_GLOB_CHANGE_SRC_VIEW:
   case SSERV_CMD_GLOB_CHANGE_REP_VIEW:
   case SSERV_CMD_GLOB_CHANGE_CE_VIEW:
@@ -2924,6 +2935,7 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_DISABLE_TAB] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_UNRESTRICTED_STATEMENT] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_HIDE_FILE_NAMES] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_ENABLE_TOKENS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_SUBMIT_AFTER_OK] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_SECURITY] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_TESTING] = { cmd_set_value },
@@ -2939,6 +2951,10 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_VARIABLE_FULL_SCORE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TEST_SCORE_LIST] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_TEST_SCORE_LIST] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_TOKENS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_TOKENS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_UMASK] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_UMASK] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_SCORE_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_SCORE_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_TESTS_TO_ACCEPT] = { cmd_set_value },
@@ -2952,6 +2968,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CHANGE_IGNORE_UNMARKED] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_DISABLE_STDERR] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ENABLE_PROCESS_GROUP] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_HIDE_VARIANT] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_AUTOASSIGN_VARIANTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_ENABLE_TEXT_FORM] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_STAND_IGNORE_SCORE] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_STAND_LAST_COLUMN] = { cmd_set_value },
@@ -3003,6 +3021,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_OPEN_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_FINAL_OPEN_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_FINAL_OPEN_TESTS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_TOKEN_OPEN_TESTS] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_TOKEN_OPEN_TESTS] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_LANG_COMPILER_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_LANG_COMPILER_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_CHECK_CMD] = { cmd_set_value },
@@ -3027,6 +3047,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_PROB_CLEAR_TEST_CHECKER_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_INIT_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_INIT_CMD] = { cmd_set_value },
+  [SSERV_CMD_PROB_CHANGE_START_CMD] = { cmd_set_value },
+  [SSERV_CMD_PROB_CLEAR_START_CMD] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_INIT_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CLEAR_INIT_ENV] = { cmd_set_value },
   [SSERV_CMD_PROB_CHANGE_START_ENV] = { cmd_set_value },
@@ -3086,6 +3108,8 @@ static const struct packet_handler packet_handlers[SSERV_CMD_LAST] =
   [SSERV_CMD_GLOB_CHANGE_STAND_LOCALE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_CHECKER_LOCALE] = { cmd_set_value },
   [SSERV_CMD_GLOB_CLEAR_CHECKER_LOCALE] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CHANGE_TOKENS] = { cmd_set_value },
+  [SSERV_CMD_GLOB_CLEAR_TOKENS] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_SRC_VIEW] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_REP_VIEW] = { cmd_set_value },
   [SSERV_CMD_GLOB_CHANGE_CE_VIEW] = { cmd_set_value },

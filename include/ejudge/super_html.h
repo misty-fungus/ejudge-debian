@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super_html.h 8500 2014-08-17 15:05:43Z cher $ */
+/* $Id: super_html.h 8772 2014-11-22 15:51:48Z cher $ */
 #ifndef __SUPER_HTML_H__
 #define __SUPER_HTML_H__
 
@@ -214,9 +214,7 @@ super_html_update_variant_map(FILE *flog, int contest_id,
                               const struct contest_desc *cnts,
                               struct section_global_data *global,
                               int total_probs,
-                              struct section_problem_data **probs,
-                              unsigned char **p_header_txt,
-                              unsigned char **p_footer_txt);
+                              struct section_problem_data **probs);
 
 struct http_request_info;
 void

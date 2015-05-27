@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: dwarf_parse.c 8626 2014-10-08 04:19:44Z cher $ */
+/* $Id: dwarf_parse.c 8754 2014-11-16 06:31:58Z cher $ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -31,8 +31,8 @@
 #include <errno.h>
 #include <limits.h>
 
-#include <libdwarf/dwarf.h>
-#include <libdwarf/libdwarf.h>
+#include <libdwarf-internal/dwarf.h>
+#include <libdwarf-internal/libdwarf.h>
 
 typedef struct DieMapEntry
 {

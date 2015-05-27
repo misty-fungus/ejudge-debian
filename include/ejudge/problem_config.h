@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 8673 2014-10-21 05:36:55Z cher $ */
+/* $Id: problem_config.h 8793 2014-12-11 21:55:57Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
@@ -70,6 +70,7 @@ struct problem_config_section
   ejintbool_t disable_tab;
   ejintbool_t unrestricted_statement;
   ejintbool_t hide_file_names;
+  ejintbool_t enable_tokens;
   ejintbool_t disable_submit_after_ok;
   ejintbool_t disable_auto_testing;
   ejintbool_t disable_testing;
@@ -87,6 +88,7 @@ struct problem_config_section
   ejintbool_t ignore_unmarked;
   ejintbool_t disable_stderr;
   ejintbool_t enable_process_group;
+  ejintbool_t hide_variant;
 
   int id;
   int real_time_limit;
@@ -153,13 +155,17 @@ struct problem_config_section
   unsigned char *style_checker_cmd;
   unsigned char *test_checker_cmd;
   unsigned char *init_cmd;
+  unsigned char *start_cmd;
   unsigned char *solution_src;
   unsigned char *solution_cmd;
   unsigned char *score_bonus;
   unsigned char *open_tests;
   unsigned char *final_open_tests;
+  unsigned char *token_open_tests;
   unsigned char *extid;
   unsigned char *revision;
+  unsigned char *tokens;
+  unsigned char *umask;
 
   char **test_sets;
   char **date_penalty;

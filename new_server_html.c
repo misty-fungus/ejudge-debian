@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 8679 2014-10-21 10:14:21Z cher $ */
+/* $Id: new_server_html.c 8799 2014-12-27 23:09:23Z cher $ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -56,6 +56,7 @@
 #include "ejudge/prepare_dflt.h"
 #include "ejudge/new_server_match.h"
 #include "ejudge/external_action.h"
+#include "ejudge/new_server_pi.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -6451,7 +6452,9 @@ priv_get_file(
   if (generic_read_file(&file_bytes, 0, &file_size, 0, 0, fpath, "") < 0)
     FAIL(NEW_SRV_ERR_INV_FILE_NAME);
 
-  fprintf(fout, "Content-type: %s\n\n", content_type);
+  fprintf(fout, "Content-type: %s\n", content_type);
+  fprintf(fout, "Content-Disposition: attachment; filename=\"%s\"\n", s);
+  fprintf(fout, "\n");
   fwrite(file_bytes, 1, file_size, fout);
 
  cleanup:
@@ -7432,6 +7435,159 @@ unpriv_print_run(FILE *fout,
 }
 
 int
+compute_available_tokens(
+        serve_state_t cs,
+        const struct section_problem_data *prob,
+        time_t start_time)
+{
+  const struct section_global_data *global = cs->global;
+  int available_tokens = 0;
+
+  if (global->token_info) {
+    available_tokens += global->token_info->initial_count;
+  }
+  if (prob->token_info) {
+    available_tokens += prob->token_info->initial_count;
+  }
+  if (start_time > 0 && cs->current_time > start_time) {
+    long long td = (long long) cs->current_time - start_time;
+    if (global->token_info) {
+      if (global->token_info->time_sign > 0) {
+        available_tokens += global->token_info->time_increment * (td / global->token_info->time_interval);
+      } else if (global->token_info->time_sign < 0) {
+        available_tokens -= global->token_info->time_increment * (td / global->token_info->time_interval);
+      }
+    }
+    if (prob->token_info) {
+      if (prob->token_info->time_sign > 0) {
+        available_tokens += prob->token_info->time_increment * (td / prob->token_info->time_interval);
+      } else if (prob->token_info->time_sign < 0) {
+        available_tokens -= prob->token_info->time_increment * (td / prob->token_info->time_interval);
+      }
+    }
+  }
+  if (available_tokens < 0) available_tokens = 0;
+  return available_tokens;
+}
+
+static void
+unpriv_use_token(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra)
+{
+  serve_state_t cs = extra->serve_state;
+  int run_id;
+  struct run_entry re;
+  const struct section_global_data *global = cs->global;
+  const struct section_problem_data *prob = 0;
+  int back_action = 0;
+  unsigned char param_buf[1024];
+
+  if (unpriv_parse_run_id(fout, phr, cnts, extra, &run_id, &re) < 0)
+    goto cleanup;
+  if (re.prob_id <= 0 || re.prob_id > cs->max_prob || !(prob = cs->probs[re.prob_id])) {
+    error_page(fout, phr, 0, NEW_SRV_ERR_INV_PROB_ID);
+    goto cleanup;
+  }
+
+  hr_cgi_param_int_opt(phr, "back_action", &back_action, 0);
+  param_buf[0] = 0;
+  if (back_action == NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT) {
+    snprintf(param_buf, sizeof(param_buf), "prob_id=%d", re.prob_id);
+  } else if (back_action == NEW_SRV_ACTION_VIEW_SUBMISSIONS) {
+    // nothing
+  } else {
+    back_action = NEW_SRV_ACTION_MAIN_PAGE;
+  }
+
+  if (prob->enable_tokens <= 0 || !prob->token_info || !prob->token_info->open_sign || prob->token_info->open_cost <= 0) {
+    ns_refresh_page(fout, phr, back_action, param_buf);
+    goto cleanup;
+  }
+
+  if ((re.token_flags & prob->token_info->open_flags) == prob->token_info->open_flags) {
+    // nothing new to open
+    ns_refresh_page(fout, phr, back_action, param_buf);
+    goto cleanup;
+  }
+
+  int separate_user_score = global->separate_user_score > 0 && cs->online_view_judge_score <= 0;
+  int status = re.status;
+  if (separate_user_score > 0 && re.is_saved) {
+    status = re.saved_status;
+  }
+
+  switch (status) {
+  case RUN_OK:
+  case RUN_RUN_TIME_ERR:
+  case RUN_TIME_LIMIT_ERR:
+  case RUN_PRESENTATION_ERR:
+  case RUN_WRONG_ANSWER_ERR:
+  case RUN_PARTIAL:
+  case RUN_ACCEPTED:
+  case RUN_DISQUALIFIED:
+  case RUN_MEM_LIMIT_ERR:
+  case RUN_SECURITY_ERR:
+  case RUN_WALL_TIME_LIMIT_ERR:
+  case RUN_PENDING_REVIEW:
+  case RUN_REJECTED:
+    if (prob->team_enable_rep_view > 0) {
+      ns_refresh_page(fout, phr, back_action, param_buf);
+      goto cleanup;
+    }
+    break;
+
+  case RUN_COMPILE_ERR:
+  case RUN_STYLE_ERR:
+    if (prob->team_enable_ce_view > 0 || prob->team_enable_rep_view > 0) {
+      ns_refresh_page(fout, phr, back_action, param_buf);
+      goto cleanup;
+    }
+    break;
+
+    /*
+      case RUN_CHECK_FAILED:
+      case RUN_IGNORED:
+      case RUN_PENDING:
+      case RUN_SKIPPED:
+    */
+  default:
+    ns_refresh_page(fout, phr, back_action, param_buf);
+    goto cleanup;
+  }
+
+  // count the amount of spent and available tokens
+  time_t start_time = 0;
+  if (global->is_virtual) {
+    start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
+  } else {
+    start_time = run_get_start_time(cs->runlog_state);
+  }
+  int available_tokens = compute_available_tokens(cs, prob, start_time) - run_count_tokens(cs->runlog_state, phr->user_id, prob->id);
+  if (available_tokens < 0) available_tokens = 0;
+  if (available_tokens < prob->token_info->open_cost) {
+    error_page(fout, phr, 0, NEW_SRV_ERR_PERMISSION_DENIED);
+    goto cleanup;
+  }
+
+  re.token_flags = prob->token_info->open_flags;
+  re.token_count = prob->token_info->open_cost;
+  if (run_set_entry(cs->runlog_state, run_id, RE_TOKEN_FLAGS | RE_TOKEN_COUNT, &re) < 0) {
+    error_page(fout, phr, 0, NEW_SRV_ERR_RUNLOG_UPDATE_FAILED);
+    goto cleanup;
+  }
+
+  serve_audit_log(cs, run_id, &re, phr->user_id, &phr->ip, phr->ssl_flag,
+                  "use_token", "ok", -1, "  %d tokens used\n  %d new token flags\n", prob->token_info->open_cost,
+                  prob->token_info->open_flags);
+  ns_refresh_page(fout, phr, back_action, param_buf);
+
+cleanup:;
+}
+
+int
 ns_submit_run(
         FILE *log_f,
         struct http_request_info *phr,
@@ -8147,6 +8303,10 @@ unpriv_submit_run(
       || prob_id <= 0 || prob_id > cs->max_prob
       || !(prob = cs->probs[prob_id])) {
     FAIL2(NEW_SRV_ERR_INV_PROB_ID);
+  }
+
+  if (prob->disable_user_submit > 0) {
+    FAIL2(NEW_SRV_ERR_PERMISSION_DENIED);
   }
 
   // "STANDARD" problems need programming language identifier
@@ -9216,7 +9376,7 @@ unpriv_view_test(
   // report view is enabled by the problem configuration
   if (enable_rep_view < 0 && prob->team_show_judge_report > 0) enable_rep_view = 1;
   if (enable_rep_view < 0) {
-    int visibility = cntsprob_get_test_visibility(prob, test_num, cs->online_final_visibility);
+    int visibility = cntsprob_get_test_visibility(prob, test_num, cs->online_final_visibility, re.token_flags);
     if (visibility == TV_FULLIFMARKED) {
       visibility = TV_HIDDEN;
       if (re.is_marked) visibility = TV_FULL;
@@ -9267,8 +9427,7 @@ void
 html_problem_selection(serve_state_t cs,
                        FILE *fout,
                        struct http_request_info *phr,
-                       const unsigned char *solved_flag,
-                       const unsigned char *accepted_flag,
+                       const UserProblemInfo *pinfo,
                        const unsigned char *var_name,
                        int light_mode,
                        time_t start_time)
@@ -9288,7 +9447,7 @@ html_problem_selection(serve_state_t cs,
 
   for (i = 1; i <= cs->max_prob; i++) {
     if (!(prob = cs->probs[i])) continue;
-    if (!light_mode && prob->disable_submit_after_ok>0 && solved_flag[i])
+    if (!light_mode && prob->disable_submit_after_ok>0 && pinfo[i].solved_flag)
       continue;
     if (!serve_is_problem_started(cs, phr->user_id, prob))
       continue;
@@ -9316,7 +9475,7 @@ html_problem_selection(serve_state_t cs,
           // no such problem :(
           if (k > cs->max_prob) break;
           // this problem is not yet accepted or solved
-          if (!solved_flag[k] && !accepted_flag[k]) break;
+          if (!pinfo[k].solved_flag && !pinfo[k].accepted_flag) break;
         }
         if (prob->require[j]) continue;
       }
@@ -9480,77 +9639,6 @@ is_judged_virtual_olympiad(serve_state_t cs, int user_id)
 
   if (run_get_virtual_info(cs->runlog_state, user_id, &vs, &ve) < 0) return 0;
   return (vs.judge_id > 0);
-}
-
-/*
-  *PROBLEM_PARAM(disable_user_submit, "d"),
-  *PROBLEM_PARAM(disable_tab, "d"),
-  *PROBLEM_PARAM(unrestricted_statement, "d"),
-  *PROBLEM_PARAM(disable_submit_after_ok, "d"),
-  *PROBLEM_PARAM(deadline, "s"),
-  *PROBLEM_PARAM(start_date, "s"),
-  *PROBLEM_PARAM(require, "x"),
-  *PROBLEM_PARAM(personal_deadline, "x"),
-*/
-
-void
-ns_get_problem_status(
-        serve_state_t cs,
-        int user_id,
-        const unsigned char *user_login,
-        int accepting_mode,
-        time_t start_time,
-        time_t stop_time,
-        const unsigned char *solved_flag,
-        const unsigned char *accepted_flag,
-        unsigned char *pstat)
-{
-  const struct section_problem_data *prob;
-  int prob_id, is_deadlined, k, j;
-  time_t user_deadline;
-
-  // nothing before contest start
-  if (start_time <= 0) return;
-
-  for (prob_id = 1; prob_id <= cs->max_prob; prob_id++) {
-    if (!(prob = cs->probs[prob_id])) continue;
-
-    // the problem is completely disabled before its start_date
-    if (!serve_is_problem_started(cs, user_id, prob))
-      continue;
-
-    // the problem is completely disabled before requirements are met
-    // check requirements
-    if (prob->require) {
-      for (j = 0; prob->require[j]; j++) {
-        for (k = 1; k <= cs->max_prob; k++) {
-          if (cs->probs[k]
-              && !strcmp(cs->probs[k]->short_name, prob->require[j]))
-            break;
-        }
-        // no such problem :(
-        if (k > cs->max_prob) break;
-        // this problem is not yet accepted or solved
-        if (!solved_flag[k] && !accepted_flag[k]) break;
-      }
-      // if the requirements are not met, skip this problem
-      if (prob->require[j]) continue;
-    }
-
-    // check problem deadline
-    is_deadlined = serve_is_problem_deadlined(cs, user_id, user_login,
-                                              prob, &user_deadline);
-
-    if (prob->unrestricted_statement > 0 || !is_deadlined)
-      pstat[prob_id] |= PROB_STATUS_VIEWABLE;
-
-    if (!is_deadlined && prob->disable_user_submit <= 0
-        && (prob->disable_submit_after_ok <= 0 || !solved_flag[prob_id]))
-      pstat[prob_id] |= PROB_STATUS_SUBMITTABLE;
-
-    if (prob->disable_tab <= 0)
-      pstat[prob_id] |= PROB_STATUS_TABABLE;
-  }
 }
 
 void
@@ -10068,7 +10156,10 @@ unpriv_get_file(
   if (generic_read_file(&file_bytes, 0, &file_size, 0, 0, fpath, "") < 0)
     FAIL(NEW_SRV_ERR_INV_FILE_NAME);
 
-  fprintf(fout, "Content-type: %s\n\n", content_type);
+  fprintf(fout, "Content-type: %s\n", content_type);
+  fprintf(fout, "Content-Disposition: attachment; filename=\"%s\"\n", s);
+  fprintf(fout, "\n");
+
   fwrite(file_bytes, 1, file_size, fout);
 
  cleanup:
@@ -10101,6 +10192,7 @@ static action_handler_t user_actions_table[NEW_SRV_ACTION_LAST] =
   [NEW_SRV_ACTION_JSON_USER_STATE] = unpriv_json_user_state,
   [NEW_SRV_ACTION_UPDATE_ANSWER] = unpriv_xml_update_answer,
   [NEW_SRV_ACTION_GET_FILE] = unpriv_get_file,
+  [NEW_SRV_ACTION_USE_TOKEN] = unpriv_use_token,
 };
 
 static const unsigned char * const external_unpriv_action_names[NEW_SRV_ACTION_LAST] =

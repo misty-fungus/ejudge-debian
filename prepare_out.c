@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 8675 2014-10-21 06:17:22Z cher $ */
+/* $Id: prepare_out.c 8795 2014-12-11 22:25:52Z cher $ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -26,6 +26,7 @@
 #include "ejudge/misctext.h"
 #include "ejudge/sformat.h"
 #include "ejudge/varsubst.h"
+#include "ejudge/variant_map.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -534,6 +535,11 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     fprintf(f, "xuser_plugin = \"%s\"\n", CARMOR(global->xuser_plugin));
   do_xstr(f, &ab, "load_user_group", global->load_user_group);
   fprintf(f, "\n");
+
+  if (global->tokens && global->tokens[0]) {
+    do_str(f, &ab, "tokens", global->tokens);
+    fprintf(f, "\n");
+  }
 
   if (global->unhandled_vars) fprintf(f, "%s\n", global->unhandled_vars);
 
@@ -1195,6 +1201,8 @@ prepare_unparse_prob(
   if (prob->max_process_count >= 0) {
     fprintf(f, "max_process_count = %d\n", prob->max_process_count);
   }
+  if (prob->umask && prob->umask[0])
+    fprintf(f, "umask = \"%s\"\n", CARMOR(prob->umask));
 
   if (score_system == SCORE_KIROV || score_system == SCORE_OLYMPIAD) {
     if (prob->full_score >= 0) {
@@ -1237,6 +1245,11 @@ prepare_unparse_prob(
   if (prob->final_open_tests[0]) {
     fprintf(f, "final_open_tests = \"%s\"\n", CARMOR(prob->final_open_tests));
   }
+  if (prob->token_open_tests && prob->token_open_tests[0]) {
+    fprintf(f, "token_open_tests = \"%s\"\n", CARMOR(prob->token_open_tests));
+  }
+  if (prob->tokens && prob->tokens[0])
+    fprintf(f, "tokens = \"%s\"\n", CARMOR(prob->tokens));
   if (score_system == SCORE_MOSCOW || score_system == SCORE_ACM) {
     if (prob->acm_run_penalty >= 0) {
       if ((prob->abstract && prob->acm_run_penalty != DFLT_P_ACM_RUN_PENALTY)
@@ -1299,6 +1312,9 @@ prepare_unparse_prob(
   if (prob->init_cmd && prob->init_cmd[0]) {
     fprintf(f,"init_cmd = \"%s\"\n", CARMOR(prob->init_cmd));
   }
+  if (prob->start_cmd && prob->start_cmd[0]) {
+    fprintf(f,"start_cmd = \"%s\"\n", CARMOR(prob->start_cmd));
+  }
   if (prob->solution_src && prob->solution_src[0]) {
     fprintf(f,"solution_src = \"%s\"\n", CARMOR(prob->solution_src));
   }
@@ -1322,6 +1338,11 @@ prepare_unparse_prob(
   if (!prob->abstract && prob->variant_num > 0) {
     fprintf(f, "variant_num = %d\n", prob->variant_num);
   }
+  if ((prob->abstract > 0 && prob->autoassign_variants > 0)
+      || (!prob->abstract && prob->autoassign_variants >= 0)) {
+    unparse_bool(f, "autoassign_variants", prob->autoassign_variants);
+  }
+
   if (prob->max_user_run_count > 0) {
     fprintf(f, "max_user_run_count = %d\n", prob->max_user_run_count);
   }
@@ -1350,6 +1371,8 @@ prepare_unparse_prob(
     unparse_bool(f, "unrestricted_statement", prob->unrestricted_statement);
   if (prob->hide_file_names >= 0)
     unparse_bool(f, "hide_file_names", prob->hide_file_names);
+  if (prob->enable_tokens >= 0)
+    unparse_bool(f, "enable_tokens", prob->enable_tokens);
   if (prob->disable_submit_after_ok >= 0)
     unparse_bool(f, "disable_submit_after_ok", prob->disable_submit_after_ok);
   if (prob->disable_security >= 0)
@@ -1383,6 +1406,10 @@ prepare_unparse_prob(
   if ((prob->abstract > 0 && prob->enable_process_group > 0)
       || (!prob->abstract && prob->enable_process_group >= 0)) {
     unparse_bool(f, "enable_process_group", prob->enable_process_group);
+  }
+  if ((prob->abstract > 0 && prob->hide_variant > 0)
+      || (!prob->abstract && prob->hide_variant >= 0)) {
+    unparse_bool(f, "hide_variant", prob->hide_variant);
   }
   if (prob->enable_text_form >= 0
       && ((prob->abstract && prob->enable_text_form) || !prob->abstract))
@@ -1566,6 +1593,8 @@ prepare_unparse_actual_prob(
   if (prob->max_process_count > 0) {
     fprintf(f, "max_process_count = %d\n", prob->max_process_count);
   }
+  if (prob->umask && prob->umask[0])
+    fprintf(f, "umask = \"%s\"\n", CARMOR(prob->umask));
 
   if (global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD) {
     if (prob->full_score >= 0)
@@ -1614,6 +1643,10 @@ prepare_unparse_actual_prob(
     fprintf(f, "open_tests = \"%s\"\n", CARMOR(prob->open_tests));
   if (prob->final_open_tests[0])
     fprintf(f, "final_open_tests = \"%s\"\n", CARMOR(prob->final_open_tests));
+  if (prob->token_open_tests && prob->token_open_tests[0])
+    fprintf(f, "token_open_tests = \"%s\"\n", CARMOR(prob->token_open_tests));
+  if (prob->tokens && prob->tokens[0])
+    fprintf(f, "tokens = \"%s\"\n", CARMOR(prob->tokens));
 
   if (prob->standard_checker[0])
     fprintf(f, "standard_checker = \"%s\"\n", CARMOR(prob->standard_checker));
@@ -1637,6 +1670,9 @@ prepare_unparse_actual_prob(
   }
   if ((show_paths || (global && global->advanced_layout > 0)) && prob->init_cmd && prob->init_cmd[0]) {
     fprintf(f,"init_cmd = \"%s\"\n", CARMOR(prob->init_cmd));
+  }
+  if ((show_paths || (global && global->advanced_layout > 0)) && prob->start_cmd && prob->start_cmd[0]) {
+    fprintf(f,"start_cmd = \"%s\"\n", CARMOR(prob->start_cmd));
   }
   if ((show_paths || (global && global->advanced_layout > 0)) && prob->solution_src && prob->solution_src[0]) {
     fprintf(f,"solution_src = \"%s\"\n", CARMOR(prob->solution_src));
@@ -1666,7 +1702,9 @@ prepare_unparse_actual_prob(
 
   if (prob->variant_num > 0)
     fprintf(f, "variant_num = %d\n", prob->variant_num);
- 
+   if (prob->autoassign_variants > 0)
+    unparse_bool(f, "autoassign_variants", prob->autoassign_variants);
+
   if (prob->use_ac_not_ok > 0)
     unparse_bool(f, "use_ac_not_ok", prob->use_ac_not_ok);
   if (prob->ignore_prev_ac > 0)
@@ -1691,6 +1729,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "unrestricted_statement", prob->unrestricted_statement);
   if (prob->hide_file_names > 0)
     unparse_bool(f, "hide_file_names", prob->hide_file_names);
+  if (prob->enable_tokens > 0)
+    unparse_bool(f, "enable_tokens", prob->enable_tokens);
   if (prob->disable_submit_after_ok > 0)
     unparse_bool(f, "disable_submit_after_ok", prob->disable_submit_after_ok);
   if (prob->disable_security > 0)
@@ -1723,6 +1763,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "disable_stderr", prob->disable_stderr);
   if (prob->enable_process_group > 0)
     unparse_bool(f, "enable_process_group", prob->enable_process_group);
+  if (prob->hide_variant > 0)
+    unparse_bool(f, "hide_variant", prob->hide_variant);
   if (prob->enable_text_form > 0)
     unparse_bool(f, "enable_text_form", prob->enable_text_form);
   if (prob->stand_ignore_score > 0)
@@ -2720,9 +2762,13 @@ prob_instr(
   }
 
   if (!tmp_prob->standard_checker[0]) {
-    prepare_set_prob_value(CNTSPROB_check_cmd, tmp_prob, abstr, global);
-    fprintf(f, "<p><b>Output file checker:</b></p>\n");
-    handle_file(f, global, tmp_prob, tmp_prob->check_cmd, 1);
+    if (!tmp_prob->check_cmd[0]) {
+      fprintf(f, "<p><b><font color=\"red\">Neither standard, nor custom checker is defined!</font></b></p>\n");
+    } else {
+      prepare_set_prob_value(CNTSPROB_check_cmd, tmp_prob, abstr, global);
+      fprintf(f, "<p><b>Output file checker:</b></p>\n");
+      handle_file(f, global, tmp_prob, tmp_prob->check_cmd, 1);
+    }
   }
 
   prepare_set_prob_value(CNTSPROB_test_checker_cmd, tmp_prob, abstr, global);
@@ -2735,6 +2781,12 @@ prob_instr(
   if (tmp_prob->init_cmd && tmp_prob->init_cmd[0]) {
     fprintf(f, "<p><b>Init-style interactor:</b></p>\n");
     handle_file(f, global, tmp_prob, tmp_prob->init_cmd, 1);
+  }
+
+  prepare_set_prob_value(CNTSPROB_start_cmd, tmp_prob, abstr, global);
+  if (tmp_prob->start_cmd && tmp_prob->start_cmd[0]) {
+    fprintf(f, "<p><b>Start proxy program:</b></p>\n");
+    handle_file(f, global, tmp_prob, tmp_prob->start_cmd, 1);
   }
 
   prepare_set_prob_value(CNTSPROB_solution_src, tmp_prob, abstr, global);
@@ -2896,37 +2948,4 @@ prepare_further_instructions(
           "<p>Copy test files, correct answer files (if needed), test info files (if needed), etc to the specified directories and name them as specified!</p>"
           "<p>Make sure, that all input text files are in UNIX text format!</p>"
           "<p>When done with the files, perform &quot;Check contests settings&quot; operation.</p>");
-}
-
-void
-prepare_unparse_variants(FILE *f, const struct variant_map *vmap,
-                         const unsigned char *header,
-                         const unsigned char *footer)
-{
-  int i, j;
-  int hlen;
-
-  // for header ignore the characters after the last '\n'
-  if (header) {
-    hlen = strlen(header);
-    while (hlen > 0 && header[hlen - 1] != '\n') hlen--;
-    fprintf(f, "%.*s", hlen, header);
-  }
-
-  fprintf(f, "<variant_map version=\"2\">\n");
-  for (i = 0; i < vmap->u; i++) {
-    fprintf(f, "%s", vmap->v[i].login);
-    if (vmap->v[i].real_variant > 0) {
-      fprintf(f, " variant %d", vmap->v[i].real_variant);
-      if (vmap->v[i].virtual_variant > 0) {
-        fprintf(f, " virtual %d", vmap->v[i].virtual_variant);
-      }
-    } else {
-      for (j = 0; j < vmap->prob_rev_map_size; j++)
-        fprintf(f, " %d", vmap->v[i].variants[j]);
-    }
-    fprintf(f, "\n");
-  }
-  fprintf(f, "</variant_map>\n");
-  if (footer) fprintf(f, "%s", footer);
 }

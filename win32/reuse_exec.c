@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id: reuse_exec.c 8796 2014-12-11 22:33:10Z cher $ */
 
 /* Copyright (C) 1999-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 11:05:09 cher> */
@@ -766,6 +766,12 @@ task_SetMaxPrioValue(tTask *tsk, int max_prio_value)
 
 int
 task_SetMaxPendingCount(tTask *tsk, int max_pending_count)
+{
+  return 0;
+}
+
+int
+task_SetUmask(tTask *tsk, int umask)
 {
   return 0;
 }

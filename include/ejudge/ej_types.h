@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_types.h 8617 2014-09-17 09:36:29Z cher $ */
+/* $Id: ej_types.h 8721 2014-11-08 20:16:18Z cher $ */
 #ifndef __EJ_TYPES_H__
 #define __EJ_TYPES_H__
 
@@ -184,5 +184,15 @@ int
 session_parse(
         Session *ps,
         const unsigned char *str);
+
+/* token bits */
+enum
+{
+  TOKEN_FINALSCORE_BIT = 1, // show the final score
+  TOKEN_TESTS_MASK = 6,
+  TOKEN_BASICTESTS_BIT = 2, // show the basic test info
+  TOKEN_TOKENTESTS_BIT = 4, // show the token test info
+  TOKEN_FINALTESTS_BIT = 6  // show the final test info
+};
 
 #endif /* __EJ_TYPES_H__ */

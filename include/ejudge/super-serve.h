@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: super-serve.h 8640 2014-10-16 19:30:59Z cher $ */
+/* $Id: super-serve.h 8772 2014-11-22 15:51:48Z cher $ */
 #ifndef __SUPER_SERVE_H__
 #define __SUPER_SERVE_H__
 
@@ -209,9 +209,6 @@ struct sid_state
   unsigned char *stand2_footer_text;
   unsigned char *plog_header_text;
   unsigned char *plog_footer_text;
-
-  unsigned char *var_header_text;
-  unsigned char *var_footer_text;
 
   unsigned char *compile_home_dir;
 

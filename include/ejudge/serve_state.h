@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 8215 2014-05-15 13:42:22Z cher $ */
+/* $Id: serve_state.h 8785 2014-11-27 09:55:34Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
@@ -402,8 +402,6 @@ serve_audit_log(
         const char *format,
         ...)
   __attribute__((format(printf, 10, 11)));
-
-void serve_packet_name(int run_id, int prio, unsigned char buf[]);
 
 int
 serve_compile_request(
