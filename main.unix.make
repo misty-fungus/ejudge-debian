@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: main.unix.make 8577 2014-09-01 19:24:58Z cher $
+# $Id: main.unix.make 8643 2014-10-18 04:57:39Z cher $
 
 # Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -154,7 +154,7 @@ BINTARGETS = ejudge-jobs-cmd ejudge-edit-users ejudge-setup ejudge-configure-com
 SERVERBINTARGETS = ej-compile ej-compile-control ej-run ej-nwrun ej-ncheck ej-batch ej-serve ej-users ej-users-control ej-jobs ej-jobs-control ej-super-server ej-super-server-control ej-contests ej-contests-control uudecode ej-convert-clars ej-convert-runs ej-fix-db ej-super-run ej-super-run-control ej-normalize ej-polygon ej-import-contest ej-page-gen
 CGITARGETS = users${CGI_PROG_SUFFIX} serve-control${CGI_PROG_SUFFIX} new-client${CGI_PROG_SUFFIX}
 TARGETS = ${SERVERBINTARGETS} ${BINTARGETS} ${CGITARGETS} newrevinfo
-STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/unpriv3.css style/ejudge3.css style/priv.js style/unpriv.js style/filter_expr.html style/sprintf.js style/ejudge3_ss.css
+STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/unpriv3.css style/ejudge3.css style/priv.js style/unpriv.js style/filter_expr.html style/sprintf.js style/ejudge3_ss.css style/ejudge_mobile.css
 
 all: prereq_all local_all subdirs_all mo
 local_all: $(TARGETS) ejudge-config
@@ -352,7 +352,7 @@ struct-sizes : struct-sizes.o
 	$(LD) $(LDFLAGS) $^ -o $@ $(LDLIBS) ${EXPAT_LIB}
 
 ejudge-install.sh : ejudge-setup
-	./ejudge-setup -b
+	./ejudge-setup -b -i scripts/lang_ids.cfg
 
 local_clean:
 	-rm -f *.o *~ *.a $(TARGETS) revinfo newrevinfo version.c $(ARCH)/*.o ejudge.po mkChangeLog2 userlist_clnt/*.o xml_utils/*.o super_clnt/*.o cdeps deps.make filter_expr.[ch] filter_scan.c users users${CGI_PROG_SUFFIX} ejudge-config serve-control serve-control${CGI_PROG_SUFFIX} prjutils2/*.o make-js-actions new_server_clnt/*.o mktable struct-sizes *.debug

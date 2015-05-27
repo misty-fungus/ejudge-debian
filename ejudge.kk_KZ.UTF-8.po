@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 3.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2014-09-03 12:49+0400\n"
+"POT-Creation-Date: 2014-10-20 15:36+0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Kazakh <uk@li.org>\n"
@@ -565,9 +565,6 @@ msgstr ""
 msgid "Change duration"
 msgstr ""
 
-msgid "Change judging priorities"
-msgstr ""
-
 msgid "Change language"
 msgstr ""
 
@@ -955,7 +952,13 @@ msgstr ""
 msgid "Database error"
 msgstr ""
 
+msgid "Date penalty"
+msgstr ""
+
 msgid "Deactivate"
+msgstr ""
+
+msgid "Deadline"
 msgstr ""
 
 msgid "Deadline for this problem is expired"
@@ -1110,6 +1113,9 @@ msgid "Download runs configuration"
 msgstr ""
 
 msgid "Download selected runs"
+msgstr ""
+
+msgid "Dump data"
 msgstr ""
 
 msgid "Dump runs in CSV format"
@@ -1406,6 +1412,9 @@ msgstr ""
 msgid "Full rejudge displayed runs"
 msgstr ""
 
+msgid "Full score"
+msgstr ""
+
 msgid "Fully rejudge displayed runs"
 msgstr ""
 
@@ -1433,6 +1442,9 @@ msgstr ""
 msgid "General settings (contest.xml)"
 msgstr ""
 
+msgid "Generate contest passwords"
+msgstr ""
+
 msgid "Generate random contest passwords"
 msgstr ""
 
@@ -1443,6 +1455,9 @@ msgid "Generate random registration passwords"
 msgstr ""
 
 msgid "Generate random registration passwords!"
+msgstr ""
+
+msgid "Generate registration passwords"
 msgstr ""
 
 msgid "Global settings (serve.cfg)"
@@ -2381,6 +2396,9 @@ msgstr ""
 msgid "Open"
 msgstr ""
 
+msgid "Open date"
+msgstr ""
+
 msgid "Open for participation"
 msgstr ""
 
@@ -2640,6 +2658,9 @@ msgid ""
 "more the judging priority."
 msgstr ""
 
+msgid "Privileged users"
+msgstr ""
+
 msgid "Privileged users page"
 msgstr ""
 
@@ -2654,9 +2675,6 @@ msgid "Problem column is undefined\n"
 msgstr ""
 
 msgid "Problem configuration error"
-msgstr ""
-
-msgid "Problem deadline"
 msgstr ""
 
 msgid "Problem filter expression"
@@ -2765,6 +2783,9 @@ msgstr ""
 msgid "Real time (sec)"
 msgstr ""
 
+msgid "Real time limit"
+msgstr ""
+
 msgid "Recover forgot password"
 msgstr ""
 
@@ -2824,6 +2845,9 @@ msgid "Registration rules"
 msgstr ""
 
 msgid "Registration time"
+msgstr ""
+
+msgid "Regular users"
 msgstr ""
 
 msgid "Rejected"
@@ -2994,6 +3018,9 @@ msgstr ""
 msgid "Run log update failed"
 msgstr ""
 
+msgid "Run penalty"
+msgstr ""
+
 msgid "Run selection"
 msgstr ""
 
@@ -3037,6 +3064,9 @@ msgid "Score"
 msgstr ""
 
 msgid "Score adjustment"
+msgstr ""
+
+msgid "Score bonus"
 msgstr ""
 
 #, c-format
@@ -3271,6 +3301,9 @@ msgid "Source for this run is not available"
 msgstr ""
 
 msgid "Squeeze runs"
+msgstr ""
+
+msgid "Stack limit"
 msgstr ""
 
 msgid "Standings"
@@ -3928,9 +3961,6 @@ msgstr ""
 msgid "View"
 msgstr ""
 
-msgid "View IP addresses for users"
-msgstr ""
-
 msgid "View all"
 msgstr ""
 
@@ -3943,13 +3973,7 @@ msgstr ""
 msgid "View details"
 msgstr ""
 
-msgid "View examination information"
-msgstr ""
-
 msgid "View last 15"
-msgstr ""
-
-msgid "View privileged users"
 msgstr ""
 
 msgid "View registration passwords"
@@ -3967,22 +3991,10 @@ msgstr ""
 msgid "View source"
 msgstr ""
 
-msgid "View standings"
-msgstr ""
-
 msgid "View submitted answer"
 msgstr ""
 
-msgid "View testing queue"
-msgstr ""
-
 msgid "View the problem statement and send a submission"
-msgstr ""
-
-msgid "View users for IP addresses"
-msgstr ""
-
-msgid "View who is currently online"
 msgstr ""
 
 msgid "Viewing advisors"

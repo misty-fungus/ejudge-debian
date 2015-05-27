@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_edit_run_page.csp 8204 2014-05-14 22:06:18Z cher $ */
+/* $Id: priv_edit_run_page.csp 8644 2014-10-18 06:39:05Z cher $ */
 %><%@include "priv_includes.csp"
 %><%
 #include "ejudge/ej_uuid.h"
@@ -19,6 +19,7 @@
   const unsigned char *str = NULL;
   const unsigned char *s;
   int run_id = 0, prob_id, lang_id;
+  int enable_main_menu = 0;
 
 %><s:read var="run_id" required="yes" error="inv-run-id" /><%
   if (opcaps_check(phr->caps, OPCAP_EDIT_RUN) < 0) {
@@ -54,13 +55,16 @@
     <s:param name="run_id" value="run_id" />
 </s:url>
 
-<table class="b0"><tr>
-    <td class="b0"><s:a ac="main-page"><s:tr>Main page</s:tr></s:a></td>
-    <td class="b0"><s:a url="ViewSourceUrl"><s:tr>Source</s:tr></s:a></td>
-    <td class="b0"><s:a url="ViewReportUrl"><s:tr>Report</s:tr></s:a></td>
-    <td class="b0"><s:a url="ViewUserReportUrl"><s:tr>User report</s:tr></s:a></td>
-    <td class="b0"><s:a url="ViewAuditLogUrl"><s:tr>Audit log</s:tr></s:a></td>
-</tr></table>
+<div id="main-menu">
+<ul>
+<li><s:a ac="main-page"><s:_>Main page</s:_></s:a></li>
+<li><s:a url="ViewSourceUrl"><s:_>Source</s:_></s:a></li>
+<li><s:a url="ViewReportUrl"><s:_>Report</s:_></s:a></li>
+<li><s:a url="ViewUserReportUrl"><s:_>User report</s:_></s:a></li>
+<li><s:a url="ViewAuditLogUrl"><s:_>Audit log</s:_></s:a></li>
+</ul></div>
+</div>
+
 <%
   if (global->is_virtual) {
     start_time = run_get_virtual_start_time(cs->runlog_state, info.user_id);
@@ -75,32 +79,32 @@
 <s:url name="ViewSourceUrl" ac="view-source">
   <s:param name="run_id" value="run_id" />
 </s:url>
-<h2><s:tr>Run</s:tr> <s:v value="run_id" /> [<s:a url="ViewSourceUrl"><s:tr>Source</s:tr></s:a>]</h2>
+<h2><s:_>Run</s:_> <s:v value="run_id" /> [<s:a url="ViewSourceUrl"><s:_>Source</s:_></s:a>]</h2>
 <s:form>
 <s:hidden name="action" ac="priv-edit-run-action" />
 <s:hidden name="run_id" check="0" />
 <table class="b0">
-<tr><td class="b0"><s:tr>Run ID</s:tr>:</td><td class="b0"><s:v value="run_id" /></td></tr>
+<tr><td class="b0"><s:_>Run ID</s:_>:</td><td class="b0"><s:v value="run_id" /></td></tr>
 <%  if (run_time != info.time) {
     if (info.time <= 0) { %>
-<tr><td class="b0"><s:tr>DB timestamp</s:tr>:</td><td class="b0"><s:v value="(long) info.time" />.<s:v format="06" value="info.nsec / 1000" /></td></tr>
+<tr><td class="b0"><s:_>DB timestamp</s:_>:</td><td class="b0"><s:v value="(long) info.time" />.<s:v format="06" value="info.nsec / 1000" /></td></tr>
 <%    } else { %>
-<tr><td class="b0"><s:tr>DB time</s:tr></td><td class="b0"><s:v value="info.time" />.<s:v format="06" value="info.nsec / 1000" /></td></tr>
+<tr><td class="b0"><s:_>DB time</s:_></td><td class="b0"><s:v value="info.time" />.<s:v format="06" value="info.nsec / 1000" /></td></tr>
 <%    }
   } %>
 <%  if (run_time <= 0) {%>
-<tr><td class="b0"><s:tr>Timestamp</s:tr>:</td><td class="b0"><s:v value="(long) run_time" />.<s:v format="06" value="info.nsec / 1000" /></td></tr>
+<tr><td class="b0"><s:_>Timestamp</s:_>:</td><td class="b0"><s:v value="(long) run_time" />.<s:v format="06" value="info.nsec / 1000" /></td></tr>
 <%  } else { %>
-<tr><td class="b0"><s:tr>Time</s:tr></td><td class="b0"><s:v value="run_time" />.<s:v format="06" value="info.nsec / 1000" /></td></tr>
+<tr><td class="b0"><s:_>Time</s:_></td><td class="b0"><s:v value="run_time" />.<s:v format="06" value="info.nsec / 1000" /></td></tr>
 <%  } %>
-<tr><td class="b0"><s:tr>Contest time</s:tr></td><td class="b0"><s:v value="duration_str_2(hbuf, sizeof(hbuf), run_time - start_time, info.nsec)" /></td></tr>
+<tr><td class="b0"><s:_>Contest time</s:_></td><td class="b0"><s:v value="duration_str_2(hbuf, sizeof(hbuf), run_time - start_time, info.nsec)" /></td></tr>
 <%  if (info.user_id <= 0 || !(str = teamdb_get_login(cs->teamdb_state, info.user_id))) {
     snprintf(buf, sizeof(buf), "#%d", info.user_id);
     str = buf;
   } %>
-<tr><td class="b0"><s:tr>User login/ID</s:tr></td><td class="b0"><s:textfield name="user" size="20" value="str" disabledExpr="info.is_readonly" /></td></tr>
+<tr><td class="b0"><s:_>User login/ID</s:_></td><td class="b0"><s:textfield name="user" size="20" value="str" disabledExpr="info.is_readonly" /></td></tr>
 <%  if ((str = teamdb_get_name(cs->teamdb_state, info.user_id))) { %>
-<tr><td class="b0"><s:tr>User name</s:tr></td><td class="b0"><s:v value="str" /></td></tr>
+<tr><td class="b0"><s:_>User name</s:_></td><td class="b0"><s:v value="str" /></td></tr>
 <%  } %>
 <tr><td class="b0">Prob name/ID</td><td class="b0"><s:select name="prob" disabledExpr="info.is_readonly">
 <%
@@ -151,7 +155,7 @@
 <s:option value="1" selectedExpr="info.eoln_type == 1">LF (Unix/MacOS)</s:option>
 <s:option value="2" selectedExpr="info.eoln_type == 2">CRLF (Windows/DOS)</s:option>
 </s:select></td></tr>
-<tr><td class="b0"><s:tr>Status</s:tr></td><% write_change_status_dialog(cs, out_f, NULL, info.is_imported, "b0", info.status, info.is_readonly); %></tr>
+<tr><td class="b0"><s:_>Status</s:_></td><% write_change_status_dialog(cs, out_f, NULL, info.is_imported, "b0", info.status, info.is_readonly); %></tr>
 <%
   buf[0] = 0;
   if (info.passed_mode > 0) {
@@ -220,7 +224,7 @@
 <tr><td class="b0">Size:</td><td class="b0"><s:textfield name="size" size="20" disabledExpr="info.is_readonly" value="info.size" /></td></tr>
 <tr><td class="b0">SHA1:</td><td class="b0"><s:textfield name="sha1" size="60" disabledExpr="info.is_readonly" escape="false" value="unparse_sha1(info.sha1)" /></td></tr>
 <% #if CONF_HAS_LIBUUID - 0 != 0 %>
-<tr><td class="b0">UUID:</td><td class="b0"><s:textfield name="sha1" size="60" disabledExpr="info.is_readonly" escape="false" value='ej_uuid_unparse(info.run_uuid, "")' /></td></tr>
+<tr><td class="b0">UUID:</td><td class="b0"><s:textfield name="uuid" size="60" disabledExpr="info.is_readonly" escape="false" value='ej_uuid_unparse(info.run_uuid, "")' /></td></tr>
 <% #endif %>
 <%  if (!info.lang_id) { %>
 <tr><td class="b0">Content type:</td><td class="b0"><s:textfield name="mime_type" size="60" disabledExpr="info.is_readonly" value="mime_type_get_type(info.mime_type)" /></td></tr>
@@ -244,7 +248,7 @@
 </s:form>
 <%@include "priv_footer.csp"
 %><%
-  l10n_setlocale(0);
 cleanup:;
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

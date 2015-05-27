@@ -1,5 +1,5 @@
 <%
-/* $Id: cnts_edit_file_page.csp 8532 2014-08-22 13:18:02Z cher $ */
+/* $Id: cnts_edit_file_page.csp 8606 2014-09-10 18:03:54Z cher $ */
 %><%@include "includes.csp"
 %><%
 #include "ejudge/osdeps.h"
@@ -304,8 +304,8 @@
 
 <%@include "footer.csp"
 %><%
-  l10n_setlocale(0);
 cleanup:
+  l10n_resetlocale();
   xfree(text_p);
   html_armor_free(&ab);
 %>

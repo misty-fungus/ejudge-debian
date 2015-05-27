@@ -1,14 +1,14 @@
 # -*- mode: po; coding: UTF-8 -*-
 # ejudge messages catalog
-# $Id: ejudge.ru_RU.UTF-8.po 8585 2014-09-03 08:58:22Z cher $
+# $Id: ejudge.ru_RU.UTF-8.po 8662 2014-10-20 11:37:03Z cher $
 # Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru>
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: ejudge 2.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2014-09-03 12:49+0400\n"
-"PO-Revision-Date: 2014-09-01 23:24+0400\n"
+"POT-Creation-Date: 2014-10-20 15:36+0400\n"
+"PO-Revision-Date: 2014-10-20 15:36+0400\n"
 "Last-Translator: Alexander Chernov <cher@ejudge.ru>\n"
 "Language-Team: Russian <ru@li.org>\n"
 "Language: ru\n"
@@ -631,9 +631,6 @@ msgstr "Сменить язык"
 msgid "Change duration"
 msgstr "Изменить длительность"
 
-msgid "Change judging priorities"
-msgstr "Изменить приоритет проверки"
-
 msgid "Change language"
 msgstr "Сменить язык"
 
@@ -1023,8 +1020,14 @@ msgstr "ДИСКВАЛИФИЦИРОВАТЬ пользователей"
 msgid "Database error"
 msgstr "Ошибка базы данных"
 
+msgid "Date penalty"
+msgstr "Штраф по дате сдачи"
+
 msgid "Deactivate"
 msgstr "Деактивировать"
+
+msgid "Deadline"
+msgstr "Срок сдачи"
 
 msgid "Deadline for this problem is expired"
 msgstr "Срок сдачи данной задачи истёк"
@@ -1179,6 +1182,9 @@ msgstr "Конфигурация загружаемых посылок"
 
 msgid "Download selected runs"
 msgstr "Загрузить выбранные посылки"
+
+msgid "Dump data"
+msgstr "Выгрузить данные"
 
 msgid "Dump runs in CSV format"
 msgstr "Вывести базу посылок в CSV-формате"
@@ -1474,6 +1480,9 @@ msgstr "Полный путь"
 msgid "Full rejudge displayed runs"
 msgstr "Полностью перепроверить отображённые посылки"
 
+msgid "Full score"
+msgstr "Полный балл"
+
 msgid "Fully rejudge displayed runs"
 msgstr "Полностью перепроверить отображённые посылки"
 
@@ -1501,6 +1510,9 @@ msgstr "Общие поля регистрационной анкеты"
 msgid "General settings (contest.xml)"
 msgstr "Общие настройки (contest.xml)"
 
+msgid "Generate contest passwords"
+msgstr "Перегенерировать турнирные пароли"
+
 msgid "Generate random contest passwords"
 msgstr "Сгенерировать случайные турнирные пароли"
 
@@ -1512,6 +1524,9 @@ msgstr "Сгенерировать случайные регистрационн
 
 msgid "Generate random registration passwords!"
 msgstr "Сгенерировать случайные регистрационные пароли!"
+
+msgid "Generate registration passwords"
+msgstr "Перегенерировать регистрационные пароли"
 
 msgid "Global settings (serve.cfg)"
 msgstr "Глобальные настройки (serve.cfg)"
@@ -2535,6 +2550,9 @@ msgstr "Подключившиеся пользователи"
 msgid "Open"
 msgstr "Открыть"
 
+msgid "Open date"
+msgstr "Дата открытия"
+
 msgid "Open for participation"
 msgstr "Открыт для участия"
 
@@ -2802,6 +2820,9 @@ msgstr ""
 "Значение приоритета должно находиться в интервале [-16, 15]. Чем меньше "
 "значение приоритета, тем выше приоритет."
 
+msgid "Privileged users"
+msgstr "Привилегированные пользователи"
+
 msgid "Privileged users page"
 msgstr "Список привилегированных пользователей"
 
@@ -2817,9 +2838,6 @@ msgstr "Столбец Problem не определен\n"
 
 msgid "Problem configuration error"
 msgstr "Ошибка конфигурации задачи"
-
-msgid "Problem deadline"
-msgstr "Срок окончания сдачи"
 
 msgid "Problem filter expression"
 msgstr "Условие отбора задач"
@@ -2927,6 +2945,9 @@ msgstr "Только чтение?"
 msgid "Real time (sec)"
 msgstr "Астр. время (с)"
 
+msgid "Real time limit"
+msgstr "Ограничение реального времени"
+
 msgid "Recover forgot password"
 msgstr "Восстановить забытый пароль"
 
@@ -2989,6 +3010,9 @@ msgstr "Правила регистрации"
 
 msgid "Registration time"
 msgstr "Время регистрации на турнир"
+
+msgid "Regular users"
+msgstr "Обычные пользователи"
 
 msgid "Rejected"
 msgstr "Отклонено"
@@ -3160,6 +3184,9 @@ msgstr "Эта посылка не может быть изменена"
 msgid "Run log update failed"
 msgstr "Обновление журнала посылок не удалось"
 
+msgid "Run penalty"
+msgstr "Штраф за посылку"
+
 msgid "Run selection"
 msgstr "Выбор посылок"
 
@@ -3204,6 +3231,9 @@ msgstr "Баллы"
 
 msgid "Score adjustment"
 msgstr "Поправка баллов"
+
+msgid "Score bonus"
+msgstr "Бонусные баллы"
 
 #, c-format
 msgid "Score column is undefined\n"
@@ -3440,6 +3470,9 @@ msgstr "Текст для этой посылки недоступен"
 
 msgid "Squeeze runs"
 msgstr "Сжать журнал"
+
+msgid "Stack limit"
+msgstr "Ограничение размера стека"
 
 msgid "Standings"
 msgstr "Положение участников"
@@ -4133,9 +4166,6 @@ msgstr "Варианты (variant.map)"
 msgid "View"
 msgstr "Просмотр"
 
-msgid "View IP addresses for users"
-msgstr "Посмотреть IP-адреса пользователей"
-
 msgid "View all"
 msgstr "Посмотреть всё"
 
@@ -4148,14 +4178,8 @@ msgstr "Просмотреть турнирные пароли"
 msgid "View details"
 msgstr "Посмотреть детали"
 
-msgid "View examination information"
-msgstr "Посмотреть информацию об экзаменуемых"
-
 msgid "View last 15"
 msgstr "Смотреть последние 15"
-
-msgid "View privileged users"
-msgstr "Посмотреть список привилегированных пользователей"
 
 msgid "View registration passwords"
 msgstr "Просмотреть регистрационные пароли"
@@ -4172,23 +4196,11 @@ msgstr "Посмотреть serve.cfg"
 msgid "View source"
 msgstr "Посмотреть исходный текст"
 
-msgid "View standings"
-msgstr "Посмотреть положение участников"
-
 msgid "View submitted answer"
 msgstr "Сданный ответ"
 
-msgid "View testing queue"
-msgstr "Просмотр очереди тестирования"
-
 msgid "View the problem statement and send a submission"
 msgstr "Посмотреть условие задачи и отправить решение"
-
-msgid "View users for IP addresses"
-msgstr "Просмотр пользователей по IP-адресам"
-
-msgid "View who is currently online"
-msgstr "Посмотреть подключившихся пользователей"
 
 msgid "Viewing advisors"
 msgstr "Просмотр руководителей"
@@ -4757,6 +4769,36 @@ msgstr "ошибка записи"
 
 msgid "write error to server"
 msgstr "ошибка записи данных на сервер"
+
+#~ msgid "Problem deadline"
+#~ msgstr "Срок окончания сдачи"
+
+#~ msgid "Change judging priorities"
+#~ msgstr "Изменить приоритет проверки"
+
+#~ msgid "Other actions"
+#~ msgstr "Прочее"
+
+#~ msgid "View IP addresses for users"
+#~ msgstr "Посмотреть IP-адреса пользователей"
+
+#~ msgid "View examination information"
+#~ msgstr "Посмотреть информацию об экзаменуемых"
+
+#~ msgid "View privileged users"
+#~ msgstr "Посмотреть список привилегированных пользователей"
+
+#~ msgid "View users for IP addresses"
+#~ msgstr "Просмотр пользователей по IP-адресам"
+
+#~ msgid "View standings"
+#~ msgstr "Посмотреть положение участников"
+
+#~ msgid "View testing queue"
+#~ msgstr "Просмотр очереди тестирования"
+
+#~ msgid "View who is currently online"
+#~ msgstr "Посмотреть подключившихся пользователей"
 
 #~ msgid "[Create new contest (New interface)]"
 #~ msgstr "[Создать новый турнир (Новый интерфейс)]"

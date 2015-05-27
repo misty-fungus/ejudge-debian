@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: files.make 8298 2014-07-17 09:34:54Z cher $
+# $Id: files.make 8617 2014-09-17 09:36:29Z cher $
 
 # Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -216,6 +216,7 @@ COMMON_CFILES=\
  server_framework.c\
  serve_2.c\
  serve_state.c\
+ session.c\
  sformat.c\
  shellcfg_parse.c\
  stringset.c\

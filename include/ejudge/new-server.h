@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new-server.h 8583 2014-09-02 19:36:37Z cher $ */
+/* $Id: new-server.h 8590 2014-09-03 19:36:14Z cher $ */
 
 #ifndef __NEW_SERVER_H__
 #define __NEW_SERVER_H__
@@ -375,22 +375,11 @@ struct contest_extra
 {
   int contest_id;
 
-  //struct watched_file header;
-  //struct watched_file menu_1;
-  //struct watched_file menu_2;
-  //struct watched_file menu_3;
-  //struct watched_file separator;
-  //struct watched_file footer;
-  //struct watched_file priv_header;
-  //struct watched_file priv_footer;
   struct watched_file copyright;
   struct watched_file welcome;
   struct watched_file reg_welcome;
 
   const unsigned char *header_txt;
-  //const unsigned char *menu_1_txt;
-  //const unsigned char *menu_2_txt;
-  //const unsigned char *menu_3_txt;
   const unsigned char *footer_txt;
   const unsigned char *separator_txt;
   const unsigned char *copyright_txt;

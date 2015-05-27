@@ -1,5 +1,5 @@
 <%
-/* $Id: unpriv_report_page.csp 8219 2014-05-16 05:21:59Z cher $ */
+/* $Id: unpriv_report_page.csp 8605 2014-09-10 17:57:16Z cher $ */
 %><%@include "unpriv_includes.csp"
 %><%
 #include "ejudge/fileutl.h"
@@ -186,8 +186,8 @@ ns_unpriv_parse_run_id(
 %><%
 %><%@include "unpriv_footer.csp"
 %><%
-  l10n_setlocale(0);
 cleanup:;
+  l10n_resetlocale();
   html_armor_free(&ab);
   xfree(rep_text);
 %>

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: misctext.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: misctext.c 8655 2014-10-20 10:13:53Z cher $ */
 
 /* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1504,6 +1504,18 @@ size_t_to_size_str(
   else if (!(num % SIZE_K)) snprintf(buf, buf_size, "%" EJ_PRINTF_ZSPEC "uK", EJ_PRINTF_ZCAST(num / SIZE_K));
   else snprintf(buf, buf_size, "%" EJ_PRINTF_ZSPEC "u", EJ_PRINTF_ZCAST(num));
   return buf;
+}
+
+void
+size_t_to_size_str_f(
+        FILE *f,
+        size_t num)
+{
+  if (!num) fprintf(f, "0");
+  else if (!(num % SIZE_G)) fprintf(f, "%" EJ_PRINTF_ZSPEC "uG", EJ_PRINTF_ZCAST(num / SIZE_G));
+  else if (!(num % SIZE_M)) fprintf(f, "%" EJ_PRINTF_ZSPEC "uM", EJ_PRINTF_ZCAST(num / SIZE_M));
+  else if (!(num % SIZE_K)) fprintf(f, "%" EJ_PRINTF_ZSPEC "uK", EJ_PRINTF_ZCAST(num / SIZE_K));
+  else fprintf(f, "%" EJ_PRINTF_ZSPEC "u", EJ_PRINTF_ZCAST(num));
 }
 
 /*

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html.c 8583 2014-09-02 19:36:37Z cher $ */
+/* $Id: new_server_html.c 8679 2014-10-21 10:14:21Z cher $ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1037,7 +1037,7 @@ html_error_status_page(FILE *fout,
           ns_aref(url, sizeof(url), phr, back_action, "%s", urlextra),
           _("Back"));
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
 }
                        
@@ -3076,9 +3076,7 @@ priv_submit_clar(
     fprintf(msg_f, "%s\n", text3);
     fprintf(msg_f, "\n-\nRegards,\nthe ejudge contest management system (www.ejudge.ru)\n");
     close_memstream(msg_f); msg_f = 0;
-    if (cnts->default_locale_num > 0) {
-      l10n_setlocale(cnts->default_locale_num);
-    }
+    l10n_resetlocale();
     serve_send_email_to_user(ejudge_config, cnts, cs, user_id, nsubj, msg_t);
     xfree(msg_t); msg_t = 0; msg_z = 0;
   }
@@ -3323,9 +3321,7 @@ priv_submit_run_comment(
     fprintf(msg_f, "%s\n", text3);
     fprintf(msg_f, "\n-\nRegards,\nthe ejudge contest management system (www.ejudge.ru)\n");
     close_memstream(msg_f); msg_f = 0;
-    if (cnts->default_locale_num > 0) {
-      l10n_setlocale(cnts->default_locale_num);
-    }
+    l10n_resetlocale();
     serve_send_email_to_user(ejudge_config, cnts, cs, re.user_id, nsubj, msg_t);
     xfree(msg_t); msg_t = 0; msg_z = 0;
   }
@@ -3409,7 +3405,7 @@ priv_clar_reply(
     reply_txt = _("No.");
     break;
   }
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
   reply_len = strlen(reply_txt);
   if (reply_len > 128 * 1024 * 1024) {
@@ -3433,7 +3429,7 @@ priv_clar_reply(
   l10n_setlocale(clar.locale_id);
   new_subj = alloca(orig_len + 64);
   new_subj_len = message_reply_subj(orig_txt, new_subj);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
   quoted_len = message_quoted_size(orig_txt);
   quoted = alloca(quoted_len + 16);
@@ -3492,9 +3488,7 @@ priv_clar_reply(
     fprintf(msg_f, "%s\n", msg);
     fprintf(msg_f, "\n-\nRegards,\nthe ejudge contest management system (www.ejudge.ru)\n");
     close_memstream(msg_f); msg_f = 0;
-    if (cnts->default_locale_num > 0) {
-      l10n_setlocale(cnts->default_locale_num);
-    }
+    l10n_resetlocale();
     serve_send_email_to_user(ejudge_config, cnts, cs, from_id, nsubj, msg_t);
     xfree(msg_t); msg_t = 0; msg_z = 0;
   }
@@ -4724,7 +4718,7 @@ priv_confirmation_page(FILE *fout,
   fprintf(fout, "</form></td></tr></table>\n");
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
   html_armor_free(&ab);
   xfree(run_mask);
   return 0;
@@ -4888,7 +4882,7 @@ priv_examiners_page(
             phr->contest_id, extra->contest_arm, _("Add new run"));
   ns_examiners_page(fout, log_f, phr, cnts, extra);
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
   //cleanup:
   return retval;
@@ -5185,7 +5179,7 @@ priv_upload_runlog_csv_1(
 
   fprintf(fout, "</form>\n");
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   return retval;
@@ -5268,7 +5262,7 @@ priv_upload_runlog_csv_2(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -5304,7 +5298,7 @@ priv_upload_runlog_xml_1(
 
   fprintf(fout, "</form>\n");
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   return retval;
@@ -5366,7 +5360,7 @@ priv_upload_runlog_xml_2(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -5643,7 +5637,7 @@ priv_assign_cyphers_2(
   }
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   xfree(csv_reply);
@@ -5886,7 +5880,7 @@ priv_print_user_exam_protocol(
   r = ns_print_user_exam_protocol(cnts, cs, ff, user_id, locale_id,
                                   use_user_printer, full_report, use_cypher);
   close_memstream(ff); ff = 0;
-  if (locale_id > 0) l10n_setlocale(0);
+  if (locale_id > 0) l10n_resetlocale();
 
   l10n_setlocale(phr->locale_id);
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
@@ -5912,7 +5906,7 @@ priv_print_user_exam_protocol(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -5989,7 +5983,7 @@ priv_print_users_exam_protocol(
                                      use_user_printer, full_report, use_cypher);
   }
   close_memstream(ff); ff = 0;
-  if (locale_id > 0) l10n_setlocale(0);
+  if (locale_id > 0) l10n_resetlocale();
 
   l10n_setlocale(phr->locale_id);
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
@@ -6015,7 +6009,7 @@ priv_print_users_exam_protocol(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -6055,7 +6049,7 @@ priv_print_problem_exam_protocol(
   ff = open_memstream(&log_text, &log_size);
   r = ns_print_prob_exam_protocol(cnts, cs, ff, prob_id, locale_id, 1);
   close_memstream(ff); ff = 0;
-  if (locale_id > 0) l10n_setlocale(0);
+  if (locale_id > 0) l10n_resetlocale();
 
   l10n_setlocale(phr->locale_id);
   ns_header(fout, extra->header_txt, 0, 0, 0, 0, phr->locale_id, cnts,
@@ -6081,7 +6075,7 @@ priv_print_problem_exam_protocol(
   xfree(log_text); log_text = 0;
 
   ns_footer(fout, extra->footer_txt, extra->copyright_txt, phr->locale_id);
-  l10n_setlocale(0);
+  l10n_resetlocale();
 
  cleanup:
   if (ff) fclose(ff);
@@ -6320,7 +6314,7 @@ priv_generic_operation(FILE *fout,
   }
   if (r < 0) {
     error_page(fout, phr, 1, r);
-    r = 0;
+    return;
   }
   rr = r;
   if (!r) r = ns_priv_next_state[phr->action];
@@ -6760,6 +6754,10 @@ error_page(
   const unsigned char * const * error_names = external_unpriv_error_names;
   ExternalActionState **error_states = external_unpriv_error_states;
 
+  if (phr->log_f) {
+    fclose(phr->log_f); phr->log_f = 0;
+  }
+
   if (phr->log_t && !*phr->log_t) {
     xfree(phr->log_t); phr->log_t = NULL; phr->log_z = 0;
   }
@@ -6895,6 +6893,8 @@ privileged_entry_point(
       goto cleanup;
     }
   }
+
+  if (phr->locale_id < 0) phr->locale_id = 0;
 
   if (phr->contest_id < 0 || contests_get(phr->contest_id, &cnts) < 0 || !cnts) {
     fprintf(phr->log_f, "invalid contest_id %d", phr->contest_id);
@@ -7193,8 +7193,12 @@ unprivileged_page_login(FILE *fout, struct http_request_info *phr)
 {
   const unsigned char *login = 0;
   const unsigned char *password = 0;
+  const unsigned char *prob_name = 0;
   int r;
   const struct contest_desc *cnts = 0;
+  unsigned char prob_name_2[1024];
+  unsigned char prob_name_3[1024];
+  int action = NEW_SRV_ACTION_MAIN_PAGE;
 
   if ((r = hr_cgi_param(phr, "login", &login)) < 0)
     return ns_html_err_inv_param(fout, phr, 0, "cannot parse login");
@@ -7250,8 +7254,18 @@ unprivileged_page_login(FILE *fout, struct http_request_info *phr)
     }
   }
 
+  hr_cgi_param(phr, "prob_name", &prob_name);
+  prob_name_3[0] = 0;
+  if (prob_name && prob_name[0]) {
+    url_armor_string(prob_name_2, sizeof(prob_name_2), prob_name);
+    action = NEW_SRV_ACTION_VIEW_PROBLEM_SUBMIT;
+    snprintf(prob_name_3, sizeof(prob_name_3), "lt=1&prob_name=%s", prob_name_2);
+  } else {
+    snprintf(prob_name_3, sizeof(prob_name_3), "lt=1");
+  }
+
   ns_get_session(phr->session_id, phr->client_key, 0);
-  ns_refresh_page(fout, phr, NEW_SRV_ACTION_MAIN_PAGE, "lt=1");
+  ns_refresh_page(fout, phr, action, prob_name_3);
 }
 
 static void
@@ -8660,7 +8674,7 @@ unpriv_submit_run(
   }
 
 cleanup:;
-  l10n_setlocale(0);
+  l10n_resetlocale();
   xfree(utf8_str);
   return;
 
@@ -8947,7 +8961,7 @@ virtual_stop_callback(
   ns_print_user_exam_protocol(cnts, cs, tmpf, p->user_id, locale_id, 1, 0, 0);
   close_memstream(tmpf); tmpf = 0;
   xfree(tmps); tmps = 0; tmpz = 0;
-  if (locale_id > 0) l10n_setlocale(0);
+  if (locale_id > 0) l10n_resetlocale();
 }
 
 static void
@@ -9049,7 +9063,7 @@ unpriv_command(FILE *fout,
                                   0, 0);
       fclose(tmpf); tmpf = 0;
       xfree(tmps); tmps = 0; tmpz = 0;
-      if (locale_id > 0) l10n_setlocale(0);
+      if (locale_id > 0) l10n_resetlocale();
     }
 
     break;
@@ -9077,7 +9091,7 @@ unpriv_command(FILE *fout,
   }
 
 cleanup:;
-  l10n_setlocale(0);
+  l10n_resetlocale();
   return;
 
 fail:
@@ -9471,7 +9485,7 @@ is_judged_virtual_olympiad(serve_state_t cs, int user_id)
 /*
   *PROBLEM_PARAM(disable_user_submit, "d"),
   *PROBLEM_PARAM(disable_tab, "d"),
-  *PROBLEM_PARAM(restricted_statement, "d"),
+  *PROBLEM_PARAM(unrestricted_statement, "d"),
   *PROBLEM_PARAM(disable_submit_after_ok, "d"),
   *PROBLEM_PARAM(deadline, "s"),
   *PROBLEM_PARAM(start_date, "s"),
@@ -9527,7 +9541,7 @@ ns_get_problem_status(
     is_deadlined = serve_is_problem_deadlined(cs, user_id, user_login,
                                               prob, &user_deadline);
 
-    if (prob->restricted_statement <= 0 || !is_deadlined)
+    if (prob->unrestricted_statement > 0 || !is_deadlined)
       pstat[prob_id] |= PROB_STATUS_VIEWABLE;
 
     if (!is_deadlined && prob->disable_user_submit <= 0
@@ -9537,24 +9551,6 @@ ns_get_problem_status(
     if (prob->disable_tab <= 0)
       pstat[prob_id] |= PROB_STATUS_TABABLE;
   }
-}
-
-static void
-write_row(
-        FILE *fout,
-        const unsigned char *row_label,
-        char *format,
-        ...)
-{
-  va_list args;
-  char buf[1024];
-
-  va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format, args);
-  va_end(args);
-
-  fprintf(fout, "<tr><td class=\"b0\"><b>%s:</b></td><td class=\"b0\">%s</td></tr>\n",
-          row_label, buf);
 }
 
 void
@@ -9598,34 +9594,6 @@ ns_unparse_statement(
     fprintf(fout, "<h3>");
     problem_xml_unparse_node(fout, pp->title, vars, vals);
     fprintf(fout, "</h3>");
-  }
-
-  if (prob->type == PROB_TYPE_STANDARD) {
-    fprintf(fout, "<table class=\"b0\">\n");
-    if (prob->use_stdin <= 0 && prob->input_file[0]) {
-      write_row(fout, _("Input file name"), "<tt>%s</tt>",
-                ARMOR(prob->input_file));
-    }
-    if (prob->use_stdout <= 0 && prob->output_file[0]) {
-      write_row(fout, _("Output file name"), "<tt>%s</tt>",
-                ARMOR(prob->output_file));
-    }
-    if (prob->time_limit_millis > 0) {
-      write_row(fout, _("Time limit"), "%d %s",
-                prob->time_limit_millis, _("ms"));
-    } else if (prob->time_limit > 0) {
-      write_row(fout, _("Time limit"), "%d %s", prob->time_limit, _("s"));
-    }
-    if (prob->max_vm_size > 0) {
-      if (!(prob->max_vm_size % (1024 * 1024))) {
-        write_row(fout, _("Memory limit"), "%zu M",
-                  prob->max_vm_size / (1024*1024));
-      } else {
-        write_row(fout, _("Memory limit"), "%zu",
-                  prob->max_vm_size);
-      }
-    }
-    fprintf(fout, "</table>\n");
   }
 
   if (pp->desc) {
@@ -10001,7 +9969,7 @@ unpriv_xml_update_answer(
     l10n_setlocale(phr->locale_id);
     fprintf(fout, "{ \"status\": %d, \"text\": \"%s\" }\n", -retval,
             ARMOR(ns_strerror_2(retval)));
-    l10n_setlocale(0);
+    l10n_resetlocale();
   }
 
   html_armor_free(&ab);
@@ -10044,14 +10012,14 @@ unpriv_get_file(
   if (cs->clients_suspended) FAIL(NEW_SRV_ERR_CLIENTS_SUSPENDED);
   if (start_time <= 0) FAIL(NEW_SRV_ERR_CONTEST_NOT_STARTED);
   if (stop_time > 0 && cs->current_time >= stop_time
-      && prob->restricted_statement > 0)
+      && prob->unrestricted_statement <= 0)
     FAIL(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
   if (!serve_is_problem_started(cs, phr->user_id, prob))
     FAIL(NEW_SRV_ERR_PROB_UNAVAILABLE);
 
   if (serve_is_problem_deadlined(cs, phr->user_id, phr->login,
                                  prob, &user_deadline)
-      && prob->restricted_statement > 0)
+      && prob->unrestricted_statement <= 0)
     FAIL(NEW_SRV_ERR_CONTEST_ALREADY_FINISHED);
 
   // FIXME: check requisites

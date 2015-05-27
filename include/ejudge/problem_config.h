@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_config.h 8218 2014-05-15 15:02:06Z cher $ */
+/* $Id: problem_config.h 8673 2014-10-21 05:36:55Z cher $ */
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
@@ -68,7 +68,8 @@ struct problem_config_section
   ejintbool_t accept_partial;
   ejintbool_t disable_user_submit;
   ejintbool_t disable_tab;
-  ejintbool_t restricted_statement;
+  ejintbool_t unrestricted_statement;
+  ejintbool_t hide_file_names;
   ejintbool_t disable_submit_after_ok;
   ejintbool_t disable_auto_testing;
   ejintbool_t disable_testing;

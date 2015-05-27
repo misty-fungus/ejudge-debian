@@ -1,5 +1,5 @@
 <%
-/* $Id: login_page.csp 8412 2014-08-03 12:02:58Z cher $ */
+/* $Id: login_page.csp 8606 2014-09-10 18:03:54Z cher $ */
 %><%@include "includes.csp"
 %><%@set getter_name = "csp_get_login_page"
 %><%@set ac_prefix = "SSERV_CMD_"
@@ -34,7 +34,7 @@
 
 <%@include "footer.csp"
 %><%
-  l10n_setlocale(0);
 //cleanup:
+  l10n_resetlocale();
   html_armor_free(&ab);
 %>

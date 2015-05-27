@@ -1,5 +1,5 @@
-<%
-/* $Id: unpriv_standings_page.csp 8511 2014-08-20 03:14:39Z cher $ */
+<% // -*- mode: html -*-
+/* $Id: unpriv_standings_page.csp 8620 2014-09-17 11:16:32Z cher $ */
 %><%@include "unpriv_includes.csp"
 %><%
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
@@ -73,7 +73,7 @@
 <h2><s:v value="title" escape="false" /></h2>
 
 <%  if (global->disable_user_standings > 0) {
-%><p><s:tr>Information is not available.</s:tr></p><%
+%><p><s:_>Information is not available.</s:_></p><%
   } else if (global->is_virtual) {
     do_write_standings(cs, cnts, out_f, 1, 1, phr->user_id, 0, 0, 0, 0, 1,
                        cur_time, NULL);
@@ -81,9 +81,9 @@
     do_write_standings(cs, cnts, out_f, 1, 1, phr->user_id, 0, 0, 0, 0, 1,
                        cur_time, NULL);
   } else if (global->score_system == SCORE_OLYMPIAD && cs->accepting_mode) {
-%><p><s:tr>Information is not available.</s:tr></p><%
+%><p><s:_>Information is not available.</s:_></p><%
   } else if (global->score_system == SCORE_OLYMPIAD) {
-%><p><s:tr>Information is not available.</s:tr></p><%
+%><p><s:_>Information is not available.</s:_></p><%
     do_write_kirov_standings(cs, cnts, out_f, 0, 1, 1, phr->user_id, 0, 0, 0, 0, 1, cur_time,
                              0, NULL, 1 /* user_mode */);
   } else if (global->score_system == SCORE_KIROV) {
@@ -95,7 +95,7 @@
   }
 %><%@include "unpriv_footer.csp"
 %><%
-  l10n_setlocale(0);
+  l10n_resetlocale();
 //cleanup:;
   html_armor_free(&ab);
 %>

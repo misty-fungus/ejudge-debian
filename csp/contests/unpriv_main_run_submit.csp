@@ -3,20 +3,25 @@
     if (prob_id > 0 && !(prob = cs->probs[prob_id])) prob_id = 0;
     if (prob_id > 0 && !serve_is_problem_started(cs, phr->user_id, prob))
       prob_id = 0;
+    if (prob_id > 0 && prob) {
+      serve_is_problem_deadlined(cs, phr->user_id, phr->login, prob, &prob_deadline[prob_id]);
+    }
+/*
     if (prob_id > 0 && serve_is_problem_deadlined(cs, phr->user_id, phr->login,
                                                   prob,
                                                   &prob_deadline[prob_id]))
       prob_id = 0;
+*/
     //if (prob_id > 0 && prob->disable_user_submit > 0) prob_id = 0;
     if (prob_id > 0 && prob->variant_num > 0
         && (variant = find_variant(cs, phr->user_id, prob_id, 0)) <= 0)
       prob_id = 0;
 
     if (start_time > 0 && stop_time <= 0 && !prob_id) {
-%><div class="h2-long"><h2><s:tr>View the problem statement and send a submission</s:tr></h2></div>
+%><div class="h2-long"><h2><s:_>View the problem statement and send a submission</s:_></h2></div>
 <s:form>
 <table class="b0">
-<tr><td class="b0"><s:tr>Problem</s:tr>:</td><td class="b0"><%
+<tr><td class="b0"><s:_>Problem</s:_>:</td><td class="b0"><%
       html_problem_selection(cs, out_f, phr, solved_flag, accepted_flag, 0, 0, start_time);
 %></td><td class="b0"><s:submit ac="view-problem-submit" label="Select problem" /></td></tr></table>
 </s:form>
@@ -24,62 +29,131 @@
     } /* 14 */ else if (start_time > 0 && stop_time <= 0 && prob_id > 0) {
       prob = cs->probs[prob_id];
 
-      dbuf[0] = 0;
-      if ((prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)
-          && prob_deadline[prob_id] > 0) {
-        snprintf(dbuf, sizeof(dbuf), "<h3>%s: %s</h3>",
-                 _("Problem deadline"),
-                 xml_unparse_date(prob_deadline[prob_id]));
-      }
-
-      bb[0] = 0;
-      if (variant > 0) {
-        snprintf(bb, sizeof(bb), "<%s>%s %s-%s (%s %d)</%s>%s\n",
-                 cnts->team_head_style,
-                 (prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)?_("Submit a solution for"):_("Problem"),
-                 prob->short_name, prob->long_name, _("Variant"), variant,
-                 cnts->team_head_style, dbuf);
-      } else {
-        if (cnts->exam_mode) {
-          /*
-          if (prob->disable_user_submit > 0) {
-            snprintf(bb, sizeof(bb), "<%s>%s</%s>\n",
-                     cnts->team_head_style,
-                     prob->long_name, cnts->team_head_style);
-          } else {
-            snprintf(bb, sizeof(bb), "<%s>%s %s</%s>\n",
-                     cnts->team_head_style, _("Submit a solution for"),
-                     prob->long_name, cnts->team_head_style);
-          }
-          */
-          snprintf(bb, sizeof(bb), "<%s>%s %s</%s>%s\n",
-                   cnts->team_head_style, _("Problem"),
-                   prob->long_name, cnts->team_head_style, dbuf);
+      if (!cnts->exam_mode) {
+%><h2><%
+        if ((prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)) {
+%><s:_>Submit a solution for</s:_><%
         } else {
-          if (1 /*!(prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)*/) {
-            if (prob->long_name[0]) {
-              snprintf(bb, sizeof(bb), "<%s>%s %s-%s</%s>%s\n",
-                       cnts->team_head_style, _("Problem"),
-                       prob->short_name, prob->long_name, cnts->team_head_style,
-                       dbuf);
-            } else {
-              snprintf(bb, sizeof(bb), "<%s>%s %s</%s>%s\n",
-                       cnts->team_head_style, _("Problem"),
-                       prob->short_name, cnts->team_head_style, dbuf);
-            }
-          } else {
-            if (prob->long_name[0]) {
-              snprintf(bb, sizeof(bb), "<%s>%s %s-%s</%s>%s\n",
-                       cnts->team_head_style, _("Submit a solution for"),
-                       prob->short_name, prob->long_name, cnts->team_head_style,
-                       dbuf);
-            } else {
-              snprintf(bb, sizeof(bb), "<%s>%s %s</%s>%s\n",
-                       cnts->team_head_style, _("Submit a solution for"),
-                       prob->short_name, cnts->team_head_style, dbuf);
-            }
-          }
+%><s:_>Problem</s:_><%
         }
+%> <s:v value="prob->short_name" escape="false" /><%
+        if (prob->long_name && prob->long_name[0]) {
+%>-<s:v value="prob->long_name" /><%
+        }
+        if (variant > 0) {
+%> (<s:_>Variant</s:_> <s:v value="variant" />)<%
+        }
+%></h2>
+
+<table class="b0">
+<%
+        if (prob->type == PROB_TYPE_STANDARD) {
+%>
+<%
+          if (global->score_system == SCORE_KIROV) {
+%>
+    <tr><td class="b0"><b><s:_>Full score</s:_>:</b></td><td class="b0"><tt><s:v value="prob->full_score" /></tt></td></tr>
+<%
+            if (prob->run_penalty > 0) {
+%>
+    <tr><td class="b0"><b><s:_>Run penalty</s:_>:</b></td><td class="b0"><tt><s:v value="prob->run_penalty" /></tt></td></tr>
+<%
+            }
+%>
+<%
+            if (prob->score_bonus && prob->score_bonus[0]) {
+%>
+    <tr><td class="b0"><b><s:_>Score bonus</s:_>:</b></td><td class="b0"><tt><s:v value="prob->score_bonus" /></tt></td></tr>
+<%
+            }
+%>
+<%
+          }
+%>
+<%
+          if (prob->use_stdin <= 0 && prob->input_file[0] && prob->hide_file_names <= 0) {
+%>
+    <tr><td class="b0"><b><s:_>Input file name</s:_>:</b></td><td class="b0"><tt><s:v value="prob->input_file" /></tt></td></tr>
+<%
+          }
+%>
+<%
+          if (prob->use_stdout <= 0 && prob->output_file[0] && prob->hide_file_names <= 0) {
+%>
+    <tr><td class="b0"><b><s:_>Output file name</s:_>:</b></td><td class="b0"><tt><s:v value="prob->output_file" /></tt></td></tr>
+<%
+          }
+%>
+<%
+          if (prob->time_limit_millis > 0) {
+%>
+    <tr><td class="b0"><b><s:_>Time limit</s:_>:</b></td><td class="b0"><tt><s:v value="prob->time_limit_millis" /> <s:_>ms</s:_></tt></td></tr>
+<%
+          } else if (prob->time_limit > 0) {
+%>
+    <tr><td class="b0"><b><s:_>Time limit</s:_>:</b></td><td class="b0"><tt><s:v value="prob->time_limit" /> <s:_>s</s:_></tt></td></tr>
+<%
+          }
+%>
+<%
+          if (prob->real_time_limit > 0) {
+%>
+    <tr><td class="b0"><b><s:_>Real time limit</s:_>:</b></td><td class="b0"><tt><s:v value="prob->real_time_limit" /> <s:_>s</s:_></tt></td></tr>
+<%
+          }
+%>
+<%
+          if (prob->max_vm_size != 0 && prob->max_vm_size != ~(size_t) 0) {
+%>
+    <tr><td class="b0"><b><s:_>Memory limit</s:_>:</b></td><td class="b0"><tt><s:v format="V" value="prob->max_vm_size" /></tt></td></tr>
+<%
+          }
+%>
+<%
+          if (prob->max_stack_size != 0 && prob->max_stack_size != ~(size_t) 0 && prob->max_stack_size != prob->max_vm_size) {
+%>
+    <tr><td class="b0"><b><s:_>Stack limit</s:_>:</b></td><td class="b0"><tt><s:v format="V" value="prob->max_stack_size" /></tt></td></tr>
+<%
+          }
+%>
+<%
+        }
+%>
+
+<%
+        if (prob->start_date > 0) {
+%>
+    <tr><td class="b0"><b><s:_>Open date</s:_>:</b></td><td class="b0"><tt><s:v value="prob->start_date" /></tt></td></tr>
+<%
+        }
+%>
+
+<%
+        if (prob_deadline[prob_id] > 0) {
+%>
+    <tr><td class="b0"><b><s:_>Deadline</s:_>:</b></td><td class="b0"><tt><s:v value="prob_deadline[prob_id]" /></tt></td></tr>
+<%
+        }
+%>
+
+<%
+        if ((prob_status[prob_id] & PROB_STATUS_SUBMITTABLE) && prob->date_penalty) {
+          int dpi;
+%>
+    <tr><td class="b0"><b><s:_>Date penalty</s:_>:</b></td><td class="b0"><tt><%
+          for (dpi = 0; prob->date_penalty[dpi]; ++dpi) {
+            char *dp = prob->date_penalty[dpi];
+            if (dp != prob->date_penalty[0]) {
+%>, <%
+            }
+%><s:v value="dp" /><%
+          }
+%></tt></td></tr>
+<%
+        }
+%>
+
+<%
       }
 %><%
       if (prob->max_user_run_count > 0) {
@@ -88,11 +162,16 @@
         ignored_set |= 1 << RUN_IGNORED;
         int remain_count = prob->max_user_run_count - run_count_all_attempts_2(cs->runlog_state, phr->user_id, prob_id, ignored_set);
         if (remain_count < 0) remain_count = 0;
-%><h3><s:tr>Remaining attempts</s:tr>: <s:v value="remain_count" /></h3>
+%>
+    <tr><td class="b0"><b><s:_>Remaining attempts</s:_>:</b></td><td class="b0"><tt><s:v value="remain_count" /></tt></td></tr>
 <%
         if (remain_count <= 0) prob_status[prob_id] &= ~PROB_STATUS_SUBMITTABLE;
       }
-%><%
+%>
+
+</table>
+
+<%
       px = 0;
       if (variant > 0 && prob->xml.a && prob->xml.a[variant - 1]) {
         px = prob->xml.a[variant - 1];
@@ -102,7 +181,7 @@
 
       /* put problem statement */
       if (px && px->stmts) {
-        ns_unparse_statement(out_f, phr, cnts, extra, prob, 0, px, bb,
+        ns_unparse_statement(out_f, phr, cnts, extra, prob, 0, px, NULL,
                           prob_status[prob_id] & PROB_STATUS_SUBMITTABLE);
       } else if (prob->statement_file[0]
           && (prob_status[prob_id] & PROB_STATUS_VIEWABLE)) {
@@ -118,11 +197,9 @@
         }
         watched_file_update(pw, pw_path, cs->current_time);
         if (!pw->text) {
-%><s:v value="bb" escape="false" /><big><font color="red"><p><s:tr>The problem statement is not available</s:tr></p></font></big>
+%><big><font color="red"><p><s:_>The problem statement is not available</s:_></p></font></big>
 <%
         } else {
-          if (cnts->exam_mode) bb[0] = 0;
-          fprintf(out_f, "%s", bb);
           if ((prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)
               && prob->type == PROB_TYPE_CUSTOM) {
             html_start_form(out_f, 2, phr->self_url, phr->hidden_vars);
@@ -131,7 +208,6 @@
           fprintf(out_f, "%s", pw->text);
         }
       } else {
-        fprintf(out_f, "%s", bb);
       }
 
       if ((prob_status[prob_id] & PROB_STATUS_SUBMITTABLE)) {
@@ -162,11 +238,11 @@
 
           if (lang_count == 1) {
 %><s:hidden name="lang_id" value="lang_id" />
-<tr><td class="b0"><s:tr>Language</s:tr>:</td><td class="b0"><s:v value="cs->langs[lang_id]->short_name" escape="false" /> - <s:v value="cs->langs[lang_id]->long_name" /></td></tr>
+<tr><td class="b0"><s:_>Language</s:_>:</td><td class="b0"><s:v value="cs->langs[lang_id]->short_name" escape="false" /> - <s:v value="cs->langs[lang_id]->long_name" /></td></tr>
 <%
           } else {
             last_lang_id = get_last_language(cs, phr->user_id, &last_eoln_type);
-%><tr><td class="b0"><s:tr>Language</s:tr>:</td><td class="b0"><s:select name="lang_id"><option value=""></option><%
+%><tr><td class="b0"><s:_>Language</s:_>:</td><td class="b0"><s:select name="lang_id"><option value=""></option><%
             for (i = 1; i <= cs->max_lang; i++) {
               if (!cs->langs[i] || cs->langs[i]->disabled
                   || (cs->langs[i]->insecure && global->secure_run)) continue;
@@ -188,7 +264,7 @@
           }
 %><%
           if (cs->global->enable_eoln_select > 0) {
-%><tr><td class="b0"><s:tr>Desired EOLN Type</s:tr>:</td><td class="b0"><s:select name="eoln_type">
+%><tr><td class="b0"><s:_>Desired EOLN Type</s:_>:</td><td class="b0"><s:select name="eoln_type">
 <option value="0"></option>
 <s:option value="1" selectedExpr="last_eoln_type == 1">LF (Unix/MacOS)</s:option>
 <s:option value="2" selectedExpr="last_eoln_type == 2">CRLF (Windows/DOS)</s:option>
@@ -210,7 +286,7 @@
 %><tr><td colspan="2" class="b0"><textarea name="text_form" rows="20" cols="60"></textarea></td></tr>
 <%
           }
-%><tr><td class="b0"><s:tr>File</s:tr></td><td class="b0"><input type="file" name="file"/></td></tr>
+%><tr><td class="b0"><s:_>File</s:_></td><td class="b0"><input type="file" name="file"/></td></tr>
 <%
           break;
         case PROB_TYPE_SHORT_ANSWER:
@@ -219,10 +295,10 @@
             last_source = get_last_source(cs, phr->user_id, prob->id);
           }
           if (last_source) {
-%><tr><td class="b0"><s:tr>Answer</s:tr></td><td class="b0"><s:textfield name="file" value="last_source" /></td></tr>
+%><tr><td class="b0"><s:_>Answer</s:_></td><td class="b0"><s:textfield name="file" value="last_source" /></td></tr>
 <%
           } else {
-%><tr><td class="b0"><s:tr>Answer</s:tr></td><td class="b0"><input type="text" name="file" /></td></tr>
+%><tr><td class="b0"><s:_>Answer</s:_></td><td class="b0"><input type="text" name="file" /></td></tr>
 <%
           }
           xfree(last_source); last_source = 0;
@@ -291,7 +367,7 @@
             fprintf(out_f, "</tr></table></form>");
           }
         } else {
-%><tr><td class="b0"><s:tr>Send!</s:tr></td><td class="b0"><s:submit ac="submit-run" /></td></tr></table></form>
+%><tr><td class="b0"><s:_>Send!</s:_></td><td class="b0"><s:submit ac="submit-run" /></td></tr></table></form>
 <%
         }
       } /* prob->disable_user_submit <= 0 */
@@ -301,10 +377,10 @@
           && prob->type != PROB_TYPE_SELECT_ONE
           && all_attempts[prob->id]) {
         if (all_attempts[prob->id] <= 15) {
-%><h2><s:tr>Previous submissions of this problem</s:tr></h2>
+%><h2><s:_>Previous submissions of this problem</s:_></h2>
 <%
         } else {
-%><h2><s:tr>Previous submissions of this problem</s:tr> (<s:tr>last 15</s:tr>)</h2>
+%><h2><s:_>Previous submissions of this problem</s:_> (<s:_>last 15</s:_>)</h2>
 <%
         }
         if (cs->contest_plugin && cs->contest_plugin->generate_html_user_runs){
@@ -326,7 +402,7 @@
 %><%
       if (!cnts->exam_mode) {
         if (global->problem_navigation <= 0) {
-%><h2><s:tr>Select another problem</s:tr></h2>
+%><h2><s:_>Select another problem</s:_></h2>
 <%
         } else {
           /*
@@ -347,12 +423,12 @@
           if (i > 0) {
 %><s:url name="ProblemUrl" ac="view-problem-submit">
 <s:param name="prob_id" value="i" />
-</s:url><td class="b0"><s:a url="ProblemUrl"><s:tr>Previous problem</s:tr></s:a></td><%
+</s:url><td class="b0"><s:a url="ProblemUrl"><s:_>Previous problem</s:_></s:a></td><%
           }
         }
 
         if (global->problem_navigation <= 0) {
-%><td class="b0"><s:tr>Problem</s:tr>:</td><td class="b0"><%
+%><td class="b0"><s:_>Problem</s:_>:</td><td class="b0"><%
           html_problem_selection(cs, out_f, phr, solved_flag, accepted_flag, 0, 0, start_time);
 %></td><td class="b0"><s:submit ac="view-problem-submit" /></td><%
         }
@@ -365,7 +441,7 @@
           if (i <= cs->max_prob) {
 %><s:url name="ProblemUrl" ac="view-problem-submit">
 <s:param name="prob_id" value="i" />
-</s:url><td class="b0"><s:a url="ProblemUrl"><s:tr>Next problem</s:tr></s:a></td><%
+</s:url><td class="b0"><s:a url="ProblemUrl"><s:_>Next problem</s:_></s:a></td><%
           }
         }
 %></tr></table>

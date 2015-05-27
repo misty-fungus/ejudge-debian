@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_4.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: super_html_4.c 8675 2014-10-21 06:17:22Z cher $ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -1161,6 +1161,7 @@ static const struct cnts_edit_info cnts_language_info[] =
   { NS_LANGUAGE, CNTSLANG_style_checker_cmd, 'S', 1, 1, 1, 1, 0, "Style checker command", "Style checker command", 0 },
   { NS_LANGUAGE, CNTSLANG_style_checker_env, 'X', 1, 1, 1, 1, 0, "Style checker environment", "Style checker environment", 0 },
   { NS_SID_STATE, SSSS_lang_opts, 138, 1, 1, 1, 1, 0, "Compilation options", 0, 0 },
+  { NS_SID_STATE, SSSS_lang_libs, 144, 1, 1, 1, 1, 0, "Compilation libraries", 0, 0 },
   { NS_LANGUAGE, CNTSLANG_compiler_env, 'X', 1, 1, 1, 1, SSERV_CMD_EDIT_SERVE_LANG_FIELD_DETAIL_PAGE, "Additional environment variables", 0, 0 },
   { 0, 0, '-', 0, 0, 0, 0, 0, "Other parameters", 0, 0 },
   { NS_LANGUAGE, CNTSLANG_unhandled_vars, 137, 0, 0, 0, 0, SSERV_CMD_EDIT_SERVE_LANG_FIELD_DETAIL_PAGE, 0, 0, 0 },
@@ -1228,7 +1229,8 @@ static const struct cnts_edit_info cnts_problem_info[] =
   { NS_PROBLEM, CNTSPROB_ignore_compile_errors, 'Y', 1, 0, 0, 0, 0, "Ignore compile errors", 0, 0 },
   { NS_PROBLEM, CNTSPROB_disable_user_submit, 'Y', 1, 0, 0, 0, 0, "Disable user submissions", 0, 0 },
   { NS_PROBLEM, CNTSPROB_disable_tab, 'Y', 1, 0, 0, 0, 0, "Disable navigation tab", 0, "Global.problem_navigation SidState.prob_show_adv &&" },
-  { NS_PROBLEM, CNTSPROB_restricted_statement, 'Y', 1, 0, 0, 0, 0, "Restricted problem statement", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_unrestricted_statement, 'Y', 1, 0, 0, 0, 0, "Unrestricted problem statement", 0, "SidState.prob_show_adv" },
+  { NS_PROBLEM, CNTSPROB_hide_file_names, 'Y', 1, 0, 0, 0, 0, "Hide input/output file names in statement display", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_disable_submit_after_ok, 'Y', 1, 0, 0, 0, 0, "Disable submissions after OK", 0, 0 },
   { NS_PROBLEM, CNTSPROB_disable_security, 'Y', 1, 0, 0, 0, 0, "Disable security restrictions", 0, "SidState.prob_show_adv" },
   { NS_PROBLEM, CNTSPROB_disable_testing, 'Y', 1, 0, 0, 0, 0, "Disable testing of submissions", 0, 0 },
@@ -1876,6 +1878,14 @@ write_editing_rows(
       // lang_opts
       {
         const unsigned char *s = phr->ss->lang_opts[item_id];
+        if (s) fprintf(out_f, "%s", s);
+        if (!s || !*s) is_empty = 1;
+      }
+      break;
+    case 144:
+      // lang_libs
+      {
+        const unsigned char *s = phr->ss->lang_libs[item_id];
         if (s) fprintf(out_f, "%s", s);
         if (!s || !*s) is_empty = 1;
       }
@@ -5317,6 +5327,18 @@ cmd_op_set_sid_state_lang_field(
     phr->ss->lang_opts[lang_id] = xstrdup(sval);
     break;
 
+  case SSSS_lang_libs:          // compiler options
+    if (hr_cgi_param_int(phr, "item_id", &lang_id) < 0)
+      FAIL(SSERV_ERR_INV_LANG_ID);
+    if (lang_id <= 0 || lang_id >= phr->ss->lang_a
+        || !phr->ss->langs[lang_id])
+      FAIL(SSERV_ERR_INV_LANG_ID);
+    if (ss_cgi_param_utf8_str(phr, "value", &vb, &sval) <= 0 || !sval)
+      FAIL(SSERV_ERR_INV_VALUE);
+    xfree(phr->ss->lang_libs[lang_id]);
+    phr->ss->lang_libs[lang_id] = xstrdup(sval);
+    break;
+
   default:
     FAIL(SSERV_ERR_INV_FIELD_ID);
   }
@@ -5351,6 +5373,10 @@ cmd_op_clear_sid_state_lang_field(
   case SSSS_lang_opts:
     xfree(phr->ss->lang_opts[lang_id]);
     phr->ss->lang_opts[lang_id] = 0;
+    break;
+  case SSSS_lang_libs:
+    xfree(phr->ss->lang_libs[lang_id]);
+    phr->ss->lang_libs[lang_id] = 0;
     break;
   default:
     FAIL(SSERV_ERR_INV_FIELD_ID);
@@ -5883,7 +5909,8 @@ static const unsigned char prob_reloadable_set[CNTSPROB_LAST_FIELD] =
   [CNTSPROB_disable_testing] = 1,
   [CNTSPROB_disable_user_submit] = 1,
   [CNTSPROB_disable_tab] = 1,
-  [CNTSPROB_restricted_statement] = 1,
+  [CNTSPROB_unrestricted_statement] = 1,
+  [CNTSPROB_hide_file_names] = 1,
   [CNTSPROB_disable_submit_after_ok] = 1,
   [CNTSPROB_disable_security] = 1,
   [CNTSPROB_enable_compilation] = 1,
@@ -6710,7 +6737,7 @@ static const unsigned char * const external_action_names[SSERV_CMD_LAST] =
 
 static const unsigned char * const external_error_names[SSERV_ERR_LAST] = 
 {
-  [1] = NULL, // here comes the default error handler
+  [1] = "error_unknown_page", // here comes the default error handler
 };
 
 static ExternalActionState *external_action_states[SSERV_CMD_LAST];
@@ -6727,15 +6754,26 @@ default_error_page(
   }
   FILE *out_f = open_memstream(p_out_t, p_out_z);
 
+  if (phr->error_code < 0) phr->error_code = -phr->error_code;
+  unsigned char buf[32];
+  const unsigned char *errmsg = 0;
+  if (phr->error_code > 0 && phr->error_code < SSERV_ERR_LAST) {
+    errmsg = super_proto_error_messages[phr->error_code];
+  }
+  if (!errmsg) {
+    snprintf(buf, sizeof(buf), "%d", phr->error_code);
+    errmsg = buf;
+  }
+
   fprintf(out_f, "Content-type: text/html; charset=%s\n\n", EJUDGE_CHARSET);
   fprintf(out_f,
           "<html>\n"
           "<head>\n"
-          "<title>Error %d</title>\n"
+          "<title>Error: %s</title>\n"
           "</head>\n"
           "<body>\n"
-          "<h1>Error %d</h1>\n",
-          phr->error_code, phr->error_code);
+          "<h1>Error: %s</h1>\n",
+          errmsg, errmsg);
   if (phr->log_t && *phr->log_t) {
     fprintf(out_f, "<p>Additional messages:</p>\n");
     unsigned char *s = html_armor_string_dup(phr->log_t);
@@ -6782,8 +6820,8 @@ external_error_page(
     return;
   }
 
-  snprintf(phr->content_type, sizeof(phr->content_type), "text/html; charset=%s", EJUDGE_CHARSET);
   phr->out_f = open_memstream(p_out_t, p_out_z);
+  fprintf(phr->out_f, "Content-type: text/html; charset=%s\n\n", EJUDGE_CHARSET);
   pg->ops->render(pg, NULL, phr->out_f, phr);
   xfree(phr->log_t); phr->log_t = NULL;
   phr->log_z = 0;
@@ -6937,7 +6975,6 @@ redo_action:
 
         xfree(phr->out_t); phr->out_t = NULL;
         phr->out_z = 0;
-
       }
       return;
     }
@@ -7004,9 +7041,7 @@ redo_action:
   html_armor_free(&ab);
 }
 
-// forced link
-static void *forced_link[] __attribute__((unused));
-static void *forced_link[] =
+void *super_html_forced_link[] =
 {
   html_date_select
 };

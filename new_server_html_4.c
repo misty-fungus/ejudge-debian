@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_4.c 8531 2014-08-22 13:08:06Z cher $ */
+/* $Id: new_server_html_4.c 8616 2014-09-17 06:37:58Z cher $ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -179,7 +179,11 @@ cmd_login(
   }
 
   ns_get_session(phr->session_id, phr->client_key, 0);
-  fprintf(fout, "%016llx\n", phr->session_id);
+  if (phr->client_key) {
+    fprintf(fout, "%016llx-%016llx\n", phr->session_id, phr->client_key);
+  } else {
+    fprintf(fout, "%016llx\n", phr->session_id);
+  }
 
  cleanup:
   return retval;
