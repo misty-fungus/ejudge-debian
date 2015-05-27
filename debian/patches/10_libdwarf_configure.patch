@@ -1,0 +1,24 @@
+Index: ejudge-debian/configure
+===================================================================
+--- ejudge-debian.orig/configure
++++ ejudge-debian/configure
+@@ -9468,6 +9468,7 @@ fi
+ 
+ #cp -p config.h include/reuse
+ cp -p config.h include/ejudge
++mkdir -p include/libdwarf-internal
+ cp -p libdwarf/libdwarf/dwarf.h include/libdwarf-internal
+ cp -p libdwarf/libdwarf/libdwarf.h include/libdwarf-internal
+ 
+Index: ejudge-debian/configure.ac
+===================================================================
+--- ejudge-debian.orig/configure.ac
++++ ejudge-debian/configure.ac
+@@ -1288,6 +1288,7 @@ AC_OUTPUT(Makefile extra/Makefile extra/
+ 
+ #cp -p config.h include/reuse
+ cp -p config.h include/ejudge
++mkdir -p include/libdwarf-internal
+ cp -p libdwarf/libdwarf/dwarf.h include/libdwarf-internal
+ cp -p libdwarf/libdwarf/libdwarf.h include/libdwarf-internal
+ 
