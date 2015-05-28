@@ -1,2 +1,33 @@
 possible-debconf-note-abuse config:\w+ ejudge/kernel_patch_note
 wrong-bug-number-in-closes l\w+:#nnnn
+unstripped-binary-or-object usr/sbin/ej-page-gen
+hardening-no-relro \w+
+
+helper-templates-in-copyright
+
+possible-debconf-note-abuse config:13 ejudge/kernel_patch_note
+
+extra-license-file usr/share/ejudge/style/dijit/LICENSE
+embedded-javascript-library usr/share/ejudge/style/dijit/dijit.js please use libjs-dojo-\w+
+privacy-breach-may-use-debian-package usr/share/ejudge/style/dijit/themes/themeTester.html You may use libjs-prototype package. (http://prototypejs.org/assets/2007/10/16/prototype.js)
+privacy-breach-may-use-debian-package usr/share/ejudge/style/dijit/themes/themeTesterQuirk.html You may use libjs-prototype package. (http://prototypejs.org/assets/2007/10/16/prototype.js)
+extra-license-file usr/share/ejudge/style/dojo/LICENSE
+extra-license-file usr/share/ejudge/style/dojo/_firebug/LICENSE
+extra-license-file usr/share/ejudge/style/dojo/cldr/LICENSE
+embedded-javascript-library usr/share/ejudge/style/dojo/dojo.js please use libjs-dojo-\w+
+extra-license-file usr/share/ejudge/style/dojo/resources/LICENSE
+extra-license-file usr/share/ejudge/style/dojox/LICENSE
+privacy-breach-google-adsense usr/share/ejudge/style/dojox/analytics/Urchin.js
+embedded-javascript-library usr/share/ejudge/style/dojox/analytics/plugins/dojo.js please use libjs-dojo-\w+
+embedded-javascript-library usr/share/ejudge/style/dojox/dtl/contrib/dijit.js please use libjs-dojo-\w+
+extra-license-file usr/share/ejudge/style/dojox/encoding/LICENSE
+embedded-javascript-library usr/share/ejudge/style/dojox/grid/cells/dijit.js please use libjs-dojo-\w+
+extra-license-file usr/share/ejudge/style/dojox/lang/LICENSE
+extra-license-file usr/share/ejudge/style/dojox/sql/LICENSE
+script-not-executable usr/share/ejudge/style/dojox/storage/buildFlashStorage.sh
+
+sharedobject-in-library-directory-missing-soname usr/lib/libchecker.so
+hardening-no-relro usr/lib/\w+/libchecker.so
+wrong-bug-number-in-closes l\w+:#nnnn
+helper-templates-in-copyright
+sharedobject-in-library-directory-missing-soname usr/lib/\w+/libchecker.so
