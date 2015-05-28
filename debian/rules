@@ -56,6 +56,7 @@ override_dh_auto_install:
 	
 	# removing extra binaries
 	rm "$(install_root)/usr/sbin/uudecode"
+	rm -r "$(install_root)/usr/cfront"
 
 
 .PHONY: override_dh_auto_clean
