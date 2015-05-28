@@ -15,7 +15,6 @@
 
 
 set -e
-set -x
 
 action="$1"
 oldversion="$2"
