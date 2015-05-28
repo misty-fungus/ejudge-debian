@@ -11,7 +11,7 @@ Architecture: any
 Multi-Arch: foreign
 Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}, sharutils, apache2 | httpd, gawk,
- adduser
+ adduser, make, gcc
 Description: Programming contest management system
  Ejudge is a programming contest management system.
 
