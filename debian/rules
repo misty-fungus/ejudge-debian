@@ -57,6 +57,10 @@ override_dh_auto_install:
 	# removing extra binaries
 	rm "$(install_root)/usr/sbin/uudecode"
 	rm -r "$(install_root)/usr/cfront"
+	
+	mkdir -p "$(CURDIR)/debian/libejudge-checker/usr/lib/$(DEB_HOST_MULTIARCH)/"
+	mv "$(install_root)/usr/lib/$(DEB_HOST_MULTIARCH)/libchecker.so" "$(CURDIR)/debian/libejudge-checker/usr/lib/$(DEB_HOST_MULTIARCH)/"
+	mv "$(install_root)/usr/lib/$(DEB_HOST_MULTIARCH)/libchecker.a" "$(CURDIR)/debian/libejudge-checker/usr/lib/$(DEB_HOST_MULTIARCH)/"
 
 
 .PHONY: override_dh_auto_clean
