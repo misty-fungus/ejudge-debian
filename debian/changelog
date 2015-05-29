@@ -1,4 +1,4 @@
-ejudge (3.2.2-1) UNRELEASED; urgency=medium
+ejudge (3.2.2-1) unstable; urgency=medium
 
   * [df7da3a] New upstream version 3.0.1
   * [065c4b7] added bzr-builder support
@@ -15,6 +15,15 @@ ejudge (3.2.2-1) UNRELEASED; urgency=medium
   * [5af410c] dropped dojo dependency
   * [73067a2] refreshed patches
   * [3ff1b56] dropped extra patch
+  * [72463c8] dropped debian/patches/10_fix_libdwarf_paths.patch
+  * [a2315df] fixed configure
+  * [9b7c9dc] do not strip debug from ej-page-gen
+  * [4109501] added gcc and make dependencies
+  * [b59e8ff] do not install cfront files
+  * [4122ffe] removed bash verbosity from postinst and postrm
+  * [739a191] disable lib32 checkers in default contest
+  * [f912f45] split libchecker to separate library
+  * [3ca5d3f] refreshed lintian overrides
 
  -- Yaroslav Leonov <alximik43@gmail.com>  Sat, 02 May 2015 19:51:56 +0300
 
