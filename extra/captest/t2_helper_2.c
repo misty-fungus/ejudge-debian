@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: t2_helper_2.c 4258 2007-08-02 18:37:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2007 Alexander Chernov <cher@ejudge.ru> */
 

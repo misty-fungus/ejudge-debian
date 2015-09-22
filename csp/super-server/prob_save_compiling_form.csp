@@ -1,0 +1,86 @@
+<% //-*- c -*-
+%><%@include "includes.csp"
+%><%
+
+#define COPYSTR(f) snprintf(prob->f, sizeof(prob->f), "%s", (f))
+#define MOVEENV(f) sarray_free(prob->f); prob->f = f; f = NULL
+
+%><%@set getter_name = "csp_get_prob_save_compiling_form"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_prob_save_compiling_form(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    snprintf(phr->content_type, sizeof(phr->content_type), "application/json; charset=%s", EJUDGE_CHARSET);
+
+    int prob_id = 0;
+    unsigned char *style_checker_cmd = NULL;
+    ejintbool_t style_checker_cmd_dflt = 0;
+    char **style_checker_env = NULL;
+    char **lang_compiler_env = NULL;
+    unsigned char *source_header = NULL;
+    ejintbool_t source_header_dflt = 0;
+    unsigned char *source_footer = NULL;
+    ejintbool_t source_footer_dflt = 0;
+    
+    int i;
+    struct section_problem_data *prob = NULL;
+
+    char *msg_s = NULL;
+    size_t msg_z = 0;
+    FILE *msg_f = open_memstream(&msg_s, &msg_z);
+
+%><s:read var="prob_id" required="yes" /><%
+%><s:read var="style_checker_cmd" normalize="yes" nonnull="yes" /><%
+%><s:read var="style_checker_cmd_dflt" default="0" /><%
+%><s:read var="style_checker_env" /><%
+%><s:read var="lang_compiler_env" /><%
+%><s:read var="source_header" normalize="yes" nonnull="yes" /><%
+%><s:read var="source_header_dflt" default="0" /><%
+%><s:read var="source_footer" normalize="yes" nonnull="yes" /><%
+%><s:read var="source_footer_dflt" default="0" /><%
+
+    if (retval || !phr->ss) goto cleanup;
+
+    if (style_checker_cmd_dflt) *style_checker_cmd = 0;
+    if (source_header_dflt) *source_header = 0;
+    if (source_footer_dflt) *source_footer = 0;
+
+    if (prob_id <= 0) {
+        i = -prob_id;
+        if (i >= phr->ss->aprob_u) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        prob = phr->ss->aprobs[i];
+        if (!prob) FAIL(SSERV_ERR_INVALID_PARAMETER);
+    } else {
+        i = prob_id;
+        if (i >= phr->ss->prob_a) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        prob = phr->ss->probs[i];
+        if (!prob) FAIL(SSERV_ERR_INVALID_PARAMETER);
+    }
+
+    if (!retval && phr->ss) {
+        COPYSTR(style_checker_cmd);
+        MOVEENV(style_checker_env);
+        MOVEENV(lang_compiler_env);
+        COPYSTR(source_header);
+        COPYSTR(source_footer);
+    }
+
+cleanup:;
+    fclose(msg_f); msg_f = NULL;
+%>
+{
+    "input" : {
+    },
+    "retval" : <s:v value="retval" />,
+    "messages" : "<s:v value="msg_s" json="yes" checkExpr="" />"
+}
+<%
+    html_armor_free(&ab);
+    xfree(msg_s);
+    xfree(style_checker_cmd);
+    sarray_free(style_checker_env);
+    sarray_free(lang_compiler_env);
+    xfree(source_header);
+    xfree(source_footer);
+%>

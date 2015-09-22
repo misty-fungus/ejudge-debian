@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: opcaps_2.c 8416 2014-08-04 10:23:38Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 

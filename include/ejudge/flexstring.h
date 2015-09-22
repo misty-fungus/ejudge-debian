@@ -1,4 +1,4 @@
-/* $Id: flexstring.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_FLEXSTRING_H__
 #define __REUSE_FLEXSTRING_H__

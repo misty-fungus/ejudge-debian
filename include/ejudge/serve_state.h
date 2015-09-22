@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: serve_state.h 8785 2014-11-27 09:55:34Z cher $ */
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -34,12 +33,12 @@ struct section_tester_data;
 struct contest_desc;
 struct clarlog_state;
 struct teamdb_state;
-struct team_extra_state;
 struct user_state_info;
 struct user_filter_info;
 struct teamdb_db_callbacks;
 struct userlist_clnt;
 struct ejudge_cfg;
+struct xuser_cnts_state;
 
 /* error codes */
 enum
@@ -193,8 +192,8 @@ struct serve_state
   /* teamdb internal state */
   struct teamdb_state *teamdb_state;
 
-  /* team_extra internal state */
-  struct team_extra_state *team_extra_state;
+  /* new team extra internal state */
+  struct xuser_cnts_state *xuser_state;
 
   /* runlog internal state */
   struct runlog_state *runlog_state;
@@ -305,6 +304,9 @@ struct serve_state
   // memoized user results
   int user_result_a; // allocated size
   struct serve_user_results *user_results;
+
+  // compiler options to report
+  unsigned char **compiler_options;
 };
 typedef struct serve_state *serve_state_t;
 
@@ -426,7 +428,7 @@ serve_compile_request(
         const struct section_problem_data *prob,
         const struct section_language_data *lang,
         int no_db_flag,
-        const ruint32_t uuid[4],
+        const ej_uuid_t *puuid,
         int store_flags,
         int rejudge_flag)
 #if defined __GNUC__
@@ -458,7 +460,7 @@ serve_run_request(
         const unsigned char *compile_report_dir,
         const struct compile_reply_packet *comp_pkt,
         int no_db_flag,
-        ruint32_t uuid[4],
+        ej_uuid_t *puuid,
         int rejudge_flag);
 
 int serve_is_valid_status(serve_state_t state, int status, int mode);
@@ -513,6 +515,17 @@ serve_mark_by_mask(
         int mask_size,
         unsigned long *mask,
         int mark_value);
+
+void
+serve_tokenize_by_mask(
+        serve_state_t state,
+        int user_id,
+        const ej_ip_t *ip,
+        int ssl_flag,
+        int mask_size,
+        unsigned long *mask,
+        int token_count,
+        int token_flags);
 
 struct server_framework_job *
 serve_rejudge_problem(
@@ -748,5 +761,10 @@ serve_make_audit_read_path(
         unsigned char *path,
         size_t size,
         const struct run_entry *re);
+
+const unsigned char *
+serve_get_compiler_options(
+        const serve_state_t state,
+        int lang_id);
 
 #endif /* __SERVE_STATE_H__ */

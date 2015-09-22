@@ -1,7 +1,6 @@
 # -*- Makefile -*-
-# $Id: files.make 8785 2014-11-27 09:55:34Z cher $
 
-# Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -121,6 +120,7 @@ COMMON_CFILES=\
  archive_paths.c\
  base64.c\
  bitset.c\
+ bson_utils.c\
  build_support.c\
  cgi.c\
  charsets.c\
@@ -259,11 +259,13 @@ COMMON_CFILES=\
  varsubst.c\
  vcs.c\
  watched_file.c\
+ xuser_plugin_file.c\
  zip_utils.c\
  xml_utils/attr_bool.c\
  xml_utils/attr_bool_byte.c\
  xml_utils/attr_date.c\
  xml_utils/attr_int.c\
+ xml_utils/attr_long_long.c\
  xml_utils/attr_ulong.c\
  xml_utils/elem_ip_mask.c\
  xml_utils/empty_text.c\
@@ -494,6 +496,7 @@ HFILES=\
  ./include/ejudge/archive_paths.h\
  ./include/ejudge/base64.h\
  ./include/ejudge/bitset.h\
+ ./include/ejudge/bson_utils.h\
  ./include/ejudge/build_support.h\
  ./include/ejudge/cgi.h\
  ./include/ejudge/charsets.h\
@@ -611,6 +614,7 @@ HFILES=\
  ./include/ejudge/new_server_proto.h\
  new_server_clnt/new_server_clnt_priv.h\
  ./include/ejudge/xml_utils.h\
+ ./include/ejudge/xuser_plugin.h\
  ./include/ejudge/zip_utils.h
 
 OTHERFILES=\

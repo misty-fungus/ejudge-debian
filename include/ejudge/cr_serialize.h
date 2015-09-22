@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: cr_serialize.h 8215 2014-05-15 13:42:22Z cher $ */
+/* $Id$ */
 
 #ifndef __CR_SERIALIZE_H__
 #define __CR_SERIALIZE_H__

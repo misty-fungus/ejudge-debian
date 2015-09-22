@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: lang_config.c 8217 2014-05-15 14:02:12Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 

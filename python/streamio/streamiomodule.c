@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: streamiomodule.c 5210 2008-10-14 19:59:13Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: compile.c 8633 2014-10-09 18:10:53Z cher $ */
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -208,6 +207,8 @@ internal_error:
   goto cleanup;
 }
 
+#define VALID_SIZE(z) ((z) > 0 && (z) == (size_t) (z))
+
 static int
 do_loop(void)
 {
@@ -317,10 +318,7 @@ do_loop(void)
     rpl.ts1 = req->ts1;
     rpl.ts1_us = req->ts1_us;
     rpl.use_uuid = req->use_uuid;
-    rpl.uuid[0] = req->uuid[0];
-    rpl.uuid[1] = req->uuid[1];
-    rpl.uuid[2] = req->uuid[2];
-    rpl.uuid[3] = req->uuid[3];
+    rpl.uuid = req->uuid;
     get_current_time(&rpl.ts2, &rpl.ts2_us);
     rpl.run_block_len = req->run_block_len;
     rpl.run_block = req->run_block; /* !!! shares memory with req */
@@ -332,7 +330,7 @@ do_loop(void)
     snprintf(status_dir, sizeof(status_dir),
              "%s/%06d/status", global->compile_dir, rpl.contest_id);
     if (req->use_uuid > 0) {
-      snprintf(run_name, sizeof(run_name), "%s", ej_uuid_unparse(req->uuid, NULL));
+      snprintf(run_name, sizeof(run_name), "%s", ej_uuid_unparse(&req->uuid, NULL));
     } else {
       snprintf(run_name, sizeof(run_name), "%06d", rpl.run_id);
     }
@@ -454,25 +452,25 @@ do_loop(void)
         task_AddArg(tsk, exe_name);
         task_SetPathAsArg0(tsk);
         task_EnableProcessGroup(tsk);
-        if (((ssize_t) req->max_vm_size) > 0) {
+        if (VALID_SIZE(req->max_vm_size)) {
           task_SetVMSize(tsk, req->max_vm_size);
-        } else if (((ssize_t) lang->max_vm_size) > 0) {
+        } else if (VALID_SIZE(lang->max_vm_size)) {
           task_SetVMSize(tsk, lang->max_vm_size);
-        } else if (((ssize_t) global->compile_max_vm_size) > 0) {
+        } else if (VALID_SIZE(global->compile_max_vm_size)) {
           task_SetVMSize(tsk, global->compile_max_vm_size);
         }
-        if (((ssize_t) req->max_stack_size) > 0) {
+        if (VALID_SIZE(req->max_stack_size)) {
           task_SetStackSize(tsk, req->max_stack_size);
-        } else if (((ssize_t) lang->max_stack_size) > 0) {
+        } else if (VALID_SIZE(lang->max_stack_size)) {
           task_SetStackSize(tsk, lang->max_stack_size);
-        } else if (((ssize_t) global->compile_max_stack_size) > 0) {
+        } else if (VALID_SIZE(global->compile_max_stack_size)) {
           task_SetStackSize(tsk, global->compile_max_stack_size);
         }
-        if (((ssize_t) req->max_file_size) > 0) {
+        if (VALID_SIZE(req->max_file_size)) {
           task_SetMaxFileSize(tsk, req->max_file_size);
-        } else if (((ssize_t) lang->max_file_size) > 0) {
+        } else if (VALID_SIZE(lang->max_file_size)) {
           task_SetMaxFileSize(tsk, lang->max_file_size);
-        } else if (((ssize_t) global->compile_max_file_size) > 0) {
+        } else if (VALID_SIZE(global->compile_max_file_size)) {
           task_SetMaxFileSize(tsk, global->compile_max_file_size);
         }
 
@@ -883,7 +881,7 @@ main(int argc, char *argv[])
   subst_dst_ptr = subst_dst;
 #endif
 
-  if (prepare(&serve_state, compile_cfg_path, prepare_flags, PREPARE_COMPILE,
+  if (prepare(NULL, &serve_state, compile_cfg_path, prepare_flags, PREPARE_COMPILE,
               cpp_opts, 0, subst_src_ptr, subst_dst_ptr) < 0)
     return 1;
 #if HAVE_OPEN_MEMSTREAM - 0

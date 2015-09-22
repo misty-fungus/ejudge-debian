@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: prepare_serve.h 8768 2014-11-22 09:05:13Z cher $ */
+/* $Id$ */
 #ifndef __PREPARE_SERVE_H__
 #define __PREPARE_SERVE_H__
 

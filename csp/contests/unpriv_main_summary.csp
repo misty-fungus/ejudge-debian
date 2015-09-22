@@ -48,9 +48,10 @@
       } else {
         int separate_user_score = (global->separate_user_score > 0 && cs->online_view_judge_score <= 0);
         int total_score = 0;
+        int total_score_uncertain = 0;
         int act_status = RUN_CHECK_FAILED;
 %>
-<table border="1" class="b1">
+<table class="table">
     <tr>
 <%
         if (cnts->exam_mode > 0 || global->disable_prob_long_name > 0) {
@@ -107,11 +108,11 @@
 
           const unsigned char *s = "";
           if (pinfo[prob_id].accepted_flag || pinfo[prob_id].solved_flag || pinfo[prob_id].pr_flag) {
-            s = " bgcolor=\"#ddffdd\"";
+            s = " class=\"green-tr\"";
           } else if (pinfo[prob_id].pending_flag) {
-            s = " bgcolor=\"#ffffdd\"";
+            s = " class=\"yellow-tr\"";
           } else if (!pinfo[prob_id].pending_flag && pinfo[prob_id].attempts) {
-            s = " bgcolor=\"#ffdddd\"";
+            s = " class=\"red-tr\"";
           }
 %>
     <s:tr attr="s">
@@ -142,40 +143,61 @@
           }
 
           if (pinfo[prob_id].best_run < 0) {
-            if (global->score_system == SCORE_KIROV || (global->score_system == SCORE_OLYMPIAD && !accepting_mode) || global->score_system == SCORE_MOSCOW) {
+            if (pinfo[prob_id].last_untokenized) {
+              total_score_uncertain = 1;
+              if (global->score_system == SCORE_KIROV || (global->score_system == SCORE_OLYMPIAD && !accepting_mode) || global->score_system == SCORE_MOSCOW) {
 %>
-        <td class="b1">&nbsp;</td>
-        <td class="b1">&nbsp;</td>
+        <td class="b1">??? </td>
+        <td class="b1">??? </td>
 <%
-              if (global->disable_passed_tests <= 0) {
+                if (global->disable_passed_tests <= 0) {
 %>
-        <td class="b1">&nbsp;</td>
+        <td class="b1">??? </td>
 <%
-              }
-              if (!cnts->exam_mode) {
+                }
+              } else {
 %>
-        <td class="b1">&nbsp;</td>
+        <td class="b1">??? </td>
+        <td class="b1">??? </td>
 <%
               }
             } else {
+              if (global->score_system == SCORE_KIROV || (global->score_system == SCORE_OLYMPIAD && !accepting_mode) || global->score_system == SCORE_MOSCOW) {
 %>
         <td class="b1">&nbsp;</td>
         <td class="b1">&nbsp;</td>
 <%
-              if (!cnts->exam_mode) {
+                if (global->disable_passed_tests <= 0) {
 %>
+        <td class="b1">&nbsp;</td>
+<%
+                }
+              } else {
+%>
+        <td class="b1">&nbsp;</td>
         <td class="b1">&nbsp;</td>
 <%
               }
+            }
+            if (!cnts->exam_mode) {
+%>
+        <td class="b1">&nbsp;</td>
+<%
             }
           } else {
             int status, test;
             struct run_entry re;
             run_get_entry(cs->runlog_state, pinfo[prob_id].best_run, &re);
             if (separate_user_score > 0 && re.is_saved) {
-              status = re.saved_status;
-              act_status = re.saved_status;
-              test = re.saved_test;
+              if (re.token_count > 0 && (re.token_flags & TOKEN_FINALSCORE_BIT)) {
+                status = re.status;
+                act_status = re.status;
+                test = re.test;
+              } else {
+                status = re.saved_status;
+                act_status = re.saved_status;
+                test = re.saved_test;
+              }
             } else {
               status = re.status;
               act_status = re.status;
@@ -252,6 +274,7 @@
                 break;
               }
             } else if (global->score_system == SCORE_KIROV) {
+              if (pinfo[prob_id].last_untokenized && !pinfo[prob_id].solved_flag) total_score_uncertain = 1;
               total_score += pinfo[prob_id].best_score;
               switch (status) {
               case RUN_OK:
@@ -268,7 +291,7 @@
                   }
                 }
 %>
-        <td class="b1"><% score_view_display_f(out_f, prob, pinfo[prob_id].best_score); %></td>
+        <td class="b1"><% score_view_display_f(out_f, prob, pinfo[prob_id].best_score); %><% if (pinfo[prob_id].last_untokenized && !pinfo[prob_id].solved_flag) { %> - <i><s:_>May change!</s:_></i><% } %></td>
 <%
                 break;
               default:
@@ -384,7 +407,10 @@
         if ((global->score_system == SCORE_OLYMPIAD && !accepting_mode)
             || global->score_system == SCORE_KIROV || global->score_system == SCORE_MOSCOW) {
 %>
-<p><big><s:_>Total score</s:_>: <s:v value="total_score" /></big></p>
+<p><big><s:_>Total score</s:_>: <s:v value="total_score" /><% 
+          if (total_score_uncertain) {
+%> - <i><s:_>May change!</s:_></i><%
+          } %></big></p>
 <%
         }
       }

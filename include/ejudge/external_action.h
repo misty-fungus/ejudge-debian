@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: external_action.h 8267 2014-05-28 17:56:51Z cher $ */
+/* $Id$ */
 #ifndef __EXTERNAL_ACTION_H__
 #define __EXTERNAL_ACTION_H__
 

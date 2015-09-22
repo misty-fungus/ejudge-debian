@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: file_perms.c 8211 2014-05-15 08:23:47Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2009-2014 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: get_prev_user_id.c 6321 2011-05-08 18:56:21Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2011 Alexander Chernov <cher@ejudge.ru> */
 

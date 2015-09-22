@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: varsubst.h 8219 2014-05-16 05:21:59Z cher $ */
+/* $Id$ */
 #ifndef __VARSUBST_H__
 #define __VARSUBST_H__
 

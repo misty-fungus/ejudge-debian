@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: sformat.h 8219 2014-05-16 05:21:59Z cher $ */
+/* $Id$ */
 #ifndef __SFORMAT_H__
 #define __SFORMAT_H__
 

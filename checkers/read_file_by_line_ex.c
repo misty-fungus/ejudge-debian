@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: read_file_by_line_ex.c 7462 2013-10-22 05:39:39Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2010-2013 Alexander Chernov <cher@ejudge.ru> */
 

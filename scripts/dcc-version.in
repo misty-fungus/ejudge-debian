@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: dcc-version.in 7432 2013-10-15 11:53:12Z cher $
+# $Id$
 # Copyright (c) 2005-2013 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"

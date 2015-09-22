@@ -1,0 +1,163 @@
+<% // -*- html -*-
+%>
+<div id="ScoringDialogDiv" title="Scoring" style="overflow: auto;">
+    <s:form id="ScoringDialogForm">
+        <s:hidden name="action" ac="prob-save-scoring-form" />
+        <input type="hidden" id="ScoringDialogProbId" name="prob_id" value="" />
+
+        <%@expand MENU_YESNO3 "ignore_compile_errors" "scoring" "Ignore compilation errors" "300" %>
+        <%@expand MENU_YESNO3 "use_ac_not_ok" "scoring" "Use PR (pending review) status instead of OK" "300" %>
+        <%@expand MENU_TEXTFIELD "ok_status" "scoring" "Success status" "300" %>
+        <%@expand MENU_YESNO3 "ignore_prev_ac" "scoring" "Mark previous PR as IG (ignored)" "300" %>
+        <%@expand MENU_YESNO3 "olympiad_mode" "scoring" "Use Olympiad mode" "300" %>
+        <%@expand MENU_YESNO3 "score_latest" "scoring" "Score the latest submit" "300" %>
+        <%@expand MENU_YESNO3 "score_latest_or_unmarked" "scoring" "Score the latest or the best unmarked" "300" %>
+        <%@expand MENU_YESNO3 "score_latest_marked" "scoring" "Score the latest marked submit" "300" %>
+        <%@expand MENU_YESNO3 "ignore_unmarked" "scoring" "Ignore unmarked runs in scoring" "300" %>
+        <%@expand MENU_YESNO3 "score_tokenized" "scoring" "Score only tokenized submits" "300" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "full_score" "scoring" "Score for full solution" "300" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "full_user_score" "scoring" "Score for user-visible full solution" "300" %>
+        <%@expand MENU_YESNO3 "variable_full_score" "scoring" "Allow variable score for full solution" "300" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "test_score" "scoring" "Default score for 1 passed test" "300" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "run_penalty" "scoring" "Penalty for a submission" "300" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "disqualified_penalty" "scoring" "Penalty for a disqualified submission" "300" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "acm_run_penalty" "scoring" "Penalty for a submission (minutes)" "300" %>
+        <%@expand MENU_TEXTFIELD "test_score_list" "scoring" "Test scores for tests" "300" %>
+        <%@expand MENU_TEXTFIELD "score_tests" "scoring" "Tests for problem scores" "300" %>
+        <%@expand MENU_TEXTFIELD "test_sets" "scoring" "Specially scored test sets" "300" %>
+        <%@expand MENU_TEXTFIELD "score_bonus" "scoring" "Additional score bonus" "300" %>
+
+    </s:form>
+</div>
+
+<script type="text/javascript">
+$(function() {
+    scoringDialog = $("#ScoringDialogDiv").dialog({
+        autoOpen: false,
+        height: 600,
+        width: 650,
+        modal: true,
+        buttons: {
+            "Save": function() {
+                var postData = $("#ScoringDialogForm").serialize();
+                var formURL = $("#ScoringDialogForm").attr("action");
+                $.ajax({
+                    url : formURL,
+                    type: "POST",
+                    data : postData,
+                    success:function(data, textStatus, jqXHR) {
+                        //data: return data from server
+                        document.location.reload(true);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        //if fails     
+                    }
+                });
+            },
+            Cancel: function() {
+                scoringDialog.dialog("close");
+            }
+        },
+        close : function() {
+        }
+    });
+
+    $("#orig-use_ac_not_ok-div").toggle(<s:v type="jsbool" value="!tmp_prob->ok_status" />);
+    $("#orig-ok_status-div").toggle(<s:v type="jsbool" value="tmp_prob->use_ac_not_ok <= 0" />);
+    $("#orig-ignore_prev_ac-div").toggle(<s:v type="jsbool" value="tmp_prob->use_ac_not_ok > 0" />);
+    $("#orig-olympiad_mode-div").toggle(global_score_kirov);
+    $("#orig-score_latest-div").toggle(global_score_kirov);
+    $("#orig-score_latest_or_unmarked-div").toggle(global_score_kirov);
+    $("#orig-score_latest_marked-div").toggle(global_score_kirov);
+    $("#orig-ignore_unmarked-div").toggle(global_score_kirov);
+    $("#orig-score_tokenized-div").toggle(global_score_kirov);
+    $("#orig-full_score-div").toggle(global_score_kirov_olympiad);
+    $("#orig-full_user_score-div").toggle(global_score_kirov_olympiad && <s:v type="jsbool" value="global->separate_user_score > 0" />);
+    $("#orig-variable_full_score-div").toggle(global_score_kirov_olympiad);
+    $("#orig-test_score-div").toggle(global_score_kirov_olympiad);
+    $("#orig-run_penalty-div").toggle(global_score_kirov_olympiad);
+    $("#orig-disqualified_penalty-div").toggle(global_score_kirov_olympiad);
+    $("#orig-acm_run_penalty-div").toggle(global_score_acm_moscow);
+    $("#orig-test_score_list-div").toggle(global_score_kirov_olympiad && <s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-score_tests-div").toggle(global_score_moscow && <s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-test_sets-div").toggle(global_score_kirov_olympiad && <s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-score_bonus-div").toggle(global_score_kirov_olympiad && <s:v type="jsbool" value="prob_id > 0" />);
+});
+
+function popupScoringDialog(e, skipField)
+{
+    $("#ScoringDialogProbId").val(prob_id);
+
+    <%@expand COPY_YESNO3 "ignore_compile_errors" %>
+    <%@expand COPY_YESNO3 "use_ac_not_ok" %>
+    <%@expand COPY_TEXTFIELD "ok_status" %>
+    <%@expand COPY_YESNO3 "ignore_prev_ac" %>
+    <%@expand COPY_YESNO3 "olympiad_mode" %>
+    <%@expand COPY_YESNO3 "score_latest" %>
+    <%@expand COPY_YESNO3 "score_latest_or_unmarked" %>
+    <%@expand COPY_YESNO3 "score_latest_marked" %>
+    <%@expand COPY_YESNO3 "ignore_unmarked" %>
+    <%@expand COPY_YESNO3 "score_tokenized" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "full_score" "prob->full_score < 0" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "full_user_score" "prob->full_user_score < 0" %>
+    <%@expand COPY_YESNO3 "variable_full_score" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "test_score" "prob->test_score < 0" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "run_penalty" "prob->run_penalty < 0" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "disqualified_penalty" "prob->disqualified_penalty < 0" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "acm_run_penalty" "prob->acm_run_penalty < 0" %>
+    <%@expand COPY_TEXTFIELD "test_score_list" %>
+    <%@expand COPY_TEXTFIELD "score_tests" %>
+    <%@expand COPY_TEXTFIELD "test_sets" %>
+    <%@expand COPY_TEXTFIELD "score_bonus" %>
+
+    <%@expand CLEAR_TEXTFIELD "ok_status" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "full_score" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "full_user_score" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "test_score" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "run_penalty" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "disqualified_penalty" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "acm_run_penalty" %>
+    <%@expand CLEAR_TEXTFIELD "test_score_list" %>
+    <%@expand CLEAR_TEXTFIELD "score_tests" %>
+    <%@expand CLEAR_TEXTFIELD "test_sets" %>
+    <%@expand CLEAR_TEXTFIELD "score_bonus" %>
+
+    if (e) e.stopPropagation();
+    scoringDialogOnChange();
+    $("#ScoringDialogDiv").dialog('open');
+}
+
+function scoringDialogOnChange(field)
+{
+    <%@expand ONCHANGE_WITH_DEFAULT "full_score" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "full_user_score" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "test_score" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "run_penalty" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "disqualified_penalty" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "acm_run_penalty" %>
+
+    var use_ac_not_ok = toBool($("#edit-use_ac_not_ok").val(), <s:v type="jsbool" value="sup_prob && sup_prob->use_ac_not_ok > 0" />);
+    $("#edit-use_ac_not_ok-div").toggle($("#edit-ok_status").val() == "");
+    $("#edit-ok_status-div").toggle(!use_ac_not_ok);
+    $("#edit-ignore_prev_ac-div").toggle(use_ac_not_ok);
+    $("#edit-olympiad_mode-div").toggle(global_score_kirov);
+    $("#edit-score_latest-div").toggle(global_score_kirov);
+    $("#edit-score_latest_or_unmarked-div").toggle(global_score_kirov);
+    $("#edit-score_latest_marked-div").toggle(global_score_kirov);
+    $("#edit-ignore_unmarked-div").toggle(global_score_kirov);
+    $("#edit-score_tokenized-div").toggle(global_score_kirov);
+    $("#edit-full_score-div").toggle(global_score_kirov_olympiad);
+    $("#edit-full_user_score-div").toggle(global_score_kirov_olympiad && <s:v type="jsbool" value="global->separate_user_score > 0" />);
+    $("#edit-variable_full_score-div").toggle(global_score_kirov_olympiad);
+    $("#edit-test_score-div").toggle(global_score_kirov_olympiad);
+    $("#edit-run_penalty-div").toggle(global_score_kirov_olympiad);
+    $("#edit-disqualified_penalty-div").toggle(global_score_kirov_olympiad);
+    $("#edit-acm_run_penalty-div").toggle(global_score_acm_moscow);
+    $("#edit-test_score_list-div").toggle(global_score_kirov_olympiad && <s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-score_tests-div").toggle(global_score_moscow && <s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-test_sets-div").toggle(global_score_kirov_olympiad && <s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-score_bonus-div").toggle(global_score_kirov_olympiad && <s:v type="jsbool" value="prob_id > 0" />);
+}
+
+
+</script>

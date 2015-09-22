@@ -1,4 +1,4 @@
-/* $Id: xfile.c 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 1998-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1998-04-22 22:11:30 cher> */

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: xml_err_a.c 8210 2014-05-14 23:41:03Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: curtime.c 8195 2014-05-14 20:19:32Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 

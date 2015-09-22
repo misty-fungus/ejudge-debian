@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_report_page.csp 8746 2014-11-13 10:02:18Z cher $ */
+/* $Id$ */
 %><%@include "priv_includes.csp"
 %><%
 #include "ejudge/archive_paths.h"

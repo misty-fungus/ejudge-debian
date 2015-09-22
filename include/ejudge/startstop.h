@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: startstop.h 8206 2014-05-14 22:30:25Z cher $ */
+/* $Id$ */
 
 #ifndef __STARTSTOP_H__
 #define __STARTSTOP_H__

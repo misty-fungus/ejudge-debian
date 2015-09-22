@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_user_ips_page.csp 8644 2014-10-18 06:39:05Z cher $ */
+/* $Id$ */
 %><%@include "priv_includes.csp"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
 %><%@page csp_view_priv_user_ips_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: variant_map.c 8782 2014-11-24 22:03:05Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: pass_fd.c 5679 2010-01-19 10:01:11Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2004 Alexander Chernov <cher@ispras.ru> */
 

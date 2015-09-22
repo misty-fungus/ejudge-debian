@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: number_io.h 8528 2014-08-22 11:25:35Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_NUMBER_IO_H__
 #define __REUSE_NUMBER_IO_H__

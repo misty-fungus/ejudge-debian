@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: nsdb_plugin.h 8233 2014-05-17 06:07:09Z cher $ */
+/* $Id$ */
 
 #ifndef __NSDB_PLUGIN_H__
 #define __NSDB_PLUGIN_H__

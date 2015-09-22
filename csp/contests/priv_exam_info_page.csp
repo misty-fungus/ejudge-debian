@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_exam_info_page.csp 8644 2014-10-18 06:39:05Z cher $ */
+/* $Id$ */
 %><%@include "priv_includes.csp"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
 %><%@set getter_name = "csp_get_priv_exam_info_page"

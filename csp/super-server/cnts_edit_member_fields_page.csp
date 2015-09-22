@@ -1,5 +1,5 @@
 <%
-/* $Id: cnts_edit_member_fields_page.csp 8623 2014-09-17 11:27:05Z cher $ */
+/* $Id$ */
 %><%@include "includes.csp"
 %><%
 %><%@set getter_name = "csp_get_cnts_edit_member_fields_page"

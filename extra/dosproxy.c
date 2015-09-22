@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: dosproxy.c 5685 2010-01-19 10:08:31Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002,2003 Alexander Chernov <cher@ispras.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: ej-javac.c 5685 2010-01-19 10:08:31Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2006-2007 Alexander Chernov <cher@ejudge.ru> */
 

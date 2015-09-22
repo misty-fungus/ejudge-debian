@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: serve.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -45,6 +44,7 @@
 #include "ejudge/pathutl.h"
 #include "ejudge/errlog.h"
 #include "ejudge/fileutl.h"
+#include "ejudge/xuser_plugin.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -145,24 +145,22 @@ main(int argc, char *argv[])
   // initialize the current time to avoid some asserts
   serve_state.current_time = time(0);
 
-  if (prepare(&serve_state, argv[i], p_flags, PREPARE_SERVE, cpp_opts,
+  if (prepare(NULL, &serve_state, argv[i], p_flags, PREPARE_SERVE, cpp_opts,
               (cmdline_socket_fd >= 0), 0, 0) < 0) return 1;
-  if (prepare_serve_defaults(&serve_state, &cur_contest) < 0) return 1;
+  if (prepare_serve_defaults(NULL, &serve_state, &cur_contest) < 0) return 1;
 
   global = serve_state.global;
   l10n_prepare(global->enable_l10n, global->l10n_dir);
 
   if (create_dirs(&serve_state, PREPARE_SERVE) < 0) return 1;
-  if (global->contest_id <= 0) {
-    err("contest_id is not defined");
+  serve_state.teamdb_state = teamdb_init(cur_contest->id);
+  serve_state.xuser_state = team_extra_open(config, cur_contest, global, NULL, 0);
+  if (!serve_state.xuser_state) {
+    err("xuser plugin failed to load");
     return 1;
   }
-  serve_state.teamdb_state = teamdb_init(global->contest_id);
-  serve_state.team_extra_state = team_extra_init();
-  team_extra_set_dir(serve_state.team_extra_state, global->team_extra_dir);
   if (!initialize_mode) {
-    if (teamdb_open_client(serve_state.teamdb_state, global->socket_path,
-                           global->contest_id) < 0)
+    if (teamdb_open_client(serve_state.teamdb_state, global->socket_path, cur_contest->id) < 0)
       return 1;
   }
   serve_state.runlog_state = run_init(serve_state.teamdb_state);
@@ -187,11 +185,13 @@ main(int argc, char *argv[])
     return 1;
   serve_load_status_file(&serve_state);
   serve_build_compile_dirs(&serve_state);
-  serve_build_run_dirs(&serve_state, global->contest_id);
+  serve_build_run_dirs(&serve_state, cur_contest->id);
   if (serve_create_symlinks(&serve_state) < 0) return 1;
   serve_state.current_time = time(0);
   serve_update_status_file(&serve_state, 1);
-  team_extra_flush(serve_state.team_extra_state);
+  if (serve_state.xuser_state) {
+    serve_state.xuser_state->vt->flush(serve_state.xuser_state);
+  }
   return 0;
 
  print_usage:

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: errlog.h 8183 2014-05-14 10:26:11Z cher $ */
+/* $Id$ */
 #ifndef __ERRLOG_H__
 #define __ERRLOG_H__
 

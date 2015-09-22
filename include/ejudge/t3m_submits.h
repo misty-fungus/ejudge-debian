@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: t3m_submits.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 #ifndef __T3M_SUBMITS_H__
 #define __T3M_SUBMITS_H__
 

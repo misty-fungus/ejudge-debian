@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: prepare.h 8793 2014-12-11 21:55:57Z cher $ */
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -666,6 +665,10 @@ struct section_global_data
   ejintbool_t show_deadline;
   /** store separate scores for participants */
   ejintbool_t separate_user_score;
+  /** show abbreviated SHA1 to users */
+  ejintbool_t show_sha1;
+  /** disclose judge identity in clar replies */
+  ejintbool_t show_judge_identity;
 
   /** use gzip compression for large files */
   ejintbool_t use_gzip;
@@ -699,11 +702,11 @@ struct section_global_data
   int team_page_quota;
 
   /* common compilation virtual address space size limit */
-  size_t compile_max_vm_size;
+  ej_size64_t compile_max_vm_size;
   /* common compilation stack size limit */
-  size_t compile_max_stack_size;
+  ej_size64_t compile_max_stack_size;
   /* common file size limit */
-  size_t compile_max_file_size;
+  ej_size64_t compile_max_file_size;
 
   /** per participant testing priority adjustment */
   char **user_priority_adjustments;
@@ -814,6 +817,8 @@ struct section_problem_data
   ejintbool_t score_latest_or_unmarked;
   /** for KIROV contests: score the latest marked submit */
   ejintbool_t score_latest_marked;
+  /** for KIROV contests: score only the tokenized submits (with tokens spent on them) */
+  ejintbool_t score_tokenized;
   /** maximum astronomical time for a problem (seconds) */
   int real_time_limit;
   /** time limit in seconds */
@@ -874,8 +879,12 @@ struct section_problem_data
   ejintbool_t restricted_statement;
   /** hide input/output file names from problem submit page */
   ejintbool_t hide_file_names;
+  /** hide information about real time limit */
+  ejintbool_t hide_real_time_limit;
   /** enable tokens for this problem */
   ejintbool_t enable_tokens;
+  /** enable tokens only for user AC status */
+  ejintbool_t tokens_for_user_ac;
   /** disable submission after this problem is solved */
   ejintbool_t disable_submit_after_ok;
   /** do not test this problem automatically */
@@ -952,6 +961,8 @@ struct section_problem_data
   unsigned char *tokens;
   /** process umask */
   unsigned char *umask;
+  /** success status (generalization of use_ac_not_ok) */
+  unsigned char *ok_status;
 
   struct token_info *token_info META_ATTRIB((meta_private));
 
@@ -1115,15 +1126,15 @@ struct section_problem_data
   int *token_open_tests_val META_ATTRIB((meta_private));
 
   /** max virtual size limit  */
-  size_t max_vm_size;
+  ej_size64_t max_vm_size;
   /** max size of the data (NOT USED) */
-  size_t max_data_size;
+  ej_size64_t max_data_size;
   /** max stack size limit */
-  size_t max_stack_size;
+  ej_size64_t max_stack_size;
   /** max allowed size of the core file */
-  size_t max_core_size;
+  ej_size64_t max_core_size;
   /** max file size */
-  size_t max_file_size;
+  ej_size64_t max_file_size;
   /** max number of opened files per process */
   int max_open_file_count;
   /** max number of processes per user */
@@ -1203,11 +1214,11 @@ struct section_language_data
   ejintbool_t disable_testing;
 
   /** max virtual size limit  */
-  size_t max_vm_size;
+  ej_size64_t max_vm_size;
   /** max stack size limit */
-  size_t max_stack_size;
+  ej_size64_t max_stack_size;
   /** max file size limit */
-  size_t max_file_size;
+  ej_size64_t max_file_size;
 
   /** index of the compile directory in the list of compile servers */
   int compile_dir_index;
@@ -1325,10 +1336,23 @@ struct section_tester_data
   int secure_exec_type_val META_ATTRIB((meta_private));
 };
 
-int prepare(serve_state_t, char const *, int flags, int mode, char const *opts,
-            int managed_flag, const unsigned char **, const unsigned char **);
+int
+prepare(
+        const struct contest_desc *cnts,
+        serve_state_t,
+        char const *, 
+        int flags,
+        int mode,
+        char const *opts,
+        int managed_flag,
+        const unsigned char **,
+        const unsigned char **);
 int create_dirs(serve_state_t, int mode);
-int prepare_serve_defaults(serve_state_t, const struct contest_desc **);
+int
+prepare_serve_defaults(
+        const struct contest_desc *cnts,
+        serve_state_t,
+        const struct contest_desc **);
 
 int find_tester(const serve_state_t, int, char const *);
 int find_variant(const serve_state_t, int, int, int *);
@@ -1369,9 +1393,19 @@ prepare_copy_problem(const struct section_problem_data *in);
 void prepare_set_prob_value(int field, struct section_problem_data *out,
                             const struct section_problem_data *abstr,
                             const struct section_global_data *global);
+void
+prepare_set_all_prob_values(
+        struct section_problem_data *out,
+        const struct section_problem_data *abstr,
+        const struct section_global_data *global);
 
-void prepare_unparse_global(FILE *f, struct section_global_data *global,
-                            const unsigned char *compile_dir, int need_variant_map);
+void
+prepare_unparse_global(
+        FILE *f,
+        const struct contest_desc *cnts,
+        struct section_global_data *global,
+        const unsigned char *compile_dir,
+        int need_variant_map);
 void prepare_unparse_unhandled_global(FILE *f,
                                       const struct section_global_data *global);
 int prepare_check_forbidden_global(FILE *f, const struct section_global_data *global);
@@ -1455,29 +1489,6 @@ lang_config_configure(
 	const unsigned char *config_dir,
         int max_lang,
         struct section_language_data **langs);
-
-int
-cntsprob_is_undefined(
-        const void *prob,
-        int f_id);
-
-void
-cntsprob_copy_and_set_default(
-        struct section_problem_data *dp,
-        const struct section_problem_data *sp,
-        const struct section_problem_data *ap,
-        const struct section_global_data *gp);
-
-void
-cntsprob_clear_field(
-        struct section_problem_data *dp,
-        int f_id);
-
-int
-cntsprob_is_settable_field(int f_id);
-
-int
-cntsprob_is_inheritable_field(int f_id);
 
 const unsigned char*
 get_advanced_layout_path(

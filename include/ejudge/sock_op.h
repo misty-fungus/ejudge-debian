@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: sock_op.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 #ifndef __SOCK_OP_H__
 #define __SOCK_OP_H__
 

@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: cldb_plugin_file.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,6 +25,7 @@
 #include "ejudge/xml_utils.h"
 #include "ejudge/base64.h"
 #include "ejudge/fileutl.h"
+#include "ejudge/ej_uuid.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -37,6 +37,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#define CURRENT_VERSION 2
+
 /* new clarification log header */
 struct clar_header_v1
 {
@@ -45,6 +47,36 @@ struct clar_header_v1
   unsigned char endianness;     /* 0 - little, 1 - big endian */
   unsigned char _pad[110];
 };
+
+enum { CLAR_ENTRY_V1_SUBJ_SIZE = 32, CLAR_ENTRY_V1_CHARSET_SIZE = 16 };
+
+struct clar_entry_v1
+{
+  int id;                       /* 4 */
+  ej_size_t size;               /* 4 */
+  ej_time64_t time;             /* 8 */
+  int nsec;                     /* 4 */
+  int from;                     /* 4 */
+  int to;                       /* 4 */
+  int j_from;                   /* 4 */
+  unsigned int flags;           /* 4 */
+  unsigned char ipv6_flag;      /* 1 */
+  unsigned char hide_flag;      /* 1 */
+  unsigned char ssl_flag;       /* 1 */
+  unsigned char appeal_flag;    /* 1 */
+  union
+  {
+    ej_ip4_t ip;
+    unsigned char ipv6[16];
+  } a;                          /* 16 */
+  unsigned short locale_id;     /* 2 */
+  unsigned char _pad2[2];       /* 2 */
+  int in_reply_to;              /* 4 */ /* 1 means in clar_id 0! */
+  int run_id;                   /* 4 */ /* 1 means run_id 0! */
+  unsigned char _pad3[12];
+  unsigned char charset[CLAR_ENTRY_V1_CHARSET_SIZE];
+  unsigned char subj[CLAR_ENTRY_V1_SUBJ_SIZE];
+};                              /* 128 */
 
 struct cldb_file_state
 {
@@ -96,6 +128,7 @@ static int
 add_text_func(
         struct cldb_plugin_cnts *cdata,
         int clar_id,
+        const ej_uuid_t *puuid,
         const unsigned char *text,
         size_t size);
 static int
@@ -109,7 +142,12 @@ modify_record_func(
         struct cldb_plugin_cnts *cdata,
         int clar_id,
         int mask,
-        const struct clar_entry_v1 *pe);
+        const struct clar_entry_v2 *pe);
+static int
+fetch_run_messages_func(
+        struct cldb_plugin_cnts *cdata,
+        const ej_uuid_t *p_run_uuid,
+        struct full_clar_entry **pp);
 
 struct cldb_plugin_iface cldb_plugin_file =
 {
@@ -137,6 +175,7 @@ struct cldb_plugin_iface cldb_plugin_file =
   add_text_func,
   modify_text_func,
   modify_record_func,
+  fetch_run_messages_func,
 };
 
 static struct common_plugin_data *
@@ -232,7 +271,7 @@ clar_read_entry(
   if (clars.v[n].to && !teamdb_lookup(clars.v[n].to))
     ERR_R("[%d]: bad to: %d", n, clars.v[n].to);
   */
-  if (cl_state->clars.v[n].flags < 0 || cl_state->clars.v[n].flags > 255)
+  if (/*cl_state->clars.v[n].flags < 0 ||*/ cl_state->clars.v[n].flags > 255)
     ERR_R("[%d]: bad flags: %d", n, cl_state->clars.v[n].flags);
   if (strlen(b2) > IP_STRING_SIZE) ERR_R("[%d]: ip is too long", n);
   if (strlen(b3) > SUBJ_STRING_SIZE) ERR_R("[%d]: subj is too long", n);
@@ -253,7 +292,7 @@ create_new_clar_log(
 
   memset(&cs->header, 0, sizeof(cs->header));
   strncpy(cs->header.signature, signature_v1, sizeof(cs->header.signature));
-  cs->header.version = 1;
+  cs->header.version = CURRENT_VERSION;
 
   if (cl_state->clars.v) {
     xfree(cl_state->clars.v);
@@ -365,17 +404,40 @@ read_clar_file_header(
 {
   int rsz = 0;
 
-  if (length < sizeof(struct clar_header_v1)) return 0;
-  if ((length - sizeof(struct clar_header_v1))
-      % sizeof(struct clar_entry_v1) != 0) return 0;
+  // read signature bytes
+  unsigned char file_signature[16];
   if (sf_lseek(cs->clar_fd, 0, SEEK_SET, "clar_open") < 0) return -1;
-  if ((rsz = sf_read(cs->clar_fd, &cs->header, sizeof(cs->header),
-                     "clar_open")) < 0)
+  if ((rsz = sf_read(cs->clar_fd, file_signature, sizeof(file_signature), "clar_open")) < 0)
     return -1;
-  if (rsz != sizeof(cs->header)) return -1;
-  if (strcmp(cs->header.signature, signature_v1)) return 0;
-  if (cs->header.endianness > 1) return 0;
-  return cs->header.version;
+  if (rsz != sizeof(file_signature)) return 0;
+  if (memcmp(file_signature, signature_v1, sizeof(file_signature)) != 0) {
+    // file signature mismatch
+    return 0;
+  }
+  unsigned char version = 0xff;
+  unsigned char endianness = 0xff;
+
+  if ((rsz = sf_read(cs->clar_fd, &version, sizeof(version), "clar_open")) < 0) return -1;
+  if (rsz != 1) return 0;
+  if ((rsz = sf_read(cs->clar_fd, &endianness, sizeof(endianness), "clar_open")) < 0) return -1;
+  if (rsz != 1) return 0;
+
+  if (endianness == 1) {
+    err("big-endian clarlog files are not supported");
+    return -1;
+  }
+  if (endianness != 0) {
+    err("invalid endianness");
+    return -1;
+  }
+  if (version > 2) return -1;
+
+  memset(&cs->header, 0, sizeof(cs->header));
+  memcpy(cs->header.signature, file_signature, sizeof(file_signature));
+  cs->header.version = version;
+  cs->header.endianness = endianness;
+
+  return version;
 }
 
 static int
@@ -387,15 +449,13 @@ read_clar_file(
   unsigned char *buf;
   int bsz, rsz, i;
 
-  cl_state->clars.u = (length - sizeof(struct clar_header_v1))
-    / sizeof(struct clar_entry_v1);
+  cl_state->clars.u = (length - sizeof(struct clar_header_v1)) / sizeof(struct clar_entry_v2);
   cl_state->clars.a = 128;
   while (cl_state->clars.a < cl_state->clars.u) cl_state->clars.a *= 2;
   XCALLOC(cl_state->clars.v, cl_state->clars.a);
   for (i = 0; i < cl_state->clars.a; cl_state->clars.v[i++].id = -1);
 
-  if (sf_lseek(cs->clar_fd, sizeof(struct clar_header_v1), SEEK_SET,
-               "clar_read")<0)
+  if (sf_lseek(cs->clar_fd, sizeof(struct clar_header_v1), SEEK_SET, "clar_read") < 0)
     return -1;
 
   buf = (unsigned char*) cl_state->clars.v;
@@ -409,6 +469,104 @@ read_clar_file(
     bsz -= rsz; buf += rsz;
   }
   return 0;
+}
+
+static int
+read_clar_file_v1(
+        struct cldb_file_cnts *cs,
+        off_t length)
+{
+  struct clarlog_state *cl_state = cs->cl_state;
+
+  cl_state->clars.u = (length - sizeof(struct clar_header_v1)) / sizeof(struct clar_entry_v1);
+  cl_state->clars.a = 128;
+  while (cl_state->clars.a < cl_state->clars.u) cl_state->clars.a *= 2;
+  XCALLOC(cl_state->clars.v, cl_state->clars.a);
+  for (int i = 0; i < cl_state->clars.a; cl_state->clars.v[i++].id = -1);
+
+  if (sf_lseek(cs->clar_fd, sizeof(struct clar_header_v1), SEEK_SET, "clar_read") < 0)
+    return -1;
+
+  for (int i = 0; i < cl_state->clars.u; ++i) {
+    struct clar_entry_v1 ce;
+
+    memset(&ce, 0, sizeof(ce));
+    int rsz = sf_read(cs->clar_fd, &ce, sizeof(ce), "read_clar_file_v1");
+    if (rsz < 0) return -1;
+    if (!rsz) {
+      err("read_clar_file_v1: unexpected EOF");
+      return -1;
+    }
+    if (rsz != sizeof(ce)) {
+      err("read_clar_file_v1: invalid read size");
+      return -1;
+    }
+
+    struct clar_entry_v2 *nce = &cl_state->clars.v[i];
+    nce->id = ce.id;
+    ej_uuid_generate(&nce->uuid);
+    nce->size = ce.size;
+    nce->time = ce.time;
+    nce->nsec = ce.nsec;
+    nce->from = ce.from;
+    nce->to = ce.to;
+    nce->j_from = ce.j_from;
+    nce->flags = ce.flags;
+    nce->ipv6_flag = ce.ipv6_flag;
+    nce->hide_flag = ce.hide_flag;
+    nce->ssl_flag = ce.ssl_flag;
+    nce->appeal_flag = ce.appeal_flag;
+    memcpy(&nce->a, &ce.a, sizeof(nce->a));
+    nce->locale_id = ce.locale_id;
+    nce->in_reply_to = ce.in_reply_to;
+    nce->run_id = ce.run_id;
+    snprintf(nce->charset, CLAR_ENTRY_V2_CHARSET_SIZE, "%s", ce.charset);
+    snprintf(nce->subj, CLAR_ENTRY_V2_SUBJ_SIZE, "%s", ce.subj);
+  }
+
+  for (int i = 0; i < cl_state->clars.u; ++i) {
+    struct clar_entry_v2 *ce = &cl_state->clars.v[i];
+    if (ce->id >= 0 && ce->in_reply_to > 0) {
+      for (int j = 0; j < cl_state->clars.u; ++j) {
+        struct clar_entry_v2 *ce2 = &cl_state->clars.v[j];
+        if (ce2->id == ce->in_reply_to - 1) {
+          ej_uuid_copy(&ce->in_reply_uuid, &ce2->uuid);
+          break;
+        }
+      }
+    }
+  }
+
+  return 0;
+}
+
+static int
+convert_log_from_version_1(
+        struct cldb_file_cnts *cs,
+        int flags,
+        off_t length,
+        const unsigned char *path)
+{
+  path_t v1_path;
+
+  if (read_clar_file_v1(cs, length) < 0) return -1;
+
+  info("clar log version 1 successfully read");
+
+  if (flags == CLAR_LOG_READONLY) return 0;
+
+  cs->header.version = 2;
+  close(cs->clar_fd); cs->clar_fd = -1;
+  snprintf(v1_path, sizeof(v1_path), "%s.v1", path);
+  if (rename(path, v1_path) < 0) {
+    err("rename() failed: %s", os_ErrorMsg());
+    return -1;
+  }
+
+  if ((cs->clar_fd = sf_open(path, O_RDWR|O_CREAT|O_TRUNC, 0666)) < 0)
+    return -1;
+
+  return write_all_clarlog(cs);
 }
 
 static int
@@ -446,10 +604,13 @@ do_clar_open(
   }
   if ((version = read_clar_file_header(cs, stb.st_size)) < 0)
     return -1;
-  if (!version) {
+  if (version == 0) {
     return convert_log_from_version_0(cs, flags, stb.st_size, path);
   }
-  if (version > 1) {
+  if (version == 1) {
+    return convert_log_from_version_1(cs, flags, stb.st_size, path);
+  }
+  if (version > 2) {
     err("clar_log: cannot handle clar log file of version %d", version);
     return -1;
   }
@@ -549,7 +710,7 @@ do_flush_entry(struct cldb_file_cnts *cs, int num)
   int wsz;
 
   if (sf_lseek(cs->clar_fd,
-               sizeof(struct clar_entry_v1) * num
+               sizeof(struct clar_entry_v2) * num
                + sizeof(struct clar_header_v1),
                SEEK_SET, "clar_flush_entry") < 0)
     return -1;
@@ -605,6 +766,7 @@ static int
 add_text_func(
         struct cldb_plugin_cnts *cdata,
         int clar_id,
+        const ej_uuid_t *puuid,
         const unsigned char *text,
         size_t size)
 {
@@ -642,8 +804,54 @@ modify_record_func(
         struct cldb_plugin_cnts *cdata,
         int clar_id,
         int mask,
-        const struct clar_entry_v1 *pe)
+        const struct clar_entry_v2 *pe)
 {
   struct cldb_file_cnts *cs = (struct cldb_file_cnts*) cdata;
   return do_flush_entry(cs, clar_id);
+}
+
+static int
+fetch_run_messages_func(
+        struct cldb_plugin_cnts *cdata,
+        const ej_uuid_t *p_run_uuid,
+        struct full_clar_entry **pp)
+{
+  struct cldb_file_cnts *cs = (struct cldb_file_cnts*) cdata;
+  struct clarlog_state *cl_state = cs->cl_state;
+  int i, j, count = 0;
+  struct full_clar_entry *fce = NULL;
+  unsigned char name_buf[PATH_MAX];
+
+  for (i = 0; i < cl_state->clars.u; ++i) {
+    const struct clar_entry_v2 *pe = &cl_state->clars.v[i];
+    if (pe->id >= 0
+        && pe->run_uuid.v[0] == p_run_uuid->v[0]
+        && pe->run_uuid.v[1] == p_run_uuid->v[1]
+        && pe->run_uuid.v[2] == p_run_uuid->v[2]
+        && pe->run_uuid.v[3] == p_run_uuid->v[3]) {
+      ++count;
+    }
+  }
+  if (count <= 0) return 0;
+
+  XCALLOC(fce, count);
+
+  for (i = 0, j = 0; i < cl_state->clars.u; ++i) {
+    const struct clar_entry_v2 *pe = &cl_state->clars.v[i];
+    if (pe->id >= 0
+        && pe->run_uuid.v[0] == p_run_uuid->v[0]
+        && pe->run_uuid.v[1] == p_run_uuid->v[1]
+        && pe->run_uuid.v[2] == p_run_uuid->v[2]
+        && pe->run_uuid.v[3] == p_run_uuid->v[3]) {
+      char *p = 0;
+      fce[j].e = *pe;
+      snprintf(name_buf, sizeof(name_buf), "%06d", pe->id);
+      generic_read_file(&p, 0, &fce[j].size, 0, cs->clar_archive_dir, name_buf, NULL);
+      fce[j].text = p; p = NULL;
+      ++j;
+    }
+  }
+
+  *pp = fce;
+  return count;
 }

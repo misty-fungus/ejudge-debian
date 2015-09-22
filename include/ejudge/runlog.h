@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: runlog.h 8737 2014-11-11 12:14:51Z cher $ */
 #ifndef __RUNLOG_H__
 #define __RUNLOG_H__
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -94,7 +93,7 @@ run_add_record(
         int            nsec,
         size_t         size,
         const ruint32_t sha1[5],
-        const ruint32_t uuid[4],
+        const ej_uuid_t *puuid,
         const ej_ip_t *pip,
         int            ssl_flag,
         int            locale_id,
@@ -170,6 +169,7 @@ int  run_get_attempts(runlog_state_t, int, int *, int *, int);
 int run_count_all_attempts(runlog_state_t state, int user_id, int prob_id);
 int run_count_all_attempts_2(runlog_state_t state, int user_id, int prob_id, int ignored_set);
 char *run_status_str(int, char *, int, int, int);
+const unsigned char * run_status_short_str(int status);
 
 int run_get_fog_period(runlog_state_t, time_t, int, int);
 int run_reset(runlog_state_t, time_t, time_t, time_t);
@@ -274,7 +274,7 @@ struct run_entry
   rint16_t       mime_type;     /* 2 */
   unsigned char  eoln_type;     /* 1 */
   unsigned char  is_marked;     /* 1 */
-  ruint32_t      run_uuid[4];   /* 16 */
+  ej_uuid_t      run_uuid;      /* 16 */
   unsigned char  token_flags;   /* 1 */
   unsigned char  token_count;   /* 1 */
   unsigned char  _unused[6];    /* 6 */
@@ -365,7 +365,7 @@ int run_find(
         int team_id,
         int prob_id,
         int lang_id,
-        ruint32_t *p_run_uuid,
+        ej_uuid_t *p_run_uuid,
         int *p_store_flags);
 int run_undo_add_record(runlog_state_t, int run_id);
 int run_is_failed_attempt(int status);
@@ -419,7 +419,7 @@ int run_get_user_next_run_id(runlog_state_t state, int run_id);
 int run_get_user_prev_run_id(runlog_state_t state, int run_id);
 
 int run_get_uuid_hash_state(runlog_state_t state);
-int run_find_run_id_by_uuid(runlog_state_t state, ruint32_t *uuid);
+int run_find_run_id_by_uuid(runlog_state_t state, const ej_uuid_t *puuid);
 
 int run_count_tokens(runlog_state_t state, int user_id, int prob_id);
 

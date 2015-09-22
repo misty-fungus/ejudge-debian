@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: interrupt.h 8198 2014-05-14 20:35:18Z cher $ */
+/* $Id$ */
 
 #ifndef __INTERRUPT_H__
 #define __INTERRUPT_H__

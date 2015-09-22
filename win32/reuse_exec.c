@@ -1,4 +1,4 @@
-/* $Id: reuse_exec.c 8796 2014-12-11 22:33:10Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 1999-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 11:05:09 cher> */

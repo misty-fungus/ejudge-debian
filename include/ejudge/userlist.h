@@ -1,10 +1,9 @@
 /* -*- c -*- */
-/* $Id: userlist.h 8229 2014-05-16 12:33:02Z cher $ */
 
 #ifndef __USERLIST_H__
 #define __USERLIST_H__
 
-/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -204,6 +203,7 @@ enum
     USERLIST_A_DESCRIPTION,
     USERLIST_A_USER_ID,
     USERLIST_A_CLIENT_KEY,
+    USERLIST_A_TOTAL,
 
     USERLIST_LAST_ATTN,
   };
@@ -582,6 +582,7 @@ struct userlist_list
   int user_map_size;
   struct userlist_user **user_map;
   int member_serial;
+  long long total;
 
   /* login hash information */
   size_t login_hash_size;
@@ -752,7 +753,7 @@ struct userlist_member *
 userlist_get_member_nc(struct userlist_members *, int, int *, int *);
 void userlist_clear_copied_from(struct userlist_members *mm);
 
-void userlist_write_xml_header(FILE *f);
+void userlist_write_xml_header(FILE *f, long long total);
 void userlist_write_xml_footer(FILE *f);
 void userlist_write_contests_xml_header(FILE *f);
 void userlist_write_contests_xml_footer(FILE *f);
@@ -823,5 +824,27 @@ int
 userlist_lookup_csv_field_name(const unsigned char *str);
 const unsigned char *
 userlist_get_csv_field_name(int field_id);
+
+// field filter operations (jqgrid)
+enum
+{
+  USER_FILTER_OP_NONE,
+  USER_FILTER_OP_EQ, // "eq": 'equal'
+  USER_FILTER_OP_NE, // "ne": 'not equal'
+  USER_FILTER_OP_LT, // "lt": 'less'
+  USER_FILTER_OP_LE, // "le": 'less or equal'
+  USER_FILTER_OP_GT, // "gt": 'greater'
+  USER_FILTER_OP_GE, // "ge": 'greater or equal'
+  USER_FILTER_OP_BW, // "bw": 'begins with'
+  USER_FILTER_OP_BN, // "bn": 'does not begin with'
+  USER_FILTER_OP_IN, // "in": 'is in'
+  USER_FILTER_OP_NI, // "ni": 'is not in'
+  USER_FILTER_OP_EW, // "ew": 'ends with'
+  USER_FILTER_OP_EN, // "en": 'does not end with'
+  USER_FILTER_OP_CN, // "cn": 'contains'
+  USER_FILTER_OP_NC, // "nc": 'does not contain'
+};
+
+int userlist_parse_filter_op(const unsigned char *str);
 
 #endif /* __USERLIST_H__ */

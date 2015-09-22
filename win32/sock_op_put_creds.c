@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: sock_op_put_creds.c 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 

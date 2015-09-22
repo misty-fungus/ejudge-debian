@@ -1,7 +1,6 @@
 # -*- Makefile -*-
-# $Id: main.make 8601 2014-09-06 19:03:26Z cher $
 
-# Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -40,7 +39,8 @@ CFILES = \
  csp_cnts_edit_access_page.c\
  csp_cnts_edit_cur_contest_page.c\
  csp_cnts_edit_cur_global_page.c\
- csp_cnts_edit_cur_language_page.c\
+ csp_cnts_edit_cur_languages_page.c\
+ csp_cnts_edit_cur_problems_page.c\
  csp_cnts_edit_cur_problem_page.c\
  csp_cnts_edit_cur_variant_page.c\
  csp_cnts_edit_file_page.c\
@@ -61,6 +61,39 @@ CFILES = \
  csp_login_page.c\
  csp_main_page.c\
  csp_problem_packages_page.c\
+ csp_user_browse_page.c\
+ csp_user_browse_data.c\
+ csp_get_contest_list.c\
+ csp_cnts_save_basic_form.c\
+ csp_cnts_save_flags_form.c\
+ csp_cnts_save_registration_form.c\
+ csp_cnts_save_timing_form.c\
+ csp_cnts_save_urls_form.c\
+ csp_cnts_save_headers_form.c\
+ csp_cnts_save_attrs_form.c\
+ csp_cnts_save_notifications_form.c\
+ csp_cnts_save_advanced_form.c\
+ csp_glob_save_main_form.c\
+ csp_glob_save_capabilities_form.c\
+ csp_glob_save_files_form.c\
+ csp_glob_save_quotas_form.c\
+ csp_glob_save_urls_form.c\
+ csp_glob_save_attrs_form.c\
+ csp_glob_save_advanced_form.c\
+ csp_glob_save_limits_form.c\
+ csp_lang_save_main_form.c\
+ csp_prob_save_id_form.c\
+ csp_prob_save_files_form.c\
+ csp_prob_save_validation_form.c\
+ csp_prob_save_view_form.c\
+ csp_prob_save_submission_form.c\
+ csp_prob_save_compiling_form.c\
+ csp_prob_save_running_form.c\
+ csp_prob_save_limits_form.c\
+ csp_prob_save_checking_form.c\
+ csp_prob_save_scoring_form.c\
+ csp_prob_save_feedback_form.c\
+ csp_prob_save_standing_form.c\
  csp_error_unknown_page.c
 
 SOFILES = $(CFILES:.c=.so)
@@ -90,8 +123,9 @@ csp_cnts_commit_page.c : cnts_commit_page.csp includes.csp stdvars.csp header.cs
 csp_cnts_edit_access_page.c : cnts_edit_access_page.csp includes.csp stdvars.csp header.csp footer.csp
 csp_cnts_edit_cur_contest_page.c : cnts_edit_cur_contest_page.csp includes.csp stdvars.csp header.csp footer.csp cnts_edit_cur_top_menu.csp cnts_edit_cur_bottom_menu.csp
 csp_cnts_edit_cur_global_page.c : cnts_edit_cur_global_page.csp includes.csp stdvars.csp header.csp footer.csp cnts_edit_cur_top_menu.csp cnts_edit_cur_bottom_menu.csp
-csp_cnts_edit_cur_language_page.c : cnts_edit_cur_language_page.csp includes.csp stdvars.csp header.csp footer.csp cnts_edit_cur_top_menu.csp cnts_edit_cur_bottom_menu.csp
-csp_cnts_edit_cur_problem_page.c : cnts_edit_cur_problem_page.csp includes.csp stdvars.csp header.csp footer.csp cnts_edit_cur_top_menu.csp cnts_edit_cur_one_problem.csp cnts_edit_cur_bottom_menu.csp
+csp_cnts_edit_cur_languages_page.c : cnts_edit_cur_languages_page.csp includes.csp stdvars.csp header.csp footer.csp cnts_edit_cur_top_menu.csp cnts_edit_cur_bottom_menu.csp
+csp_cnts_edit_cur_problems_page.c : cnts_edit_cur_problems_page.csp includes.csp stdvars.csp header.csp footer.csp cnts_edit_cur_top_menu.csp cnts_edit_cur_bottom_menu.csp
+csp_cnts_edit_cur_problem_page.c : cnts_edit_cur_problem_page.csp includes.csp stdvars.csp header.csp footer.csp cnts_edit_cur_top_menu.csp cnts_edit_cur_bottom_menu.csp cnts_edit_cur_problem_submission.csp cnts_edit_cur_problem_compiling.csp cnts_edit_cur_problem_running.csp cnts_edit_cur_problem_limits.csp cnts_edit_cur_problem_checking.csp cnts_edit_cur_problem_scoring.csp cnts_edit_cur_problem_feedback.csp cnts_edit_cur_problem_standing.csp cnts_edit_cur_problem_macros.csp
 csp_cnts_edit_cur_variant_page.c : cnts_edit_cur_variant_page.csp includes.csp stdvars.csp header.csp footer.csp cnts_edit_cur_top_menu.csp cnts_edit_cur_bottom_menu.csp
 csp_cnts_edit_file_page.c : cnts_edit_file_page.csp includes.csp stdvars.csp header.csp footer.csp
 csp_cnts_edit_member_fields_page.c : cnts_edit_member_fields_page.csp includes.csp stdvars.csp header.csp footer.csp
@@ -111,6 +145,39 @@ csp_create_contest_2_action.c : create_contest_2_action.csp includes.csp stdvars
 csp_login_page.c : main_page.csp includes.csp stdvars.csp header.csp footer.csp
 csp_main_page.c : main_page.csp includes.csp stdvars.csp header.csp footer.csp
 csp_problem_packages_page.c : problem_packages_page.csp includes.csp stdvars.csp header.csp footer.csp
+csp_user_browse_page.c : user_browse_page.csp includes.csp stdvars.csp header_jqgrid.csp footer.csp
+csp_user_browse_data.c : user_browse_data.csp includes.csp stdvars.csp
+csp_get_contest_list.c : get_contest_list.csp includes.csp stdvars.csp
+csp_cnts_save_basic_form.c : cnts_save_basic_form.csp includes.csp stdvars.csp
+csp_cnts_save_flags_form.c : cnts_save_flags_form.csp includes.csp stdvars.csp
+csp_cnts_save_registration_form.c : cnts_save_registration_form.csp includes.csp stdvars.csp
+csp_cnts_save_timing_form.c : cnts_save_timing_form.csp includes.csp stdvars.csp
+csp_cnts_save_urls_form.c : cnts_save_urls_form.csp includes.csp stdvars.csp
+csp_cnts_save_headers_form.c : cnts_save_headers_form.csp includes.csp stdvars.csp
+csp_cnts_save_attrs_form.c : cnts_save_attrs_form.csp includes.csp stdvars.csp
+csp_cnts_save_notifications_form.c : cnts_save_notifications_form.csp includes.csp stdvars.csp
+csp_cnts_save_advanced_form.c : cnts_save_advanced_form.csp includes.csp stdvars.csp
+csp_glob_save_main_form.c : glob_save_main_form.csp includes.csp stdvars.csp
+csp_glob_save_capabilities_form.c : glob_save_capabilities_form.csp includes.csp stdvars.csp
+csp_glob_save_files_form.c : glob_save_files_form.csp includes.csp stdvars.csp
+csp_glob_save_quotas_form.c : glob_save_quotas_form.csp includes.csp stdvars.csp
+csp_glob_save_urls_form.c : glob_save_urls_form.csp includes.csp stdvars.csp
+csp_glob_save_attrs_form.c : glob_save_attrs_form.csp includes.csp stdvars.csp
+csp_glob_save_advanced_form.c : glob_save_advanced_form.csp includes.csp stdvars.csp
+csp_glob_save_limits_form.c : glob_save_limits_form.csp includes.csp stdvars.csp
+csp_lang_save_main_form.c : lang_save_main_form.csp includes.csp stdvars.csp
+csp_prob_save_id_form.c : prob_save_id_form.csp includes.csp stdvars.csp
+csp_prob_save_files_form.c : prob_save_files_form.csp includes.csp stdvars.csp
+csp_prob_save_validation_form.c : prob_save_validation_form.csp includes.csp stdvars.csp
+csp_prob_save_view_form.c : prob_save_view_form.csp includes.csp stdvars.csp
+csp_prob_save_submission_form.c : prob_save_submission_form.csp includes.csp stdvars.csp
+csp_prob_save_compiling_form.c : prob_save_compiling_form.csp includes.csp stdvars.csp
+csp_prob_save_running_form.c : prob_save_running_form.csp includes.csp stdvars.csp
+csp_prob_save_limits_form.c : prob_save_limits_form.csp includes.csp stdvars.csp
+csp_prob_save_checking_form.c : prob_save_checking_form.csp includes.csp stdvars.csp
+csp_prob_save_scoring_form.c : prob_save_scoring_form.csp includes.csp stdvars.csp
+csp_prob_save_feedback_form.c : prob_save_feedback_form.csp includes.csp stdvars.csp
+csp_prob_save_standing_form.c : prob_save_standing_form.csp includes.csp stdvars.csp
 
 csp_error_unknown_page.c : error_unknown_page.csp includes.csp stdvars.csp header.csp footer.csp
 

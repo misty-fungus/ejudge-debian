@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_html_3.c 8604 2014-09-10 17:08:07Z cher $ */
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -28,6 +27,7 @@
 #include "ejudge/xml_utils.h"
 #include "ejudge/copyright.h"
 #include "ejudge/team_extra.h"
+#include "ejudge/xuser_plugin.h"
 
 #include "ejudge/xalloc.h"
 
@@ -44,6 +44,8 @@
 #if !defined CONF_STYLE_PREFIX
 #define CONF_STYLE_PREFIX "/ejudge/"
 #endif
+
+#pragma GCC diagnostic ignored "-Wformat-security" 
 
 #define ARMOR(s)  html_armor_buf(&ab, s)
 
@@ -894,7 +896,7 @@ ns_html_err_disqualified(
   }
   fprintf(fout, "<p>%s</p>\n",
           _("You are disqualified by the contest administration."));
-  if ((t_extra = team_extra_get_entry(cs->team_extra_state, phr->user_id))
+  if (cs->xuser_state && (t_extra = cs->xuser_state->vt->get_entry(cs->xuser_state, phr->user_id))
       && t_extra->disq_comment) {
     fprintf(fout, "%s", t_extra->disq_comment);
   }

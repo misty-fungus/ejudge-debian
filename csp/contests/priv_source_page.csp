@@ -1,11 +1,11 @@
 <%
-/* $Id: priv_source_page.csp 8644 2014-10-18 06:39:05Z cher $ */
 %><%@include "priv_includes.csp"
 %><%
 #include "ejudge/ej_uuid.h"
 #include "ejudge/mime_type.h"
 #include "ejudge/charsets.h"
 #include "ejudge/fileutl.h"
+#include "ejudge/testing_report_xml.h"
 %><%@set getter_name = "csp_get_priv_source_page"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
 %><%@set err_prefix = "NEW_SRV_ERR_"
@@ -35,6 +35,14 @@
   unsigned char title[1024];
   int run_id;
   int enable_main_menu = 0;
+  int rep_flag = 0;
+  path_t rep_path;
+  char *rep_text = NULL;
+  size_t rep_len = 0;
+  testing_report_xml_t tr = NULL;
+  unsigned char *compiler_output = NULL;
+  struct full_clar_entry_vector fcev = {};
+  int i;
 
   if (ns_parse_run_id(out_f, phr, cnts, extra, &run_id, 0) < 0)
     FAIL(NEW_SRV_ERR_INV_RUN_ID);
@@ -71,6 +79,34 @@
   if (start_time < 0) start_time = 0;
   if (run_time < start_time) run_time = start_time;
 
+  rep_flag = serve_make_xml_report_read_path(cs, rep_path, sizeof(rep_path), &info);
+  if (rep_flag >= 0) {
+    if (generic_read_file(&rep_text, 0, &rep_len, rep_flag, 0, rep_path, 0) >= 0) {
+      const unsigned char *start_ptr = NULL;
+      int content_type = get_content_type(rep_text, &start_ptr);
+      if (content_type == CONTENT_TYPE_XML && start_ptr) {
+        tr = testing_report_parse_xml(start_ptr);
+        if (tr && tr->compiler_output) {
+          compiler_output = tr->compiler_output; tr->compiler_output = NULL;
+        }
+        testing_report_free(tr); tr = NULL;
+      }
+      xfree(rep_text); rep_text = NULL; rep_len = 0;
+    }
+  }
+
+  if (!compiler_output) {
+    txt_flags = serve_make_report_read_path(cs, txt_path, sizeof(txt_path), &info);
+    if (txt_flags >= 0) {
+      if (generic_read_file(&txt_text, 0, &txt_size, txt_flags, 0, txt_path, 0) >= 0) {
+        compiler_output = txt_text; txt_text = 0; txt_size = 0;
+      }
+    }
+  }
+
+  if (ej_uuid_is_nonempty(info.run_uuid)) {
+    clar_fetch_run_messages(cs->clarlog_state, &info.run_uuid, &fcev);
+  }
 
   snprintf(title, sizeof(title), "%s %d", _("Viewing run"), run_id);
 %><%@include "priv_header.csp"
@@ -114,9 +150,6 @@
     <th style="width: 10em;"><s:_>Run ID</s:_></th>
     <th><s:_>Submission time</s:_></th>
     <th><s:_>Contest time</s:_></th>
-<% #if CONF_HAS_LIBUUID - 0 != 0 %>
-    <th>UUID</th>
-<% #endif %>
     <th><s:_>Originator IP</s:_></th>
     <th><s:_>User ID</s:_></th>
     <th><s:_>User login</s:_></th>
@@ -168,9 +201,6 @@
     <td><s:v value="info.run_id" /></td>
     <td><s:v value="info.time" />:<s:v value="info.nsec" /></td>
     <td><s:v type="duration" value="run_time - start_time, info.nsec" /></td>
-<% #if CONF_HAS_LIBUUID - 0 != 0 %>
-    <td><s:v type="uuid" value="info.run_uuid" /></td>
-<% #endif %>
 <% snprintf(filtbuf1, sizeof(filtbuf1), "ip == ip(%d)", run_id); %>
 <s:url name="FilteredMainUrl" ac="main-page">
     <s:param name="filter_expr" value="filtbuf1" />
@@ -304,6 +334,9 @@ function setDivVisibility(oper, value)
 <% if (!info.lang_id) { %>
 <th><s:_>Content type</s:_></th><td><s:v type="mime_type" value="info.mime_type" /></td>
 <% } %>
+<% #if CONF_HAS_LIBUUID - 0 != 0 %>
+    <th>UUID</th>
+<% #endif %>
 <th style="width: 10em;"><s:_>Imported?</s:_></th>
 <th><s:_>Hidden?</s:_></th>
 <th><s:_>Saved?</s:_></th>
@@ -320,6 +353,9 @@ function setDivVisibility(oper, value)
 <% if (!info.lang_id) { %>
 <td><s:v type="mime_type" value="info.mime_type" /></td>
 <% } %>
+<% #if CONF_HAS_LIBUUID - 0 != 0 %>
+    <td><s:v type="uuid" value="info.run_uuid" /></td>
+<% #endif %>
 <td><s:vb value="info.is_imported" /></td>
 <td><s:vb value="info.is_hidden" /></td>
 <td><s:vb value="info.is_saved" /></td>
@@ -426,26 +462,93 @@ function setDivVisibility(oper, value)
 %>
 
 <%
-  txt_flags = serve_make_report_read_path(cs, txt_path, sizeof(txt_path), &info);
-  if (txt_flags >= 0) {
-    if (generic_read_file(&txt_text, 0, &txt_size, txt_flags, 0,
-                          txt_path, 0) >= 0) {
+  if (compiler_output && *compiler_output) {
 %>
 
 <div id="output">
-<h2><s:_>Style checker output</s:_></h2>
-<pre><s:v value="txt_text" /></pre></div>
+<h2><s:_>Compiler/style checker output</s:_></h2>
+<pre><s:v value="compiler_output" /></pre></div>
 <%
-      xfree(txt_text); txt_text = 0; txt_size = 0;
-    }
   }
 %>
 
 <hr style="clear: both;" />
 
+<div class="h2-long" style="margin-top: 13px; margin-bottom: 5px;">
+<h2>Change status</h2>
+</div>
+
+<div class="buttons">
+<s:form id="just_change">
+<s:hidden name="run_id" checkExpr=">=0" />
+<s:submit ac="priv-submit-run-just-ignore" />
+<s:submit ac="priv-submit-run-just-ok" />
+</s:form>
+</div>
+
+<%
+  if (fcev.u > 0) {
+%>
+<div class="h2-long" style="margin-top: 13px; margin-bottom: 10px;">
+<h2><s:_>Run comments</s:_></h2>
+</div>
+
+<div class="width-100">
+<table class="message-table">
+    <tr class="mes-top">
+        <td>Author</td>
+        <td>Run comment</td>
+    </tr>
+<%
+    for (i = 0; i < fcev.u; ++i) {
+%>
+   <tr>
+       <td class="profile">
+<%
+      if (!fcev.v[i].e.from) {
+        if (!fcev.v[i].e.j_from) {
+%><b>Judge</b><%
+        } else {
+%><b><s:v value="teamdb_get_name_2(cs->teamdb_state, fcev.v[i].e.j_from)" /></b><%
+        }
+      } else {
+%><s:v value="teamdb_get_name_2(cs->teamdb_state, fcev.v[i].e.from)" /><%
+      }
+%>
+<br/>
+<s:v value="fcev.v[i].e.time" />
+<%    if (fcev.v[i].e.old_run_status > 0) { %>
+<br/>
+Old status: <s:v value="run_status_short_str(fcev.v[i].e.old_run_status - 1)" escape="false" />
+<%    } %>
+<%    if (fcev.v[i].e.new_run_status > 0) { %>
+<br/>
+New status: <s:v value="run_status_short_str(fcev.v[i].e.new_run_status - 1)" escape="false" />
+<%    } %>
+<%
+      if (phr->role == USER_ROLE_ADMIN) {
+%>
+<br/>
+<s:v value="fcev.v[i].e.a.ip" />
+<%
+      }
+%>
+       </td>
+       <td>
+<pre><s:v value="skip_message_headers(fcev.v[i].text)" /></pre>
+       </td>
+   </tr>
+<%
+    }
+%>
+</table>
+</div>
+<%
+  }
+%>
 
 <div class="h2-long" style="margin-top: 13px; margin-bottom: 5px;">
-<h2><s:_>Send a message about this run</s:_></h2></div>
+<h2><s:_>Add a new run comment</s:_></h2></div>
 
 <s:form id="run_comment">
 
@@ -453,13 +556,11 @@ function setDivVisibility(oper, value)
 
 <div class="buttons" style="margin-top: -13px;">
 <s:hidden name="run_id" checkExpr=">=0" />
-<s:submit ac="priv-submit-run-just-ignore" />
-<s:submit ac="priv-submit-run-just-ok" />
-<s:button onclick="formatViolation()" label="Formatting rules violation" />
+<s:button onclick="formatViolation()" label="Formatting rules violation" /></br/>
 <s:submit ac="priv-submit-run-comment" />
 <s:submit ac="priv-submit-run-comment-and-ignore" />
 <s:submit ac="priv-submit-run-comment-and-ok" />
-<s:submit ac="priv-set-run-rejected" />
+<s:submit ac="priv-submit-run-comment-and-reject" />
 </div></s:form>
 
 <br />
@@ -467,6 +568,11 @@ function setDivVisibility(oper, value)
 <%@include "priv_footer.csp"
 %><%
 cleanup:
+  clar_free_fcev(&fcev);
   l10n_resetlocale();
   html_armor_free(&ab);
+  xfree(rep_text);
+  testing_report_free(tr);
+  xfree(compiler_output);
+  xfree(txt_text);
 %>

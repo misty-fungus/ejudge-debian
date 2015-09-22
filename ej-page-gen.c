@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: ej-page-gen.c 8656 2014-10-20 10:14:32Z cher $ */
 
-/* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -136,6 +135,7 @@ enum
     TOK_NUMBER,
     TOK_FPNUMBER,
     TOK_OPER,
+    TOK_MACROBODY
 };
 
 typedef struct Position
@@ -173,6 +173,18 @@ typedef struct GlobalSettingArray
     int a, u;
     GlobalSetting *v;
 } GlobalSettingArray;
+
+typedef struct Macro
+{
+    TypeInfo *name;
+    unsigned char *body;
+    int body_len;
+} Macro;
+typedef struct MacroArray
+{
+    int a, u;
+    Macro *v;
+} MacroArray;
 
 typedef struct HtmlElementStack
 {
@@ -257,6 +269,7 @@ typedef struct ProcessorState
     NamedUrlArray urls;
     ReadTypeHandlerArray read_type_handlers;
     ReadTypeHandlerArray read_array_type_handlers;
+    MacroArray macros;
 } ProcessorState;
 
 static ProcessorState *
@@ -1549,6 +1562,52 @@ next_token(ScannerState *ss)
         pos_next(&ss->pos, ss->buf[ss->idx]);
         ++ss->idx;
     }
+}
+
+static void
+next_macro_body(ScannerState *ss)
+{
+    xfree(ss->value); ss->value = NULL; ss->value_len = 0;
+    xfree(ss->raw); ss->raw = NULL; ss->raw_len = 0;
+    int c;
+
+    while (isspace((c = ss->buf[ss->idx]))) {
+        pos_next(&ss->pos, c);
+        ++ss->idx;
+    }
+    if (ss->idx >= ss->len) {
+        ss->token = TOK_EOF;
+        return;
+    }
+    ss->token_pos = ss->pos;
+    int saved_idx = ss->idx;
+    int end_idx = ss->idx;
+    while (1) {
+        if (ss->idx + 2 < ss->len && ss->buf[ss->idx] == '@' && ss->buf[ss->idx + 1] == '%' && ss->buf[ss->idx + 2] == '>') {
+            end_idx = ss->idx;
+            ss->idx += 3;
+            pos_next_n(&ss->pos, 3);
+            break;
+        }
+        if (ss->idx == ss->len) {
+            end_idx = ss->idx;
+            break;
+        }
+        pos_next(&ss->pos, ss->buf[ss->idx]);
+        ++ss->idx;
+    }
+
+    //while (end_idx > saved_idx && isspace(ss->buf[end_idx - 1])) --end_idx;
+
+    ss->value_len = end_idx - saved_idx;
+    ss->raw_len = ss->value_len;
+    ss->value = xmalloc(ss->value_len + 1);
+    ss->raw = xmalloc(ss->value_len + 1);
+    memcpy(ss->value, ss->buf + saved_idx, ss->value_len);
+    memcpy(ss->raw, ss->buf + saved_idx, ss->value_len);
+    ss->value[ss->value_len] = 0;
+    ss->raw[ss->value_len] = 0;
+    ss->token = TOK_MACROBODY;
 }
 
 static void
@@ -3003,6 +3062,52 @@ cleanup:
 }
 
 static int
+handle_directive_define(ScannerState *ss, TypeContext *cntx, FILE *out_f)
+{
+    int retval = -1;
+    TypeInfo *name = NULL;
+
+    next_token(ss);
+    if (ss->token != TOK_IDENT) {
+        parser_error(ss, "identifier expected");
+        goto cleanup;
+    }
+    if (!(name = tc_get_ident(cntx, ss->raw))) {
+        parser_error(ss, "identifier expected");
+        goto cleanup;
+    }
+    next_macro_body(ss);
+    if (ss->token != TOK_MACROBODY) {
+        parser_error(ss, "macro body expected");
+        goto cleanup;
+    }
+
+    int i;
+    for (i = 0; i < ss->ps->macros.u; ++i) {
+        if (ss->ps->macros.v[i].name == name)
+            break;
+    }
+    if (i >= ss->ps->macros.u) {
+        if (ss->ps->macros.u >= ss->ps->macros.a) {
+            if (!(ss->ps->macros.a *= 2)) ss->ps->macros.a = 32;
+            XREALLOC(ss->ps->macros.v, ss->ps->macros.a);
+        }
+        memset(&ss->ps->macros.v[i], 0, sizeof(ss->ps->macros.v[i]));
+        ss->ps->macros.v[i].name = name;
+        ++ss->ps->macros.u;
+    }
+    xfree(ss->ps->macros.v[i].body);
+    ss->ps->macros.v[i].body = ss->value;
+    ss->ps->macros.v[i].body_len = ss->value_len;
+    ss->value = NULL;
+    ss->value_len = 0;
+    retval = 0;
+
+cleanup:
+    return retval;
+}
+
+static int
 process_file(
         FILE *log_f,
         FILE *prg_f,
@@ -3011,7 +3116,8 @@ process_file(
         ProcessorState *ps,
         const unsigned char *path,
         TypeContext *cntx,
-        IdScope *global_scope);
+        IdScope *global_scope,
+        const unsigned char *file_text);
 
 static int
 handle_directive_include(
@@ -3043,10 +3149,102 @@ handle_directive_include(
     }
 
     Position saved_pos = ps->pos;
-    process_file(log_f, prg_f, txt_f, dep_f, ss->ps, path, cntx, global_scope);
+    process_file(log_f, prg_f, txt_f, dep_f, ss->ps, path, cntx, global_scope, NULL);
     ps->pos = saved_pos;
 
 cleanup:
+    retval = 0;
+    return retval;
+}
+
+static int
+handle_directive_expand(
+        ScannerState *ss,
+        FILE *log_f,
+        FILE *prg_f,
+        FILE *txt_f,
+        FILE *dep_f,
+        TypeContext *cntx,
+        IdScope *global_scope)
+{
+    int retval = -1;
+    ProcessorState *ps = ss->ps;
+    TypeInfo *name = NULL;
+    int arg_a = 0, arg_u = 0;
+    unsigned char **args = NULL;
+    int i;
+    char *exp_s = NULL;
+    size_t exp_z = 0;
+    FILE *exp_f = NULL;
+    const unsigned char *body = NULL;
+    unsigned char path[1024];
+
+    next_token(ss);
+    if (ss->token != TOK_IDENT) {
+        parser_error(ss, "identifier expected");
+        goto cleanup;
+    }
+    snprintf(path, sizeof(path), "%s", ss->raw);
+    if (!(name = tc_get_ident(cntx, ss->raw))) {
+        parser_error(ss, "identifier expected");
+        goto cleanup;
+    }
+    for (i = 0; i < ss->ps->macros.u; ++i) {
+        if (ss->ps->macros.v[i].name == name)
+            break;
+    }
+    if (i >= ss->ps->macros.u) {
+        parser_error(ss, "macro undefined");
+        goto cleanup;
+    }
+    while (1) {
+        next_token(ss);
+        if (ss->token == TOK_EOF) break;
+        if (ss->token != TOK_STRING) {
+            parser_error(ss, "identifier expected");
+            goto cleanup;
+        }
+        if (arg_u == arg_a) {
+            if (!(arg_a *= 2)) arg_a = 32;
+            XREALLOC(args, arg_a);
+        }
+        args[arg_u] = ss->value;
+        ss->value = NULL; ss->value_len = 0;
+        ++arg_u;
+    }
+    if (arg_u > 9) {
+        parser_error(ss, "too many args");
+        goto cleanup;
+    }
+
+    exp_f = open_memstream(&exp_s, &exp_z);
+    body = ss->ps->macros.v[i].body;
+    if (body) {
+        while (*body) {
+            int n;
+            if (*body == '@' && (body[1] >= '1' && body[1] <= '9') && (n = body[1] - '1') < arg_u) {
+                fputs(args[n], exp_f);
+                body += 2;
+            } else {
+                putc(*body++, exp_f);
+            }
+        }
+    }
+    fclose(exp_f); exp_f = NULL;
+
+    if (exp_z > 0) {
+        Position saved_pos = ps->pos;
+        process_file(log_f, prg_f, txt_f, dep_f, ss->ps, path, cntx, global_scope, exp_s);
+        ps->pos = saved_pos;
+    }
+
+cleanup:
+    for (i = 0; i < arg_u; ++i) {
+        xfree(args[i]);
+    }
+    xfree(args);
+    if (exp_f) fclose(exp_f);
+    xfree(exp_s);
     retval = 0;
     return retval;
 }
@@ -3077,6 +3275,10 @@ handle_directive(
         handle_directive_set(ss, cntx, out_f);
     } else if (!strcmp(ss->value, "include")) {
         handle_directive_include(ss, log_f, out_f, txt_f, dep_f, cntx, global_scope);
+    } else if (!strcmp(ss->value, "define")) {
+        handle_directive_define(ss, cntx, out_f);
+    } else if (!strcmp(ss->value, "expand")) {
+        handle_directive_expand(ss, log_f, out_f, txt_f, dep_f, cntx, global_scope);
     } else {
         parser_error(ss, "invalid directive '%s'", ss->value);
     }
@@ -3498,6 +3700,52 @@ handle_tr_open(
     if (valign_attr) {
         fprintf(str_f, " valign=\"%s\"", valign_attr->value);
     }
+    HtmlAttribute *onclickexpr_attr = html_element_find_attribute(elem, "onclickexpr");
+    if (onclickexpr_attr) {
+        fprintf(str_f, " onclick=\"");
+        fclose(str_f); str_f = NULL;
+        handle_html_string(prg_f, txt_f, log_f, str_p);
+        free(str_p); str_p = NULL; str_z = 0;
+        TypeInfo *t = NULL;
+        int r = parse_c_expression(ps, cntx, log_f, onclickexpr_attr->value, &t, ps->pos);
+        if (r >= 0) {
+            processor_state_invoke_type_handler(log_f, cntx, ps, txt_f, prg_f, onclickexpr_attr->value, elem, t);
+        }
+        str_f = open_memstream(&str_p, &str_z);
+        fprintf(str_f, "\"");
+    }
+    HtmlAttribute *onclick_attr = html_element_find_attribute(elem, "onclick");
+    if (onclick_attr) {
+        fprintf(str_f, " onclick=\"%s\"", onclick_attr->value);
+    }
+    HtmlAttribute *id_attr = html_element_find_attribute(elem, "id");
+    HtmlAttribute *idsuffix_attr = html_element_find_attribute(elem, "idsuffix");
+    if (id_attr && idsuffix_attr) {
+        fprintf(str_f, " id=\"%s", id_attr->value);
+        fclose(str_f); str_f = 0;
+        handle_html_string(prg_f, txt_f, log_f, str_p);
+        free(str_p); str_p = 0; str_z = 0;
+        TypeInfo *t = NULL;
+        int r = parse_c_expression(ps, cntx, log_f, idsuffix_attr->value, &t, ps->pos);
+        if (r >= 0) {
+            processor_state_invoke_type_handler(log_f, cntx, ps, txt_f, prg_f, idsuffix_attr->value, elem, t);
+        }
+        str_f = open_memstream(&str_p, &str_z);
+        fprintf(str_f, "\"");
+    } else if (id_attr) {
+        fprintf(str_f, " id=\"%s\"", id_attr->value);
+    }
+
+    HtmlAttribute *hiddenexpr_attr = html_element_find_attribute(elem, "hiddenexpr");
+    if (hiddenexpr_attr) {
+        fclose(str_f); str_f = 0;
+        handle_html_string(prg_f, txt_f, log_f, str_p);
+        free(str_p); str_p = 0; str_z = 0;
+        fprintf(prg_f, "if (%s) {\n", hiddenexpr_attr->value);
+        handle_html_string(prg_f, txt_f, log_f, " style=\"display: none;\"");
+        fprintf(prg_f, "}\n");
+        str_f = open_memstream(&str_p, &str_z);
+    }
 
     HtmlAttribute *attr_attr = html_element_find_attribute(elem, "attr");
     if (attr_attr) {
@@ -3545,6 +3793,7 @@ handle_form_open(
     const unsigned char *method = "post";
     const unsigned char *enctype = NULL;
     const unsigned char *id = NULL;
+    const unsigned char *onsubmit = NULL;
 
     HtmlAttribute *at = html_element_find_attribute(elem, "method");
     if (at && !strcmp(at->value, "get")) {
@@ -3561,6 +3810,9 @@ handle_form_open(
     if ((at = html_element_find_attribute(elem, "id"))) {
         id = at->value;
     }
+    if ((at = html_element_find_attribute(elem, "onsubmit"))) {
+        onsubmit = at->value;
+    }
 
     // FIXME: handle action, or ac
     char *str_p = 0;
@@ -3572,6 +3824,9 @@ handle_form_open(
     }
     if (id && *id) {
         fprintf(str_f, " id=\"%s\"", id);
+    }
+    if (onsubmit && *onsubmit) {
+        fprintf(str_f, " onsubmit=\"%s\"", onsubmit);
     }
     fprintf(str_f, " action=\"");
     fclose(str_f); str_f = 0;
@@ -3719,6 +3974,8 @@ handle_v_open(
             t = tc_get_typedef_type(cntx, tc_get_i0_type(cntx), tc_get_ident(cntx, "__ej_duration_t"));
         } else if (!strcmp(type_attr->value, "brief_time")) {
             t = tc_get_typedef_type(cntx, tc_get_i0_type(cntx), tc_get_ident(cntx, "__ej_brief_time_t"));
+        } else if (!strcmp(type_attr->value, "jsbool")) {
+            t = tc_get_typedef_type(cntx, tc_get_i0_type(cntx), tc_get_ident(cntx, "__ej_jsbool_t"));
         }
     } else {
         int r = parse_c_expression(ps, cntx, log_f, at->value, &t, ps->pos);
@@ -3938,10 +4195,12 @@ handle_textfield_open(
         input_type = "radio";
     }
 
+    /*
     if (html_element_find_attribute(elem, "disabled")) {
         parser_error_2(ps, "use disabledExpr instead of disabled");
         return -1;
     }
+    */
 
     HtmlAttribute *disabled_attr = html_element_find_attribute(elem, "disabledexpr");
 
@@ -3956,6 +4215,43 @@ handle_textfield_open(
     HtmlAttribute *maxlength_attr = html_element_find_attribute(elem, "maxlength");
     if (maxlength_attr) {
         fprintf(str_f, " maxlength=\"%s\"", maxlength_attr->value);
+    }
+    HtmlAttribute *disabled2_attr = html_element_find_attribute(elem, "disabled");
+    if (disabled2_attr) {
+        fprintf(str_f, " disabled=\"%s\"", disabled2_attr->value);
+    }
+    HtmlAttribute *readonly_attr = html_element_find_attribute(elem, "readonly");
+    if (readonly_attr) {
+        fprintf(str_f, " readonly=\"%s\"", readonly_attr->value);
+    }
+    HtmlAttribute *onclick_attr = html_element_find_attribute(elem, "onclick");
+    if (onclick_attr) {
+        fprintf(str_f, " onclick=\"%s\"", onclick_attr->value);
+    }
+    HtmlAttribute *onchange_attr = html_element_find_attribute(elem, "onchange");
+    if (onchange_attr) {
+        fprintf(str_f, " onchange=\"%s\"", onchange_attr->value);
+    }
+    HtmlAttribute *class_attr = html_element_find_attribute(elem, "class");
+    if (class_attr) {
+        fprintf(str_f, " class=\"%s\"", class_attr->value);
+    }
+    HtmlAttribute *id_attr = html_element_find_attribute(elem, "id");
+    HtmlAttribute *idsuffix_attr = html_element_find_attribute(elem, "idsuffix");
+    if (id_attr && idsuffix_attr) {
+        fprintf(str_f, " id=\"%s", id_attr->value);
+        fclose(str_f); str_f = 0;
+        handle_html_string(prg_f, txt_f, log_f, str_p);
+        free(str_p); str_p = 0; str_z = 0;
+        TypeInfo *t = NULL;
+        int r = parse_c_expression(ps, cntx, log_f, idsuffix_attr->value, &t, ps->pos);
+        if (r >= 0) {
+            processor_state_invoke_type_handler(log_f, cntx, ps, txt_f, prg_f, idsuffix_attr->value, elem, t);
+        }
+        str_f = open_memstream(&str_p, &str_z);
+        fprintf(str_f, "\"");
+    } else if (id_attr) {
+        fprintf(str_f, " id=\"%s\"", id_attr->value);
     }
     if (skip_value) {
         if (disabled_attr) {
@@ -4000,6 +4296,12 @@ handle_textfield_open(
         fprintf(prg_f, "}\n");
     }
     handle_html_string(prg_f, txt_f, log_f, " />");
+    int need_notset = html_attribute_get_bool(html_element_find_attribute(elem, "notset"), 0);
+    if (need_notset) {
+        fprintf(prg_f, "if (!(%s)) { ", expr);
+        handle_html_string(prg_f, txt_f, log_f, "(<i>Not set</i>)");
+        fprintf(prg_f, " }\n");
+    }
     return 0;
 }
 
@@ -4189,15 +4491,6 @@ handle_yesno_open(
         return -1;
     }
     HtmlAttribute *value_attr = html_element_find_attribute(elem, "value");
-    fprintf(prg_f,
-            "{\n"
-            "  unsigned char *s1 = \"\", *s2 = \"\";\n");
-    if (value_attr) {
-        fprintf(prg_f,
-                "if ((%s)) { s2 = \" selected=\\\"selected\\\"\"; } else { s1 = \" selected=\\\"selected\\\"\"; }\n",
-                value_attr->value);
-    }
-
     const unsigned char *no_label = "No";
     HtmlAttribute *no_attr = html_element_find_attribute(elem, "nolabel");
     if (no_attr) {
@@ -4208,11 +4501,67 @@ handle_yesno_open(
     if (yes_attr) {
         yes_label = yes_attr->value;
     }
+    HtmlAttribute *id_attr = html_element_find_attribute(elem, "id");
+    HtmlAttribute *idsuffix_attr = html_element_find_attribute(elem, "idsuffix");
+    HtmlAttribute *disabled_attr = html_element_find_attribute(elem, "disabled");
+    if (!disabled_attr) disabled_attr = html_element_find_attribute(elem, "readonly");
 
     char *str_p = 0;
     size_t str_z = 0;
-    FILE *str_f = open_memstream(&str_p, &str_z);
-    fprintf(str_f, "<select name=\"%s\"><option value=\"0\"", name_attr->value);
+    FILE *str_f = NULL;
+
+    if (disabled_attr) {
+        str_f = open_memstream(&str_p, &str_z);
+        fprintf(str_f, "<input type=\"hidden\" name=\"%s\"", name_attr->value);
+        if (id_attr && idsuffix_attr) {
+            fprintf(str_f, " id=\"%s", id_attr->value);
+            fclose(str_f); str_f = 0;
+            handle_html_string(prg_f, txt_f, log_f, str_p);
+            free(str_p); str_p = 0; str_z = 0;
+            TypeInfo *t = NULL;
+            int r = parse_c_expression(ps, cntx, log_f, idsuffix_attr->value, &t, ps->pos);
+            if (r >= 0) {
+                processor_state_invoke_type_handler(log_f, cntx, ps, txt_f, prg_f, idsuffix_attr->value, elem, t);
+            }
+            str_f = open_memstream(&str_p, &str_z);
+            fprintf(str_f, "\"");
+        } else if (id_attr) {
+            fprintf(str_f, " id=\"%s\"", id_attr->value);
+        }
+        fprintf(str_f, " value=\"");
+        fclose(str_f); str_f = NULL;
+        handle_html_string(prg_f, txt_f, log_f, str_p);
+        free(str_p); str_p = NULL; str_z = 0;
+        fprintf(prg_f, "if ((%s)) {\n", value_attr->value);
+        handle_html_string(prg_f, txt_f, log_f, "1\" /><b><font color=\"lightgreen\">");
+        fprintf(prg_f, "fputs(_(\"%s\"), out_f);\n", yes_label);
+        handle_html_string(prg_f, txt_f, log_f, "</font></b>");
+        fprintf(prg_f, "} else {\n");
+        handle_html_string(prg_f, txt_f, log_f, "0\" /><b>");
+        fprintf(prg_f, "fputs(_(\"%s\"), out_f);\n", no_label);
+        handle_html_string(prg_f, txt_f, log_f, "</b>");
+        fprintf(prg_f, "}\n");
+        return 0;
+    }
+
+    fprintf(prg_f,
+            "{\n"
+            "  unsigned char *s1 = \"\", *s2 = \"\";\n");
+    if (value_attr) {
+        fprintf(prg_f,
+                "if ((%s)) { s2 = \" selected=\\\"selected\\\"\"; } else { s1 = \" selected=\\\"selected\\\"\"; }\n",
+                value_attr->value);
+    }
+
+    str_f = open_memstream(&str_p, &str_z);
+    fprintf(str_f, "<select");
+    if (id_attr) {
+        fprintf(str_f, " id=\"%s\"", id_attr->value);
+    }
+    if (disabled_attr) {
+        fprintf(str_f, " disabled=\"%s\"", disabled_attr->value);
+    }
+    fprintf(str_f, " name=\"%s\"><option value=\"0\"", name_attr->value);
     fclose(str_f); str_f = 0;
     handle_html_string(prg_f, txt_f, log_f, str_p);
     free(str_p); str_p = 0; str_z = 0;
@@ -4274,10 +4623,69 @@ handle_yesno3_open(
         default_label = default_label_attr->value;
     }
 
+    HtmlAttribute *id_attr = html_element_find_attribute(elem, "id");
+    HtmlAttribute *disabled_attr = html_element_find_attribute(elem, "disabled");
+    if (!disabled_attr) disabled_attr = html_element_find_attribute(elem, "readonly");
+
     char *str_p = 0;
     size_t str_z = 0;
-    FILE *str_f = open_memstream(&str_p, &str_z);
-    fprintf(str_f, "<select name=\"%s\"><option value=\"-1\"", name_attr->value);
+    FILE *str_f = NULL;
+
+    if (disabled_attr) {
+        str_f = open_memstream(&str_p, &str_z);
+        fprintf(str_f, "<input type=\"hidden\" name=\"%s\"", name_attr->value);
+        if (id_attr) {
+            fprintf(str_f, " id=\"%s\"", id_attr->value);
+        }
+        fprintf(str_f, " value=\"");
+        fclose(str_f); str_f = NULL;
+        handle_html_string(prg_f, txt_f, log_f, str_p);
+        free(str_p); str_p = NULL; str_z = 0;
+        fprintf(prg_f, "fprintf(out_f, \"%%d\", yesno3_value);\n");
+        handle_html_string(prg_f, txt_f, log_f, "\" />");
+
+        fprintf(prg_f, "  if (yesno3_value < 0) {\n");
+
+        fprintf(prg_f, "fputs(_(\"%s\"), out_f);\n", default_label);
+        handle_html_string(prg_f, txt_f, log_f, " (");
+        if (!defaultdefault_value) {
+            fprintf(prg_f, "  if ((%s) <= 0) {\n", default_attr->value);
+        } else {
+            fprintf(prg_f, "  if (!(%s)) {\n", default_attr->value);
+        }
+        fprintf(prg_f, "fputs(_(\"%s\"), out_f);\n", no_label);
+        fprintf(prg_f, "} else {\n");
+        fprintf(prg_f, "fputs(_(\"%s\"), out_f);\n", yes_label);
+        fprintf(prg_f, "}\n");
+        handle_html_string(prg_f, txt_f, log_f, ")");
+
+        fprintf(prg_f, "  } else if (!yesno3_value) {\n");
+
+        handle_html_string(prg_f, txt_f, log_f, "<b>");
+        fprintf(prg_f, "fputs(_(\"%s\"), out_f);\n", no_label);
+        handle_html_string(prg_f, txt_f, log_f, "</b>");
+
+
+        fprintf(prg_f, "  } else {\n");
+
+        handle_html_string(prg_f, txt_f, log_f, "<b><font color=\"lightgreen\">");
+        fprintf(prg_f, "fputs(_(\"%s\"), out_f);\n", yes_label);
+        handle_html_string(prg_f, txt_f, log_f, "</font></b>");
+
+        fprintf(prg_f, "  }\n");
+
+        fprintf(prg_f,
+                "}\n");
+        return 0;
+    }
+
+
+    str_f = open_memstream(&str_p, &str_z);
+    fprintf(str_f, "<select");
+    if (id_attr) {
+        fprintf(str_f, " id=\"%s\"", id_attr->value);
+    }
+    fprintf(str_f, " name=\"%s\"><option value=\"-1\"", name_attr->value);
     fclose(str_f); str_f = 0;
     handle_html_string(prg_f, txt_f, log_f, str_p);
     free(str_p); str_p = 0; str_z = 0;
@@ -4570,8 +4978,13 @@ handle_help_open(
     HtmlElement *elem = ps->el_stack->el;
     unsigned char buf[1024];
 
-    if (process_ac_attr(log_f, cntx, ps, elem, buf, sizeof(buf)) > 0) {
-        fprintf(prg_f, "hr_print_help_url(out_f, %s);\n", buf);
+    HtmlAttribute *topic_attr = html_element_find_attribute(elem, "topic");
+    if (topic_attr != NULL) {
+        fprintf(prg_f, "hr_print_help_url_2(out_f, \"%s\");\n", topic_attr->value);
+    } else {
+        if (process_ac_attr(log_f, cntx, ps, elem, buf, sizeof(buf)) > 0) {
+            fprintf(prg_f, "hr_print_help_url(out_f, %s);\n", buf);
+        }
     }
     return 0;
 }
@@ -4686,13 +5099,25 @@ string_type_handler(
         TypeInfo *type_info)
 {
     int need_escape = 1;
+    int need_json = 0;
     HtmlAttribute *at = NULL;
     if (elem) {
-        at = html_element_find_attribute(elem, "escape");
+        at = html_element_find_attribute(elem, "json");
     }
     if (at) {
         int v;
-        if (xml_parse_bool(NULL, NULL, 0, 0, at->value, &v) >= 0) need_escape = v;
+        if (xml_parse_bool(NULL, NULL, 0, 0, at->value, &v) >= 0) need_json = v;
+        if (need_json) need_escape = 0;
+    }
+    at = NULL;
+    if (!need_json) {
+        if (elem) {
+            at = html_element_find_attribute(elem, "escape");
+        }
+        if (at) {
+            int v;
+            if (xml_parse_bool(NULL, NULL, 0, 0, at->value, &v) >= 0) need_escape = v;
+        }
     }
     if (need_escape) {
         if (!strcmp(elem->name, "s:param")) {
@@ -4701,6 +5126,8 @@ string_type_handler(
         } else {
             fprintf(prg_f, "fputs(html_armor_buf(&ab, (%s)), out_f);\n", text);
         }
+    } else if (need_json) {
+        fprintf(prg_f, "fputs(c_armor_buf(&ab, (%s)), out_f);\n", text);
     } else {
         fprintf(prg_f, "fputs((%s), out_f);\n", text);
     }
@@ -4733,6 +5160,20 @@ int_type_handler(
 {
     // handle "format"?
     fprintf(prg_f, "fprintf(out_f, \"%%d\", (int)(%s));\n", text);
+}
+
+static void
+ej_jsbool_type_handler(
+        FILE *log_f,
+        TypeContext *cntx,
+        struct ProcessorState *ps,
+        FILE *txt_f,
+        FILE *prg_f,
+        const unsigned char *text,
+        const HtmlElement *elem,
+        TypeInfo *type_info)
+{
+    fprintf(prg_f, "fputs((%s)?(\"true\"):(\"false\"), out_f);\n", text);
 }
 
 static void
@@ -4804,6 +5245,30 @@ size_t_type_handler(
 }
 
 static void
+ej_size64_t_type_handler(
+        FILE *log_f,
+        TypeContext *cntx,
+        struct ProcessorState *ps,
+        FILE *txt_f,
+        FILE *prg_f,
+        const unsigned char *text,
+        const HtmlElement *elem,
+        TypeInfo *type_info)
+{
+    HtmlAttribute *at = NULL;
+    if (elem) {
+        at = html_element_find_attribute(elem, "format");
+    }
+    if (at && !strcmp(at->value, "V")) {
+        fprintf(prg_f, "ll_to_size_str_f(out_f, (ej_size64_t)(%s));\n", text);
+    } else if (at) {
+        fprintf(prg_f, "fprintf(out_f, \"%%%slld\", (ej_size64_t)(%s));\n", at->value, text);
+    } else {
+        fprintf(prg_f, "fprintf(out_f, \"%%lld\", (ej_size64_t)(%s));\n", text);
+    }
+}
+
+static void
 ej_size_t_type_handler(
         FILE *log_f,
         TypeContext *cntx,
@@ -4859,7 +5324,7 @@ ej_uuid_type_handler(
         const HtmlElement *elem,
         TypeInfo *type_info)
 {
-    fprintf(prg_f, "fputs(ej_uuid_unparse((%s), \"\"), out_f);\n", text);
+    fprintf(prg_f, "fputs(ej_uuid_unparse(&(%s), \"\"), out_f);\n", text);
 }
 
 static void
@@ -4963,6 +5428,14 @@ int_read_type_handler(
         TypeInfo *type_info)
 {
     unsigned char errcode_buf[1024];
+    const unsigned char *type_str = "int";
+
+    if (type_info == tc_find_typedef_type(cntx, tc_get_ident(cntx, "ejintbool_t"))) {
+        type_str = "bool";
+    } else if (type_info == tc_find_typedef_type(cntx, tc_get_ident(cntx, "ej_size64_t"))) {
+        type_str = "size64";
+    }
+
     int required = html_attribute_get_bool(html_element_find_attribute(elem, "required"), 0);
     if (required) {
         // <s:read var="VAR" name="NAME" required="yes" [ignoreerrors="BOOL"] [gotoerrors="BOOL"] [error="CODE"] [missing="CODE"] [invalid="CODE"] />
@@ -4973,29 +5446,29 @@ int_read_type_handler(
         if (!missing_code) missing_code = error_code;
         if (!invalid_code) invalid_code = error_code;
         if (ignoreerrors) {
-            fprintf(prg_f, "hr_cgi_param_int_2(phr, \"%s\", &(%s));\n", param_name, var_name);
+            fprintf(prg_f, "hr_cgi_param_%s_2(phr, \"%s\", &(%s));\n", type_str, param_name, var_name);
         } else {
             int gotoerrors = html_attribute_get_bool(html_element_find_attribute(elem, "gotoerrors"), 0);
             if (!missing_code) missing_code = "inv-param";
             if (!invalid_code) invalid_code = "inv-param";
             if (!strcmp(missing_code, invalid_code)) {
                 if (gotoerrors) {
-                    fprintf(prg_f, "if (hr_cgi_param_int_2(phr, \"%s\", &(%s)) <= 0) {\n"
+                    fprintf(prg_f, "if (hr_cgi_param_%s_2(phr, \"%s\", &(%s)) <= 0) {\n"
                             "  goto %s;\n"
                             "}\n",
-                            param_name, var_name, invalid_code);
+                            type_str, param_name, var_name, invalid_code);
                 } else {
-                    fprintf(prg_f, "if (hr_cgi_param_int_2(phr, \"%s\", &(%s)) <= 0) {\n"
+                    fprintf(prg_f, "if (hr_cgi_param_%s_2(phr, \"%s\", &(%s)) <= 0) {\n"
                             "  FAIL(%s);\n"
                             "}\n",
-                            param_name, var_name,
+                            type_str, param_name, var_name,
                             process_err_attr(log_f, cntx, ps, errcode_buf, sizeof(errcode_buf), invalid_code));
                 }
             } else {
                 fprintf(prg_f,
                         "{\n"
-                        "  int tmp_err = hr_cgi_param_int_2(phr, \"%s\", &(%s));\n",
-                        param_name, var_name);
+                        "  int tmp_err = hr_cgi_param_%s_2(phr, \"%s\", &(%s));\n",
+                        type_str, param_name, var_name);
                 if (gotoerrors) {
                     fprintf(prg_f,
                             "  if (!tmp_err) {\n"
@@ -5025,7 +5498,7 @@ int_read_type_handler(
             // <s:read var="VAR" name="NAME" flagvar="VAR" [ignoreerrors="BOOL"] [error="CODE"] [invalid="CODE"] />
             int ignoreerrors = html_attribute_get_bool(html_element_find_attribute(elem, "ignoreerrors"), 0);
             if (ignoreerrors) {
-                fprintf(prg_f, "hr_cgi_param_int_opt_2(phr, \"%s\", &(%s), &(%s));\n", param_name, var_name, flagvar_name);
+                fprintf(prg_f, "hr_cgi_param_%s_opt_2(phr, \"%s\", &(%s), &(%s));\n", type_str, param_name, var_name, flagvar_name);
             } else {
                 const unsigned char *error_code = html_element_find_attribute_value(elem, "error");
                 const unsigned char *invalid_code = html_element_find_attribute_value(elem, "invalid");
@@ -5033,15 +5506,15 @@ int_read_type_handler(
                 if (!invalid_code) invalid_code = error_code;
                 if (!invalid_code) invalid_code = "inv-param";
                 if(gotoerrors) {
-                    fprintf(prg_f, "if (hr_cgi_param_int_opt_2(phr, \"%s\", &(%s), &(%s)) < 0) {\n"
+                    fprintf(prg_f, "if (hr_cgi_param_%s_opt_2(phr, \"%s\", &(%s), &(%s)) < 0) {\n"
                             "  goto %s;\n"
                             "}\n",
-                            param_name, var_name, flagvar_name, invalid_code);
+                            type_str, param_name, var_name, flagvar_name, invalid_code);
                 } else {
-                    fprintf(prg_f, "if (hr_cgi_param_int_opt_2(phr, \"%s\", &(%s), &(%s)) < 0) {\n"
+                    fprintf(prg_f, "if (hr_cgi_param_%s_opt_2(phr, \"%s\", &(%s), &(%s)) < 0) {\n"
                             "  FAIL(%s);\n"
                             "}\n",
-                            param_name, var_name, flagvar_name,
+                            type_str, param_name, var_name, flagvar_name,
                             process_err_attr(log_f, cntx, ps, errcode_buf, sizeof(errcode_buf), invalid_code));
                 }
             }
@@ -5051,7 +5524,7 @@ int_read_type_handler(
             const unsigned char *default_value = html_element_find_attribute_value(elem, "default");
             if (!default_value) default_value = "0";
             if (ignoreerrors) {
-                fprintf(prg_f, "hr_cgi_param_int_opt(phr, \"%s\", &(%s), %s);\n", param_name, var_name, default_value);
+                fprintf(prg_f, "hr_cgi_param_%s_opt(phr, \"%s\", &(%s), %s);\n", type_str, param_name, var_name, default_value);
             } else {
                 const unsigned char *error_code = html_element_find_attribute_value(elem, "error");
                 const unsigned char *invalid_code = html_element_find_attribute_value(elem, "invalid");
@@ -5059,15 +5532,15 @@ int_read_type_handler(
                 if (!invalid_code) invalid_code = error_code;
                 if (!invalid_code) invalid_code = "inv-param";
                 if (gotoerrors) {
-                    fprintf(prg_f, "if (hr_cgi_param_int_opt(phr, \"%s\", &(%s), %s) < 0) {\n"
+                    fprintf(prg_f, "if (hr_cgi_param_%s_opt(phr, \"%s\", &(%s), %s) < 0) {\n"
                             "  goto %s;\n"
                             "}\n",
-                            param_name, var_name, default_value, invalid_code);
+                            type_str, param_name, var_name, default_value, invalid_code);
                 } else {
-                    fprintf(prg_f, "if (hr_cgi_param_int_opt(phr, \"%s\", &(%s), %s) < 0) {\n"
+                    fprintf(prg_f, "if (hr_cgi_param_%s_opt(phr, \"%s\", &(%s), %s) < 0) {\n"
                             "  FAIL(%s);\n"
                             "}\n",
-                            param_name, var_name, default_value,
+                            type_str, param_name, var_name, default_value,
                             process_err_attr(log_f, cntx, ps, errcode_buf, sizeof(errcode_buf), invalid_code));
                 }
             }
@@ -5090,6 +5563,23 @@ string_read_type_handler(
         TypeInfo *type_info)
 {
     unsigned char errcode_buf[1024];
+    const unsigned char *getter_name = "hr_cgi_param";
+    unsigned char calltail[1024];
+    calltail[0] = 0;
+    int normalize = html_attribute_get_bool(html_element_find_attribute(elem, "normalize"), 0);
+    if (normalize) {
+        if (html_attribute_get_bool(html_element_find_attribute(elem, "nonnull"), 0)) {
+            getter_name = "hr_cgi_param_string_2";
+        } else {
+            getter_name = "hr_cgi_param_string";
+        }
+        const unsigned char *prepend_value = html_element_find_attribute_value(elem, "prepend");
+        if (prepend_value) {
+            snprintf(calltail, sizeof(calltail), ", \"%s\"", prepend_value);
+        } else {
+            snprintf(calltail, sizeof(calltail), ", NULL");
+        }
+    }
     int required = html_attribute_get_bool(html_element_find_attribute(elem, "required"), 0);
     if (required) {
         // <s:read var="VAR" name="NAME" required="yes" [ignoreerrors="BOOL"] [gotoerrors="BOOL"] [error="CODE"] [missing="CODE"] [invalid="CODE"] />
@@ -5105,19 +5595,19 @@ string_read_type_handler(
         if (!missing_msg) missing_msg = error_msg;
         if (!invalid_msg) invalid_msg = error_msg;
         if (ignoreerrors) {
-            fprintf(prg_f, "hr_cgi_param(phr, \"%s\", &(%s));\n", param_name, var_name);
+            fprintf(prg_f, "%s(phr, \"%s\", &(%s)%s);\n", getter_name, param_name, var_name, calltail);
         } else {
             int gotoerrors = html_attribute_get_bool(html_element_find_attribute(elem, "gotoerrors"), 0);
             if (!missing_code) missing_code = "inv-param";
             if (!invalid_code) invalid_code = "inv-param";
             if (!strcmp(missing_code, invalid_code)) {
                 if (gotoerrors) {
-                    fprintf(prg_f, "if (hr_cgi_param(phr, \"%s\", &(%s)) <= 0) {\n"
+                    fprintf(prg_f, "if (%s(phr, \"%s\", &(%s)%s) <= 0) {\n"
                             "  goto %s;\n"
                             "}\n",
-                            param_name, var_name, invalid_code);
+                            getter_name, param_name, var_name, calltail, invalid_code);
                 } else {
-                    fprintf(prg_f, "if (hr_cgi_param(phr, \"%s\", &(%s)) <= 0) {\n", param_name, var_name);
+                    fprintf(prg_f, "if (%s(phr, \"%s\", &(%s)%s) <= 0) {\n", getter_name, param_name, var_name, calltail);
                     if (error_msg) {
                         fprintf(prg_f, "  fputs(\"%s\", log_f);\n", error_msg);
                     }
@@ -5128,8 +5618,8 @@ string_read_type_handler(
             } else {
                 fprintf(prg_f,
                         "{\n"
-                        "  int tmp_err = hr_cgi_param(phr, \"%s\", &(%s));\n",
-                        param_name, var_name);
+                        "  int tmp_err = %s(phr, \"%s\", &(%s)%s);\n",
+                        getter_name, param_name, var_name, calltail);
                 if (gotoerrors) {
                     fprintf(prg_f,
                             "  if (!tmp_err) {\n"
@@ -5163,7 +5653,7 @@ string_read_type_handler(
         // <s:read var="VAR" name="NAME" [ignoreerrors="BOOL"] [error="CODE"] [invalid="CODE"] />
         int ignoreerrors = html_attribute_get_bool(html_element_find_attribute(elem, "ignoreerrors"), 0);
         if (ignoreerrors) {
-            fprintf(prg_f, "hr_cgi_param(phr, \"%s\", &(%s));\n", param_name, var_name);
+            fprintf(prg_f, "%s(phr, \"%s\", &(%s)%s);\n", getter_name, param_name, var_name, calltail);
         } else {
             const unsigned char *error_code = html_element_find_attribute_value(elem, "error");
             const unsigned char *invalid_code = html_element_find_attribute_value(elem, "invalid");
@@ -5174,12 +5664,12 @@ string_read_type_handler(
             if (!invalid_code) invalid_code = "inv-param";
             if (!invalid_msg) invalid_msg = error_msg;
             if (gotoerrors) {
-                fprintf(prg_f, "if (hr_cgi_param(phr, \"%s\", &(%s)) < 0) {\n"
+                fprintf(prg_f, "if (%s(phr, \"%s\", &(%s)%s) < 0) {\n"
                         "  goto %s;\n"
                         "}\n",
-                        param_name, var_name, invalid_code);
+                        getter_name, param_name, var_name, calltail, invalid_code);
             } else {
-                fprintf(prg_f, "if (hr_cgi_param(phr, \"%s\", &(%s)) < 0) {\n", param_name, var_name);
+                fprintf(prg_f, "if (%s(phr, \"%s\", &(%s)%s) < 0) {\n", getter_name, param_name, var_name, calltail);
                 if (invalid_msg) {
                     fprintf(prg_f, "  fputs(\"%s\", log_f);\n", invalid_msg);
                 }
@@ -5192,6 +5682,56 @@ string_read_type_handler(
         }
     }
 
+    return 0;
+}
+
+static int
+string_array_read_type_handler(
+        FILE *log_f,
+        TypeContext *cntx,
+        struct ProcessorState *ps,
+        FILE *txt_f,
+        FILE *prg_f,
+        const HtmlElement *elem,
+        const unsigned char *var_name,
+        const unsigned char *param_name,
+        TypeInfo *type_info)
+{
+    // <s:read var="VAR" name="NAME" [ignoreerrors="BOOL"] [error="CODE"] [invalid="CODE"] />
+    fprintf(prg_f, "{\n  const unsigned char *tmp_str = NULL;\n");
+
+    int ignoreerrors = html_attribute_get_bool(html_element_find_attribute(elem, "ignoreerrors"), 0);
+    if (ignoreerrors) {
+        fprintf(prg_f, "  hr_cgi_param(phr, \"%s\", &(tmp_str));\n", param_name);
+        fprintf(prg_f, "  sarray_parse_2(tmp_str, &(%s));\n", var_name);
+    } else {
+        unsigned char errcode_buf[1024];
+        const unsigned char *error_code = html_element_find_attribute_value(elem, "error");
+        const unsigned char *invalid_code = html_element_find_attribute_value(elem, "invalid");
+        const unsigned char *error_msg = html_element_find_attribute_value(elem, "errormsg");
+        const unsigned char *invalid_msg = html_element_find_attribute_value(elem, "invalidmsg");
+        const unsigned char *stream = html_element_find_attribute_value(elem, "stream");
+        int gotoerrors = html_attribute_get_bool(html_element_find_attribute(elem, "gotoerrors"), 0);
+        if (!invalid_code) invalid_code = error_code;
+        if (!invalid_code) invalid_code = "inv-param";
+        if (!invalid_msg) invalid_msg = error_msg;
+        if (!stream) stream = "log_f";
+        if (gotoerrors) {
+            fprintf(prg_f, "  if (hr_cgi_param(phr, \"%s\", &(tmp_str)) < 0) goto %s;\n", param_name, invalid_code);
+            fprintf(prg_f, "  if (sarray_parse_2(tmp_str, &(%s)) < 0) goto %s;\n", var_name, invalid_code);
+        } else {
+            fprintf(prg_f, "  if (hr_cgi_param(phr, \"%s\", &(tmp_str)) < 0 || sarray_parse_2(tmp_str, &(%s)) < 0) {\n",
+                    param_name, var_name);
+            if (invalid_msg) {
+                fprintf(prg_f, "    fputs(\"%s\", %s);\n", invalid_msg, stream);
+            }
+            fprintf(prg_f,
+                    "    FAIL(%s);\n"
+                    "  }\n",
+                    process_err_attr(log_f, cntx, ps, errcode_buf, sizeof(errcode_buf), invalid_code));
+        }
+    }
+    fprintf(prg_f, "}\n");
     return 0;
 }
 
@@ -5219,7 +5759,8 @@ process_file(
         ProcessorState *ps,
         const unsigned char *path,
         TypeContext *cntx,
-        IdScope *global_scope)
+        IdScope *global_scope,
+        const unsigned char *file_text)
 {
     FILE *in_f = NULL;
     int result = 0;
@@ -5227,34 +5768,65 @@ process_file(
     unsigned char *mem = NULL;
     int mem_a = 0, mem_u = 0, mem_i = 0, html_i = 0;
 
-    if (!strcmp(path, "-")) {
-        in_f = stdin;
+    if (file_text) {
+        mem_u = strlen(file_text);
+        mem_a = mem_u + 1;
+        mem = xstrdup(file_text);
+        processor_state_init_file(ps, path);
     } else {
-        in_f = fopen(path, "r");
-        if (!in_f) {
+        if (!strcmp(path, "-")) {
+            in_f = stdin;
+        } else {
+            in_f = fopen(path, "r");
+            if (!in_f) {
             fprintf(log_f, "%s: cannot open file '%s': %s\n", progname, path, os_ErrorMsg());
             goto fail;
+            }
         }
-    }
-    processor_state_init_file(ps, path);
-
-    // read the whole file to memory
-    mem_a = 1024;
-    mem = xmalloc(mem_a * sizeof(mem[0]));
-    while ((cc = getc(in_f)) != EOF) {
-        if (mem_u + 1 >= mem_a) {
-            mem = xrealloc(mem, (mem_a *= 2) * sizeof(mem[0]));
+        processor_state_init_file(ps, path);
+        
+        // read the whole file to memory
+        mem_a = 1024;
+        mem = xmalloc(mem_a * sizeof(mem[0]));
+        while ((cc = getc(in_f)) != EOF) {
+            if (mem_u + 1 >= mem_a) {
+                mem = xrealloc(mem, (mem_a *= 2) * sizeof(mem[0]));
+            }
+            mem[mem_u++] = cc;
         }
-        mem[mem_u++] = cc;
+        mem[mem_u] = 0;
+        if (in_f != stdin) fclose(in_f);
+        in_f = NULL;
     }
-    mem[mem_u] = 0;
-    if (in_f != stdin) fclose(in_f);
-    in_f = NULL;
 
     mem_i = 0;
     html_i = 0;
     while (mem_i < mem_u) {
-        if (mem[mem_i] == '<' && mem[mem_i + 1] == '%') {
+        if (mem[mem_i] == '<' && mem[mem_i + 1] == '%' && mem[mem_i + 2] == '#') {
+            handle_html_text(prg_f, txt_f, log_f, mem, html_i, mem_i);
+            pos_next(&ps->pos, '<');
+            pos_next(&ps->pos, '%');
+            pos_next(&ps->pos, '#');
+            Position start_pos = ps->pos;
+            mem_i += 3;
+            html_i = mem_i;
+            while (mem_i < mem_u && (mem[mem_i] != '#' || mem[mem_i + 1] != '%' || mem[mem_i + 2] != '>')) {
+                pos_next(&ps->pos, mem[mem_i]);
+                ++mem_i;
+            }
+            int end_i = mem_i;
+            if (mem_i < mem_u) {
+                pos_next(&ps->pos, '#');
+                pos_next(&ps->pos, '%');
+                pos_next(&ps->pos, '>');
+                mem_i += 3;
+            }
+            mem[end_i] = 0;
+            while (end_i > html_i && isspace(mem[end_i - 1])) --end_i;
+            mem[end_i] = 0;
+            handle_directive(cntx, ps, prg_f, txt_f, log_f, dep_f, mem + html_i, end_i - html_i, start_pos, global_scope);
+            html_i = mem_i;
+        } else if (mem[mem_i] == '<' && mem[mem_i + 1] == '%') {
             handle_html_text(prg_f, txt_f, log_f, mem, html_i, mem_i);
             pos_next(&ps->pos, '<');
             pos_next(&ps->pos, '%');
@@ -5428,10 +6000,16 @@ process_unit(
                                      size_t_type_handler);
     processor_state_set_type_handler(ps, tc_find_typedef_type(cntx, tc_get_ident(cntx, "ej_size_t")),
                                      ej_size_t_type_handler);
+    processor_state_set_type_handler(ps, tc_find_typedef_type(cntx, tc_get_ident(cntx, "ej_size64_t")),
+                                     ej_size64_t_type_handler);
     processor_state_set_type_handler(ps, tc_find_typedef_type(cntx, tc_get_ident(cntx, "ej_ip_t")),
                                      ej_ip_t_type_handler);
     processor_state_set_type_handler(ps, tc_find_typedef_type(cntx, tc_get_ident(cntx, "ej_ip4_t")),
                                      ej_ipv4_t_type_handler);
+    processor_state_set_type_handler(ps, tc_find_typedef_type(cntx, tc_get_ident(cntx, "ejbytebool_t")),
+                                     int_type_handler);
+    processor_state_set_type_handler(ps, tc_find_typedef_type(cntx, tc_get_ident(cntx, "ejintbool_t")),
+                                     int_type_handler);
 
     processor_state_set_type_handler(ps, tc_get_typedef_type(cntx, tc_get_i0_type(cntx), tc_get_ident(cntx, "__ej_uuid_t")),
                                      ej_uuid_type_handler);
@@ -5447,17 +6025,22 @@ process_unit(
                                      ej_duration_type_handler);
     processor_state_set_type_handler(ps, tc_get_typedef_type(cntx, tc_get_i0_type(cntx), tc_get_ident(cntx, "__ej_brief_time_t")),
                                      ej_brief_time_type_handler);
+    processor_state_set_type_handler(ps, tc_get_typedef_type(cntx, tc_get_i0_type(cntx), tc_get_ident(cntx, "__ej_jsbool_t")),
+                                     ej_jsbool_type_handler);
 
     processor_state_set_array_type_handler(ps, tc_get_u8_type(cntx), string_type_handler);
     processor_state_set_array_type_handler(ps, tc_get_i8_type(cntx), string_type_handler);
 
     processor_state_set_read_type_handler(ps, tc_get_i32_type(cntx), int_read_type_handler);
+    processor_state_set_read_type_handler(ps, tc_find_typedef_type(cntx, tc_get_ident(cntx, "ejintbool_t")), int_read_type_handler);
+    processor_state_set_read_type_handler(ps, tc_find_typedef_type(cntx, tc_get_ident(cntx, "ej_size64_t")), int_read_type_handler);
     processor_state_set_read_type_handler(ps, tc_get_ptr_type(cntx, tc_get_const_type(cntx, tc_get_u8_type(cntx))),
                                           string_read_type_handler);
     processor_state_set_read_type_handler(ps, tc_get_ptr_type(cntx, tc_get_const_type(cntx, tc_get_i8_type(cntx))),
                                           string_read_type_handler);
     processor_state_set_read_type_handler(ps, tc_get_ptr_type(cntx, tc_get_u8_type(cntx)), string_read_type_handler);
     processor_state_set_read_type_handler(ps, tc_get_ptr_type(cntx, tc_get_i8_type(cntx)), string_read_type_handler);
+    processor_state_set_read_type_handler(ps, tc_get_ptr_type(cntx, tc_get_ptr_type(cntx, tc_get_i8_type(cntx))), string_array_read_type_handler);
 
     char *txt_t = NULL;
     size_t txt_z = 0;
@@ -5469,7 +6052,7 @@ process_unit(
 
     processor_state_push_scope(ps, global_scope);
 
-    result = process_file(log_f, prg_f, txt_f, dep_f, ps, path, cntx, global_scope);
+    result = process_file(log_f, prg_f, txt_f, dep_f, ps, path, cntx, global_scope, NULL);
 
     fprintf(out_f, "/* === string pool === */\n\n");
     fclose(txt_f); txt_f = NULL;

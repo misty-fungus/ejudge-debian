@@ -1,10 +1,9 @@
 /* -*- c -*- */
-/* $Id: contests.h 8213 2014-05-15 13:09:46Z cher $ */
 
 #ifndef __CONTESTS_H__
 #define __CONTESTS_H__
 
-/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -460,7 +459,11 @@ int contests_check_serve_control_ip_2(const struct contest_desc *, const ej_ip_t
 void contests_set_load_callback(void (*f)(const struct contest_desc *));
 void contests_set_unload_callback(void (*f)(const struct contest_desc *));
 
-void contests_write_header(FILE *f, const struct contest_desc *cnts);
+void
+contests_write_header(
+        FILE *f,
+        const struct contest_desc *cnts,
+        int auto_contest_id);
 int contests_save_xml(struct contest_desc *cnts,
                       const unsigned char *txt1,
                       const unsigned char *txt2,
@@ -569,5 +572,8 @@ contests_set_member_counts(
 /* This is INTENTIONALLY not an `extern' variable */
 struct ejudge_cfg;
 struct ejudge_cfg *ejudge_config;
+
+int
+contests_guess_id(const char *path);
 
 #endif /* __CONTESTS_H__ */

@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-# $Id: Makefile.in 7366 2013-02-10 19:18:53Z cher $
+# $Id$
 # @configure_input@
 
 # Copyright (C) 2007-2013 Alexander Chernov <cher@ejudge.ru> */

@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: protocol.h 8232 2014-05-16 19:06:19Z cher $ */
+/* $Id$ */
 
 #ifndef __PROTOCOL_H__
 #define __PROTOCOL_H__

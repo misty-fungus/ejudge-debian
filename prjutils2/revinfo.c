@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: revinfo.c 7753 2014-01-03 19:59:12Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2000-2007 Alexander Chernov <cher@ejudge.ru> */
 

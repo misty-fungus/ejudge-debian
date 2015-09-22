@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: type_info.h 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 #ifndef __TYPE_INFO_H__
 #define __TYPE_INFO_H__
 

@@ -1,5 +1,5 @@
 <%
-/* $Id: cnts_edit_file_page.csp 8606 2014-09-10 18:03:54Z cher $ */
+/* $Id$ */
 %><%@include "includes.csp"
 %><%
 #include "ejudge/osdeps.h"

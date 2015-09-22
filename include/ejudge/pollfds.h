@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: pollfds.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 
 #ifndef __POLLFDS_H__
 #define __POLLFDS_H__

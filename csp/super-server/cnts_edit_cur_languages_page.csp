@@ -1,0 +1,701 @@
+<%
+%><%@include "includes.csp"
+%><%
+%><%@set getter_name = "csp_get_cnts_edit_cur_languages_page"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_cnts_edit_cur_languages_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    unsigned char subtitle_buf[1024];
+    const unsigned char *title = 0;
+    const unsigned char *subtitle = subtitle_buf;
+    opcap_t caps = 0;
+    int row = 1;
+    int cur_page = 3;
+    unsigned char cs_conf_file[PATH_MAX];
+    unsigned char num_buf[1024];
+    unsigned char *env = 0;
+    unsigned char onclickstr_buf[128];
+
+static const unsigned char head_row_attr[] =
+  " bgcolor=\"#a0a0a0\"";
+static const unsigned char * const form_row_attrs[]=
+{
+  " bgcolor=\"#d0d0d0\"",
+  " bgcolor=\"#e0e0e0\"",
+};
+
+    if (phr->priv_level != PRIV_LEVEL_ADMIN) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (ejudge_cfg_opcaps_find(phr->config, phr->login, &caps) < 0) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (opcaps_check(caps, OPCAP_EDIT_CONTEST) < 0) FAIL(SSERV_ERR_PERMISSION_DENIED);
+    if (!phr->ss->edited_cnts) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
+
+    snprintf(subtitle_buf, sizeof(subtitle_buf), "editing serve.cfg, programming languages");
+    cnts = phr->ss->edited_cnts;
+    struct section_global_data *global = phr->ss->global;
+%><%@include "header_jqgrid.csp"
+%>
+
+<%@include "cnts_edit_cur_top_menu.csp"
+%>
+
+<%
+  if (phr->ss->serve_parse_errors) {
+%>
+<h2><tt>serve.cfg</tt> cannot be edited</h2>
+<font color="red"><pre><s:v value="phr->ss->serve_parse_errors" /></pre></font>
+<%
+    goto bottom_links;
+  }
+%>
+
+<%
+  if (!global) {
+%>
+<h2>No current global settings!</h2>
+<%
+    goto bottom_links;
+  }
+%>
+
+<%
+  if (phr->ss->disable_compilation_server) {
+%>
+<h2>Compilation server is disabled!</h2>
+<p>Enable compilation server on &quot;Global settings&qout; tab.</p>
+<%
+    goto bottom_links;
+  }
+%>
+<%
+  if (!phr->ss->cs_langs_loaded) {
+    super_load_cs_languages(phr->config, phr->ss, global->extra_compile_dirs, 1, cs_conf_file, sizeof(cs_conf_file));
+  }
+%>
+<%
+  if (!phr->ss->cs_langs) {
+%>
+<h2>The standard compilation server is not available!</h2>
+<%
+    goto bottom_links;
+  }
+%>
+
+<div id="LimitsDialogDiv" title="Compilation Limits" style="overflow: auto;">
+    <s:form id="LimitsDialogForm">
+        <s:hidden name="action" ac="glob-save-limits-form" />
+        <div id="limits-compile_max_vm_size-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="limits-compile_max_vm_size">Maximum VM size for compilers:</label></div>
+            <input type="text" size="20" name="compile_max_vm_size" id="limits-compile_max_vm_size" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="limits-compile_max_stack_size-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="limits-compile_max_stack_size">Maximum Stack size for compilers:</label></div>
+            <input type="text" size="20" name="compile_max_stack_size" id="limits-compile_max_stack_size" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="limits-compile_max_file_size-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="limits-compile_max_file_size">Maximum File size for compilers:</label></div>
+            <input type="text" size="20" name="compile_max_file_size" id="limits-compile_max_file_size" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+    </s:form>
+</div>
+
+<div id="MainDialogDiv" title="Translator Properties" style="overflow: auto;">
+    <s:form id="MainDialogForm">
+        <s:hidden name="action" ac="lang-save-main-form" />
+
+        <div id="main-lang_id-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-lang_id">Language ID:</label></div>
+            <input readonly="readonly" type="text" size="20" name="lang_id" id="main-lang_id" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-compile_id-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-compile_id">Language compile ID:</label></div>
+            <input readonly="readonly" type="text" size="20" name="compile_id" id="main-compile_id" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-short_name-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-short_name">Language short name:</label></div>
+            <input readonly="readonly" type="text" size="20" name="short_name" id="main-short_name" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-arch-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-arch">Language architecture:</label></div>
+            <input readonly="readonly" type="text" size="20" name="arch" id="main-arch" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-src_sfx-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-src_sfx">Suffix of the source files:</label></div>
+            <input readonly="readonly" type="text" size="20" name="src_sfx" id="main-src_sfx" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-exe_sfx-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-exe_sfx">Suffix of the executable files:</label></div>
+            <input readonly="readonly" type="text" size="20" name="exe_sfx" id="main-exe_sfx" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-long_name-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-long_name">Language long name:</label></div>
+            <input type="text" size="20" name="long_name" id="main-long_name" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-extid-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-extid">Language external name:</label></div>
+            <input type="text" size="20" name="extid" id="main-extid" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-disabled-div">
+            <div style="width: 300px; display: inline-block;"><label for="main-disabled">Disable this language for participants:</label></div>
+            <input type="checkbox" name="disabled" id="main-disabled" value="1" />
+        </div>
+        <div id="main-insecure-div">
+            <div style="width: 300px; display: inline-block;"><label for="main-insecure">This language is insecure:</label></div>
+            <input type="checkbox" name="insecure" id="main-insecure" value="1" />
+        </div>
+        <div id="main-disable_security-div">
+            <div style="width: 300px; display: inline-block;"><label for="main-disable_security">Disable security restrictions:</label></div>
+            <input type="checkbox" name="disable_security" id="main-disable_security" value="1" />
+        </div>
+        <div id="main-disable_testing-div">
+            <div style="width: 300px; display: inline-block;"><label for="main-disable_testing">Disable any testing of submissions:</label></div>
+            <input type="checkbox" name="disable_testing" id="main-disable_testing" value="1" onchange="mainDialogOnChange()" />
+        </div>
+        <div id="main-disable_auto_testing-div">
+            <div style="width: 300px; display: inline-block;"><label for="main-disable_auto_testing">Disable automatic testing of submissions:</label></div>
+            <input type="checkbox" name="disable_auto_testing" id="main-disable_auto_testing" value="1" />
+        </div>
+        <div id="main-binary-div">
+            <div style="width: 300px; display: inline-block;"><label for="main-binary">Language source files are binary:</label></div>
+            <input type="checkbox" name="binary" id="main-binary" value="1" onchange="mainDialogOnChange()" />
+        </div>
+        <div id="main-is_dos-div">
+            <div style="width: 300px; display: inline-block;"><label for="main-is_dos">Perform UNIX-&gt;DOS conversion:</label></div>
+            <input type="checkbox" name="is_dos" id="main-is_dos" value="1" />
+        </div>
+        <div id="main-max_vm_size-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-max_vm_size">Maximum VM size:</label></div>
+            <input type="text" size="20" name="max_vm_size" id="main-max_vm_size" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-max_stack_size-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-max_stack_size">Maximum stack size:</label></div>
+            <input type="text" size="20" name="max_stack_size" id="main-max_stack_size" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-max_file_size-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-max_file_size">Maximum file size:</label></div>
+            <input type="text" size="20" name="max_file_size" id="main-max_file_size" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-content_type-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-content_type">Content type for files:</label></div>
+            <input type="text" size="20" name="content_type" id="main-content_type" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-style_checker_cmd-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-style_checker_cmd">Style checker command:</label></div>
+            <input type="text" size="20" name="style_checker_cmd" id="main-style_checker_cmd" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-style_checker_env-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-style_checker_env">Style checker environment:</label></div>
+            <input type="text" size="20" name="style_checker_env" id="main-style_checker_env" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-opts-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-opts">Additional compilation options:</label></div>
+            <input type="text" size="20" name="opts" id="main-opts" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+        <div id="main-libs-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="main-libs">Additional libraries:</label></div>
+            <input type="text" size="20" name="libs" id="main-libs" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+    </s:form>
+</div>
+
+<script type="text/javascript">
+$(function() {
+    limitsDialog = $("#LimitsDialogDiv").dialog({
+        autoOpen: false,
+        height: 350,
+        width: 650,
+        modal: true,
+        buttons: {
+            "Save": function() {
+                var postData = $("#LimitsDialogForm").serialize();
+                var formURL = $("#LimitsDialogForm").attr("action");
+                $.ajax({
+                    url : formURL,
+                    type: "POST",
+                    data : postData,
+                    success:function(data, textStatus, jqXHR) {
+                        //data: return data from server
+                        document.location.reload(true);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        //if fails     
+                    }
+                });
+            },
+            Cancel: function() {
+                limitsDialog.dialog("close");
+            }
+        },
+        close : function() {
+        }
+    });
+
+    mainDialog = $("#MainDialogDiv").dialog({
+        autoOpen: false,
+        height: 650,
+        width: 650,
+        modal: true,
+        buttons: {
+            "Save": function() {
+                var postData = $("#MainDialogForm").serialize();
+                var formURL = $("#MainDialogForm").attr("action");
+                $.ajax({
+                    url : formURL,
+                    type: "POST",
+                    data : postData,
+                    success:function(data, textStatus, jqXHR) {
+                        //data: return data from server
+                        document.location.reload(true);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        //if fails     
+                    }
+                });
+            },
+            Cancel: function() {
+                mainDialog.dialog("close");
+            }
+        },
+        close : function() {
+        }
+    });
+});
+
+function np(e)
+{
+    if (e) e.stopPropagation();
+}
+
+function copyCheckbox(dst, src)
+{
+    var dstobj = document.getElementById(dst);
+    var srcobj = document.getElementById(src);
+    if (dstobj != null) {
+        if (srcobj != null && srcobj.value == "1") {
+            dstobj.checked = true;
+        } else {
+            dstobj.checked = false;
+        }
+    }
+}
+
+function popupLimitsDialog(e, skipField)
+{
+    $("#limits-compile_max_vm_size").val($("#orig-compile_max_vm_size").val());
+    $("#limits-compile_max_stack_size").val($("#orig-compile_max_stack_size").val());
+    $("#limits-compile_max_file_size").val($("#orig-compile_max_file_size").val());
+
+    if (e) e.stopPropagation();
+    limitsDialogOnChange();
+    $("#LimitsDialogDiv").dialog('open');
+}
+
+function limitsDialogOnChange()
+{
+}
+
+function popupMainDialog(compile_id, e, skipField)
+{
+    $("#main-lang_id").val($("#orig-lang_id-" + compile_id).val());
+    $("#main-compile_id").val($("#orig-compile_id-" + compile_id).val());
+    $("#main-short_name").val($("#orig-short_name-" + compile_id).val());
+    $("#main-arch").val($("#orig-arch-" + compile_id).val());
+    $("#main-src_sfx").val($("#orig-src_sfx-" + compile_id).val());
+    $("#main-exe_sfx").val($("#orig-exe_sfx-" + compile_id).val());
+    $("#main-long_name").val($("#orig-long_name-" + compile_id).val());
+    $("#main-extid").val($("#orig-extid-" + compile_id).val());
+    copyCheckbox("main-disabled", "orig-disabled-" + compile_id);
+    copyCheckbox("main-insecure", "orig-insecure-" + compile_id);
+    copyCheckbox("main-disable_security", "orig-disable_security-" + compile_id);
+    copyCheckbox("main-disable_testing", "orig-disable_testing-" + compile_id);
+    copyCheckbox("main-disable_auto_testing", "orig-disable_auto_testing-" + compile_id);
+    copyCheckbox("main-binary", "orig-binary-" + compile_id);
+    copyCheckbox("main-is_dos", "orig-is_dos-" + compile_id);
+    $("#main-max_vm_size").val($("#orig-max_vm_size-" + compile_id).val());
+    $("#main-max_stack_size").val($("#orig-max_stack_size-" + compile_id).val());
+    $("#main-max_file_size").val($("#orig-max_file_size-" + compile_id).val());
+    $("#main-content_type").val($("#orig-content_type-" + compile_id).val());
+    $("#main-style_checker_cmd").val($("#orig-style_checker_cmd-" + compile_id).val());
+    $("#main-style_checker_env").val($("#orig-style_checker_env-" + compile_id).val());
+    $("#main-opts").val($("#orig-opts-" + compile_id).val());
+    $("#main-libs").val($("#orig-libs-" + compile_id).val());
+
+    if (skipField != null) {
+        obj = document.getElementById("main-" + skipField);
+        if (obj != null) {
+            obj.value = "";
+        }
+    }
+
+    if (e) e.stopPropagation();
+    mainDialogOnChange();
+    $("#MainDialogDiv").dialog('open');
+}
+
+function mainDialogOnChange()
+{
+    $("#main-disable_auto_testing-div").toggle(!$("#main-disable_testing").is(':checked'));
+    $("#main-content_type-div").toggle($("#main-binary").is(':checked'));
+}
+</script>
+
+<table border="0">
+    <s:tr attr="head_row_attr" onclick="popupLimitsDialog()">
+        <td colspan="5" align="center"><b>Compilation limitations</b></td>
+    </s:tr>
+
+<%
+  num_buf[0] = 0;
+  if (global->compile_max_vm_size > 0) {
+    ll_to_size_str(num_buf, sizeof(num_buf), global->compile_max_vm_size);
+  }
+%>
+    <s:tr id="orig-compile_max_vm_size-div" attr="form_row_attrs[row ^= 1]" onclick="popupLimitsDialog()">
+        <td colspan="2">Maximum VM size for compilers:</td>
+        <td><s:textfield id="orig-compile_max_vm_size" readonly="readonly" name="param" value="num_buf" size="48" maxlength="1024" check="no" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:global:compile_max_vm_size" /></td>
+    </s:tr>
+
+<%
+  num_buf[0] = 0;
+  if (global->compile_max_stack_size > 0) {
+    ll_to_size_str(num_buf, sizeof(num_buf), global->compile_max_stack_size);
+  }
+%>
+    <s:tr id="orig-compile_max_stack_size-div" attr="form_row_attrs[row ^= 1]" onclick="popupLimitsDialog()">
+        <td colspan="2">Maximum stack size for compilers:</td>
+        <td><s:textfield id="orig-compile_max_stack_size" readonly="readonly" name="param" value="num_buf" size="48" maxlength="1024" check="no" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:global:compile_max_stack_size" /></td>
+    </s:tr>
+
+<%
+  num_buf[0] = 0;
+  if (global->compile_max_file_size > 0) {
+    ll_to_size_str(num_buf, sizeof(num_buf), global->compile_max_file_size);
+  }
+%>
+    <s:tr id="orig-compile_max_file_size-div" attr="form_row_attrs[row ^= 1]" onclick="popupLimitsDialog()">
+        <td colspan="2">Maximum file size for compilers:</td>
+        <td><s:textfield id="orig-compile_max_file_size" readonly="readonly" name="param" value="num_buf" size="48" maxlength="1024" check="no" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:global:compile_max_file_size" /></td>
+    </s:tr>
+
+    <s:tr attr="head_row_attr">
+        <td colspan="5" align="center"><b>Available compilers</b></td>
+    </s:tr>
+
+<%
+  int i;
+  for (i = 1; i < phr->ss->cs_lang_total; ++i) {
+    const struct section_language_data *cs_lang = phr->ss->cs_langs[i];
+    if (!cs_lang) continue;
+    if (!phr->ss->cs_lang_names[i]) continue;
+    if (!*phr->ss->cs_lang_names[i]) continue;
+    const struct section_language_data *lang = 0;
+    if (phr->ss->cs_loc_map[i] > 0) lang = phr->ss->langs[phr->ss->cs_loc_map[i]];
+    const unsigned char *td_attr = "";
+    td_attr = "";
+    if (lang && lang->insecure && global && global->secure_run > 0) {
+      td_attr = " bgcolor=\"#ffffdd\"";
+    } else if (lang) {
+      td_attr = " bgcolor=\"#ddffdd\"";
+    }
+%>
+    <tr>
+        <td colspan="3"<s:v value="td_attr" escape="false" />><%
+    if (lang && lang->long_name[0]) {
+%><b><s:v value="lang->long_name" /></b><%
+      if (!phr->ss->cs_lang_names[i]) {
+%> <font color="magenta">(No version script!)</font><%
+      } else if (!*phr->ss->cs_lang_names[i]) {
+%> <font color="red">(Version script failed!)</font><%
+      } else {
+%> (<s:v value="phr->ss->cs_lang_names[i]" />)<%
+      }
+    } else if (!phr->ss->cs_lang_names[i]) {
+%><b><s:v value="cs_lang->long_name" /></b> <font color="magenta">(No version script!)</font><%
+    } else if (!*phr->ss->cs_lang_names[i]) {
+%><b><s:v value="cs_lang->long_name" /></b> <font color="red">(Version script failed!)</font><%
+    } else {
+%><b><s:v value="phr->ss->cs_lang_names[i]" /></b><%
+    }
+%></td>
+        <td<s:v value="td_attr" escape="false" />><s:form><s:hidden name="lang_id" value="i" /><%
+    if (lang) {
+      if (!phr->ss->lang_flags[lang->id]) {
+%><s:submit ac="lang-show-details" label="View details" /><%
+      } else {
+%><s:submit ac="lang-hide-details" label="Hide details" /><%
+      }
+      if (!phr->ss->loc_cs_map[lang->id]) {
+%><s:submit ac="lang-deactivate" label="Deactivate" /><%
+      }
+    } else {
+%><s:submit ac="lang-activate" label="Activate" /><%
+    }
+%></s:form></td>
+        <td<s:v value="td_attr" escape="false" />>&nbsp;</td>
+    </tr>
+
+<%
+    if (!lang || !phr->ss->lang_flags[lang->id]) continue;
+    //ASSERT(lang->compile_id == i);
+    int idsuffix = -lang->compile_id;
+    int compile_id = lang->compile_id;
+    row = 1;
+    snprintf(onclickstr_buf, sizeof(onclickstr_buf), "popupMainDialog(%d)", compile_id);
+%>
+
+    <s:tr id="orig-lang_id-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Language ID:</td>
+        <td><s:textfield id="orig-lang_id" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->id" size="48" maxlength="1024" /></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:tr>
+
+    <s:tr id="orig-compile_id-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Compilation server ID:</td>
+        <td><s:textfield id="orig-compile_id" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->compile_id" size="48" maxlength="1024" /></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:tr>
+
+    <s:tr id="orig-short_name-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Language short name:</td>
+        <td><s:textfield id="orig-short_name" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->short_name" size="48" maxlength="1024" /></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:tr>
+
+    <s:tr id="orig-arch-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Language architecture:</td>
+        <td><s:textfield id="orig-arch" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->arch" size="48" maxlength="1024" /><% if (!lang->arch || !lang->arch[0]) { %><i>(Default)</i><% } %></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:tr>
+
+    <s:tr id="orig-src_sfx-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Suffix of the source files:</td>
+        <td><s:textfield id="orig-src_sfx" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->src_sfx" size="48" maxlength="1024" /></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:tr>
+
+    <s:tr id="orig-exe_sfx-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Suffix of the executable files:</td>
+        <td><s:textfield id="orig-exe_sfx" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->exe_sfx" size="48" maxlength="1024" /><% if (!lang->exe_sfx || !*lang->exe_sfx) { %><i>(Empty)</i><% } %></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:tr>
+
+    <s:tr id="orig-long_name-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Language long name:</td>
+        <td><s:textfield id="orig-long_name" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->long_name" size="48" maxlength="1024" check="false" /></td>
+        <td><input type="button" onclick="popupMainDialog(<s:v value="compile_id" />, event, 'long_name')" value="Clear" /></td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:long_name" /></td>
+    </s:tr>
+
+    <s:tr id="orig-extid-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Language external name:</td>
+        <td><s:textfield id="orig-extid" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->extid" size="48" maxlength="1024" checkExpr="" /></td>
+        <td><input type="button" onclick="popupMainDialog(<s:v value="compile_id" />, event, 'extid')" value="Clear" /></td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:extid" /></td>
+    </s:tr>
+
+    <s:tr id="orig-disabled-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Disable this language for participants:</td>
+        <td><s:yesno id="orig-disabled" idSuffix="idsuffix" disabled="disabled" name="param" value="lang->disabled" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:disabled" /></td>
+    </s:tr>
+
+    <s:tr id="orig-insecure-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>This language is insecure:</td>
+        <td><s:yesno id="orig-insecure" idSuffix="idsuffix" disabled="disabled"  name="param" value="lang->insecure" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:insecure" /></td>
+    </s:tr>
+
+    <s:tr id="orig-disable_security-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Disable security restrictions:</td>
+        <td><s:yesno id="orig-disable_security" idSuffix="idsuffix" disabled="disabled" name="param" value="lang->disable_security" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:disable_security" /></td>
+    </s:tr>
+
+    <s:tr id="orig-disable_testing-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Disable any testing of submissions:</td>
+        <td><s:yesno id="orig-disable_testing" idSuffix="idsuffix" disabled="disabled" name="param" value="lang->disable_testing" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:disable_testing" /></td>
+    </s:tr>
+
+    <s:tr id="orig-disable_auto_testing-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf" hiddenExpr="lang->disable_testing > 0" >
+        <td width="50">&nbsp;</td>
+        <td>Disable automatic testing of submissions:</td>
+        <td><s:yesno id="orig-disable_auto_testing" idSuffix="idsuffix" disabled="disabled" name="param" value="lang->disable_auto_testing" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:disable_auto_testing" /></td>
+    </s:tr>
+
+    <s:tr id="orig-binary-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Language source files are binary:</td>
+        <td><s:yesno id="orig-binary" idSuffix="idsuffix" disabled="disabled" name="param" value="lang->binary" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:binary" /></td>
+    </s:tr>
+
+    <s:tr id="orig-is_dos-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Perform UNIX->DOS conversion:</td>
+        <td><s:yesno id="orig-is_dos" idSuffix="idsuffix" disabled="disabled" name="param" value="lang->is_dos" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:is_dos" /></td>
+    </s:tr>
+
+<%
+    num_buf[0] = 0;
+    if (lang->max_vm_size > 0) {
+      ll_to_size_str(num_buf, sizeof(num_buf), lang->max_vm_size);
+    }
+%>
+    <s:tr id="orig-max_vm_size-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Maximum VM size:</td>
+        <td><s:textfield id="orig-max_vm_size" idSuffix="idsuffix" readonly="readonly" name="param" value="num_buf" size="48" maxlength="1024" check="false" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:max_vm_size" /></td>
+    </s:tr>
+
+<%
+    num_buf[0] = 0;
+    if (lang->max_stack_size > 0) {
+      ll_to_size_str(num_buf, sizeof(num_buf), lang->max_stack_size);
+    }
+%>
+    <s:tr id="orig-max_stack_size-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Maximum stack size:</td>
+        <td><s:textfield id="orig-max_stack_size" idSuffix="idsuffix" readonly="readonly" name="param" value="num_buf" size="48" maxlength="1024" check="false" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:max_stack_size" /></td>
+    </s:tr>
+
+<%
+    num_buf[0] = 0;
+    if (lang->max_file_size > 0) {
+      ll_to_size_str(num_buf, sizeof(num_buf), lang->max_file_size);
+    }
+%>
+    <s:tr id="orig-max_file_size-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Maximum file size:</td>
+        <td><s:textfield id="orig-max_file_size" idSuffix="idsuffix" readonly="readonly" name="param" value="num_buf" size="48" maxlength="1024" check="false" /></td>
+        <td>&nbsp;</td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:max_file_size" /></td>
+    </s:tr>
+
+    <s:tr id="orig-content_type-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf" hiddenExpr="lang->binary <= 0">
+        <td width="50">&nbsp;</td>
+        <td>Content type for files:</td>
+        <td><s:textfield id="orig-content_type" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->content_type" size="48" maxlength="1024" check="false" /></td>
+        <td><input type="button" onclick="popupMainDialog(<s:v value="compile_id" />, event, 'content_type')" value="Clear" /></td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:content_type" /></td>
+    </s:tr>
+
+    <s:tr id="orig-style_checker_cmd-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Style checker command:</td>
+        <td><s:textfield id="orig-style_checker_cmd" idSuffix="idsuffix" readonly="readonly" name="param" value="lang->style_checker_cmd" size="48" maxlength="1024" check="false" /></td>
+        <td><input type="button" onclick="popupMainDialog(<s:v value="compile_id" />, event, 'style_checker_cmd')" value="Clear" /></td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:style_checker_cmd" /></td>
+    </s:tr>
+
+<%
+    env = 0;
+    if (lang->style_checker_env && lang->style_checker_env[0]) {
+      env = sarray_unparse(lang->style_checker_env);
+    }
+%>
+    <s:tr id="orig-style_checker_env-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Style checker environment:</td>
+        <td><s:textfield id="orig-style_checker_env" idSuffix="idsuffix" readonly="readonly" name="param" value="env" size="48" maxlength="1024" checkExpr="" /></td>
+        <td><input type="button" onclick="popupMainDialog(<s:v value="compile_id" />, event, 'style_checker_env')" value="Clear" /></td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:style_checker_env" /></td>
+    </s:tr>
+<%
+    xfree(env); env = 0;
+%>
+
+    <s:tr id="orig-opts-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Additional compilation options:</td>
+        <td><s:textfield id="orig-opts" idSuffix="idsuffix" readonly="readonly" name="param" value="phr->ss->lang_opts[lang->id]" size="48" maxlength="1024" checkExpr="" /></td>
+        <td><input type="button" onclick="popupMainDialog(<s:v value="compile_id" />, event, 'opts')" value="Clear" /></td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:opts" /></td>
+    </s:tr>
+
+    <s:tr id="orig-libs-div" idSuffix="idsuffix" attr="form_row_attrs[row ^= 1]" onclickExpr="onclickstr_buf">
+        <td width="50">&nbsp;</td>
+        <td>Additional libraries:</td>
+        <td><s:textfield id="orig-libs" idSuffix="idsuffix" readonly="readonly" name="param" value="phr->ss->lang_libs[lang->id]" size="48" maxlength="1024" checkExpr="" /></td>
+        <td><input type="button" onclick="popupMainDialog(<s:v value="compile_id" />, event, 'libs')" value="Clear" /></td>
+        <td onclick="np(event);"><s:help topic="Serve.cfg:language:libs" /></td>
+    </s:tr>
+
+<%
+    if (lang->unhandled_vars) {
+      row = 1;
+%>
+    <s:tr attr="head_row_attr">
+        <td width="50">&nbsp;</td>
+        <td colspan="4" align="center"><b>Uneditable variables</b></td>
+    </s:tr>
+    <s:tr attr="form_row_attrs[row ^= 1]">
+        <td width="50">&nbsp;</td>
+        <td colspan="2"><pre><s:v value="lang->unhandled_vars" checkExpr="" /></pre></td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+    </s:tr>
+<%
+    }
+%>
+
+<%
+  }
+%>
+</table>
+
+<s:form><table><tr><td><s:submit ac="lang-update-versions" label="Update versions" /></td></tr></table></s:form>
+
+<%
+bottom_links: ;
+%>
+
+<%@include "cnts_edit_cur_bottom_menu.csp"
+%>
+
+<%@include "footer.csp"
+%><%
+cleanup:
+  l10n_resetlocale();
+  html_armor_free(&ab);
+%>

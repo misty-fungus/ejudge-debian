@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_main_page.csp 8680 2014-10-24 07:44:56Z cher $ */
+/* $Id$ */
 %><%@include "priv_includes.csp"
 %><%@set getter_name = "csp_get_priv_main_page"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
@@ -51,7 +51,7 @@
   if (hr_cgi_param(phr, "filter_last_clar", &s) > 0 && s)
     filter_last_clar_str = s;
   if (hr_cgi_param(phr, "filter_mode_clar", &s) > 0
-      && sscanf(s, "%d%n", &x, &n) == 1 && !s[n] && x >= 1 && x <= 2)
+      && sscanf(s, "%d%n", &x, &n) == 1 && !s[n])
     filter_mode_clar = x;
   if (hr_cgi_param(phr, "problem", &s) > 0) {
     if (sscanf(s, "%d_%d%n", &x, &y, &n) == 2 && !s[n]

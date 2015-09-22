@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: polygon_packet.h 8685 2014-10-26 06:25:36Z cher $ */
+/* $Id$ */
 #ifndef __POLYGON_PACKET_H__
 #define __POLYGON_PACKET_H__
 

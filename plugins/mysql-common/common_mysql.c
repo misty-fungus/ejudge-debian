@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: common_mysql.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -129,6 +128,11 @@ parse_int_func(
         struct common_mysql_state *state,
         const unsigned char *str,
         int *p_val);
+static void
+escape_string_func(
+        struct common_mysql_state *state,
+        FILE *f,
+        const unsigned char *str);
 
 /* plugin entry point */
 struct common_mysql_iface plugin_common_mysql =
@@ -170,6 +174,8 @@ struct common_mysql_iface plugin_common_mysql =
   write_timestamp_func,
   write_date_func,
   parse_int_func,
+
+  escape_string_func,
 };
 
 static struct common_plugin_data *
@@ -637,7 +643,7 @@ parse_spec_func(
   ej_ip4_t *p_ip;
   ej_ip_t *p_ipv6;
 
-  if (field_count != spec_num) {
+  if (field_count >= 0 && field_count != spec_num) {
     err("wrong field_count (%d instead of %d). invalid table format?",
         field_count, spec_num);
     return -1;
@@ -952,6 +958,22 @@ write_escaped_string_func(
   str2 = (unsigned char*) alloca(len2);
   mysql_real_escape_string(state->conn, str2, str, len1);
   fprintf(f, "%s'%s'", pfx, str2);
+}
+
+static void
+escape_string_func(
+        struct common_mysql_state *state,
+        FILE *f,
+        const unsigned char *str)
+{
+  size_t len1, len2;
+  unsigned char *str2;
+
+  len1 = strlen(str);
+  len2 = 2 * len1 + 1;
+  str2 = (unsigned char*) alloca(len2);
+  mysql_real_escape_string(state->conn, str2, str, len1);
+  fprintf(f, "%s", str2);
 }
 
 static void

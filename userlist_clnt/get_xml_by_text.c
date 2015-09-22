@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: get_xml_by_text.c 5947 2010-07-15 08:57:52Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
 

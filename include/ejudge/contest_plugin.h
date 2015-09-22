@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: contest_plugin.h 8706 2014-11-02 14:38:15Z cher $ */
+/* $Id$ */
 
 #ifndef __CONTEST_PLUGIN_H__
 #define __CONTEST_PLUGIN_H__

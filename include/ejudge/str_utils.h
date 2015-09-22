@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: str_utils.h 8528 2014-08-22 11:25:35Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_STR_UTILS_H__
 #define __REUSE_STR_UTILS_H__

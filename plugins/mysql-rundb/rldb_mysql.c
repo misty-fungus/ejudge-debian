@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: rldb_mysql.c 8698 2014-10-30 05:47:27Z cher $ */
 
-/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -169,7 +168,7 @@ do_create(struct rldb_mysql_state *state)
   if (mi->simple_fquery(md, create_runs_query, md->table_prefix) < 0)
     db_error_fail(md);
   if (mi->simple_fquery(md,
-                        "INSERT INTO %sconfig VALUES ('run_version', '6') ;",
+                        "INSERT INTO %sconfig VALUES ('run_version', '7') ;",
                         md->table_prefix) < 0)
     db_error_fail(md);
   return 0;
@@ -385,7 +384,7 @@ load_runs(struct rldb_mysql_cnts *cs)
   struct run_entry *re;
   int i, mime_type;
   ruint32_t sha1[5];
-  ruint32_t run_uuid[4];
+  ej_uuid_t run_uuid;
 
   memset(&ri, 0, sizeof(ri));
   if (mi->fquery(md, RUNS_ROW_WIDTH,
@@ -399,7 +398,7 @@ load_runs(struct rldb_mysql_cnts *cs)
   for (i = 0; i < md->row_count; i++) {
     memset(&ri, 0, sizeof(ri));
     memset(sha1, 0, sizeof(sha1));
-    memset(run_uuid, 0, sizeof(run_uuid));
+    memset(&run_uuid, 0, sizeof(run_uuid));
     if (mi->next_row(md) < 0) goto fail;
     mime_type = 0;
     if (mi->parse_spec(md, md->field_count, md->row, md->lengths,
@@ -434,7 +433,7 @@ load_runs(struct rldb_mysql_cnts *cs)
       db_error_inv_value_fail(md, "hash");
     if (ri.run_uuid) {
 #if CONF_HAS_LIBUUID - 0 != 0
-      uuid_parse(ri.run_uuid, (void*) run_uuid);
+      uuid_parse(ri.run_uuid, (void*) &run_uuid);
 #endif
     }
     //if (ri.ip_version != 4) db_error_inv_value_fail(md, "ip_version");
@@ -456,7 +455,7 @@ load_runs(struct rldb_mysql_cnts *cs)
     re->lang_id = ri.lang_id;
     ipv6_to_run_entry(&ri.ip, re);
     memcpy(re->sha1, sha1, sizeof(re->sha1));
-    memcpy(re->run_uuid, run_uuid, sizeof(re->run_uuid));
+    memcpy(&re->run_uuid, &run_uuid, sizeof(re->run_uuid));
     re->score = ri.score;
     re->test = ri.test_num;
     re->score_adj = ri.score_adj;
@@ -513,7 +512,6 @@ open_func(
   state->nref++;
   cs->rl_state = rl_state;
   if (cnts) cs->contest_id = cnts->id;
-  if (!cs->contest_id && global) cs->contest_id = global->contest_id;
   if (!cs->contest_id) {
     err("undefined contest_id");
     goto fail;
@@ -885,11 +883,11 @@ generate_update_entry_clause(
   }
   if ((flags & RE_RUN_UUID)) {
 #if CONF_HAS_LIBUUID - 0 != 0
-    if (!re->run_uuid[0] && !re->run_uuid[1] && !re->run_uuid[2] && !re->run_uuid[3]) {
+    if (!re->run_uuid.v[0] && !re->run_uuid.v[1] && !re->run_uuid.v[2] && !re->run_uuid.v[3]) {
       fprintf(f, "%srun_uuid = NULL", sep);
     } else {
       char uuid_buf[40];
-      uuid_unparse((void*) re->run_uuid, uuid_buf);
+      uuid_unparse((void*) &re->run_uuid, uuid_buf);
       fprintf(f, "%srun_uuid = '%s'", sep, uuid_buf);
     }
     sep =comma;
@@ -1017,7 +1015,7 @@ update_entry(
     memcpy(dst->sha1, src->sha1, sizeof(dst->sha1));
   }
   if ((flags & RE_RUN_UUID)) {
-    memcpy(dst->run_uuid, src->run_uuid, sizeof(dst->run_uuid));
+    memcpy(&dst->run_uuid, &src->run_uuid, sizeof(dst->run_uuid));
   }
   if ((flags & RE_SCORE)) {
     dst->score = src->score;
@@ -1546,8 +1544,8 @@ put_entry_func(
 #if CONF_HAS_LIBUUID
   {
     char uuid_buf[40];
-    if (re->run_uuid[0] || re->run_uuid[1] || re->run_uuid[2] || re->run_uuid[3]) {
-      uuid_unparse((void*) re->run_uuid, uuid_buf);
+    if (re->run_uuid.v[0] || re->run_uuid.v[1] || re->run_uuid.v[2] || re->run_uuid.v[3]) {
+      uuid_unparse((void*) &re->run_uuid, uuid_buf);
       ri.run_uuid = uuid_buf;
     }
   }

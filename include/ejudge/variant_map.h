@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: variant_map.h 8779 2014-11-23 18:56:58Z cher $ */
+/* $Id$ */
 #ifndef __VARIANT_MAP_H__
 #define __VARIANT_MAP_H__
 

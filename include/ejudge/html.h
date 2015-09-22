@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: html.h 8800 2014-12-28 17:42:54Z cher $ */
 #ifndef __HTML_H__
 #define __HTML_H__
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -161,8 +160,13 @@ write_xml_tests_report(
         const unsigned char *class1,
         const unsigned char *class2);
 
-void generate_daily_statistics(const serve_state_t, FILE *f,
-                               time_t from_time, time_t to_time, int utf8_mode);
+void
+generate_daily_statistics(
+        const struct contest_desc *cnts,
+        const serve_state_t, FILE *f,
+        time_t from_time,
+        time_t to_time,
+        int utf8_mode);
 
 void
 write_change_status_dialog(const serve_state_t state,
@@ -241,5 +245,14 @@ enum
   | (1 << RUN_VIEW_TEST)
   | (1 << RUN_VIEW_SCORE)
 };
+
+struct testing_report_file_content;
+struct html_armor_buffer;
+void
+html_print_testing_report_file_content(
+        FILE *out_f,
+        struct html_armor_buffer *pab,
+        struct testing_report_file_content *fc,
+        int type);
 
 #endif /* __HTML_H__ */

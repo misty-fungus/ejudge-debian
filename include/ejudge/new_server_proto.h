@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: new_server_proto.h 8233 2014-05-17 06:07:09Z cher $ */
+/* $Id$ */
 
 #ifndef __NEW_SERVER_PROTO_H__
 #define __NEW_SERVER_PROTO_H__

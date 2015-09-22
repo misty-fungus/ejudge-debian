@@ -1,4 +1,4 @@
-/* $Id: nameser_compat.h 7722 2014-01-03 13:06:28Z cher $ */
+/* $Id$ */
 /* Copyright (C) 2004 Alexander Chernov */
 
 /* This file is derived from `arpa/nameser_compat.h' of the GNU C Library,

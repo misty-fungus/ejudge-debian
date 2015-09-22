@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: ej-import-contest.c 8795 2014-12-11 22:25:52Z cher $ */
 
-/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -644,6 +643,7 @@ merge_problem_section(
         { CNTSPROB_score_latest, META_PROBLEM_CONFIG_SECTION_score_latest },
         { CNTSPROB_score_latest_or_unmarked, META_PROBLEM_CONFIG_SECTION_score_latest_or_unmarked },
         { CNTSPROB_score_latest_marked, META_PROBLEM_CONFIG_SECTION_score_latest_marked },
+        { CNTSPROB_score_tokenized, META_PROBLEM_CONFIG_SECTION_score_tokenized },
         { CNTSPROB_use_ac_not_ok, META_PROBLEM_CONFIG_SECTION_use_ac_not_ok },
         { CNTSPROB_ignore_prev_ac, META_PROBLEM_CONFIG_SECTION_ignore_prev_ac },
         { CNTSPROB_team_enable_rep_view, META_PROBLEM_CONFIG_SECTION_team_enable_rep_view },
@@ -661,7 +661,9 @@ merge_problem_section(
         { CNTSPROB_disable_tab, META_PROBLEM_CONFIG_SECTION_disable_tab },
         { CNTSPROB_unrestricted_statement, META_PROBLEM_CONFIG_SECTION_unrestricted_statement },
         { CNTSPROB_hide_file_names, META_PROBLEM_CONFIG_SECTION_hide_file_names },
+        { CNTSPROB_hide_real_time_limit, META_PROBLEM_CONFIG_SECTION_hide_real_time_limit },
         { CNTSPROB_enable_tokens, META_PROBLEM_CONFIG_SECTION_enable_tokens },
+        { CNTSPROB_tokens_for_user_ac, META_PROBLEM_CONFIG_SECTION_tokens_for_user_ac },
         { CNTSPROB_disable_submit_after_ok, META_PROBLEM_CONFIG_SECTION_disable_submit_after_ok },
         { CNTSPROB_disable_auto_testing, META_PROBLEM_CONFIG_SECTION_disable_auto_testing },
         { CNTSPROB_disable_testing, META_PROBLEM_CONFIG_SECTION_disable_testing },
@@ -826,6 +828,7 @@ merge_problem_section(
         { CNTSPROB_standard_checker, META_PROBLEM_CONFIG_SECTION_standard_checker },
         { CNTSPROB_tokens, META_PROBLEM_CONFIG_SECTION_tokens },
         { CNTSPROB_umask, META_PROBLEM_CONFIG_SECTION_umask },
+        { CNTSPROB_ok_status, META_PROBLEM_CONFIG_SECTION_ok_status },
 
         { 0, 0 },
     };

@@ -1,5 +1,5 @@
 <%
-/* $Id: contest_xml_page.csp 8606 2014-09-10 18:03:54Z cher $ */
+/* $Id$ */
 %><%@include "includes.csp"
 %><%@set getter_name = "csp_get_contest_xml_page"
 %><%@set ac_prefix = "SSERV_CMD_"

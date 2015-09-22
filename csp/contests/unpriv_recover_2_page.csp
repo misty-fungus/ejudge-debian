@@ -1,5 +1,5 @@
 <% // -*- mode: html -*-
-/* $Id: unpriv_recover_2_page.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id$ */
 %><%@include "unpriv_includes.csp"
 %><%
 #include "ejudge/userlist_clnt.h"

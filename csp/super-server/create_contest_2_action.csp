@@ -1,5 +1,5 @@
 <%
-/* $Id: create_contest_2_action.csp 8434 2014-08-04 19:57:58Z cher $ */
+/* $Id$ */
 %><%@include "includes.csp"
 %><%@set getter_name = "csp_get_create_contest_2_action"
 %><%@set ac_prefix = "SSERV_CMD_"

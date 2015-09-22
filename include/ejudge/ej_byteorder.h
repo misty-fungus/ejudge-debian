@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: ej_byteorder.h 8184 2014-05-14 10:31:59Z cher $ */
+/* $Id$ */
 #ifndef __EJ_BYTEORDER_H__
 #define __EJ_BYTEORDER_H__
 

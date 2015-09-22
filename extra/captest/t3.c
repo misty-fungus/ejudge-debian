@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: t3.c 4999 2008-08-15 08:36:19Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2007,2008 Alexander Chernov <cher@ejudge.ru> */
 

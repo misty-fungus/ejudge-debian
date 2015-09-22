@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: problem_plugin.h 8214 2014-05-15 13:23:59Z cher $ */
+/* $Id$ */
 
 #ifndef __PROBLEM_PLUGIN_H__
 #define __PROBLEM_PLUGIN_H__

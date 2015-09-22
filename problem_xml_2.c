@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: problem_xml_2.c 8216 2014-05-15 13:48:26Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2011-2014 Alexander Chernov <cher@ejudge.ru> */
 

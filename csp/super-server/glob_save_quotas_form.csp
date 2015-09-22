@@ -1,0 +1,78 @@
+<% //-*- c -*-
+%><%@include "includes.csp"
+%><%
+
+%><%@set getter_name = "csp_get_glob_save_quotas_form"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_glob_save_quotas_form(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    snprintf(phr->content_type, sizeof(phr->content_type), "application/json; charset=%s", EJUDGE_CHARSET);
+
+    ej_size64_t max_run_size = 0;
+    ej_size64_t max_run_total = 0;
+    int max_run_num = 0;
+    ej_size64_t max_clar_size = 0;
+    ej_size64_t max_clar_total = 0;
+    int max_clar_num = 0;
+    int team_page_quota = 0;
+
+    char *msg_s = NULL;
+    size_t msg_z = 0;
+    FILE *msg_f = open_memstream(&msg_s, &msg_z);
+%><s:read var="max_run_size" default="-1" /><%
+%><s:read var="max_run_total" default="-1" /><%
+%><s:read var="max_run_num" default="-1" /><%
+%><s:read var="max_clar_size" default="-1" /><%
+%><s:read var="max_clar_total" default="-1" /><%
+%><s:read var="max_clar_num" default="-1" /><%
+%><s:read var="team_page_quota" default="-1" /><%
+
+    if (max_run_size >= 0) {
+        if (max_run_size != (ejintsize_t) max_run_size) {
+            retval = SSERV_ERR_INV_PARAM;
+        }
+    }
+    if (max_run_total >= 0) {
+        if (max_run_total != (ejintsize_t) max_run_total) {
+            retval = SSERV_ERR_INV_PARAM;
+        }
+    }
+    if (max_clar_size >= 0) {
+        if (max_clar_size != (ejintsize_t) max_clar_size) {
+            retval = SSERV_ERR_INV_PARAM;
+        }
+    }
+    if (max_clar_total >= 0) {
+        if (max_clar_total != (ejintsize_t) max_clar_total) {
+            retval = SSERV_ERR_INV_PARAM;
+        }
+    }
+
+    if (!retval && phr->ss) {
+        struct section_global_data *global = phr->ss->global;
+        if (global) {
+            if (max_run_size >= 0) global->max_run_size = max_run_size;
+            if (max_run_total >= 0) global->max_run_total = max_run_total;
+            if (max_run_num >= 0) global->max_run_num = max_run_num;
+            if (max_clar_size >= 0) global->max_clar_size = max_clar_size;
+            if (max_clar_total >= 0) global->max_clar_total = max_clar_total;
+            if (max_clar_num >= 0) global->max_clar_num = max_clar_num;
+            if (team_page_quota >= 0) global->team_page_quota = team_page_quota;
+        }
+    }
+
+cleanup:;
+    fclose(msg_f); msg_f = NULL;
+%>
+{
+    "input" : {
+    },
+    "retval" : <s:v value="retval" />,
+    "messages" : "<s:v value="msg_s" json="yes" checkExpr="" />"
+}
+<%
+    html_armor_free(&ab);
+    xfree(msg_s);
+%>

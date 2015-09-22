@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: misctext.c 8655 2014-10-20 10:13:53Z cher $ */
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -18,6 +17,7 @@
 #include "ejudge/misctext.h"
 #include "ejudge/base64.h"
 #include "ejudge/compat.h"
+#include "ejudge/xml_utils.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -402,6 +402,17 @@ message_reply_subj(char const *intxt, char *outtxt)
   return strlen(outtxt);
 }
 
+const unsigned char *
+skip_message_headers(const unsigned char *intxt)
+{
+  if (!intxt) return intxt;
+  const char *p = strstr(intxt, "\n\n");
+  if (p) return p + 2;
+  p = strstr(intxt, "\r\n\r\n");
+  if (p) return p + 4;
+  return intxt;
+}
+
 int
 message_base64_subj(char const *msg, char *out, int maxlen)
 {
@@ -636,6 +647,27 @@ unparse_sha1(const void *shabuf)
     *p++ = hexd[(*s >> 4) & 0xf];
     *p++ = hexd[*s & 0xf];
   }
+  *p = 0;
+
+  return buf;
+}
+
+unsigned char *
+unparse_abbrev_sha1(const void *shabuf)
+{
+  const unsigned char *s = (const unsigned char *) shabuf;
+  int i;
+  static unsigned char buf[64];
+  unsigned char *p;
+  static const unsigned char hexd[] = "0123456789abcdef";
+
+  for (i = 0, p = buf; i < 4; i++, s++) {
+    *p++ = hexd[(*s >> 4) & 0xf];
+    *p++ = hexd[*s & 0xf];
+  }
+  *p++ = '.';
+  *p++ = '.';
+  *p++ = '.';
   *p = 0;
 
   return buf;
@@ -1473,7 +1505,15 @@ is_empty_string(const unsigned char *s)
   return !*s;
 }
 
-#define SIZE_T (1024L * 1024L * 1024L * 1024L)
+int
+is_empty_string_2(const unsigned char *s)
+{
+  if (!s) return 1;
+  while (*s && (*s <= ' ' || *s == 0x7f)) ++s;
+  return !*s;
+}
+
+#define SIZE_T (1024LL * 1024LL * 1024LL * 1024LL)
 #define SIZE_G (1024 * 1024 * 1024)
 #define SIZE_M (1024 * 1024)
 #define SIZE_K (1024)
@@ -1504,6 +1544,48 @@ size_t_to_size_str(
   else if (!(num % SIZE_K)) snprintf(buf, buf_size, "%" EJ_PRINTF_ZSPEC "uK", EJ_PRINTF_ZCAST(num / SIZE_K));
   else snprintf(buf, buf_size, "%" EJ_PRINTF_ZSPEC "u", EJ_PRINTF_ZCAST(num));
   return buf;
+}
+
+unsigned char *
+ll_to_size_str(
+        unsigned char *buf,
+        size_t buf_size,
+        long long value)
+{
+  if (value < 0) {
+    snprintf(buf, buf_size, "%lld", value);
+  } else if (!value) {
+    snprintf(buf, buf_size, "0");
+  } else if (!(value % SIZE_G)) {
+    snprintf(buf, buf_size, "%lldG", value / SIZE_G);
+  } else if (!(value % SIZE_M)) {
+    snprintf(buf, buf_size, "%lldM", value / SIZE_M);
+  } else if (!(value % SIZE_K)) {
+    snprintf(buf, buf_size, "%lldK", value / SIZE_K);
+  } else {
+    snprintf(buf, buf_size, "%lld", value);
+  }
+  return buf;
+}
+
+void
+ll_to_size_str_f(
+        FILE *f,
+        long long value)
+{
+  if (value < 0) {
+    // ...
+  } else if (!value) {
+    fprintf(f, "0");
+  } else if (!(value % SIZE_G)) {
+    fprintf(f, "%lldG", value / SIZE_G);
+  } else if (!(value % SIZE_M)) {
+    fprintf(f, "%lldM", value / SIZE_M);
+  } else if (!(value % SIZE_K)) {
+    fprintf(f, "%lldK", value / SIZE_K);
+  } else {
+    fprintf(f, "%lld", value);
+  }
 }
 
 void
@@ -1629,6 +1711,48 @@ size_str_to_size_t(const unsigned char *str, size_t *p_size)
 
   if (p_size) *p_size = (size_t) value;
 
+  return 0;
+}
+
+int
+size_str_to_size64_t(const unsigned char *str, ej_size64_t *p_size)
+{
+  if (!str) return -1;
+
+  int len = strlen(str);
+  while (len > 0 && isspace(str[len - 1])) --len;
+  if (!len) return -1;
+  const unsigned char *s = str;
+  const unsigned char *e = s + len;
+  errno = 0;
+  char *eptr = NULL;
+  long long x = strtoll(s, &eptr, 10);
+  if (errno) return -1;
+  s = (const unsigned char *) eptr;
+  if (s == e) {
+    if (p_size) *p_size = x;
+    return 0;
+  }
+  while (isspace(*s)) ++s;
+  if (*s == 't' || *s == 'T') {
+    if (x < -8388608LL || x > 8388607LL) return -1;
+    x *= SIZE_T;
+    ++s;
+  } else if (*s == 'g' || *s == 'G') {
+    if (x < -8589934592LL || x > 8589934591LL) return -1;
+    x *= SIZE_G;
+    ++s;
+  } else if (*s == 'm' || *s == 'M') {
+    if (x < -8796093022208LL || x > 8796093022207LL) return -1;
+    x *= SIZE_M;
+    ++s;
+  } else if (*s == 'k' || *s == 'K') {
+    if (x < -9007199254740992LL || x > 9007199254740991LL) return -1;
+    x *= SIZE_K;
+    ++s;
+  }
+  if (s != e) return -1;
+  if (p_size) *p_size = x;
   return 0;
 }
 
@@ -2093,6 +2217,22 @@ html_print_by_line(
   putc('\n', f);
 }
 
+unsigned char *
+html_print_by_line_str(
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        unsigned char const *s,
+        size_t size)
+{
+  char *txt = 0;
+  size_t len = 0;
+  FILE *f = open_memstream(&txt, &len);
+  html_print_by_line(f, utf8_mode, max_file_length, max_line_length, s, size);
+  fclose(f); f = NULL;
+  return txt;
+}
+
 int
 ucs2_to_utf8(
         unsigned char **pu8str,
@@ -2377,4 +2517,51 @@ csv_armor_buf(struct html_armor_buffer *pb, const unsigned char *s)
   }
   csv_armor_string(s, pb->buf);
   return pb->buf;
+}
+
+int
+parse_date_twopart(
+        const unsigned char *date_str,
+        const unsigned char *time_str,
+        time_t *p_time)
+{
+  if (is_empty_string_2(date_str)) date_str = "";
+  if (is_empty_string_2(time_str)) time_str = "";
+
+  *p_time = 0;
+  if (!*date_str) {
+    return 0;
+  }
+  size_t dlen = strlen(date_str);
+  size_t tlen = strlen(time_str);
+  if (dlen >= 128) return -1;
+  if (tlen >= 128) return -1;
+  unsigned char *str = alloca(dlen + tlen + 2);
+  sprintf(str, "%s %s", date_str, time_str);
+  if (xml_parse_date(NULL, NULL, 0, 0, str, p_time) < 0) {
+    *p_time = 0;
+    return -1;
+  }
+  if (*p_time == 0 || *p_time == ~(time_t) 0) {
+    *p_time = 0;
+    return -1;
+  }
+  return 1;
+}
+
+int
+parse_duration(const unsigned char *str, int default_value)
+{
+  if (!str) return default_value;
+  int len = strlen(str);
+  while (len > 0 && isspace(str[len - 1])) --len;
+  if (len <= 0) return default_value;
+  int h, m, n;
+  if (sscanf(str, "%d:%d%n", &h, &m, &n) == 2 && n == len && h >= 0 && h <= 1000000 && m >= 0 && m < 60) {
+    return h * 60 + m;
+  }
+  if (sscanf(str, "%d%n", &m, &n) == 1 && n == len && m >= 0 && m <= 1000000) {
+    return m;
+  }
+  return -1;
 }

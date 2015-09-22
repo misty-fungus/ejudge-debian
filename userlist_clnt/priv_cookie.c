@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: priv_cookie.c 7598 2013-11-18 04:37:31Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 

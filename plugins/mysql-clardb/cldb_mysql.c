@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: cldb_mysql.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2008-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -26,6 +25,7 @@
 #include "ejudge/contests.h"
 #include "ejudge/prepare.h"
 #include "ejudge/compat.h"
+#include "ejudge/ej_uuid.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -79,7 +79,7 @@ set_charset_func(struct cldb_plugin_cnts *, int);
 static int
 get_raw_text_func(struct cldb_plugin_cnts *, int, unsigned char **,size_t*);
 static int
-add_text_func(struct cldb_plugin_cnts *, int, const unsigned char *, size_t);
+add_text_func(struct cldb_plugin_cnts *, int, const ej_uuid_t *, const unsigned char *, size_t);
 static int
 modify_text_func(struct cldb_plugin_cnts *, int, const unsigned char *, size_t);
 static int
@@ -87,7 +87,12 @@ modify_record_func(
         struct cldb_plugin_cnts *cdata,
         int clar_id,
         int mask,
-        const struct clar_entry_v1 *pe);
+        const struct clar_entry_v2 *pe);
+static int
+fetch_run_messages_func(
+        struct cldb_plugin_cnts *cdata,
+        const ej_uuid_t *p_run_uuid,
+        struct full_clar_entry **pp);
 
 /* plugin entry point */
 struct cldb_plugin_iface plugin_cldb_mysql =
@@ -116,6 +121,7 @@ struct cldb_plugin_iface plugin_cldb_mysql =
   add_text_func,
   modify_text_func,
   modify_record_func,
+  fetch_run_messages_func,
 };
 
 static struct common_plugin_data *
@@ -164,6 +170,7 @@ prepare_func(
 struct clar_entry_internal
 {
   int clar_id;
+  unsigned char *uuid;
   int contest_id;
   int size;
   time_t create_time;
@@ -179,17 +186,24 @@ struct clar_entry_internal
   ej_ip_t ip;
   int locale_id;
   int in_reply_to;
+  unsigned char *in_reply_uuid;
   int run_id;
+  unsigned char *run_uuid;
+  int old_run_status;
+  int new_run_status;
   unsigned char *clar_charset;
   unsigned char *subj;
 };
 
-enum { CLARS_ROW_WIDTH = 19 };
+#define CLAR_VERSION 6
+
+enum { CLARS_ROW_WIDTH = 24 };
 
 #define CLARS_OFFSET(f) XOFFSET(struct clar_entry_internal, f)
 static const struct common_mysql_parse_spec clars_spec[CLARS_ROW_WIDTH] =
 {
   { 0, 'd', "clar_id", CLARS_OFFSET(clar_id), 0 },
+  { 1, 's', "uuid", CLARS_OFFSET(uuid), 0 },
   { 0, 'd', "contest_id", CLARS_OFFSET(contest_id), 0 },
   { 0, 'd', "size", CLARS_OFFSET(size), 0 },
   { 0, 't', "create_time", CLARS_OFFSET(create_time), 0 },
@@ -205,7 +219,11 @@ static const struct common_mysql_parse_spec clars_spec[CLARS_ROW_WIDTH] =
   { 0, 'I', "ip", CLARS_OFFSET(ip), 0 },
   { 0, 'd', "locale_id", CLARS_OFFSET(locale_id), 0 },
   { 0, 'd', "in_reply_to", CLARS_OFFSET(in_reply_to), 0 },
+  { 1, 's', "in_reply_uuid", CLARS_OFFSET(in_reply_uuid), 0 },
   { 0, 'd', "run_id", CLARS_OFFSET(run_id), 0 },
+  { 1, 's', "run_uuid", CLARS_OFFSET(run_uuid), 0 },
+  { 0, 'd', "old_run_status", CLARS_OFFSET(old_run_status), 0 },
+  { 0, 'd', "new_run_status", CLARS_OFFSET(new_run_status), 0 },
   { 0, 's', "clar_charset", CLARS_OFFSET(clar_charset), 0 },
   { 0, 's', "subj", CLARS_OFFSET(subj), 0 },
 };
@@ -213,6 +231,7 @@ static const struct common_mysql_parse_spec clars_spec[CLARS_ROW_WIDTH] =
 static const char create_clars_query[] =
 "CREATE TABLE %sclars("
 "        clar_id INT UNSIGNED NOT NULL,"
+"        uuid CHAR(40) NOT NULL,"
 "        contest_id INT UNSIGNED NOT NULL,"
 "        size INT UNSIGNED NOT NULL DEFAULT 0,"
 "        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
@@ -228,26 +247,37 @@ static const char create_clars_query[] =
 "        ip VARCHAR(64) NOT NULL,"
 "        locale_id INT NOT NULL DEFAULT 0,"
 "        in_reply_to INT NOT NULL DEFAULT 0,"
+"        in_reply_uuid CHAR(40),"
 "        run_id INT NOT NULL DEFAULT 0,"
-"        clar_charset VARCHAR(64),"
-"        subj VARBINARY(64),"
-"        PRIMARY KEY (clar_id, contest_id)"
+"        run_uuid CHAR(40),"
+"        old_run_status TINYINT NOT NULL DEFAULT 0,"
+"        new_run_status TINYINT NOT NULL DEFAULT 0,"
+"        clar_charset VARCHAR(32),"
+"        subj VARBINARY(128),"
+"        PRIMARY KEY (clar_id, contest_id),"
+"        UNIQUE KEY clars_uuid_uk (uuid),"
+"        KEY clars_contest_id_k (contest_id),"
+"        KEY clars_run_uuid_k (run_uuid),"
+"        KEY clars_user_from_k (user_from),"
+"        KEY clars_user_to_k (user_to)"
 "        );";
 
 struct clartext_entry_internal
 {
   int clar_id;
   int contest_id;
+  unsigned char *uuid;
   unsigned char *clar_text;
 };
 
-enum { CLARTEXTS_ROW_WIDTH = 3 };
+enum { CLARTEXTS_ROW_WIDTH = 4 };
 
 #define CLARTEXTS_OFFSET(f) XOFFSET(struct clartext_entry_internal, f)
 static const struct common_mysql_parse_spec clartexts_spec[CLARTEXTS_ROW_WIDTH]=
 {
   { 0, 'd', "clar_id", CLARTEXTS_OFFSET(clar_id), 0 },
   { 0, 'd', "contest_id", CLARTEXTS_OFFSET(contest_id), 0 },
+  { 0, 's', "uuid", CLARTEXTS_OFFSET(uuid), 0 },
   { 0, 's', "clar_text", CLARTEXTS_OFFSET(clar_text), 0 },
 };
 
@@ -255,8 +285,10 @@ static const char create_texts_query[] =
 "CREATE TABLE %sclartexts("
 "        clar_id INT UNSIGNED NOT NULL,"
 "        contest_id INT UNSIGNED NOT NULL,"
+"        uuid CHAR(40) NOT NULL,"
 "        clar_text VARBINARY(4096),"
-"        PRIMARY KEY (clar_id, contest_id)"
+"        PRIMARY KEY (clar_id, contest_id),"
+"        UNIQUE KEY clartexts_uuid_uk (uuid)"
 "        );";
 
 static int
@@ -270,7 +302,7 @@ do_create(struct cldb_mysql_state *state)
     db_error_fail(md);
   if (mi->simple_fquery(md, create_texts_query, md->table_prefix) < 0)
     db_error_fail(md);
-  if (mi->simple_fquery(md, "INSERT INTO %sconfig VALUES ('clar_version', '2') ;", md->table_prefix) < 0)
+  if (mi->simple_fquery(md, "INSERT INTO %sconfig VALUES ('clar_version', '%d') ;", md->table_prefix, CLAR_VERSION) < 0)
     db_error_fail(md);
   return 0;
 
@@ -302,15 +334,85 @@ do_open(struct cldb_mysql_state *state)
     db_error_inv_value_fail(md, "config_val");
   mi->free_res(md);
 
+  if (clar_version < 1 || clar_version > CLAR_VERSION) {
+    err("clar_version == %d is not supported", clar_version);
+    goto fail;
+  }
   if (clar_version == 1) {
     if (mi->simple_fquery(md, "ALTER TABLE %sclars ADD COLUMN run_id INT NOT NULL DEFAULT 0 AFTER in_reply_to", md->table_prefix) < 0)
       return -1;
     if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '2' WHERE config_key = 'clar_version' ;", md->table_prefix) < 0)
       return -1;
-  } else if (clar_version != 2) {
-    err("clar_version == %d is not supported", clar_version);
-    goto fail;
+    clar_version = 2;
   }
+  if (clar_version == 2) {
+    if (mi->simple_fquery(md, "ALTER TABLE %sclars ADD COLUMN uuid CHAR(40) DEFAULT NULL AFTER clar_id, ADD COLUMN in_reply_uuid CHAR(40) DEFAULT NULL AFTER in_reply_to, ADD COLUMN run_uuid CHAR(40) DEFAULT NULL AFTER run_id ;", md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sclars SET uuid = UUID() WHERE uuid IS NULL ;", md->table_prefix) < 0)
+      return -1;
+    // update uuid indices
+    if (mi->simple_fquery(md, "UPDATE %sclars AS t1, %sclars AS t2 SET t1.in_reply_uuid = t2.uuid WHERE t1.in_reply_to > 0 AND t1.contest_id = t2.contest_id AND t1.in_reply_to - 1 = t2.clar_id;", md->table_prefix, md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sclars AS t1, %sruns AS t2 SET t1.run_uuid = t2.run_uuid WHERE t1.run_id > 0 AND t1.contest_id = t2.contest_id AND t1.run_id - 1 = t2.run_id;", md->table_prefix, md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '3' WHERE config_key = 'clar_version' ;", md->table_prefix) < 0)
+      return -1;
+    clar_version = 3;
+  }
+  if (clar_version == 3) {
+    if (mi->simple_fquery(md,
+                          "ALTER TABLE %sclars "
+                          " ADD COLUMN old_run_status TINYINT NOT NULL DEFAULT 0 AFTER run_uuid, "
+                          " ADD COLUMN new_run_status TINYINT NOT NULL DEFAULT 0 AFTER old_run_status, "
+                          " ADD UNIQUE KEY clars_uuid_uk (uuid), "
+                          " ADD KEY clars_contest_id_k (contest_id), "
+                          " ADD KEY clars_run_uuid_k (run_uuid), "
+                          " ADD KEY clars_user_from_k (user_from), "
+                          " ADD KEY clars_user_key_k (user_to) ; ",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '4' WHERE config_key = 'clar_version' ;", md->table_prefix) < 0)
+      return -1;
+    clar_version = 4;
+  }
+  if (clar_version == 4) {
+    if (mi->simple_fquery(md,
+                          "ALTER TABLE %sclars "
+                          " MODIFY clar_charset VARCHAR(32),"
+                          " MODIFY subj VARCHAR(128); ",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '5' WHERE config_key = 'clar_version' ;", md->table_prefix) < 0)
+      return -1;
+    clar_version = 5;
+  }
+  if (clar_version == 5) {
+    if (mi->simple_fquery(md,
+                          "ALTER TABLE %sclars "
+                          " MODIFY uuid CHAR(40) NOT NULL ;",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md,
+                          "ALTER TABLE %sclartexts "
+                          " ADD COLUMN uuid CHAR(40) DEFAULT NULL AFTER contest_id;",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sclartexts AS t1, %sclars AS t2 SET t1.uuid = t2.uuid WHERE t1.contest_id = t2.contest_id AND t1.clar_id = t2.clar_id;", md->table_prefix, md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md,
+                          "ALTER TABLE %sclartexts "
+                          " MODIFY uuid CHAR(40) NOT NULL,"
+                          " ADD UNIQUE KEY clartexts_uuid_uk (uuid) ;",
+                          md->table_prefix) < 0)
+      return -1;
+    if (mi->simple_fquery(md, "UPDATE %sconfig SET config_val = '6' WHERE config_key = 'clar_version' ;", md->table_prefix) < 0)
+      return -1;
+    clar_version = 6;
+  }
+
+  // just in case
+  ASSERT(clar_version == CLAR_VERSION);
+
   return 0;
 
  fail:
@@ -322,7 +424,7 @@ static void
 expand_clar_array(struct clar_array *arr, int clar_id)
 {
   int new_a;
-  struct clar_entry_v1 *new_v;
+  struct clar_entry_v2 *new_v;
   int i;
 
   if (clar_id < arr->a) return;
@@ -343,11 +445,108 @@ is_valid_charset(const unsigned char *charset)
   const unsigned char *p;
 
   if (!charset) return 1;
-  if (strlen(charset) >= CLAR_ENTRY_CHARSET_SIZE) return 0;
+  if (strlen(charset) >= CLAR_ENTRY_V2_CHARSET_SIZE) return 0;
   for (p = charset; *p; ++p)
     if (*p <= ' ' || *p >= 127)
       return 0;
   return 1;
+}
+
+static int
+make_clarlog_entry(
+        struct cldb_mysql_state *state,
+        int contest_id,
+        int extra_columns,
+        struct clar_entry_v2 *ce)
+{
+  struct common_mysql_iface *mi = state->mi;
+  struct common_mysql_state *md = state->md;
+  int retval = -1;
+
+  struct clar_entry_internal cl = {};
+  ej_uuid_t uuid = {};
+  ej_uuid_t in_reply_uuid = {};
+  ej_uuid_t run_uuid = {};
+  unsigned char subj2[CLAR_ENTRY_V2_SUBJ_SIZE] = {};
+
+  memset(ce, 0, sizeof(*ce));
+
+  if (md->field_count != CLARS_ROW_WIDTH + extra_columns) {
+    err("wrong field_count (%d instead of %d). invalid table format?", md->field_count, CLARS_ROW_WIDTH + extra_columns);
+    goto fail;
+  }
+  if (mi->parse_spec(md, -1, md->row, md->lengths, CLARS_ROW_WIDTH, clars_spec, &cl) < 0)
+    goto fail;
+
+  if (cl.clar_id < 0) db_error_inv_value_fail(md, "clar_id");
+  if (cl.uuid && ej_uuid_parse(cl.uuid, &uuid) < 0) db_error_inv_value_fail(md, "uuid");
+  if (cl.contest_id != contest_id)
+    db_error_inv_value_fail(md, "contest_id");
+  if (cl.size < 0 || cl.size >= 65536) db_error_inv_value_fail(md, "size");
+  if (cl.create_time <= 0) db_error_inv_value_fail(md, "create_time");
+  if (cl.nsec < 0 || cl.nsec >= 1000000000)
+    db_error_inv_value_fail(md, "nsec");
+  if (cl.user_from < 0) db_error_inv_value_fail(md, "user_from");
+  if (cl.user_to < 0) db_error_inv_value_fail(md, "user_to");
+  if (cl.j_from < 0) db_error_inv_value_fail(md, "j_from");
+  if (cl.flags < 0 || cl.flags > 2) db_error_inv_value_fail(md, "flags");
+  if (cl.locale_id < 0 || cl.locale_id > 255)
+    db_error_inv_value_fail(md, "locale_id");
+  if (cl.in_reply_to < 0) db_error_inv_value_fail(md, "in_reply_to");
+  if (cl.in_reply_uuid && ej_uuid_parse(cl.in_reply_uuid, &in_reply_uuid)) db_error_inv_value_fail(md, "in_reply_uuid");
+  if (cl.run_id < 0) db_error_inv_value_fail(md, "run_id");
+  if (cl.run_uuid && ej_uuid_parse(cl.run_uuid, &run_uuid) < 0) db_error_inv_value_fail(md, "run_uuid");
+  if (!is_valid_charset(cl.clar_charset)) db_error_inv_value_fail(md, "clar_charset");
+  int subj_len = 0;
+  if (cl.subj) subj_len = strlen(cl.subj);
+  if (subj_len < CLAR_ENTRY_V2_SUBJ_SIZE) {
+    if (cl.subj) strcpy(subj2, cl.subj);
+  } else {
+    memcpy(subj2, cl.subj, CLAR_ENTRY_V2_SUBJ_SIZE);
+    int j = CLAR_ENTRY_V2_SUBJ_SIZE - 4;
+    if (cl.clar_charset && !strcasecmp(cl.clar_charset, "utf-8")) {
+      while (j >= 0 && subj2[j] >= 0x80 && subj2[j] <= 0xbf) j--;
+      if (j < 0) j = 0;
+    }
+    subj2[j++] = '.';
+    subj2[j++] = '.';
+    subj2[j++] = '.';
+    subj2[j++] = 0;
+    for (; j < CLAR_ENTRY_V2_SUBJ_SIZE; subj2[j++] = 0);
+  }
+
+  ce->id = cl.clar_id;
+  ej_uuid_copy(&ce->uuid, &uuid);
+  ce->size = cl.size;
+  ce->time = cl.create_time;
+  ce->nsec = cl.nsec;
+  ce->from = cl.user_from;
+  ce->to = cl.user_to;
+  ce->j_from = cl.j_from;
+  ce->flags = cl.flags;
+  ce->ssl_flag = cl.ssl_flag;
+  ce->appeal_flag = cl.appeal_flag;
+  ipv6_to_clar_entry(&cl.ip, ce);
+  ce->ipv6_flag = cl.ip.ipv6_flag;
+  ce->locale_id = cl.locale_id;
+  ce->in_reply_to = cl.in_reply_to;
+  ej_uuid_copy(&ce->in_reply_uuid, &in_reply_uuid);
+  ce->run_id = cl.run_id;
+  ej_uuid_copy(&ce->run_uuid, &run_uuid);
+  ce->old_run_status = cl.old_run_status;
+  ce->new_run_status = cl.new_run_status;
+  strcpy(ce->charset, cl.clar_charset);
+  strcpy(ce->subj, subj2);
+  retval = 0;
+
+  //done:;
+fail:;
+  xfree(cl.uuid);
+  xfree(cl.in_reply_uuid);
+  xfree(cl.run_uuid);
+  xfree(cl.clar_charset);
+  xfree(cl.subj);
+  return retval;
 }
 
 static struct cldb_plugin_cnts *
@@ -363,19 +562,14 @@ open_func(
   struct common_mysql_iface *mi = state->mi;
   struct common_mysql_state *md = state->md;
   struct cldb_mysql_cnts *cs = 0;
-  int i, j;
-  struct clar_entry_internal cl;
-  struct clar_entry_v1 *ce;
-  unsigned char subj2[CLAR_ENTRY_SUBJ_SIZE];
-  int subj_len;
+  int i;
+  struct clar_entry_v2 ce;
 
-  memset(&cl, 0, sizeof(cl));
   XCALLOC(cs, 1);
   cs->plugin_state = state;
   if (state) state->nref++;
   cs->cl_state = cl_state;
   if (cnts) cs->contest_id = cnts->id;
-  if (!cs->contest_id && global) cs->contest_id = global->contest_id;
   if (!cs->contest_id) {
     err("undefined contest_id");
     goto fail;
@@ -388,77 +582,18 @@ open_func(
     db_error_fail(md);
   for (i = 0; i < md->row_count; i++) {
     if (mi->next_row(md) < 0) goto fail;
-    memset(&cl, 0, sizeof(cl));
-    if (mi->parse_spec(md, md->field_count, md->row, md->lengths,
-                       CLARS_ROW_WIDTH, clars_spec, &cl) < 0)
+    if (make_clarlog_entry(state, cs->contest_id, 0, &ce) < 0)
       goto fail;
-    if (cl.clar_id < 0) db_error_inv_value_fail(md, "clar_id");
-    if (cl.contest_id != cs->contest_id)
-      db_error_inv_value_fail(md, "contest_id");
-    if (cl.size < 0 || cl.size >= 65536) db_error_inv_value_fail(md, "size");
-    if (cl.create_time <= 0) db_error_inv_value_fail(md, "create_time");
-    if (cl.nsec < 0 || cl.nsec >= 1000000000)
-      db_error_inv_value_fail(md, "nsec");
-    if (cl.user_from < 0) db_error_inv_value_fail(md, "user_from");
-    if (cl.user_to < 0) db_error_inv_value_fail(md, "user_to");
-    if (cl.j_from < 0) db_error_inv_value_fail(md, "j_from");
-    if (cl.flags < 0 || cl.flags > 2) db_error_inv_value_fail(md, "flags");
-    if (cl.locale_id < 0 || cl.locale_id > 255)
-      db_error_inv_value_fail(md, "locale_id");
-    if (cl.in_reply_to < 0) db_error_inv_value_fail(md, "in_reply_to");
-    if (cl.run_id < 0) db_error_inv_value_fail(md, "run_id");
-    if (!is_valid_charset(cl.clar_charset)) db_error_inv_value_fail(md, "clar_charset");
-    memset(subj2, 0, sizeof(subj2));
-    subj_len = 0;
-    if (cl.subj) subj_len = strlen(cl.subj);
-    if (subj_len < CLAR_ENTRY_SUBJ_SIZE) {
-      if (cl.subj) strcpy(subj2, cl.subj);
-    } else {
-      memcpy(subj2, cl.subj, CLAR_ENTRY_SUBJ_SIZE);
-      j = CLAR_ENTRY_SUBJ_SIZE - 4;
-      if (cl.clar_charset && !strcasecmp(cl.clar_charset, "utf-8")) {
-        while (j >= 0 && subj2[j] >= 0x80 && subj2[j] <= 0xbf) j--;
-        if (j < 0) j = 0;
-      }
-      subj2[j++] = '.';
-      subj2[j++] = '.';
-      subj2[j++] = '.';
-      subj2[j++] = 0;
-      for (; j < CLAR_ENTRY_SUBJ_SIZE; subj2[j++] = 0);
-    }
 
-    expand_clar_array(&cl_state->clars, cl.clar_id);
-    ce = &cl_state->clars.v[cl.clar_id];
-
-    ce->id = cl.clar_id;
-    ce->size = cl.size;
-    ce->time = cl.create_time;
-    ce->nsec = cl.nsec;
-    ce->from = cl.user_from;
-    ce->to = cl.user_to;
-    ce->j_from = cl.j_from;
-    ce->flags = cl.flags;
-    ce->ssl_flag = cl.ssl_flag;
-    ce->appeal_flag = cl.appeal_flag;
-    ipv6_to_clar_entry(&cl.ip, ce);
-    ce->ipv6_flag = cl.ip.ipv6_flag;
-    ce->locale_id = cl.locale_id;
-    ce->in_reply_to = cl.in_reply_to;
-    ce->run_id = cl.run_id;
-    strcpy(ce->charset, cl.clar_charset);
-    strcpy(ce->subj, subj2);
-    if (cl.clar_id >= cl_state->clars.u) cl_state->clars.u = cl.clar_id + 1;
-
-    xfree(cl.clar_charset); cl.clar_charset = 0;
-    xfree(cl.subj); cl.subj = 0;
+    expand_clar_array(&cl_state->clars, ce.id);
+    cl_state->clars.v[ce.id] = ce;
+    if (ce.id >= cl_state->clars.u) cl_state->clars.u = ce.id + 1;
   }
   state->mi->free_res(state->md);
 
   return (struct cldb_plugin_cnts*) cs;
 
  fail:
-  xfree(cl.clar_charset);
-  xfree(cl.subj);
   state->mi->free_res(state->md);
   close_func((struct cldb_plugin_cnts*) cs);
   return 0;
@@ -508,10 +643,13 @@ add_entry_func(struct cldb_plugin_cnts *cdata, int clar_id)
   struct common_mysql_iface *mi = state->mi;
   struct common_mysql_state *md = state->md;
   struct clar_entry_internal cc;
-  struct clar_entry_v1 *ce;
+  struct clar_entry_v2 *ce;
   FILE *cmd_f = 0;
   char *cmd_t = 0;
   size_t cmd_z = 0;
+  unsigned char uuid_str[40];
+  unsigned char in_reply_uuid_str[40];
+  unsigned char run_uuid_str[40];
 
   if (clar_id < 0 || clar_id >= cl->clars.u) return -1;
   ce = &cl->clars.v[clar_id];
@@ -519,6 +657,10 @@ add_entry_func(struct cldb_plugin_cnts *cdata, int clar_id)
 
   memset(&cc, 0, sizeof(cc));
   cc.clar_id = ce->id;
+  if (ej_uuid_is_nonempty(ce->uuid)) {
+    ej_uuid_unparse_r(uuid_str, sizeof(uuid_str), &ce->uuid, NULL);
+    cc.uuid = uuid_str;
+  }
   cc.contest_id = cs->contest_id;
   cc.size = ce->size;
   cc.create_time = ce->time;
@@ -535,7 +677,17 @@ add_entry_func(struct cldb_plugin_cnts *cdata, int clar_id)
   if (cc.ip.ipv6_flag) cc.ip_version = 6;
   cc.locale_id = ce->locale_id;
   cc.in_reply_to = ce->in_reply_to;
+  if (ej_uuid_is_nonempty(ce->in_reply_uuid)) {
+    ej_uuid_unparse_r(in_reply_uuid_str, sizeof(in_reply_uuid_str), &ce->in_reply_uuid, NULL);
+    cc.in_reply_uuid = in_reply_uuid_str;
+  }
   cc.run_id = ce->run_id;
+  if (ej_uuid_is_nonempty(ce->run_uuid)) {
+    ej_uuid_unparse_r(run_uuid_str, sizeof(run_uuid_str), &ce->run_uuid, NULL);
+    cc.run_uuid = run_uuid_str;
+  }
+  cc.old_run_status = ce->old_run_status;
+  cc.new_run_status = ce->new_run_status;
   cc.clar_charset = ce->charset;
   cc.subj = ce->subj;
 
@@ -562,7 +714,7 @@ set_flags_func(struct cldb_plugin_cnts *cdata, int clar_id)
   struct cldb_mysql_state *state = cs->plugin_state;
   struct common_mysql_iface *mi = state->mi;
   struct common_mysql_state *md = state->md;
-  struct clar_entry_v1 *ce;
+  struct clar_entry_v2 *ce;
 
   if (clar_id < 0 || clar_id >= cl->clars.u) return -1;
   ce = &cl->clars.v[clar_id];
@@ -578,7 +730,7 @@ set_charset_func(struct cldb_plugin_cnts *cdata, int clar_id)
   struct cldb_mysql_state *state = cs->plugin_state;
   struct common_mysql_iface *mi = state->mi;
   struct common_mysql_state *md = state->md;
-  struct clar_entry_v1 *ce;
+  struct clar_entry_v2 *ce;
   FILE *cmd_f = 0;
   char *cmd_t = 0;
   size_t cmd_z = 0;
@@ -644,6 +796,7 @@ static int
 add_text_func(
         struct cldb_plugin_cnts *cdata,
         int clar_id,
+        const ej_uuid_t *puuid,
         const unsigned char *text,
         size_t size)
 {
@@ -655,6 +808,7 @@ add_text_func(
   FILE *cmd_f = 0;
   char *cmd_t = 0;
   size_t cmd_z = 0;
+  unsigned char uuid_str[40];
 
   if (!text) {
     text = "";
@@ -669,6 +823,9 @@ add_text_func(
   memset(&ct, 0, sizeof(ct));
   ct.clar_id = clar_id;
   ct.contest_id = cs->contest_id;
+  uuid_str[0] = 0;
+  ej_uuid_unparse_r(uuid_str, sizeof(uuid_str), puuid, NULL);
+  ct.uuid = uuid_str;
   ct.clar_text = (unsigned char*) text;
   cmd_f = open_memstream(&cmd_t, &cmd_z);
   fprintf(cmd_f, "INSERT INTO %sclartexts VALUES ( ", md->table_prefix);
@@ -730,7 +887,7 @@ modify_record_func(
         struct cldb_plugin_cnts *cdata,
         int clar_id,
         int mask,
-        const struct clar_entry_v1 *pe)
+        const struct clar_entry_v2 *pe)
 {
   struct cldb_mysql_cnts *cs = (struct cldb_mysql_cnts*) cdata;
   struct cldb_mysql_state *state = cs->plugin_state;
@@ -795,8 +952,34 @@ modify_record_func(
     fprintf(cmd_f, "%sin_reply_to = %d", sep, pe->in_reply_to);
     sep = sep1;
   }
+  if (mask & (1 << CLAR_FIELD_IN_REPLY_UUID)) {
+    fprintf(cmd_f, "%sin_reply_uuid = ", sep);
+    if (ej_uuid_is_nonempty(pe->in_reply_uuid)) {
+      fprintf(cmd_f, "'%s'", ej_uuid_unparse(&pe->in_reply_uuid, NULL));
+    } else {
+      fprintf(cmd_f, "NULL");
+    }
+    sep = sep1;
+  }
   if (mask & (1 << CLAR_FIELD_RUN_ID)) {
     fprintf(cmd_f, "%srun_id = %d", sep, pe->run_id);
+    sep = sep1;
+  }
+  if (mask & (1 << CLAR_FIELD_RUN_UUID)) {
+    fprintf(cmd_f, "%srun_uuid = ", sep);
+    if (ej_uuid_is_nonempty(pe->run_uuid)) {
+      fprintf(cmd_f, "'%s'", ej_uuid_unparse(&pe->run_uuid, NULL));
+    } else {
+      fprintf(cmd_f, "NULL");
+    }
+    sep = sep1;    
+  }
+  if (mask & (1 << CLAR_FIELD_OLD_RUN_STATUS)) {
+    fprintf(cmd_f, "%sold_run_status = %d", sep, pe->old_run_status);
+    sep = sep1;
+  }
+  if (mask & (1 << CLAR_FIELD_NEW_RUN_STATUS)) {
+    fprintf(cmd_f, "%snew_run_status = %d", sep, pe->new_run_status);
     sep = sep1;
   }
   if (mask & (1 << CLAR_FIELD_CHARSET)) {
@@ -819,6 +1002,62 @@ modify_record_func(
  fail:
   if (cmd_f) fclose(cmd_f);
   xfree(cmd_t);
+  return -1;
+}
+
+static int
+fetch_run_messages_func(
+        struct cldb_plugin_cnts *cdata,
+        const ej_uuid_t *p_run_uuid,
+        struct full_clar_entry **pp)
+{
+  struct cldb_mysql_cnts *cs = (struct cldb_mysql_cnts*) cdata;
+  struct cldb_mysql_state *state = cs->plugin_state;
+  struct common_mysql_iface *mi = state->mi;
+  struct common_mysql_state *md = state->md;
+  int count = 0;
+  struct full_clar_entry *fce = NULL;
+  int i;
+
+  if (mi->fquery(md, CLARS_ROW_WIDTH + 1,
+                 "SELECT t1.*, t2.clar_text FROM %sclars AS t1, %sclartexts AS t2 WHERE t1.contest_id=%d AND t1.run_uuid = '%s' AND t1.uuid = t2.uuid ORDER BY t1.clar_id;",
+                 md->table_prefix, md->table_prefix,
+                 cs->contest_id, ej_uuid_unparse(p_run_uuid, "")) < 0)
+    db_error_fail(md);
+
+  if (md->row_count <= 0) {
+    return 0;
+  }
+
+  count = md->row_count;
+  XCALLOC(fce, count);
+
+  for (i = 0; i < md->row_count; i++) {
+    if (mi->next_row(md) < 0) goto fail;
+    if (make_clarlog_entry(state, cs->contest_id, 1, &fce[i].e) < 0)
+      goto fail;
+    if (!md->row[CLARS_ROW_WIDTH]) {
+      fce[i].text = NULL;
+      fce[i].size = 0;
+    } else {
+      fce[i].size = md->lengths[CLARS_ROW_WIDTH];
+      fce[i].text = xmalloc(fce[i].size + 1);
+      memcpy(fce[i].text, md->row[CLARS_ROW_WIDTH], md->lengths[CLARS_ROW_WIDTH]);
+      fce[i].text[fce[i].size] = 0;
+    }
+  }
+  state->mi->free_res(state->md);
+
+  *pp = fce;
+  return count;
+
+fail:
+  if (fce) {
+    for (i = 0; i < count; ++i) {
+      xfree(fce[i].text);
+    }
+    xfree(fce);
+  }
   return -1;
 }
 

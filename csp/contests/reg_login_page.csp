@@ -1,5 +1,5 @@
 <%
-/* $Id: reg_login_page.csp 8620 2014-09-17 11:16:32Z cher $ */
+/* $Id$ */
 %><%@include "reg_includes.csp"
 %><%
 #include "ejudge/ejudge_cfg.h"

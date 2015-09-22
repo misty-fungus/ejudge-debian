@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: perl.in 5550 2009-02-19 18:14:43Z cher $
+# $Id$
 # Copyright (c) 2003-2008 Alexander Chernov <cher@ejudge.ru>
 
 # This is a `compilation' script for the Perl language.

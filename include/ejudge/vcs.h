@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: vcs.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 
 #ifndef __VCS_H__
 #define __VCS_H__

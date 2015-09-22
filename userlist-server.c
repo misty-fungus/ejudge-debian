@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: userlist-server.c 8604 2014-09-10 17:08:07Z cher $ */
 
-/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -607,8 +606,8 @@ link_client_state(struct client_state *p)
 #define default_get_contest_reg(a, b) dflt_iface->get_contest_reg(uldb_default->data, a, b)
 #define default_try_new_login(a, b, c, d, e) dflt_iface->try_new_login(uldb_default->data, a, b, c, d, e)
 #define default_set_simple_reg(a, b, c) dflt_iface->set_simple_reg(uldb_default->data, a, b, c)
-#define default_get_brief_list_iterator_2(a, b, c, d, e) dflt_iface->get_brief_list_iterator_2(uldb_default->data, a, b, c, d, e)
-#define default_get_user_count(a, b, c, d) dflt_iface->get_user_count(uldb_default->data, a, b, c, d)
+#define default_get_brief_list_iterator_2(a, b, c, d, e, f, g, h, i, j) dflt_iface->get_brief_list_iterator_2(uldb_default->data, a, b, c, d, e, f, g, h, i, j)
+#define default_get_user_count(a, b, c, d, e, f, g) dflt_iface->get_user_count(uldb_default->data, a, b, c, d, e, f, g)
 #define default_get_group_iterator_2(a, b, c) dflt_iface->get_group_iterator_2(uldb_default->data, a, b, c)
 #define default_get_group_count(a, b) dflt_iface->get_group_count(uldb_default->data, a, b)
 #define default_new_cookie_2(a, b, c, d, e, f, g, h, i, j, k, l, m) dflt_iface->new_cookie_2(uldb_default->data, a, b, c, d, e, f, g, h, i, j, k, l, m)
@@ -627,42 +626,43 @@ update_all_user_contests(int user_id)
   }
 }
 
+static const unsigned char password_chars[] = "wy23456789abcdefghijkzmnxpqrstuv";
+
 static void
 generate_random_password(int size, unsigned char *buf)
 {
-  int rand_bytes;
+  int aligned_size, rand_size, i, j;
   unsigned char *rnd_buf = 0;
   unsigned char *b64_buf = 0;
-  unsigned char *p;
+  unsigned char *p, *q;
+  long long w;
 
   ASSERT(size > 0 && size <= 128);
   ASSERT(buf);
 
-  // estimate the number of random bytes to generate
-  rnd_buf = (unsigned char*) alloca(size + 16);
-  b64_buf = (unsigned char *) alloca(size + 16);
-  if (size % 4) {
-    rand_bytes = (size / 4 + 1) * 3;
-  } else {
-    rand_bytes = (size / 4) * 3;
-  }
+  // 5 bits per character, 8 characters require 40 bits
+  // align up the size
+  aligned_size = (size + 7) & ~7;
+  b64_buf = alloca(aligned_size + 1);
 
-  // generate the needed number of bytes
-  random_bytes(rnd_buf, rand_bytes);
+  rand_size = aligned_size / 8 * 5;
+  rnd_buf = alloca(rand_size);
+  random_bytes(rnd_buf, rand_size);
 
-  // convert to base64
-  base64_encode(rnd_buf, rand_bytes, b64_buf);
-  b64_buf[size] = 0;
-  for (p = b64_buf; *p; p++) {
-    /* rename: l, I, 1, O, 0*/
-    switch (*p) {
-    case 'l': *p = '!'; break;
-    case 'I': *p = '@'; break;
-    case '1': *p = '^'; break;
-    case 'O': *p = '*'; break;
-    case '0': *p = '-'; break;
+  q = b64_buf;
+  p = rnd_buf;
+  for (i = 0; i < rand_size; i += 5) {
+    w = *p++;
+    for (j = 0; j < 4; ++j) {
+      w <<= 8;
+      w |= *p++;
+    }
+    for (j = 0; j < 8; ++j) {
+      *q++ = password_chars[(unsigned) w & 31];
+      w >>= 5;
     }
   }
+  b64_buf[size] = 0;
   strcpy(buf, b64_buf);
 }
 
@@ -4713,7 +4713,7 @@ cmd_list_all_users(
   if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
 
   f = open_memstream(&xml_ptr, &xml_size);
-  userlist_write_xml_header(f);
+  userlist_write_xml_header(f, -1);
   iter = default_get_brief_list_iterator(data->contest_id);
   if (iter) {
     for (; iter->has_next(iter); iter->next(iter)) {
@@ -4778,7 +4778,7 @@ cmd_list_standings_users(
   }
 
   f = open_memstream(&xml_ptr, &xml_size);
-  userlist_write_xml_header(f);
+  userlist_write_xml_header(f, -1);
   for (iter = default_get_standings_list_iterator(data->contest_id);
        iter->has_next(iter);
        iter->next(iter)) {
@@ -6585,11 +6585,18 @@ cmd_generate_team_passwords_2(
   const struct userlist_contest *c;
   unsigned char buf[16];
   ptr_iterator_t iter;
-  const struct contest_desc *cnts;
+  const struct contest_desc *cnts = NULL;
   unsigned char logbuf[1024];
+  int errcode = 0;
 
   snprintf(logbuf, sizeof(logbuf), "GENERATE_TEAM_PASSWORDS_2: %d, %d",
            p->user_id, data->contest_id);
+
+  if ((errcode = contests_get(data->contest_id, &cnts)) < 0) {
+    err("%s -> invalid contest: %s", logbuf, contests_strerror(-errcode));
+    send_reply(p, -ULS_ERR_BAD_CONTEST_ID);
+    return;
+  }
 
   if (is_admin(p, logbuf) < 0) return;
   if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
@@ -9251,7 +9258,7 @@ cmd_list_all_groups(
   }
 
   fout = open_memstream(&xml_ptr, &xml_size);
-  userlist_write_xml_header(fout);
+  userlist_write_xml_header(fout, -1);
   userlist_write_groups_header(fout);
   iter = plugin_call0(get_group_iterator);
   if (iter) {
@@ -9437,7 +9444,7 @@ cmd_list_group_users(
   }
 
   fout = open_memstream(&xml_ptr, &xml_size);
-  userlist_write_xml_header(fout);
+  userlist_write_xml_header(fout, -1);
   iter = plugin_call(get_group_user_iterator, grp->group_id);
   if (iter) {
     for (; iter->has_next(iter); iter->next(iter)) {
@@ -9573,7 +9580,7 @@ cmd_get_groups(
            p->user_id, data->data);
 
   /* space-separated list of group names */
-  if (data->info_len <= 0 || data->info_len > 64 * 1024) {
+  if (data->info_len <= 0 /* || data->info_len > 64 * 1024 */) {
     err("%s -> invalid size %d", logbuf, data->info_len);
     send_reply(p, -ULS_ERR_INVALID_SIZE);
     goto cleanup;
@@ -9606,7 +9613,7 @@ cmd_get_groups(
   ASSERT(i == group_count);
 
   xml_file = open_memstream(&xml_text, &xml_size);
-  userlist_write_xml_header(xml_file);
+  userlist_write_xml_header(xml_file, -1);
   userlist_write_groups_header(xml_file);
   for (i = 0; i < group_count; ++i) {
     grp = plugin_call(get_group, groups[i]);
@@ -9673,8 +9680,14 @@ cmd_list_all_users_2(
   if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
 
   f = open_memstream(&xml_ptr, &xml_size);
-  userlist_write_xml_header(f);
-  iter = default_get_brief_list_iterator_2(data->contest_id, data->group_id, data->data, data->offset, data->count);
+  iter = default_get_brief_list_iterator_2(data->contest_id, data->group_id, data->data, data->offset, data->count,
+                                           data->page, data->sort_field, data->sort_order, data->filter_field, data->filter_op);
+  long long total = -1;
+  if (iter->get_total) total = iter->get_total(iter);
+  if (total < 0) {
+    default_get_user_count(data->contest_id, data->group_id, data->data, data->filter_field, data->filter_op, 1, &total);
+  }
+  userlist_write_xml_header(f, total);
   if (iter) {
     for (; iter->has_next(iter); iter->next(iter)) {
       if (!(u = (const struct userlist_user*) iter->get(iter))) continue;
@@ -9719,7 +9732,7 @@ cmd_get_user_count(
   }
   if (is_dbcnts_capable(p, cnts, OPCAP_LIST_USERS, logbuf) < 0) return;
 
-  r = default_get_user_count(data->contest_id, data->group_id, data->data, &count);
+  r = default_get_user_count(data->contest_id, data->group_id, data->data, data->filter_field, data->filter_op, 0, &count);
   if (r < 0) {
     err("%s -> database error %d", logbuf, -r);
     send_reply(p, -ULS_ERR_DB_ERROR);
@@ -9760,7 +9773,7 @@ cmd_list_all_groups_2(
   if (is_dbcnts_capable(p, NULL, OPCAP_LIST_USERS, logbuf) < 0) return;
 
   fout = open_memstream(&xml_ptr, &xml_size);
-  userlist_write_xml_header(fout);
+  userlist_write_xml_header(fout, -1);
   userlist_write_groups_header(fout);
   iter = default_get_group_iterator_2(data->data, data->offset, data->count);
   if (iter) {
@@ -9923,7 +9936,7 @@ cmd_create_user_2(
   }
 
   if (data->random_password_flag) {
-    generate_random_password(16, random_reg_password_buf);
+    generate_random_password(8, random_reg_password_buf);
     reg_password_str = random_reg_password_buf;
     reg_password_len = strlen(reg_password_str);
   }
@@ -9981,7 +9994,7 @@ cmd_create_user_2(
       // do nothing...
     } else {
       if (data->cnts_random_password_flag) {
-        generate_random_password(16, random_cnts_password_buf);
+        generate_random_password(8, random_cnts_password_buf);
         cnts_password_str = random_cnts_password_buf;
         cnts_password_len = strlen(cnts_password_str);
       }
@@ -10131,7 +10144,7 @@ cmd_list_all_users_3(
 
   bitset_url_decode(data->data, &marked);
   f = open_memstream(&xml_ptr, &xml_size);
-  userlist_write_xml_header(f);
+  userlist_write_xml_header(f, -1);
   if (marked.size > 0) {
     for (user_id = 1; user_id < marked.size; ++user_id) {
       if (bitset_get(&marked, user_id)) {
@@ -10186,7 +10199,7 @@ cmd_list_all_users_4(
 
   bitset_url_decode(data->data, &marked);
   f = open_memstream(&xml_ptr, &xml_size);
-  userlist_write_xml_header(f);
+  userlist_write_xml_header(f, -1);
   if (marked.size > 0) {
     for (user_id = 1; user_id < marked.size; ++user_id) {
       if (bitset_get(&marked, user_id)) {
@@ -10241,7 +10254,7 @@ cmd_get_group_info(
   }
 
   fout = open_memstream(&xml_ptr, &xml_size);
-  userlist_write_xml_header(fout);
+  userlist_write_xml_header(fout, -1);
   userlist_write_groups_header(fout);
   userlist_unparse_usergroup(fout, grp, "      ", "\n");
   userlist_write_groups_footer(fout);
@@ -10361,7 +10374,7 @@ static void (*cmd_table[])() =
   [ULS_GET_GROUP_INFO] =        cmd_get_group_info,
   [ULS_PRIV_CHECK_PASSWORD] =   cmd_priv_check_password,
 
-  [ULS_LAST_CMD] 0
+  [ULS_LAST_CMD] = 0
 };
 
 static int (*check_table[])() =
@@ -10465,7 +10478,7 @@ static int (*check_table[])() =
   [ULS_LIST_ALL_USERS_4] =      check_pk_list_users_2,
   [ULS_GET_GROUP_INFO] =        check_pk_map_contest,
 
-  [ULS_LAST_CMD] 0
+  [ULS_LAST_CMD] = 0
 };
 
 static void

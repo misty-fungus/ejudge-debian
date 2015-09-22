@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: register_new.c 7364 2013-02-09 20:19:53Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
 

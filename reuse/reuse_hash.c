@@ -1,4 +1,4 @@
-/* $Id: reuse_hash.c 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 1996-2014 Alexander Chernov <cher@ejudge.ru> */
 /* Created: Fri Nov  1 18:46:25 1996 by cher (Alexander Chernov) */

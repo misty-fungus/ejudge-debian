@@ -1,5 +1,4 @@
 <% /* -*- html -*- */
-/* $Id: cnts_edit_cur_problem_page.csp 8623 2014-09-17 11:27:05Z cher $ */
 %><%@include "includes.csp"
 %><%
 #include "ejudge/meta/prepare_meta.h"
@@ -16,6 +15,14 @@
     int row = 1;
     int cur_page = 4;
     int i;
+    int prob_id = 0;
+    const struct section_problem_data *prob = NULL;
+    struct section_problem_data *tmp_prob = NULL;
+    const struct section_problem_data *sup_prob = 0;
+    int sup_id = 0, prob_type = 0;
+    const unsigned char *str_value = NULL;
+    int value;
+    unsigned char *alloc_value = NULL;
 
 static const unsigned char head_row_attr[] =
   " bgcolor=\"#a0a0a0\"";
@@ -30,15 +37,48 @@ static const unsigned char * const form_row_attrs[]=
     if (opcaps_check(caps, OPCAP_EDIT_CONTEST) < 0) FAIL(SSERV_ERR_PERMISSION_DENIED);
     if (!phr->ss->edited_cnts) FAIL(SSERV_ERR_CONTEST_NOT_EDITED);
 
-    snprintf(subtitle_buf, sizeof(subtitle_buf), "editing serve.cfg, problems");
+%><s:read var="prob_id" required="yes" /><%
+
+    if (prob_id <= 0) {
+        i = -prob_id;
+        if (i >= phr->ss->aprob_u) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        prob = phr->ss->aprobs[i];
+        if (!prob) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        snprintf(subtitle_buf, sizeof(subtitle_buf), "editing serve.cfg, problem %s", prob->short_name);
+    } else {
+        i = prob_id;
+        if (i >= phr->ss->prob_a) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        prob = phr->ss->probs[i];
+        if (!prob) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        snprintf(subtitle_buf, sizeof(subtitle_buf), "editing serve.cfg, problem %d", i);
+
+        int j;
+        if (prob->super && prob->super[0]) {
+            for (j = 0; j < phr->ss->aprob_u; ++j) {
+                if (!strcmp(prob->super, phr->ss->aprobs[j]->short_name)) {
+                    sup_prob = phr->ss->aprobs[j];
+                    sup_id = j + 1;
+                    break;
+                }
+            }
+        }
+    }
+    tmp_prob = prepare_copy_problem(prob);
+
     cnts = phr->ss->edited_cnts;
     struct section_global_data *global = phr->ss->global;
+
+    prepare_set_all_prob_values(tmp_prob, sup_prob, global);
 
     (void) row;
     (void) head_row_attr;
     (void) form_row_attrs;
-%><%@include "header.csp"
+
+    (void) sup_id;
+    (void) sup_prob;
+%><%@include "header_jqgrid.csp"
 %>
+<script src='<s:config name="style-prefix" />priv_prob_dlg.js' type="text/javascript"></script>
 
 <%@include "cnts_edit_cur_top_menu.csp"
 %>
@@ -62,75 +102,2100 @@ static const unsigned char * const form_row_attrs[]=
   }
 %>
 
-<table border="0">
-    <s:tr attr="head_row_attr">
-        <td colspan="4" align="center"><b>Abstract problems</b></td>
-    </s:tr>
+<%@include "cnts_edit_cur_problem_macros.csp"
+%>
+
+<div id="IdDialogDiv" title="Problem Identification" style="overflow: auto;">
+    <s:form id="IdDialogForm">
+        <s:hidden name="action" ac="prob-save-id-form" />
+        <input type="hidden" id="IdDialogProbId" name="prob_id" value="" />
+
+        <div id="edit-prob_id-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="edit-prob_id_xxx">ID:</label></div>
+            <input readonly="readonly" type="text" size="20" name="prob_id_xxx" id="edit-prob_id" value="" class="text ui-widget-content ui-corner-all" />
+        </div>
+
+        <%@expand MENU_TEXTFIELD "short_name" "id" "Short name" "250" %>
+        <%@expand MENU_TEXTFIELD "internal_name" "id" "Internal name" "250" %>
+        <%@expand MENU_TEXTFIELD "long_name" "id" "Long name" "250" %>
+
+
+        <div id="edit-super-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="edit-super">Base abstract problem:</label></div>
+            <select id="edit-super" name="super">
+                <option></option>
 <%
   for (i = 0; i < phr->ss->aprob_u; ++i) {
-#define is_abstract 1
-    ;
-    const struct section_problem_data *prob = phr->ss->aprobs[i];
-    int flags = phr->ss->aprob_flags[i];
-    int prob_id = -i;
-%><%@include "cnts_edit_cur_one_problem.csp"
-%><%
-#undef is_abstract
+%><option><s:v value="phr->ss->aprobs[i]->short_name" /></option>
+<%
   }
 %>
-    <s:tr attr="head_row_attr">
-        <td colspan="4" align="center"><b>Add new abstract problem</b></td>
-    </s:tr>
-<%
-  row = 1;
-%>
-    <s:form>
-        <s:tr attr="form_row_attrs[row ^= 1]">
-            <td>Name:</td>
-            <td><s:textfield name="prob_name" value="" size="48" maxlength="1024" /></td>
-            <td><s:submit ac="prob-add-abstract" label="Add" /></td>
-            <td><s:help ac="prob-add-abstract" /></td>
-        </s:tr>
-    </s:form>
+            </select>
+        </div>
 
-    <s:tr attr="head_row_attr">
-        <td colspan="4" align="center"><b>Concrete problems</b></td>
-    </s:tr>
+        <div id="edit-type-div">
+            <div style="width: 250px; display: inline-block;"><label style="display:block; width: 250px" for="edit-type">Type:</label></div>
+            <select id="edit-type" name="type">
+                <option>standard</option>
+                <option>output-only</option>
+                <option>short-answer</option>
+                <option>text-answer</option>
+                <option>select-one</option>
+                <option>select-many</option>
+                <option>custom</option>
+                <option>tests</option>
+            </select>
+        </div>
+
+        <%@expand MENU_TEXTFIELD "variant_num" "id" "Number of variants" "250" %>
+        <%@expand MENU_YESNO3 "autoassign_variants" "id" "Assign variants automatically" "250" %>
+
+    </s:form>
+</div>
+
+<div id="FilesDialogDiv" title="Files and directories" style="overflow: auto;">
+    <s:form id="FilesDialogForm">
+        <s:hidden name="action" ac="prob-save-files-form" />
+        <input type="hidden" id="FilesDialogProbId" name="prob_id" value="" />
+
+        <%@expand MENU_YESNO3 "binary_input" "files" "Input data is binary" "250" %>
+
+        <div id="edit-normalization-div">
+            <div style="width: 250px; display: inline-block;"><label for="edit-normalization">Test normalization mode:</label></div>
+            <select id="edit-normalization" name="normalization">
+                <option value="0">none - No normalization</option>
 <%
-  for (i = 1; i < phr->ss->prob_a; ++i) {
-#define is_abstract 0
-    ;
-    const struct section_problem_data *prob = phr->ss->probs[i];
-    int flags = phr->ss->prob_flags[i];
-    int prob_id = i;
-    if (!prob) continue;
-%><%@include "cnts_edit_cur_one_problem.csp"
-%><%
-#undef is_abstract
+  if (sup_prob) {
+%>
+                <option value="1">Default</option>
+<%
   }
 %>
-    <s:tr attr="head_row_attr">
-        <td colspan="4" align="center"><b>Add new problem</b><%
-  if (phr->ss->update_state) {
-%> [<s:a ac="download-progress-page">Download is in progress</s:a>]<%
+                <option value="2">nl - End-of-line</option>
+                <option value="3">nlws - End-of-line and trailing space</option>
+                <option value="4">nlwsnp - End-of-line, trailing space and lines</option>
+                <option value="5">nlnp - End-of-line and trailing lines</option>
+            </select>
+        </div>
+
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "xml_file" "files" "XML File with problem statement" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "test_dir" "files" "Directory with tests" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "test_pat" "files" "Pattern for test file names" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "test_sfx" "files" "Suffix of test files" "250" %>
+        <%@expand MENU_YESNO3 "use_corr" "files" "Use &quot;correct answer&quot; files for check" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "corr_dir" "files" "Directory with &quot;correct answer&quot; files" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "corr_pat" "files" "Pattern for &quot;correct answer&quot; file names" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "corr_sfx" "files" "Suffix of &quot;correct answer&quot; files" "250" %>
+        <%@expand MENU_YESNO3 "use_info" "files" "Use test info files for check" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "info_dir" "files" "Directory with test info files" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "info_pat" "files" "Pattern for test info file names" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "info_sfx" "files" "Suffix of test info file names" "250" %>
+        <%@expand MENU_YESNO3 "use_tgz" "files" "Use special working directory for check" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "tgz_pat" "files" "Pattern for working dir archives" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "tgzdir_pat" "files" "Pattern for master working dirs" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "tgz_sfx" "files" "Suffix of working dir archives" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "tgzdir_sfx" "files" "Suffix of master working dirs" "250" %>
+
+    </s:form>
+</div>
+
+<div id="ValidationDialogDiv" title="Validation" style="overflow: auto;">
+    <s:form id="ValidationDialogForm">
+        <s:hidden name="action" ac="prob-save-validation-form" />
+        <input type="hidden" id="ValidationDialogProbId" name="prob_id" value="" />
+
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "test_checker_cmd" "validation" "Test checker (validator) name" "250" %>
+        <%@expand MENU_TEXTFIELD "test_checker_env" "validation" "Test checker environment" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "solution_src" "validation" "Solution source name" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "solution_cmd" "validation" "Solution command" "250" %>
+
+    </s:form>
+</div>
+
+<div id="ViewDialogDiv" title="Statement View" style="overflow: auto;">
+    <s:form id="ViewDialogForm">
+        <s:hidden name="action" ac="prob-save-view-form" />
+        <input type="hidden" id="ViewDialogProbId" name="prob_id" value="" />
+
+        <%@expand MENU_YESNO3 "disable_tab" "view" "Disable problem tab" "250" %>
+        <%@expand MENU_YESNO3 "unrestricted_statement" "view" "Unrestricted problem statement" "250" %>
+        <%@expand MENU_YESNO3 "hide_file_names" "view" "Hide input/output file names" "250" %>
+        <%@expand MENU_YESNO3 "hide_real_time_limit" "view" "Hide real-time limit" "250" %>
+        <%@expand MENU_YESNO3 "hide_variant" "view" "Hide variant" "250" %>
+
+    </s:form>
+</div>
+
+<h2><%
+    if (prob_id <= 0) {
+%>Abstract problem <%
+    } else {
+%>Problem <%
+    }
+%><s:v value="i" /><%
+    if (prob->short_name && prob->short_name[0]) {
+%>, <s:v value="prob->short_name" /><%
+    }
+%><%
+    if (prob->internal_name && prob->internal_name[0]) {
+%>, <s:v value="prob->internal_name" /><%
+    }
+%><%
+    if (prob->long_name && prob->long_name[0]) {
+%>, <s:v value="prob->long_name" /><%
+    }
+%></h2>
+
+<script type="text/javascript">
+var prob_id = <s:v value="prob_id" />;
+var global_score_acm = <s:v type="jsbool" value="global->score_system == SCORE_ACM" />;
+var global_score_moscow = <s:v type="jsbool" value="global->score_system == SCORE_MOSCOW" />;
+var global_score_kirov = <s:v type="jsbool" value="global->score_system == SCORE_KIROV" />;
+var global_score_olympiad = <s:v type="jsbool" value="global->score_system == SCORE_OLYMPIAD" />;
+var global_score_acm_moscow = <s:v type="jsbool" value="global->score_system == SCORE_ACM || global->score_system == SCORE_MOSCOW" />;
+var global_score_kirov_olympiad = <s:v type="jsbool" value="global->score_system == SCORE_KIROV || global->score_system == SCORE_OLYMPIAD" />;
+</script>
+
+<%@include "cnts_edit_cur_problem_submission.csp"
+%>
+<%@include "cnts_edit_cur_problem_compiling.csp"
+%>
+<%@include "cnts_edit_cur_problem_running.csp"
+%>
+<%@include "cnts_edit_cur_problem_limits.csp"
+%>
+<%@include "cnts_edit_cur_problem_checking.csp"
+%>
+<%@include "cnts_edit_cur_problem_scoring.csp"
+%>
+<%@include "cnts_edit_cur_problem_feedback.csp"
+%>
+<%@include "cnts_edit_cur_problem_standing.csp"
+%>
+
+<script type="text/javascript">
+$(function() {
+    $('#ProblemAccordion').accordion({ heightStyle: "content" });
+
+    idDialog = $("#IdDialogDiv").dialog({
+        autoOpen: false,
+        height: 350,
+        width: 650,
+        modal: true,
+        buttons: {
+            "Save": function() {
+                var postData = $("#IdDialogForm").serialize();
+                var formURL = $("#IdDialogForm").attr("action");
+                $.ajax({
+                    url : formURL,
+                    type: "POST",
+                    data : postData,
+                    success:function(data, textStatus, jqXHR) {
+                        //data: return data from server
+                        document.location.reload(true);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        //if fails     
+                    }
+                });
+            },
+            Cancel: function() {
+                idDialog.dialog("close");
+            }
+        },
+        close : function() {
+        }
+    });
+
+    $("#orig-id-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-internal_name-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-super-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-variant_num-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-autoassign_variants-div").toggle(<s:v type="jsbool" value="prob->variant_num > 0" />);
+
+    filesDialog = $("#FilesDialogDiv").dialog({
+        autoOpen: false,
+        height: 500,
+        width: 700,
+        modal: true,
+        buttons: {
+            "Save": function() {
+                var postData = $("#FilesDialogForm").serialize();
+                var formURL = $("#FilesDialogForm").attr("action");
+                $.ajax({
+                    url : formURL,
+                    type: "POST",
+                    data : postData,
+                    success:function(data, textStatus, jqXHR) {
+                        //data: return data from server
+                        document.location.reload(true);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        //if fails     
+                    }
+                });
+            },
+            Cancel: function() {
+                filesDialog.dialog("close");
+            }
+        },
+        close : function() {
+        }
+    });
+
+    $("#orig-normalization-div").toggle(<s:v type="jsbool" value="tmp_prob->binary_input <= 0" />);
+    $("#orig-test_dir-div").toggle(<s:v type="jsbool" value="global->advanced_layout <= 0" />);
+
+    $("#orig-corr_dir-div").toggle(<s:v type="jsbool" value="global->advanced_layout <= 0 && tmp_prob->use_corr > 0" />);
+    $("#orig-corr_sfx-div").toggle(<s:v type="jsbool" value="tmp_prob->use_corr > 0" />);
+    $("#orig-corr_pat-div").toggle(<s:v type="jsbool" value="tmp_prob->use_corr > 0" />);
+
+    $("#orig-info_dir-div").toggle(<s:v type="jsbool" value="global->advanced_layout <= 0 && tmp_prob->use_info > 0" />);
+    $("#orig-info_sfx-div").toggle(<s:v type="jsbool" value="tmp_prob->use_info > 0" />);
+    $("#orig-info_pat-div").toggle(<s:v type="jsbool" value="tmp_prob->use_info > 0" />);
+
+    $("#orig-tgz_sfx-div").toggle(<s:v type="jsbool" value="tmp_prob->use_tgz > 0" />);
+    $("#orig-tgz_pat-div").toggle(<s:v type="jsbool" value="tmp_prob->use_tgz > 0" />);
+    $("#orig-tgzdir_sfx-div").toggle(<s:v type="jsbool" value="tmp_prob->use_tgz > 0" />);
+    $("#orig-tgzdir_pat-div").toggle(<s:v type="jsbool" value="tmp_prob->use_tgz > 0" />);
+
+    validationDialog = $("#ValidationDialogDiv").dialog({
+        autoOpen: false,
+        height: 300,
+        width: 600,
+        modal: true,
+        buttons: {
+            "Save": function() {
+                var postData = $("#ValidationDialogForm").serialize();
+                var formURL = $("#ValidationDialogForm").attr("action");
+                $.ajax({
+                    url : formURL,
+                    type: "POST",
+                    data : postData,
+                    success:function(data, textStatus, jqXHR) {
+                        //data: return data from server
+                        document.location.reload(true);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        //if fails     
+                    }
+                });
+            },
+            Cancel: function() {
+                validationDialog.dialog("close");
+            }
+        },
+        close : function() {
+        }
+    });
+
+    $("#orig-test_checker_env-div").toggle(<s:v type="jsbool" value="tmp_prob->test_checker_cmd && prob_id > 0" />);
+
+    viewDialog = $("#ViewDialogDiv").dialog({
+        autoOpen: false,
+        height: 300,
+        width: 600,
+        modal: true,
+        buttons: {
+            "Save": function() {
+                var postData = $("#ViewDialogForm").serialize();
+                var formURL = $("#ViewDialogForm").attr("action");
+                $.ajax({
+                    url : formURL,
+                    type: "POST",
+                    data : postData,
+                    success:function(data, textStatus, jqXHR) {
+                        //data: return data from server
+                        document.location.reload(true);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        //if fails     
+                    }
+                });
+            },
+            Cancel: function() {
+                viewDialog.dialog("close");
+            }
+        },
+        close : function() {
+        }
+    });
+
+    $("#orig-disable_tab-div").toggle(<s:v type="jsbool" value="global->problem_navigation > 0" />);
+    $("#orig-hide_variant-div").toggle(<s:v type="jsbool" value="prob->variant_num > 0" />);
+
+});
+
+function np(e)
+{
+    if (e) e.stopPropagation();
+}
+
+function copyCheckbox(dst, src)
+{
+    var dstobj = document.getElementById(dst);
+    var srcobj = document.getElementById(src);
+    if (dstobj != null) {
+        if (srcobj != null && srcobj.value == "1") {
+            dstobj.checked = true;
+        } else {
+            dstobj.checked = false;
+        }
+    }
+}
+
+function toBool(str, def)
+{
+    if (str == "-1") {
+        return def;
+    } else if (str == "1") {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function popupIdDialog(e, skipField)
+{
+    $("#IdDialogProbId").val(prob_id);
+    $("#edit-prob_id").val(prob_id);
+    <%@expand COPY_SIMPLE "short_name" %>
+    <%@expand COPY_SIMPLE "internal_name" %>
+    <%@expand COPY_SIMPLE "long_name" %>
+    <%@expand COPY_SIMPLE "super" %>
+    <%@expand COPY_SIMPLE "type" %>
+    <%@expand COPY_SIMPLE "variant_num" %>
+    <%@expand COPY_SIMPLE "autoassign_variants" %>
+
+    <%@expand CLEAR_TEXTFIELD "short_name" %>
+    <%@expand CLEAR_TEXTFIELD "internal_name" %>
+    <%@expand CLEAR_TEXTFIELD "long_name" %>
+
+    if (e) e.stopPropagation();
+    idDialogOnChange();
+    $("#IdDialogDiv").dialog('open');
+}
+
+function idDialogOnChange()
+{
+    $("#edit-prob_id-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-internal_name-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-super-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-variant_num-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    var num = parseInt($("#edit-variant_num").val());
+    $("#edit-autoassign_variants-div").toggle(num > 0);
+}
+
+function popupFilesDialog(e, skipField)
+{
+    $("#FilesDialogProbId").val(prob_id);
+
+    <%@expand COPY_YESNO3 "binary_input" %>
+    <%@expand COPY_SIMPLE "normalization" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "xml_file" "!prob->xml_file[0]" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "test_dir" "!prob->test_dir[0]" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "test_pat" "prob->test_pat[0] == 1" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "test_sfx" "prob->test_sfx[0] == 1" %>
+    <%@expand COPY_YESNO3 "use_corr" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "corr_dir" "!prob->corr_dir[0]" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "corr_pat" "prob->corr_pat[0] == 1" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "corr_sfx" "prob->corr_sfx[0] == 1" %>
+    <%@expand COPY_YESNO3 "use_info" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "info_dir" "!prob->info_dir[0]" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "info_pat" "prob->info_pat[0] == 1" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "info_sfx" "prob->info_sfx[0] == 1" %>
+    <%@expand COPY_YESNO3 "use_tgz" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "tgz_pat" "prob->tgz_pat[0] == 1" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "tgz_sfx" "prob->tgz_sfx[0] == 1" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "tgzdir_pat" "prob->tgzdir_pat[0] == 1" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "tgzdir_sfx" "prob->tgzdir_sfx[0] == 1" %>
+
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "xml_file" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "test_dir" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "test_pat" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "test_sfx" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "corr_dir" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "corr_pat" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "corr_sfx" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "info_dir" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "info_pat" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "info_sfx" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "tgz_pat" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "tgz_sfx" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "tgzdir_pat" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "tgzdir_sfx" %>
+    
+    if (e) e.stopPropagation();
+    filesDialogOnChange();
+    $("#FilesDialogDiv").dialog('open');
+}
+
+function filesDialogOnChange(field)
+{
+    var binary_input = toBool($("#edit-binary_input").val(), <s:v type="jsbool" value="sup_prob && sup_prob->binary_input > 0" />);
+    $("#edit-normalization-div").toggle(!binary_input);
+
+    <%@expand ONCHANGE_WITH_DEFAULT "xml_file" %>
+
+    var advanced_layout = <s:v type="jsbool" value="global->advanced_layout <= 0" />;
+    $("#edit-test_dir-div").toggle(advanced_layout);
+
+    <%@expand ONCHANGE_WITH_DEFAULT "test_dir" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "test_pat" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "test_sfx" %>
+
+    var use_corr = toBool($("#edit-use_corr").val(), <s:v type="jsbool" value="sup_prob && sup_prob->use_corr > 0" />);
+    $("#edit-corr_dir-div").toggle(advanced_layout && use_corr);
+    $("#edit-corr_sfx-div").toggle(use_corr);
+    $("#edit-corr_pat-div").toggle(use_corr);
+
+    <%@expand ONCHANGE_WITH_DEFAULT "corr_dir" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "corr_pat" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "corr_sfx" %>
+
+    var use_info = toBool($("#edit-use_info").val(), <s:v type="jsbool" value="sup_prob && sup_prob->use_info > 0" />);
+    $("#edit-info_dir-div").toggle(advanced_layout && use_info);
+    $("#edit-info_sfx-div").toggle(use_info);
+    $("#edit-info_pat-div").toggle(use_info);
+
+    <%@expand ONCHANGE_WITH_DEFAULT "info_dir" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "info_pat" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "info_sfx" %>
+
+    var use_tgz = toBool($("#edit-use_tgz").val(), <s:v type="jsbool" value="sup_prob && sup_prob->use_tgz > 0" />);
+    $("#edit-tgz_sfx-div").toggle(use_tgz);
+    $("#edit-tgz_pat-div").toggle(use_tgz);
+    $("#edit-tgzdir_sfx-div").toggle(use_tgz);
+    $("#edit-tgzdir_pat-div").toggle(use_tgz);
+
+    <%@expand ONCHANGE_WITH_DEFAULT "tgz_pat" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "tgz_sfx" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "tgzdir_pat" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "tgzdir_sfx" %>
+}
+
+function popupValidationDialog(e, skipField)
+{
+    $("#ValidationDialogProbId").val(prob_id);
+
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "test_checker_cmd" "!prob->test_checker_cmd" %>
+    <%@expand COPY_TEXTFIELD "test_checker_env" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "solution_src" "!prob->solution_src" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "solution_cmd" "!prob->solution_cmd" %>
+
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "test_checker_cmd" %>
+    <%@expand CLEAR_TEXTFIELD "test_checker_env" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "solution_src" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "solution_cmd" %>
+
+    if (e) e.stopPropagation();
+    validationDialogOnChange();
+    $("#ValidationDialogDiv").dialog('open');
+}
+
+function validationDialogOnChange(field)
+{
+    <%@expand ONCHANGE_WITH_DEFAULT "test_checker_cmd" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "solution_src" %>
+    <%@expand ONCHANGE_WITH_DEFAULT "solution_cmd" %>
+
+    $("#edit-test_checker_env-div").toggle($("#edit-test_checker_cmd").val() != "" || (<s:v type="jsbool" value="sup_prob && sup_prob->test_checker_cmd && prob_id > 0" /> && $("#edit-test_checker_cmd_dflt").is(':checked')));
+}
+
+function popupViewDialog(e, skipField)
+{
+    $("#ViewDialogProbId").val(prob_id);
+
+    <%@expand COPY_YESNO3 "disable_tab" %>
+    <%@expand COPY_YESNO3 "unrestricted_statement" %>
+    <%@expand COPY_YESNO3 "hide_file_names" %>
+    <%@expand COPY_YESNO3 "hide_real_time_limit" %>
+    <%@expand COPY_YESNO3 "hide_variant" %>
+
+    if (e) e.stopPropagation();
+    viewDialogOnChange();
+    $("#ViewDialogDiv").dialog('open');
+}
+
+function viewDialogOnChange(field)
+{
+    $("#edit-disable_tab-div").toggle(<s:v type="jsbool" value="global->problem_navigation > 0" />);
+    $("#edit-hide_variant-div").toggle(<s:v type="jsbool" value="prob->variant_num > 0" />);
+}
+
+</script>
+
+<div id="ProblemAccordion">
+    <h3>Problem identification</h3>
+    <div>
+        <table border="0" onclick="popupIdDialog()">
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-id-div">
+                <td>ID:</td>
+                <td><s:textfield id="orig-id" readonly="readonly" name="param" value="prob->id" size="48" maxlength="1024" check="false" /></td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-short_name-div">
+                <td>Short name:</td>
+                <td><s:textfield id="orig-short_name" readonly="readonly" name="param" value="prob->short_name" size="48" maxlength="1024" check="no" /><% if (!prob->short_name) { %>(<i>Not set</i>)<% } %></td>
+                <td><input type="button" onclick="popupIdDialog(event, 'short_name')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:short_name" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-internal_name-div">
+                <td>Internal name:</td>
+                <td><s:textfield id="orig-internal_name" readonly="readonly" name="param" value="prob->internal_name" size="48" maxlength="1024" check="no" /><% if (!prob->internal_name) { %>(<i>Not set</i>)<% } %></td>
+                <td><input type="button" onclick="popupIdDialog(event, 'internal_name')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:internal_name" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-long_name-div">
+                <td>Long name:</td>
+                <td><s:textfield id="orig-long_name" readonly="readonly" name="param" value="prob->long_name" size="48" maxlength="1024" check="no" /><% if (!prob->long_name) { %>(<i>Not set</i>)<% } %></td>
+                <td><input type="button" onclick="popupIdDialog(event, 'long_name')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:long_name" /></td>
+            </s:tr>
+
+<%
+    str_value = NULL;
+    if (sup_prob && sup_prob->short_name && sup_prob->short_name[0]) {
+        str_value = sup_prob->short_name;
+    }
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-super-div">
+                <td>Base abstract problem:</td>
+                <td><s:textfield id="orig-super" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><% if (!str_value) { %>(<i>Not set</i>)<% } %></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:super" /></td>
+            </s:tr>
+
+<%
+    prob_type = prob->type;
+    if (prob_type < 0 || prob_type >= PROB_TYPE_LAST) prob_type = 0;
+    str_value = problem_unparse_type(prob_type);
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-type-div">
+                <td>Type:</td>
+                <td><s:textfield id="orig-type" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><% if (!str_value) { %>(<i>Not set</i>)<% } %></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:type" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-variant_num-div">
+                <td>Number of variants:</td>
+                <td><s:textfield id="orig-variant_num" readonly="readonly" name="param" value="prob->variant_num" size="48" maxlength="1024" checkExpr="> 0" /><%
+    if (prob->variant_num <= 0) {
+%>(<i>No variants</i>)<%
+    }
+%></td>
+                <td><%
+    if (prob->variant_num > 0) {
+%>[<s:a ac="cnts-start-edit-variant-action">Edit variants</s:a>]<%
+    }
+%></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:variant_num" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "autoassign_variants" "Id" "Assign variants automatically" %>
+
+        </table>
+    </div>
+
+    <h3>Files and directories</h3>
+
+    <div>
+        <table border="0" onclick="popupFilesDialog()">
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "binary_input" "Files" "Input data is binary" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-normalization-div">
+                <td>Test normalization mode:</td>
+                <td><%
+    value = test_normalization_parse(prob->normalization);
+    if (value < 0) value = TEST_NORM_DEFAULT;
+    if (!sup_prob) {
+      if (value == TEST_NORM_DEFAULT) value = TEST_NORM_NL;
+%><s:hidden id="orig-normalization" name="param" value="value" /><s:v value="test_normalization_unparse_full(value)" escape="false" /><%
+    } else if (value == TEST_NORM_DEFAULT) {
+      value = test_normalization_parse(sup_prob->normalization);
+      if (value < 0) value = TEST_NORM_NL;
+%><s:hidden id="orig-normalization" name="param" value="value" /><%
+      if (value == TEST_NORM_DEFAULT) value = TEST_NORM_NL;
+%>Default (<s:v value="test_normalization_unparse_full(value)" escape="false" />)<%
+    } else {
+%><s:hidden id="orig-normalization" name="param" value="value" /><s:v value="test_normalization_unparse_full(value)" escape="false" /><%
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:normalization" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-xml_file-div">
+                <td>XML File with problem statement:</td>
+                <td><%
+  str_value = prob->xml_file;
+  if (str_value && str_value[0] < ' ') str_value = 0;
+%><s:textfield id="orig-xml_file" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+  if (prob_id <= 0) {
+%><% if (!str_value) { %>(<i>Not set</i>)<% } %><%
+  } else if (!sup_prob) {
+    if (!str_value) {
+%>(<i>Not set</i>)<%
+    } else {
+%>(<i><s:v value="tmp_prob->xml_file" /></i>)<%
+    }
   } else {
-%> [<s:a ac="import-from-polygon-page">Import from Polygon</s:a>] [<s:a ac="import-contest-from-polygon-page">Import contest from Polygon</s:a>]<%
+    if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->xml_file" /></i>)<%
+    } else {
+%>(<i><s:v value="tmp_prob->xml_file" /></i>)<%
+    }
   }
 %></td>
-    </s:tr>
+                <td><input type="button" onclick="popupFilesDialog(event, 'xml_file')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:xml_file" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-test_dir-div">
+                <td>Directory with tests:</td>
+                <td><%
+    str_value = prob->test_dir;
+    if (str_value && str_value[0] < ' ') str_value = 0;
+%><s:textfield id="orig-test_dir" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value || !sup_prob) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->test_dir" /></i>)<%
+      } else {
+%>(<i><s:v value="tmp_prob->test_dir" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'test_dir')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:test_dir" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-test_pat-div">
+                <td>Pattern for test file names:</td>
+                <td><%
+    str_value = prob->test_pat;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-test_pat" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->test_pat" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'test_pat')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:test_pat" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-test_sfx-div">
+                <td>Suffix of test files:</td>
+                <td><%
+    str_value = prob->test_sfx;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-test_sfx" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->test_sfx" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'test_sfx')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:test_sfx" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "use_corr" "Files" "Use &quot;correct answer&quot; files for check" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-corr_dir-div">
+                <td>Directory with &quot;correct answer&quot; files:</td>
+                <td><%
+    str_value = prob->corr_dir;
+    if (str_value && str_value[0] < ' ') str_value = 0;
+%><s:textfield id="orig-corr_dir" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0 || !sup_prob) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->corr_dir" /></i>)<%
+      } else {
+%>(<i><s:v value="tmp_prob->corr_dir" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'corr_dir')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:corr_dir" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-corr_pat-div">
+                <td>Pattern for &quot;correct answer&quot; file names:</td>
+                <td><%
+    str_value = prob->corr_pat;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-corr_pat" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->corr_pat" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'corr_pat')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:corr_pat" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-corr_sfx-div">
+                <td>Suffix of &quot;correct answer&quot; files:</td>
+                <td><%
+    str_value = prob->corr_sfx;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-corr_sfx" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->corr_sfx" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'corr_sfx')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:corr_sfx" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "use_info" "Files" "Use test info files for check" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-info_dir-div">
+                <td>Directory with test info files:</td>
+                <td><%
+    str_value = prob->info_dir;
+    if (str_value && str_value[0] < ' ') str_value = 0;
+%><s:textfield id="orig-info_dir" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->info_dir" /></i>)<%
+      } else {
+%>(<i><s:v value="tmp_prob->info_dir" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'info_dir')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:info_dir" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-info_pat-div">
+                <td>Pattern for test info file names:</td>
+                <td><%
+    str_value = prob->info_pat;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-info_pat" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->info_pat" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'info_pat')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:info_pat" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-info_sfx-div">
+                <td>Suffix of test info:</td>
+                <td><%
+    str_value = prob->info_sfx;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-info_sfx" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->info_sfx" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'info_sfx')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:info_sfx" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "use_tgz" "Files" "Use special working directory for check" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-tgz_pat-div">
+                <td>Pattern for working dir archives:</td>
+                <td><%
+    str_value = prob->tgz_pat;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-tgz_pat" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->tgz_pat" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'tgz_pat')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:tgz_pat" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-tgzdir_pat-div">
+                <td>Pattern for master working dirs:</td>
+                <td><%
+    str_value = prob->tgzdir_pat;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-tgzdir_pat" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->tgzdir_pat" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'tgzdir_pat')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:tgzdir_pat" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-tgz_sfx-div">
+                <td>Suffix of working dir archives:</td>
+                <td><%
+    str_value = prob->tgz_sfx;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-tgz_sfx" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->tgz_sfx" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'tgz_sfx')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:tgz_sfx" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-tgzdir_sfx-div">
+                <td>Suffix of master working dirs:</td>
+                <td><%
+    str_value = prob->tgzdir_sfx;
+    if (str_value[0] == 1) str_value = 0;
+%><s:textfield id="orig-tgzdir_sfx" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!sup_prob && !str_value) {
+%>(<i>Not set</i>)<%
+      } else if (!str_value) {
+%>(<i>Default: <s:v value="tmp_prob->tgzdir_sfx" /></i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupFilesDialog(event, 'tgzdir_sfx')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:tgzdir_sfx" /></td>
+            </s:tr>
+
+        </table>
+    </div>
+
+    <h3>Validation</h3>
+
+    <div>
+        <table border="0" onclick="popupValidationDialog()">
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-test_checker_cmd-div">
+                <td>Test checker (validator) name:</td>
+                <td><%
+%><s:textfield id="orig-test_checker_cmd" readonly="readonly" name="param" value="prob->test_checker_cmd" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!prob->test_checker_cmd) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!prob->test_checker_cmd) {
+        if (!tmp_prob->test_checker_cmd) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->test_checker_cmd" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupValidationDialog(event, 'test_checker_cmd')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:test_checker_cmd" /></td>
+            </s:tr>
+
+            <%@expand ORIG_ENV "test_checker_env" "Validation" "Test checker environment" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-solution_src-div">
+                <td>Solution source name:</td>
+                <td><%
+%><s:textfield id="orig-solution_src" readonly="readonly" name="param" value="prob->solution_src" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!prob->solution_src) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!prob->solution_src) {
+        if (!tmp_prob->solution_src) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->solution_src" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupValidationDialog(event, 'solution_src')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:solution_src" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-solution_cmd-div">
+                <td>Solution command:</td>
+                <td><%
+%><s:textfield id="orig-solution_cmd" readonly="readonly" name="param" value="prob->solution_cmd" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!prob->solution_cmd) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!prob->solution_cmd) {
+        if (!tmp_prob->solution_cmd) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->solution_cmd" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupValidationDialog(event, 'solution_cmd')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:solution_cmd" /></td>
+            </s:tr>
+
+        </table>
+    </div>
+
+    <h3>Statement view</h3>
+
+    <div>
+        <table border="0" onclick="popupViewDialog()">
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_tab" "View" "Disable problem tab" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "unrestricted_statement" "View" "Unrestricted problem statement" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "hide_file_names" "View" "Hide input/output file names from problem statement" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "hide_real_time_limit" "View" "Hide real-time limit from problem statement" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "hide_variant" "View" "Hide variant from user" %>
+
+        </table>
+    </div>
+
+    <h3>Submission</h3>
+
+    <div>
+        <table border="0" onclick="popupSubmissionDialog()">
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_user_submit" "Submission" "Disable user submissions" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_submit_after_ok" "Submission" "Disable submissions after OK" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "binary" "Submission" "Submit is binary" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-max_user_run_count-div">
+                <td>Max submissions for the problem:</td>
+                <td><s:textfield id="orig-max_user_run_count" readonly="readonly" name="param" value="prob->max_user_run_count" size="48" maxlength="1024" checkExpr=">= 0" /><%
+    if (!sup_prob) {
+      if (prob->max_user_run_count < 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (prob->max_user_run_count < 0 && tmp_prob->max_user_run_count < 0) {
+%>(<i>Not set</i>)<%
+      } else if (tmp_prob->max_user_run_count > 0) {
+%>(<i>Default: <s:v value="tmp_prob->max_user_run_count" /></i>)<%
+      } else {
+%>(<i>Default: unlimited</i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:max_user_run_count" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "advance_to_next" "Submission" "Automatically advance to the next problem" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_ctrl_chars" "Submission" "Disable control characters in the source code" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "enable_text_form" "Submission" "Enable textarea input form" %>
+            <%@expand ORIG_ENV "disable_language" "Submission" "Disabled languages" %>
+            <%@expand ORIG_ENV "enable_language" "Submission" "Enabled languages" %>
+            <%@expand ORIG_ENV "require" "Submission" "Required problems" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-start_date-div">
+                <td>Accept start date:</td>
+                <td><% html_date_select_2(out_f, prob->start_date, "orig-start_date", "param", NULL, 1, 0, 0); %></td>
+                <td><input type="button" onclick="popupSubmissionDialog(event, 'start_date')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:start_date" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-deadline-div">
+                <td>Accept deadline:</td>
+                <td><% html_date_select_2(out_f, prob->deadline, "orig-deadline", "param", NULL, 1, 0, 0); %></td>
+                <td><input type="button" onclick="popupSubmissionDialog(event, 'deadline')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:deadline" /></td>
+            </s:tr>
+
+        </table>
+    </div>
+
+    <h3>Compiling</h3>
+
+    <div>
+        <table border="0" onclick="popupCompilingDialog()">
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-style_checker_cmd-div">
+                <td>Style checker name:</td>
+                <td><%
+    str_value = prob->style_checker_cmd;
+    if (!str_value[0]) str_value = NULL;
+%><s:textfield id="orig-style_checker_cmd" readonly="readonly" name="param" value="str_value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!str_value) {
+        if (!tmp_prob->style_checker_cmd[0]) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->style_checker_cmd" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupCompilingDialog(event, 'style_checker_cmd')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:style_checker_cmd" /></td>
+            </s:tr>
+
+            <%@expand ORIG_ENV "style_checker_env" "Compiling" "Style checker environment" %>
+            <%@expand ORIG_ENV "lang_compiler_env" "Compiling" "Compiler environment" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-source_header-div">
+                <td>Source header file:</td>
+                <td><%
+    str_value = prob->source_header;
+    if (!str_value[0]) str_value = 0;
+%><s:textfield id="orig-source_header" readonly="readonly" name="param" value="prob->source_header" size="48" maxlength="1024" /><%
+    if (prob_id <= 0) {
+      if (!value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!str_value) {
+        if (!tmp_prob->source_header[0]) {
+%>(<i>Default: none</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->source_header" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupCompilingDialog(event, 'source_header')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:source_header" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-source_footer-div">
+                <td>Source footer file:</td>
+                <td><%
+    str_value = prob->source_footer;
+    if (!str_value[0]) str_value = 0;
+%><s:textfield id="orig-source_footer" readonly="readonly" name="param" value="prob->source_footer" size="48" maxlength="1024" checkExpr="> 0" /><%
+    if (prob_id <= 0) {
+      if (!str_value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!str_value) {
+        if (!tmp_prob->source_footer[0]) {
+%>(<i>Default: none</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->source_footer" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupCompilingDialog(event, 'source_footer')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:source_footer" /></td>
+            </s:tr>
+
+        </table>
+    </div>
+
+
+    <h3>Running</h3>
+
+    <div>
+        <table border="0" onclick="popupRunningDialog()">
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_testing" "Running" "Disable any testing of submissions" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_auto_testing" "Running" "Disable automatic testing of submissions" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "enable_compilation" "Running" "Still compile runs to mark as ACCEPTED" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "manual_checking" "Running" "Problem is checked manually" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "check_presentation" "Running" "Check output presentation anyway" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "use_stdin" "Running" "Use standard input" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "combined_stdin" "Running" "Combined standard/file input" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-input_file-div">
+                <td>Input file name:</td>
+                <td><%
+    if (!sup_prob) {
+      const unsigned char *value = prob->input_file;
+      if (value && value[0] < ' ') value = 0;
+%><s:textfield id="orig-input_file" readonly="readonly" name="param" value="value" size="48" maxlength="1024" checkExpr="" /><% if (!value) { %>(<i>Not set</i>)<% } %><%
+    } else {
+      const unsigned char *value = prob->input_file;
+      if (value && value[0] < ' ') value = 0;
+%><s:textfield id="orig-input_file" readonly="readonly" name="param" value="value" size="48" maxlength="1024" checkExpr="" /><% if (!value) { %>(<i>Default</i>: <i><s:v value="tmp_prob->input_file" /></i>)<% } %><%
+    }
+%></td>
+                <td><input type="button" onclick="popupRunningDialog(event, 'input_file')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:input_file" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "use_stdout" "Running" "Use standard output" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "combined_stdout" "Running" "Combined standard/file output" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-output_file-div">
+                <td>Output file name:</td>
+                <td><%
+    if (!sup_prob) {
+      const unsigned char *value = prob->output_file;
+      if (value && value[0] < ' ') value = 0;
+%><s:textfield id="orig-output_file" readonly="readonly" name="param" value="value" size="48" maxlength="1024" checkExpr="" /><% if (!value) { %>(<i>Not set</i>)<% } %><%
+    } else {
+      const unsigned char *value = prob->output_file;
+      if (value && value[0] < ' ') value = 0;
+%><s:textfield id="orig-output_file" readonly="readonly" name="param" value="value" size="48" maxlength="1024" checkExpr="" /><% if (!value) { %>(<i>Default</i>: <i><s:v value="tmp_prob->output_file" /></i>)<% } %><%
+    }
+%></td>
+                <td><input type="button" onclick="popupRunningDialog(event, 'output_file')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:output_file" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_stderr" "Running" "Consider output to stderr as PE" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "ignore_exit_code" "Running" "Ignore exit code" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-start_cmd-div">
+                <td>Start proxy program:</td>
+                <td><%
+%><s:textfield id="orig-start_cmd" readonly="readonly" name="param" value="prob->start_cmd" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!prob->start_cmd) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!prob->start_cmd) {
+        if (!tmp_prob->start_cmd || !tmp_prob->start_cmd[0]) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->start_cmd" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupRunningDialog(event, 'start_cmd')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:start_cmd" /></td>
+            </s:tr>
+
+            <%@expand ORIG_ENV "start_env" "Running" "Start environment" %>
+
+        </table>
+    </div>
+
+    <h3>Limits</h3>
+
+    <div>
+        <table border="0" onclick="popupLimitsDialog()">
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-time_limit_millis-div">
+                <td>Processor time limit (ms):</td>
+                <td><s:textfield id="orig-time_limit_millis" readonly="readonly" name="param" value="prob->time_limit_millis" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (!sup_prob) {
+      if (prob->time_limit_millis <= 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (tmp_prob->time_limit_millis <= 0) {
+%>(<i>Not set</i>)<%
+      } else if (prob->time_limit_millis < 0) {
+%>(<i>Default: <s:v value="tmp_prob->time_limit_millis" /></i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:time_limit_millis" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-time_limit-div">
+                <td>Processor time limit (s):</td>
+                <td><s:textfield id="orig-time_limit" readonly="readonly" name="param" value="prob->time_limit" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (!sup_prob) {
+      if (prob->time_limit < 0) {
+%>(<i>Not set</i>)<%
+      } else if (!prob->time_limit) {
+%>(<i>Unlimited</i>)<%
+      }
+    } else {
+      if (prob->time_limit < 0 && tmp_prob->time_limit < 0) {
+%>(<i>Not set</i>)<%
+      } else if (prob->time_limit < 0 && !tmp_prob->time_limit) {
+%>(<i>Default: Unlimited</i>)<%
+      } else if (prob->time_limit < 0) {
+%>(<i>Default: <s:v value="tmp_prob->time_limit" /></i>)<%
+      } else if (!prob->time_limit) {
+%>(<i>Unlimited</i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:time_limit" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-real_time_limit-div">
+                <td>Real time limit (s):</td>
+                <td><s:textfield id="orig-real_time_limit" readonly="readonly" name="param" value="prob->real_time_limit" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->real_time_limit < 0) {
+%>(<i>Not set</i>)<%
+      } else if (!prob->real_time_limit) {
+%>(<i>Unlimited</i>)<%
+      }
+    } else {
+      if (prob->real_time_limit < 0 && tmp_prob->real_time_limit < 0) {
+%>(<i>Not set</i>)<%
+      } else if (prob->real_time_limit < 0 && !tmp_prob->real_time_limit) {
+%>(<i>Default: Unlimited</i>)<%
+      } else if (prob->real_time_limit < 0) {
+%>(<i>Default: <s:v value="tmp_prob->real_time_limit" /></i>)<%
+      } else if (!prob->real_time_limit) {
+%>(<i>Unlimited</i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:real_time_limit" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-max_vm_size-div">
+                <td>Maximum virtual memory size:</td>
+                <td><s:textfield id="orig-max_vm_size" readonly="readonly" name="param" value="prob->max_vm_size" size="48" maxlength="1024" checkExpr=">= 0" format="V" /><%
+    if (prob_id <= 0) {
+      if (prob->max_vm_size <= 0) {
+%>(<i>OS Limit</i>)<%
+      }
+    } else {
+      if (prob->max_vm_size < 0) {
+        if (tmp_prob->max_vm_size < 0) {
+%>(<i>Default: OS Limit</i>)<%
+        } else if (tmp_prob->max_vm_size == 0) {
+%>(<i>Default: OS Limit</i>)<%
+        } else {
+%>(<i>Default: <s:v format="V" value="tmp_prob->max_vm_size" escape="false"/></i>)<%
+        }
+      } else if (prob->max_vm_size == 0) {
+%>(<i>OS Limit</i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:max_vm_size" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-max_stack_size-div">
+                <td>Maximum stack size:</td>
+                <td><s:textfield id="orig-max_stack_size" readonly="readonly" name="param" value="prob->max_stack_size" size="48" maxlength="1024" checkExpr=">= 0" format="V" /><%
+    if (prob_id <= 0) {
+      if (prob->max_stack_size <= 0) {
+%>(<i>OS Limit</i>)<%
+      }
+    } else {
+      if (prob->max_stack_size < 0) {
+        if (tmp_prob->max_stack_size < 0) {
+%>(<i>Default: OS Limit</i>)<%
+        } else if (tmp_prob->max_stack_size == 0) {
+%>(<i>Default: OS Limit</i>)<%
+        } else {
+%>(<i>Default: <s:v format="V" value="tmp_prob->max_stack_size" escape="false"/></i>)<%
+        }
+      } else if (prob->max_stack_size == 0) {
+%>(<i>OS Limit</i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:max_stack_size" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-max_file_size-div">
+                <td>Maximum output file size:</td>
+                <td><s:textfield id="orig-max_file_size" readonly="readonly" name="param" value="prob->max_file_size" size="48" maxlength="1024" checkExpr=">= 0" format="V" /><%
+    if (prob_id <= 0) {
+      if (prob->max_file_size <= 0) {
+%>(<i>OS Limit</i>)<%
+      }
+    } else {
+      if (prob->max_file_size < 0) {
+        if (tmp_prob->max_file_size < 0) {
+%>(<i>Default: OS Limit</i>)<%
+        } else if (tmp_prob->max_file_size == 0) {
+%>(<i>Default: OS Limit</i>)<%
+        } else {
+%>(<i>Default: <s:v format="V" value="tmp_prob->max_file_size" escape="false"/></i>)<%
+        }
+      } else if (prob->max_file_size == 0) {
+%>(<i>OS Limit</i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:max_file_size" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-max_open_file_count-div">
+                <td>Maximum open file count:</td>
+                <td><s:textfield id="orig-max_open_file_count" readonly="readonly" name="param" value="prob->max_open_file_count" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->max_open_file_count < 0) {
+%>(<i>OS Limit</i>)<%
+      }
+    } else {
+      if (prob->max_open_file_count < 0) {
+        if (tmp_prob->max_open_file_count < 0) {
+%>(<i>Default: OS Limit</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->max_open_file_count" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:max_open_file_count" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-max_process_count-div">
+                <td>Maximum process count:</td>
+                <td><s:textfield id="orig-max_process_count" readonly="readonly" name="param" value="prob->max_process_count" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->max_process_count < 0) {
+%>(<i>OS Limit</i>)<%
+      }
+    } else {
+      if (prob->max_process_count < 0) {
+        if (tmp_prob->max_process_count < 0) {
+%>(<i>Default: OS Limit</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->max_process_count" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:max_process_count" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-umask-div">
+                <td>Umask value:</td>
+                <td><s:textfield id="orig-umask" readonly="readonly" name="param" value="prob->umask" size="48" maxlength="1024" checkExpr="" /></td>
+                <td><input type="button" onclick="popupLimitsDialog(event, 'umask')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:umask" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "enable_process_group" "Limits" "Use separate process group" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_security" "Limits" "Disable security restrictions" %>
+            <%@expand ORIG_ENV "lang_time_adj" "Limits" "Language-specific time-limit adjustment (s)" %>
+            <%@expand ORIG_ENV "lang_time_adj_millis" "Limits" "Language-specific time-limit adjustment (ms)" %>
+            <%@expand ORIG_ENV "lang_max_vm_size" "Limits" "Language-specific memory limit" %>
+            <%@expand ORIG_ENV "lang_max_stack_size" "Limits" "Language-specific stack limit" %>
+
+        </table>
+    </div>
+
+    <h3>Checking, interacting, evaluating</h3>
+
+    <div>
+        <table border="0" onclick="popupCheckingDialog()">
+<%
+  {
+    const struct std_checker_info *std_checkers = super_html_std_checkers;
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-standard_checker-div">
+                <td>Standard checker:</td>
+                <td><s:hidden id="orig-standard_checker" name="param" value="prob->standard_checker" checkExpr="" /><%
+    int j;
+    for (j = 0; std_checkers[j].name; ++j) {
+      if (!strcmp(prob->standard_checker, std_checkers[j].name)) {
+%><s:v value="std_checkers[j].desc" /> - <%
+      }
+    }
+%><tt><s:v value="prob->standard_checker" /></tt></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:standard_checker" /></td>
+            </s:tr>
+<%
+  }
+%>
 
 <%
-  row = 1;
+  {
 %>
-    <s:form>
-        <s:tr attr="form_row_attrs[row ^= 1]">
-            <td>Id (optional):</td>
-            <td><s:textfield name="prob_id" value="" size="48" maxlength="1024" /></td>
-            <td><s:submit ac="prob-add" label="Add" /></td>
-            <td><s:help ac="prob-add" /></td>
-        </s:tr>
-    </s:form>
-</table>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-check_cmd-div">
+                <td>Checker name:</td>
+                <td><%
+    const unsigned char *value = prob->check_cmd;
+    if (value && (!value[0] || value[0] == 1)) value = 0;
+%><s:textfield id="orig-check_cmd" readonly="readonly" name="param" value="value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!value) {
+        if (!tmp_prob->check_cmd[0] || tmp_prob->check_cmd[0] == 1) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->check_cmd" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupCheckingDialog(event, 'check_cmd')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:check_cmd" /></td>
+            </s:tr>
+<%
+  }
+%>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-checker_real_time_limit-div">
+                <td>Real time limit for checker(s):</td>
+                <td><s:textfield id="orig-checker_real_time_limit" readonly="readonly" name="param" value="prob->checker_real_time_limit" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->checker_real_time_limit < 0) {
+%>(<i>Not set</i>)<%
+      } else if (!prob->checker_real_time_limit) {
+%>(<i>Unlimited</i>)<%
+      }
+    } else {
+      if (prob->checker_real_time_limit < 0 && tmp_prob->checker_real_time_limit < 0) {
+%>(<i>Not set</i>)<%
+      } else if (prob->checker_real_time_limit < 0 && !tmp_prob->checker_real_time_limit) {
+%>(<i>Default: Unlimited</i>)<%
+      } else if (prob->checker_real_time_limit < 0) {
+%>(<i>Default: <s:v value="tmp_prob->checker_real_time_limit" /></i>)<%
+      } else if (!prob->checker_real_time_limit) {
+%>(<i>Unlimited</i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:checker_real_time_limit" /></td>
+            </s:tr>
+
+            <%@expand ORIG_ENV "checker_env" "Checking" "Checker environment" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "scoring_checker" "Checking" "Checker calculates score" %>
+
+<%
+  {
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-valuer_cmd-div">
+                <td>Score valuer name:</td>
+                <td><%
+    const unsigned char *value = prob->valuer_cmd;
+    if (value && (!value[0] || value[0] == 1)) value = 0;
+%><s:textfield id="orig-valuer_cmd" readonly="readonly" name="param" value="value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!value) {
+        if (!tmp_prob->valuer_cmd[0] || tmp_prob->valuer_cmd[0] == 1) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->valuer_cmd" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupCheckingDialog(event, 'valuer_cmd')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:valuer_cmd" /></td>
+            </s:tr>
+<%
+  }
+%>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "valuer_sets_marked" "Checking" "Valuer sets <i>marked</i> flag" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "interactive_valuer" "Checking" "Valuer works interactively" %>
+            <%@expand ORIG_ENV "valuer_env" "Checking" "Valuer environment" %>
+
+<%
+  {
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-interactor_cmd-div">
+                <td>Interactor name:</td>
+                <td><%
+    const unsigned char *value = prob->interactor_cmd;
+    if (value && (!value[0] || value[0] == 1)) value = 0;
+%><s:textfield id="orig-interactor_cmd" readonly="readonly" name="param" value="value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!value) {
+        if (!tmp_prob->interactor_cmd[0] || tmp_prob->interactor_cmd[0] == 1) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->interactor_cmd" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupCheckingDialog(event, 'interactor_cmd')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:interactor_cmd" /></td>
+            </s:tr>
+<%
+  }
+%>
+
+            <%@expand ORIG_ENV "interactor_env" "Checking" "Interactor environment" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-interactor_time_limit-div">
+                <td>Time limit for interactor (s):</td>
+                <td><s:textfield id="orig-interactor_time_limit" readonly="readonly" name="param" value="prob->interactor_time_limit" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0 || !sup_prob) {
+      if (prob->interactor_time_limit < 0) {
+%>(<i>Not set</i>)<%
+      } else if (!prob->interactor_time_limit) {
+%>(<i>Unlimited</i>)<%
+      }
+    } else {
+      if (prob->interactor_time_limit < 0) {
+        if (tmp_prob->interactor_time_limit < 0) {
+%>(<i>Not set</i>)<%
+        } else if (!tmp_prob->interactor_time_limit) {
+%>(<i>Default: unlimited</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->interactor_time_limit" /></i>)<%
+        }
+      } else if (!prob->interactor_time_limit) {
+%>(<i>Unlimited</i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:interactor_time_limit" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-init_cmd-div">
+                <td>Init-style interactor name:</td>
+                <td><%
+%><s:textfield id="orig-init_cmd" readonly="readonly" name="param" value="prob->init_cmd" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!prob->init_cmd) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!prob->init_cmd) {
+        if (!tmp_prob->init_cmd || !tmp_prob->init_cmd[0]) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->init_cmd" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupCheckingDialog(event, 'init_cmd')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:init_cmd" /></td>
+            </s:tr>
+
+            <%@expand ORIG_ENV "init_env" "Checking" "Init-style interactor environment" %>
+
+        </table>
+    </div>
+
+    <h3>Scoring</h3>
+
+    <div>
+        <table border="0" onclick="popupScoringDialog()">
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "ignore_compile_errors" "Scoring" "Ignore compilation errors" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "use_ac_not_ok" "Scoring" "Use PR (pending review) status instead of OK" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-ok_status-div">
+                <td>Success status:</td>
+                <td><s:textfield id="orig-ok_status" readonly="readonly" name="param" value="prob->ok_status" size="48" maxlength="1024" checkExpr="" /></td>
+                <td><input type="button" onclick="popupScoringDialog(event, 'ok_status')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:ok_status" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "ignore_prev_ac" "Scoring" "Mark previous PR as IG (ignored)" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "olympiad_mode" "Scoring" "Use Olympiad mode" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "score_latest" "Scoring" "Score the latest submit" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "score_latest_or_unmarked" "Scoring" "Score the latest or the best unmarked" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "score_latest_marked" "Scoring" "Score the latest marked submit" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "ignore_unmarked" "Scoring" "Ignore unmarked runs in scoring" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "score_tokenized" "Scoring" "Score only tokenized submits" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-full_score-div">
+                <td>Score for full solution:</td>
+                <td><s:textfield id="orig-full_score" readonly="readonly" name="param" value="prob->full_score" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->full_score < 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (prob->full_score < 0) {
+        if (tmp_prob->full_score < 0) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->full_score" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:full_score" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-full_user_score-div">
+                <td>Score for user-visible full solution:</td>
+                <td><s:textfield id="orig-full_user_score" readonly="readonly" name="param" value="prob->full_user_score" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->full_user_score < 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (prob->full_user_score < 0) {
+        if (tmp_prob->full_user_score < 0) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->full_user_score" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:full_user_score" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "variable_full_score" "Scoring" "Allow variable score for full solution" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-test_score-div">
+                <td>Default score for 1 passed test:</td>
+                <td><s:textfield id="orig-test_score" readonly="readonly" name="param" value="prob->test_score" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->test_score < 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (prob->test_score < 0) {
+        if (tmp_prob->test_score < 0) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->test_score" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:test_score" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-run_penalty-div">
+                <td>Penalty for a submission:</td>
+                <td><s:textfield id="orig-run_penalty" readonly="readonly" name="param" value="prob->run_penalty" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->run_penalty < 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (prob->run_penalty < 0) {
+        if (tmp_prob->run_penalty < 0) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->run_penalty" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:run_penalty" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-disqualified_penalty-div">
+                <td>Penalty for a disqualified submission:</td>
+                <td><s:textfield id="orig-disqualified_penalty" readonly="readonly" name="param" value="prob->disqualified_penalty" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->disqualified_penalty < 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (prob->disqualified_penalty < 0) {
+        if (tmp_prob->disqualified_penalty < 0) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->disqualified_penalty" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:disqualified_penalty" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-test_score_list-div">
+                <td>Test scores for tests:</td>
+                <td><s:textfield id="orig-test_score_list-div" readonly="readonly" name="param" value="prob->test_score_list" size="48" maxlength="1024" checkExpr="" /></td>
+                <td><input type="button" onclick="popupScoringDialog(event, 'test_score_list')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:test_score_list" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-acm_run_penalty-div">
+                <td>Penalty for a submission (minutes):</td>
+                <td><s:textfield id="orig-acm_run_penalty" readonly="readonly" name="param" value="prob->acm_run_penalty" size="48" maxlength="1024" checkExpr=" >= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->acm_run_penalty < 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (prob->acm_run_penalty < 0 && tmp_prob->acm_run_penalty < 0) {
+%>(<i>Not set</i>)<%
+      } else if (prob->acm_run_penalty < 0) {
+%>(<i>Default: <s:v value="tmp_prob->acm_run_penalty" /></i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:acm_run_penalty" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-score_tests-div">
+                <td>Tests for problem scores:</td>
+                <td><s:textfield id="orig-score_tests" readonly="readonly" name="param" value="prob->score_tests" size="48" maxlength="1024" check="no" /></td>
+                <td><input type="button" onclick="popupScoringDialog(event, 'score_tests')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:score_tests" /></td>
+            </s:tr>
+
+<%
+  {
+    unsigned char *strs = 0;
+    if (prob->test_sets && prob->test_sets[0]) strs = sarray_unparse_2(prob->test_sets);
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-test_sets-div">
+                <td>Specially scored test sets:</td>
+                <td><s:textfield id="orig-test_sets" readonly="readonly" name="param" value="strs" size="48" maxlength="1024" checkExpr="" /><%
+    if (!strs) {
+%>(<i>Not set</i>)<%
+}
+%></td>
+                <td><input type="button" onclick="popupScoringDialog(event, 'test_sets')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:test_sets" /></td>
+            </s:tr>
+<%
+    xfree(strs);
+  }
+%>
+
+<%
+  {
+    const unsigned char *value = prob->score_bonus;
+    if (value && value[0] == 1) value = 0;
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-score_bonus-div">
+                <td>Additional score bonus:</td>
+                <td><s:textfield id="orig-score_bonus" readonly="readonly" name="param" value="value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0) {
+      if (!value) {
+%>(<i>Not set</i>)<%
+      } else if (!*value) {
+%>(<i>Empty</i>)<%
+      }
+    } else {
+      if (!value) {
+        if (!tmp_prob->score_bonus[0] || tmp_prob->score_bonus[0] == 1) {
+%>(<i>Not set</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->score_bonus" /></i>)<%
+        }
+      } else if (!*value) {
+%>(<i>Empty</i>)<%
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupScoringDialog(event, 'score_bonus')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:score_bonus" /></td>
+            </s:tr>
+<%
+  }
+%>
+
+        </table>
+    </div>
+
+    <h3>Feedback</h3>
+
+    <div>
+        <table border="0" onclick="popupFeedbackDialog()">
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "team_enable_rep_view" "Feedback" "Contestant may view testing protocol" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "team_enable_ce_view" "Feedback" "Contestant may view compilation errors" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "team_show_judge_report" "Feedback" "Contestant may view FULL testing protocol" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "show_checker_comment" "Feedback" "Contestant may view checker comment" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-open_tests-div">
+                <td>Tests open for participants:</td>
+                <td><s:textfield id="orig-open_tests" readonly="readonly" name="param" value="prob->open_tests" size="48" maxlength="1024" check="no" /></td>
+                <td><input type="button" onclick="popupFeedbackDialog(event, 'open_tests')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:open_tests" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-final_open_tests-div">
+                <td>Tests open for participants finally:</td>
+                <td><s:textfield id="orig-final_open_tests" readonly="readonly" name="param" value="prob->final_open_tests" size="48" maxlength="1024" check="no" /></td>
+                <td><input type="button" onclick="popupFeedbackDialog(event, 'final_open_tests')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:final_open_tests" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "enable_tokens" "Feedback" "Enable tokens" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "tokens_for_user_ac" "Feedback" "Tokens only for user AC submits" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-tokens-div">
+                <td>Token specification:</td>
+                <td><s:textfield id="orig-tokens" readonly="readonly" name="param" value="prob->tokens" size="48" maxlength="1024" checkExpr="" /></td>
+                <td><input type="button" onclick="popupFeedbackDialog(event, 'tokens')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="serve.cfg:problem:tokens" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-token_open_tests-div">
+                <td>Tests open for tokens:</td>
+                <td><s:textfield id="orig-token_open_tests" readonly="readonly" name="param" value="prob->token_open_tests" size="48" maxlength="1024" check="" /></td>
+                <td><input type="button" onclick="popupFeedbackDialog(event, 'token_open_tests')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="serve.cfg:problem:token_open_tests" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-tests_to_accept-div">
+                <td>Number of accept tests:</td>
+                <td><s:textfield id="orig-tests_to_accept" readonly="readonly" name="param" value="prob->tests_to_accept" size="48" maxlength="1024" checkExpr=">= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->tests_to_accept < 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (prob->tests_to_accept < 0 && tmp_prob->tests_to_accept < 0) {
+%>(<i>Not set</i>)<%
+      } else {
+%>(<i>Default: <s:v value="tmp_prob->tests_to_accept" /></i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:tests_to_accept" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "accept_partial" "Feedback" "Accept for testing solutions that do not pass all accept tests" %>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-min_tests_to_accept-div">
+                <td>Min. number of accept tests:</td>
+                <td><s:textfield id="orig-min_tests_to_accept" readonly="readonly" name="param" value="prob->min_tests_to_accept" size="48" maxlength="1024" checkExpr=">= 0" /><%
+    if (prob_id <= 0) {
+      if (prob->min_tests_to_accept < 0) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (prob->min_tests_to_accept < 0 && tmp_prob->min_tests_to_accept < 0) {
+%>(<i>Not set</i>)<%
+      } else {
+%>(<i>Default: <s:v value="tmp_prob->min_tests_to_accept" /></i>)<%
+      }
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:min_tests_to_accept" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_pe" "Feedback" "Report Presentation Error as Wrong Answer" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "disable_wtl" "Feedback" "Report Wall Time Limit Exceeded as Time Limit Exceeded" %>
+
+        </table>
+    </div>
+
+
+    <h3>Standings</h3>
+
+    <div>
+        <table border="0" onclick="popupStandingDialog()">
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-stand_name-div">
+                <td>Title for the standings column:</td>
+                <td><s:textfield id="orig-stand_name" readonly="readonly" name="param" value="prob->stand_name" size="48" maxlength="1024" check="no" /><% if (!prob->stand_name) { %>(<i>Not set</i>)<% } %></td>
+                <td><input type="button" onclick="popupStandingDialog(event, 'stand_name')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:stand_name" /></td>
+            </s:tr>
+
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-stand_column-div">
+                <td>Collate this problem with the specified one:</td>
+                <td><s:textfield id="orig-stand_column" readonly="readonly" name="param" value="prob->stand_column" size="48" maxlength="1024" check="no" /><% if (!prob->stand_column) { %>(<i>Not set</i>)<% } %></td>
+                <td><input type="button" onclick="popupStandingDialog(event, 'stand_column')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:stand_column" /></td>
+            </s:tr>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "hidden" "Standing" "Do not show this problem in standings" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "stand_hide_time" "Standing" "Do not show accept time" %>
+
+<%
+  {
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-stand_attr-div">
+                <td>Standings attributes:</td>
+                <td><%
+    const unsigned char *value = prob->stand_attr;
+    if (value && (!value[0] || value[0] == 1)) value = 0;
+%><s:textfield id="orig-stand_attr" readonly="readonly" name="param" value="value" size="48" maxlength="1024" checkExpr="" /><%
+    if (prob_id <= 0 || !sup_prob) {
+      if (!value) {
+%>(<i>Not set</i>)<%
+      }
+    } else {
+      if (!value) {
+        if (tmp_prob->stand_attr[0] == 1) {
+%>(<i>Not set</i>)<%
+        } else if (!tmp_prob->stand_attr[0]) {
+%>(<i>Default: empty</i>)<%
+        } else {
+%>(<i>Default: <s:v value="tmp_prob->stand_attr" /></i>)<%
+        }
+      }
+    }
+%></td>
+                <td><input type="button" onclick="popupStandingDialog(event, 'stand_attr')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:stand_attr" /></td>
+            </s:tr>
+<%
+  }
+%>
+
+<%
+  {
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-score_view-div">
+                <td>Special view for scores:</td>
+                <td><%
+    unsigned char *strs = 0;
+    if (prob->score_view && prob->score_view[0]) strs = sarray_unparse(prob->score_view);
+%><s:textfield id="orig-score_view" readonly="readonly" name="param" value="strs" size="48" maxlength="1024" checkExpr="" /></td>
+                <td><input type="button" onclick="popupStandingDialog(event, 'score_view')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:score_view" /></td>
+            </s:tr>
+<%
+    xfree(strs); strs = 0;
+  }
+%>
+
+            <%@expand ORIG_INHERITABLE_BOOLEAN "stand_ignore_score" "Standing" "Ignore problem score in standings" %>
+            <%@expand ORIG_INHERITABLE_BOOLEAN "stand_last_column" "Standing" "Show the problem after all results" %>
+
+<%
+  {
+%>
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-provide_ok-div">
+                <td>Provide OK to problems:</td>
+                <td><%
+    unsigned char *strs = 0;
+    if (prob->provide_ok && prob->provide_ok[0]) strs = sarray_unparse(prob->provide_ok);
+%><s:textfield id="orig-provide_ok" readonly="readonly" name="param" value="strs" size="48" maxlength="1024" checkExpr="" /></td>
+                <td><input type="button" onclick="popupStandingDialog(event, 'provide_ok')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:provide_ok" /></td>
+            </s:tr>
+<%
+    xfree(strs); strs = 0;
+  }
+%>
+
+
+        </table>
+    </div>
+
+
+<%
+  if (prob->unhandled_vars) {
+%>
+    <h3>Uneditable parameters</h3>
+
+    <div>
+        <table border="0">
+            <s:tr attr="form_row_attrs[row ^= 1]">
+                <td colspan="4"><pre><s:v value="prob->unhandled_vars" /></pre></td>
+            </s:tr>
+        </table>
+    </div>
+<%
+  }
+%>
+
+</div>
 
 <%
 bottom_links: ;
@@ -142,6 +2207,8 @@ bottom_links: ;
 <%@include "footer.csp"
 %><%
 cleanup:
+  xfree(alloc_value);
+  tmp_prob = prepare_problem_free(tmp_prob);
   l10n_resetlocale();
   html_armor_free(&ab);
 %>

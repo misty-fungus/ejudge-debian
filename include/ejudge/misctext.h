@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: misctext.h 8655 2014-10-20 10:13:53Z cher $ */
 #ifndef __MISCTEXT_H__
 #define __MISCTEXT_H__
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -82,6 +81,7 @@ int get_content_type(const unsigned char *txt, const unsigned char **p_start_ptr
 unsigned char *dos2unix_str(const unsigned char *s);
 size_t dos2unix_buf(unsigned char *s, size_t size);
 unsigned char *unparse_sha1(const void *shabuf);
+unsigned char *unparse_abbrev_sha1(const void *shabuf);
 int parse_sha1(void *shabuf, const unsigned char *str);
 
 void allowed_list_parse(
@@ -181,6 +181,15 @@ size_t_to_size_str(
         unsigned char *buf,
         size_t buf_size,
         size_t num);
+unsigned char *
+ll_to_size_str(
+        unsigned char *buf,
+        size_t buf_size,
+        long long value);
+void
+ll_to_size_str_f(
+        FILE *f,
+        long long value);
 void
 size_t_to_size_str_f(
         FILE *f,
@@ -261,11 +270,20 @@ html_print_by_line(
         int max_line_length,
         unsigned char const *s,
         size_t size);
+unsigned char *
+html_print_by_line_str(
+        int utf8_mode,
+        int max_file_length,
+        int max_line_length,
+        unsigned char const *s,
+        size_t size);
 
 int
 size_str_to_num(const unsigned char *str, int *p_num);
 int
 size_str_to_size_t(const unsigned char *str, size_t *p_size);
+int
+size_str_to_size64_t(const unsigned char *str, long long *p_size);
 
 int
 is_valid_email_address(const unsigned char *email_address);
@@ -274,5 +292,17 @@ size_t csv_armored_memlen(char const *str, size_t size);
 size_t csv_armored_strlen(char const *str);
 int csv_armor_needed(const unsigned char *str, size_t *psz);
 const unsigned char *csv_armor_buf(struct html_armor_buffer *pb, const unsigned char *s);
+
+const unsigned char *
+skip_message_headers(const unsigned char *intxt);
+
+int
+parse_date_twopart(
+        const unsigned char *date_str,
+        const unsigned char *time_str,
+        time_t *p_time);
+
+int
+parse_duration(const unsigned char *str, int default_value);
 
 #endif /* __MISCTEXT_H__ */

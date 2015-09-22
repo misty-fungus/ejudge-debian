@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: master_html.c 8531 2014-08-22 13:08:06Z cher $ */
 
-/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -245,6 +244,14 @@ write_xml_tests_report(
   if (!(r = testing_report_parse_xml(txt))) {
     fprintf(f, "<p><big>Cannot parse XML file!</big></p>\n");
     fprintf(f, "<pre>%s</pre>\n", ARMOR(txt));
+    goto done;
+  }
+
+  if (r->compile_error) {
+    fprintf(f, "<h2><font color=\"red\">%s</font></h2>\n", run_status_str(r->status, 0, 0, 0, 0));
+    if (r->compiler_output) {
+      fprintf(f, "<pre>%s</pre>\n", ARMOR(r->compiler_output));
+    }
     goto done;
   }
 
@@ -563,15 +570,18 @@ write_runs_dump(const serve_state_t state, FILE *f, const unsigned char *url,
 }
 
 static int
-is_registered_today(const serve_state_t state, struct userlist_user *user,
-                    time_t from_time, time_t to_time)
+is_registered_today(
+        const struct contest_desc *cnts,
+        struct userlist_user *user,
+        time_t from_time,
+        time_t to_time)
 {
   struct userlist_contest *uc = 0;
 
   if (!user || !user->contests) return 0;
   uc = (struct userlist_contest*) user->contests->first_down;
   while (uc) {
-    if (uc->id == state->global->contest_id
+    if (uc->id == cnts->id
         && uc->create_time >= from_time
         && uc->create_time < to_time)
       return 1;
@@ -582,6 +592,7 @@ is_registered_today(const serve_state_t state, struct userlist_user *user,
 
 void
 generate_daily_statistics(
+        const struct contest_desc *cnts,
         const serve_state_t state,
         FILE *f,
         time_t from_time,
@@ -628,7 +639,7 @@ generate_daily_statistics(
   int clar_total = 0, clar_total_today = 0, clar_from_judges = 0;
   int clar_to_judges = 0;
   time_t clar_time;
-  struct clar_entry_v1 clar;
+  struct clar_entry_v2 clar;
 
   /* u_tot             - total number of teams in index array
    * u_max             - maximal possible number of teams
@@ -647,7 +658,7 @@ generate_daily_statistics(
     u_rev[i] = -1;
     if (teamdb_lookup(state->teamdb_state, i)
         && teamdb_export_team(state->teamdb_state, i, &uinfo) >= 0) {
-      if (is_registered_today(state, uinfo.user, from_time, to_time)) {
+      if (is_registered_today(cnts, uinfo.user, from_time, to_time)) {
         total_reg++;
         u_reg[u_tot] = 1;
       }

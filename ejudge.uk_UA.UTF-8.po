@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 3.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2014-11-12 16:37+0300\n"
+"POT-Creation-Date: 2015-06-23 13:33+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Ukrainian <uk@li.org>\n"
@@ -33,6 +33,12 @@ msgstr ""
 
 #, c-format
 msgid " / <b>%d unread message(s)</b>"
+msgstr ""
+
+msgid " or standard input"
+msgstr ""
+
+msgid " or standard output"
 msgstr ""
 
 msgid "(no subject)"
@@ -257,7 +263,19 @@ msgid "<p>You may define up to %d members.</p>"
 msgstr ""
 
 #, c-format
-msgid "<u>--- Checker output ---</u>\n"
+msgid "<tr%s><td colspan=\"2\">Page %d of %d.</td></tr>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Checker output: file is binary, size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Checker output: file is too large, original size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Checker output: size %lld ---</u>\n"
 msgstr ""
 
 #, c-format
@@ -265,19 +283,51 @@ msgid "<u>--- Command line arguments ---</u>\n"
 msgstr ""
 
 #, c-format
-msgid "<u>--- Correct ---</u>\n"
+msgid "<u>--- Correct: file is binary, size %lld ---</u>\n"
 msgstr ""
 
 #, c-format
-msgid "<u>--- Input ---</u>\n"
+msgid "<u>--- Correct: file is too large, original size %lld ---</u>\n"
 msgstr ""
 
 #, c-format
-msgid "<u>--- Output ---</u>\n"
+msgid "<u>--- Correct: size %lld ---</u>\n"
 msgstr ""
 
 #, c-format
-msgid "<u>--- Stderr ---</u>\n"
+msgid "<u>--- Input: file is binary, size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Input: file is too large, original size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Input: size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Output: file is binary, size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Output: file is too large, original size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Output: size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Stderr: file is binary, size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Stderr: file is too large, original size %lld ---</u>\n"
+msgstr ""
+
+#, c-format
+msgid "<u>--- Stderr: size %lld ---</u>\n"
 msgstr ""
 
 msgid "A request parameter is invalid. Please, contact the site administrator."
@@ -317,6 +367,9 @@ msgid "Add EXAMINER"
 msgstr ""
 
 msgid "Add OBSERVER"
+msgstr ""
+
+msgid "Add a new run comment"
 msgstr ""
 
 msgid "Add a new user specifying his/her User Id"
@@ -364,6 +417,9 @@ msgstr ""
 msgid "Add the OBSERVER role to the selected users"
 msgstr ""
 
+msgid "Add users to another group"
+msgstr ""
+
 msgid "Adding new runs"
 msgstr ""
 
@@ -383,9 +439,6 @@ msgstr ""
 msgid "Administrator"
 msgstr ""
 
-msgid "Advanced view"
-msgstr ""
-
 msgid "Advisor"
 msgstr ""
 
@@ -396,6 +449,12 @@ msgid "All changes to the old contest will be lost!"
 msgstr ""
 
 msgid "All clars"
+msgstr ""
+
+msgid "All clars and comments"
+msgstr ""
+
+msgid "All entries"
 msgstr ""
 
 msgid "Allow"
@@ -411,6 +470,12 @@ msgid "Allow viewing run report"
 msgstr ""
 
 msgid "Allow viewing source code"
+msgstr ""
+
+msgid "Allow viewing the final scores"
+msgstr ""
+
+msgid "Allow viewing the judge comment of the valuer"
 msgstr ""
 
 #, c-format
@@ -493,6 +558,9 @@ msgstr ""
 msgid "Aug"
 msgstr ""
 
+msgid "Author"
+msgstr ""
+
 msgid "Auto-assign logins"
 msgstr ""
 
@@ -515,9 +583,6 @@ msgid "Ban"
 msgstr ""
 
 msgid "Banned?"
-msgstr ""
-
-msgid "Basic view"
 msgstr ""
 
 msgid ""
@@ -582,6 +647,9 @@ msgstr ""
 msgid "Change status"
 msgstr ""
 
+msgid "Change tokens for displayed runs"
+msgstr ""
+
 msgid "Change!"
 msgstr ""
 
@@ -612,6 +680,9 @@ msgid "Check contest settings"
 msgstr ""
 
 msgid "Check failed"
+msgstr ""
+
+msgid "Check failed runs"
 msgstr ""
 
 msgid "Checker output"
@@ -645,6 +716,9 @@ msgid "Clarification requests are disabled"
 msgstr ""
 
 msgid "Clars"
+msgstr ""
+
+msgid "Clars to all"
 msgstr ""
 
 msgid "Clear"
@@ -747,6 +821,15 @@ msgid "Compilation error"
 msgstr ""
 
 msgid "Compiled"
+msgstr ""
+
+msgid "Compiler options"
+msgstr ""
+
+msgid "Compiler output"
+msgstr ""
+
+msgid "Compiler/style checker output"
 msgstr ""
 
 msgid "Compiling and running"
@@ -1030,13 +1113,7 @@ msgstr ""
 msgid "Details for user "
 msgstr ""
 
-msgid "Detect"
-msgstr ""
-
 msgid "Directory structure"
-msgstr ""
-
-msgid "Disable"
 msgstr ""
 
 msgid "Disable &quot;Name&quot; field"
@@ -1073,6 +1150,9 @@ msgid "Disqualification explanation"
 msgstr ""
 
 msgid "Disqualified"
+msgstr ""
+
+msgid "Disqualified runs"
 msgstr ""
 
 msgid "Disqualified?"
@@ -1595,13 +1675,10 @@ msgstr ""
 msgid "Hidden?"
 msgstr ""
 
-msgid "Hide"
-msgstr ""
-
-msgid "Hide advanced"
-msgstr ""
-
 msgid "Hide closed contests"
+msgstr ""
+
+msgid "Hide compiler options"
 msgstr ""
 
 msgid "Hide details"
@@ -1914,6 +1991,12 @@ msgstr ""
 msgid "Jul"
 msgstr ""
 
+msgid "Jump to contest"
+msgstr ""
+
+msgid "Jump to group"
+msgstr ""
+
 msgid "Jun"
 msgstr ""
 
@@ -2113,6 +2196,9 @@ msgid "Maximal random number"
 msgstr ""
 
 msgid "May"
+msgstr ""
+
+msgid "May change!"
 msgstr ""
 
 msgid "Memory limit"
@@ -2815,6 +2901,12 @@ msgstr ""
 msgid "Region"
 msgstr ""
 
+msgid "Register for another contest"
+msgstr ""
+
+msgid "Register for another contest and copy data"
+msgstr ""
+
 msgid "Registration"
 msgstr ""
 
@@ -2926,6 +3018,9 @@ msgstr ""
 msgid "Remove examiner"
 msgstr ""
 
+msgid "Remove from group"
+msgstr ""
+
 msgid "Remove registrations"
 msgstr ""
 
@@ -3017,6 +3112,12 @@ msgstr ""
 msgid "Run ID"
 msgstr ""
 
+msgid "Run comment"
+msgstr ""
+
+msgid "Run comments"
+msgstr ""
+
 msgid "Run filter expression"
 msgstr ""
 
@@ -3041,10 +3142,19 @@ msgstr ""
 msgid "Running..."
 msgstr ""
 
+msgid "Runs accepted for testing"
+msgstr ""
+
 msgid "Runs being processed"
 msgstr ""
 
 msgid "Runs pending review"
+msgstr ""
+
+msgid "Runs pending testing"
+msgstr ""
+
+msgid "Runs to change token info:"
 msgstr ""
 
 msgid "STATUS UPDATE FAILED!"
@@ -3124,9 +3234,6 @@ msgstr ""
 msgid "Send a message"
 msgstr ""
 
-msgid "Send a message about this run"
-msgstr ""
-
 msgid "Send a message to judges"
 msgstr ""
 
@@ -3143,6 +3250,9 @@ msgid "Send run comment"
 msgstr ""
 
 msgid "Send run comment and OK run"
+msgstr ""
+
+msgid "Send run comment and REJECT run"
 msgstr ""
 
 msgid "Send run comment and ignore run"
@@ -3239,9 +3349,6 @@ msgstr ""
 msgid "Set the registration status of the selected users to REJECTED"
 msgstr ""
 
-msgid "Set unlimited"
-msgstr ""
-
 msgid "Settings"
 msgstr ""
 
@@ -3251,19 +3358,13 @@ msgstr ""
 msgid "Short name"
 msgstr ""
 
-msgid "Show"
-msgstr ""
-
-msgid "Show advanced"
-msgstr ""
-
 msgid "Show closed contests"
 msgstr ""
 
-msgid "Show details"
+msgid "Show hidden contests"
 msgstr ""
 
-msgid "Show hidden contests"
+msgid "Show tests"
 msgstr ""
 
 msgid "Show unmanageable contests"
@@ -3400,9 +3501,6 @@ msgid "Street address"
 msgstr ""
 
 msgid "Student"
-msgstr ""
-
-msgid "Style checker output"
 msgstr ""
 
 msgid "Subject"
@@ -3711,6 +3809,15 @@ msgid "To user id"
 msgstr ""
 
 msgid "To user login"
+msgstr ""
+
+msgid "Token counter"
+msgstr ""
+
+msgid "Tokenize displayed runs"
+msgstr ""
+
+msgid "Tokenize displayed runs!"
 msgstr ""
 
 msgid "Too few lines in CSV file"
@@ -4160,20 +4267,24 @@ msgid ""
 "change the password."
 msgstr ""
 
-#, c-format
-msgid "You submit has been commented\n"
-msgstr ""
-
-#, c-format
-msgid "You submit has been commented and accepted\n"
-msgstr ""
-
-#, c-format
-msgid "You submit has been commented and ignored\n"
-msgstr ""
-
 msgid ""
 "Your request has caused an internal server error. Please, report it as a bug."
+msgstr ""
+
+#, c-format
+msgid "Your submit has been commented\n"
+msgstr ""
+
+#, c-format
+msgid "Your submit has been commented and accepted\n"
+msgstr ""
+
+#, c-format
+msgid "Your submit has been commented and ignored\n"
+msgstr ""
+
+#, c-format
+msgid "Your submit has been commented and rejected\n"
 msgstr ""
 
 #, c-format

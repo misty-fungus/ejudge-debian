@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id: ej_types.h 8721 2014-11-08 20:16:18Z cher $ */
 #ifndef __EJ_TYPES_H__
 #define __EJ_TYPES_H__
 
-/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -28,6 +27,7 @@ typedef ruint32_t ej_size_t;     /* size_t as stored in files */
 typedef ruint32_t ej_ip4_t;      /* IP address as stored in files */
 typedef unsigned long long ej_cookie_t;   /* cookie */
 typedef unsigned long long ej_tsc_t; /* timestamp counter type */
+typedef long long ej_size64_t;   /* size for use in config files, parse expressions, etc */
 
 #define NULL_CLIENT_KEY (0ULL)
 
@@ -143,6 +143,7 @@ enum
 
 int test_normalization_parse(const unsigned char *);
 const unsigned char *test_normalization_unparse(int normalization);
+const unsigned char *test_normalization_unparse_full(int value);
 
 /* valid end-of-line types for input files */
 enum
@@ -192,7 +193,14 @@ enum
   TOKEN_TESTS_MASK = 6,
   TOKEN_BASICTESTS_BIT = 2, // show the basic test info
   TOKEN_TOKENTESTS_BIT = 4, // show the token test info
-  TOKEN_FINALTESTS_BIT = 6  // show the final test info
+  TOKEN_FINALTESTS_BIT = 6, // show the final test info
+  TOKEN_VALUER_JUDGE_COMMENT_BIT = 8 // show the judge's valuer comment
 };
+
+typedef struct ej_uuid_t
+{
+  ruint32_t v[4];
+} ej_uuid_t;
+
 
 #endif /* __EJ_TYPES_H__ */

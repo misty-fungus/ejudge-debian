@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: fp_props.h 8528 2014-08-22 11:25:35Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_FP_PROPS_H__
 #define __REUSE_FP_PROPS_H__

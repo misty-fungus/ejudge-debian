@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: base64.h 8179 2014-05-13 13:58:54Z cher $ */
+/* $Id$ */
 #ifndef __BASE64_H__
 #define __BASE64_H__
 

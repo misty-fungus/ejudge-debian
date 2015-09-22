@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: t3m_packet_class.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 #ifndef __T3M_PACKET_CLASS_H__
 #define __T3M_PACKET_CLASS_H__
 

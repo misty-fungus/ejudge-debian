@@ -1,5 +1,5 @@
 #!/bin/bash
-# $Id: runvg.in 7046 2012-10-11 17:15:12Z cher $
+# $Id$
 # Copyright (c) 2012 Alexander Chernov <cher@ejudge.ru>
 
 # A helper script to start programs under valgrind.

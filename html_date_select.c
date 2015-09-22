@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: html_date_select.c 8413 2014-08-03 21:27:39Z cher $ */
 
-/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -61,4 +60,57 @@ html_date_select(FILE *f, time_t t)
     fprintf(f, "</select>");
     fprintf(f, "/<input type=\"text\" name=\"d_year\" value=\"%d\" size=\"4\" maxlength=\"4\"/>", tt->tm_year + 1900);
   }
+}
+
+void
+html_date_select_2(
+        FILE *out_f,
+        time_t t,
+        const unsigned char *id_prefix,
+        const unsigned char *name_prefix,
+        const unsigned char *html_class,
+        int is_readonly,
+        int is_hidden,
+        int use_gmtime)
+{
+  struct tm *tt = NULL;
+  unsigned char value_time[64];
+  unsigned char value_date[64];
+  const unsigned char *type = "text";
+
+  if (is_hidden) type = "hidden";
+  if (t != 0 && t != ~(time_t) 0) {
+    if (use_gmtime) {
+      tt = gmtime(&t);
+    } else {
+      tt = localtime(&t);
+    }
+  }
+  value_time[0] = 0;
+  value_date[0] = 0;
+  if (tt) {
+    snprintf(value_time, sizeof(value_time), "%02d:%02d:%02d",
+             tt->tm_hour, tt->tm_min, tt->tm_sec);
+    snprintf(value_date, sizeof(value_date), "%04d-%02d-%02d",
+             tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
+  }
+  fprintf(out_f, "<input type=\"%s\" id=\"%s_time\" name=\"%s_time\" value=\"%s\"",
+          type, id_prefix, name_prefix, value_time);
+  if (html_class) {
+    fprintf(out_f, " class=\"%s\"", html_class);
+  }
+  if (is_readonly) {
+    fprintf(out_f, " readonly=\"readonly\"");
+  }
+  fprintf(out_f, " />");
+
+  fprintf(out_f, "<input type=\"%s\" id=\"%s_date\" name=\"%s_date\" value=\"%s\"",
+          type, id_prefix, name_prefix, value_date);
+  if (html_class) {
+    fprintf(out_f, " class=\"%s\"", html_class);
+  }
+  if (is_readonly) {
+    fprintf(out_f, " readonly=\"readonly\"");
+  }
+  fprintf(out_f, " />");
 }

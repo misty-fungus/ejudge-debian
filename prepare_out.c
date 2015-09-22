@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: prepare_out.c 8795 2014-12-11 22:25:52Z cher $ */
 
-/* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -98,9 +97,12 @@ do_xstr(
 }
 
 void
-prepare_unparse_global(FILE *f, struct section_global_data *global,
-                       const unsigned char *compile_dir,
-                       int need_variant_map)
+prepare_unparse_global(
+        FILE *f,
+        const struct contest_desc *cnts,
+        struct section_global_data *global,
+        const unsigned char *compile_dir,
+        int need_variant_map)
 {
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   path_t compile_spool_dir, tmp1, tmp2, contests_home_dir;
@@ -123,7 +125,9 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
   unsigned char nbuf[64];
   unsigned char size_buf[256];
 
+  /*
   fprintf(f, "contest_id = %d\n", global->contest_id);
+  */
 
   // make the contests_home_dir path for future use
   contests_home_dir[0] = 0;
@@ -142,8 +146,7 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
   skip_elem = 0;
   if (contests_home_dir[0] && global->root_dir[0]) {
     len = strlen(contests_home_dir);
-    snprintf(tmp1, sizeof(tmp1), "%s/%06d", contests_home_dir,
-             global->contest_id);
+    snprintf(tmp1, sizeof(tmp1), "%s/%06d", contests_home_dir, cnts->id);
     if (!strcmp(tmp1, global->root_dir)) {
       // do nothing, <root_dir> has the default value
       skip_elem = 1;
@@ -236,6 +239,10 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
     unparse_bool(f, "ignore_duplicated_runs", global->ignore_duplicated_runs);
   if (global->show_deadline != DFLT_G_SHOW_DEADLINE)
     unparse_bool(f, "show_deadline", global->show_deadline);
+  if (global->show_sha1 > 0)
+    unparse_bool(f, "show_sha1", global->show_sha1);
+  if (global->show_judge_identity > 0)
+    unparse_bool(f, "show_judge_identity", global->show_judge_identity);
   if (global->enable_printing != DFLT_G_ENABLE_PRINTING)
     unparse_bool(f, "enable_printing", global->enable_printing);
   if (global->disable_banner_page != DFLT_G_DISABLE_BANNER_PAGE)
@@ -314,20 +321,14 @@ prepare_unparse_global(FILE *f, struct section_global_data *global,
   if (global->team_page_quota != DFLT_G_TEAM_PAGE_QUOTA)
     fprintf(f, "team_page_quota = %d\n", global->team_page_quota);
 
-  if (((ssize_t) global->compile_max_vm_size) > 0) {
-    fprintf(f, "compile_max_vm_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf),
-                           global->compile_max_vm_size));
+  if (global->compile_max_vm_size > 0) {
+    fprintf(f, "compile_max_vm_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), global->compile_max_vm_size));
   }
-  if (((ssize_t) global->compile_max_stack_size) > 0) {
-    fprintf(f, "compile_max_stack_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf),
-                           global->compile_max_stack_size));
+  if (global->compile_max_stack_size > 0) {
+    fprintf(f, "compile_max_stack_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), global->compile_max_stack_size));
   }
-  if (((ssize_t) global->compile_max_file_size) > 0) {
-    fprintf(f, "compile_max_file_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf),
-                           global->compile_max_file_size));
+  if (global->compile_max_file_size > 0) {
+    fprintf(f, "compile_max_file_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), global->compile_max_file_size));
   }
 
   fprintf(f, "\n");
@@ -893,17 +894,14 @@ prepare_unparse_lang(
     fprintf(f, "style_checker_cmd = \"%s\"\n",CARMOR(lang->style_checker_cmd));
   }
 
-  if (lang->max_vm_size != -1L && lang->max_vm_size != 0) {
-    fprintf(f, "max_vm_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), lang->max_vm_size));
+  if (lang->max_vm_size > 0) {
+    fprintf(f, "max_vm_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), lang->max_vm_size));
   }
-  if (lang->max_stack_size != -1L && lang->max_stack_size != 0) {
-    fprintf(f, "max_stack_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), lang->max_stack_size));
+  if (lang->max_stack_size > 0) {
+    fprintf(f, "max_stack_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), lang->max_stack_size));
   }
-  if (lang->max_file_size != -1L && lang->max_file_size != 0) {
-    fprintf(f, "max_file_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), lang->max_file_size));
+  if (lang->max_file_size > 0) {
+    fprintf(f, "max_file_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), lang->max_file_size));
   }
 
   if (lang->compiler_env) {
@@ -1079,6 +1077,9 @@ prepare_unparse_prob(
   if ((prob->abstract && prob->score_latest_marked == 1)
       || (!prob->abstract && prob->score_latest_marked >= 0))
     unparse_bool(f, "score_latest_marked", prob->score_latest_marked);
+  if ((prob->abstract && prob->score_tokenized > 0)
+      || (!prob->abstract && prob->score_tokenized >= 0))
+    unparse_bool(f, "score_tokenized", prob->score_tokenized);
   if (prob->xml_file[0])
     fprintf(f, "xml_file = \"%s\"\n", CARMOR(prob->xml_file));
   if (prob->alternatives_file[0])
@@ -1180,21 +1181,16 @@ prepare_unparse_prob(
   if (prob->checker_real_time_limit >= 0)
     fprintf(f, "checker_real_time_limit = %d\n", prob->checker_real_time_limit);
 
-  if (prob->max_vm_size != -1L)
-    fprintf(f, "max_vm_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_vm_size));
-  if (prob->max_stack_size != -1L)
-    fprintf(f, "max_stack_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_stack_size));
-  if (prob->max_data_size != -1L)
-    fprintf(f, "max_data_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_data_size));
-  if (prob->max_core_size != -1L)
-    fprintf(f, "max_core_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_core_size));
-  if (prob->max_file_size != -1L)
-    fprintf(f, "max_file_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_file_size));
+  if (prob->max_vm_size >= 0)
+    fprintf(f, "max_vm_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_vm_size));
+  if (prob->max_stack_size >= 0)
+    fprintf(f, "max_stack_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_stack_size));
+  if (prob->max_data_size >= 0)
+    fprintf(f, "max_data_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_data_size));
+  if (prob->max_core_size >= 0)
+    fprintf(f, "max_core_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_core_size));
+  if (prob->max_file_size >= 0)
+    fprintf(f, "max_file_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_file_size));
   if (prob->max_open_file_count >= 0) {
     fprintf(f, "max_open_file_count = %d\n", prob->max_open_file_count);
   }
@@ -1349,6 +1345,8 @@ prepare_unparse_prob(
  
   if (prob->use_ac_not_ok >= 0)
     unparse_bool(f, "use_ac_not_ok", prob->use_ac_not_ok);
+  if (prob->ok_status && prob->ok_status[0])
+    fprintf(f, "ok_status = \"%s\"\n", CARMOR(prob->ok_status));
   if (prob->ignore_prev_ac >= 0)
     unparse_bool(f, "ignore_prev_ac", prob->ignore_prev_ac);
   if (prob->team_enable_rep_view >= 0)
@@ -1371,8 +1369,12 @@ prepare_unparse_prob(
     unparse_bool(f, "unrestricted_statement", prob->unrestricted_statement);
   if (prob->hide_file_names >= 0)
     unparse_bool(f, "hide_file_names", prob->hide_file_names);
+  if (prob->hide_real_time_limit >= 0)
+    unparse_bool(f, "hide_real_time_limit", prob->hide_real_time_limit);
   if (prob->enable_tokens >= 0)
     unparse_bool(f, "enable_tokens", prob->enable_tokens);
+  if (prob->tokens_for_user_ac >= 0)
+    unparse_bool(f, "tokens_for_user_ac", prob->tokens_for_user_ac);
   if (prob->disable_submit_after_ok >= 0)
     unparse_bool(f, "disable_submit_after_ok", prob->disable_submit_after_ok);
   if (prob->disable_security >= 0)
@@ -1386,8 +1388,9 @@ prepare_unparse_prob(
         || !prob->abstract)
       unparse_bool(f, "hidden", prob->hidden);
   }
-  if (prob->stand_hide_time > 0)
-    unparse_bool(f, "stand_hide_time", prob->stand_hide_time);
+  if (prob->stand_hide_time >= 0
+      && ((prob->abstract && prob->stand_hide_time) || !prob->abstract))
+      unparse_bool(f, "stand_hide_time", prob->stand_hide_time);
   if (prob->advance_to_next >= 0
       && ((prob->abstract && prob->advance_to_next) || !prob->abstract))
       unparse_bool(f, "advance_to_next", prob->advance_to_next);
@@ -1507,6 +1510,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "score_latest_or_unmarked", prob->score_latest_or_unmarked);
   if (prob->score_latest_marked > 0)
     unparse_bool(f, "score_latest_marked", prob->score_latest_marked);
+  if (prob->score_tokenized > 0)
+    unparse_bool(f, "score_tokenized", prob->score_tokenized);
   if ((show_paths || (global && global->advanced_layout > 0)) && prob->xml_file[0])
     fprintf(f, "xml_file = \"%s\"\n", CARMOR(prob->xml_file));
   if (show_paths && prob->alternatives_file[0])
@@ -1572,21 +1577,16 @@ prepare_unparse_actual_prob(
   if (prob->checker_real_time_limit > 0)
     fprintf(f, "checker_real_time_limit = %d\n", prob->checker_real_time_limit);
 
-  if (prob->max_vm_size != -1L)
-    fprintf(f, "max_vm_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_vm_size));
-  if (prob->max_stack_size != -1L)
-    fprintf(f, "max_stack_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_stack_size));
-  if (prob->max_data_size != -1L && prob->max_data_size != 0L)
-    fprintf(f, "max_data_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_data_size));
-  if (prob->max_core_size != -1L)
-    fprintf(f, "max_core_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_core_size));
-  if (prob->max_file_size != -1L)
-    fprintf(f, "max_file_size = %s\n",
-            size_t_to_size_str(size_buf, sizeof(size_buf), prob->max_file_size));
+  if (prob->max_vm_size >= 0)
+    fprintf(f, "max_vm_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_vm_size));
+  if (prob->max_stack_size >= 0)
+    fprintf(f, "max_stack_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_stack_size));
+  if (prob->max_data_size >= 0)
+    fprintf(f, "max_data_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_data_size));
+  if (prob->max_core_size >= 0)
+    fprintf(f, "max_core_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_core_size));
+  if (prob->max_file_size >= 0)
+    fprintf(f, "max_file_size = %s\n", ll_to_size_str(size_buf, sizeof(size_buf), prob->max_file_size));
   if (prob->max_open_file_count > 0) {
     fprintf(f, "max_open_file_count = %d\n", prob->max_open_file_count);
   }
@@ -1707,6 +1707,8 @@ prepare_unparse_actual_prob(
 
   if (prob->use_ac_not_ok > 0)
     unparse_bool(f, "use_ac_not_ok", prob->use_ac_not_ok);
+  if (prob->ok_status && prob->ok_status[0])
+    fprintf(f, "ok_status = \"%s\"\n", CARMOR(prob->ok_status));
   if (prob->ignore_prev_ac > 0)
     unparse_bool(f, "ignore_prev_ac", prob->ignore_prev_ac);
   if (prob->team_enable_rep_view > 0)
@@ -1729,8 +1731,12 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "unrestricted_statement", prob->unrestricted_statement);
   if (prob->hide_file_names > 0)
     unparse_bool(f, "hide_file_names", prob->hide_file_names);
+  if (prob->hide_real_time_limit > 0)
+    unparse_bool(f, "hide_real_time_limit", prob->hide_real_time_limit);
   if (prob->enable_tokens > 0)
     unparse_bool(f, "enable_tokens", prob->enable_tokens);
+  if (prob->tokens_for_user_ac > 0)
+    unparse_bool(f, "tokens_for_user_ac", prob->tokens_for_user_ac);
   if (prob->disable_submit_after_ok > 0)
     unparse_bool(f, "disable_submit_after_ok", prob->disable_submit_after_ok);
   if (prob->disable_security > 0)

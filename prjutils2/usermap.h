@@ -1,4 +1,4 @@
-/* $Id: usermap.h 7753 2014-01-03 19:59:12Z cher $ */
+/* $Id$ */
 
 #ifndef __USERMAP_H__
 #define __USERMAP_H__

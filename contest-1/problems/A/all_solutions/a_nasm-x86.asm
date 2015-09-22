@@ -1,4 +1,4 @@
-; $Id: a_nasm-x86.asm 6980 2012-08-13 07:48:30Z cher $
+; $Id$
 	section	.data
 format1	db	"%d%d", 0
 format2	db	"%d", 10, 0

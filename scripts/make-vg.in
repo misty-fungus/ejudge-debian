@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: make-vg.in 7188 2012-11-21 07:43:51Z cher $
+# $Id$
 # Copyright (c) 2012 Alexander Chernov <cher@ejudge.ru>
 
 # Environment variables:

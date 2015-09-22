@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: super_html_6.c 8687 2014-10-26 06:38:07Z cher $ */
 
-/* Copyright (C) 2011-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2011-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -524,613 +523,41 @@ static const unsigned char * const flag_op_legends[] =
   "Do nothing", "Clear", "Set", "Toggle", NULL,
 };
 
-int
-super_serve_op_USER_BROWSE_PAGE(
-        FILE *log_f,
-        FILE *out_f,
-        struct http_request_info *phr)
-{
-  int retval = 0, r;
-  unsigned char buf[1024];
-  unsigned char hbuf[1024];
-  unsigned char *xml_text = 0;
-  const unsigned char *user_filter = 0;
-  int user_offset = 0;
-  int user_count = 20;
-  const unsigned char *s;
-  struct userlist_list *users = 0;
-  int user_id, serial;
-  const struct userlist_user *u;
-  struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
-  const unsigned char *cl;
-  int contest_id = 0, group_id = 0;
-  unsigned char contest_id_str[128];
-  unsigned char group_id_str[128];
-  const struct contest_desc *cnts = 0;
-  opcap_t gcaps = 0;
-  opcap_t caps = 0;
-  const struct userlist_contest *reg = 0;
-  int min_user_id = INT_MAX;
-  int max_user_id = 0;
-  bitset_t marked = BITSET_INITIALIZER;
-  unsigned char *marked_str = 0;
-
-  hr_cgi_param_int_opt(phr, "contest_id", &contest_id, 0);
-  hr_cgi_param_int_opt(phr, "group_id", &group_id, 0);
-
-  s = 0;
-  if (hr_cgi_param(phr, "marked", &s) > 0 && s) {
-    if (bitset_url_decode(s, &marked) >= 0) {
-      marked_str = bitset_url_encode(&marked);
-    }
-  }
-
-  if (contest_id < 0) contest_id = 0;
-  if (contest_id > 0) {
-    if (contests_get(contest_id, &cnts) < 0 || !cnts) contest_id = 0;
-  }
-  contest_id_str[0] = 0;
-  if (contest_id > 0) {
-    snprintf(contest_id_str, sizeof(contest_id_str), "&amp;contest_id=%d", contest_id);
-  }
-  if (group_id < 0) group_id = 0;
-  group_id_str[0] = 0;
-  if (group_id > 0) {
-    snprintf(group_id_str, sizeof(group_id_str), "&amp;group_id=%d", group_id);
-  }
-
-  if (get_global_caps(phr, &gcaps) >= 0 && opcaps_check(gcaps, OPCAP_LIST_USERS) >= 0) {
-    // this user can view the full user list and the user list for any contest
-  } else if (!cnts) {
-    // user without global OPCAP_LIST_USERS capability cannot view the full user list
-    FAIL(SSERV_ERR_PERM_DENIED);
-  } else if (get_contest_caps(phr, cnts, &caps) < 0 || opcaps_check(caps, OPCAP_LIST_USERS) < 0) {
-    FAIL(SSERV_ERR_PERM_DENIED);
-  }
-
-  hbuf[0] = 0;
-  if (contest_id > 0 && group_id > 0) {
-    snprintf(hbuf, sizeof(hbuf), " for contest %d, group %d", contest_id, group_id);
-  } else if (contest_id > 0) {
-    snprintf(hbuf, sizeof(hbuf), " for contest %d", contest_id);
-  } else if (group_id > 0) {
-    snprintf(hbuf, sizeof(hbuf), " for group %d", group_id);
-  }
-  snprintf(buf, sizeof(buf), "serve-control: %s, browsing users%s",
-           phr->html_name, hbuf);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
-
-  fprintf(out_f, "<script language=\"javascript\">\n");
-  fprintf(out_f,
-          "function setAllCheckboxes(value)\n"
-          "{\n"
-          "  objs = document.forms[1].elements;\n"
-          "  if (objs != null) {\n"
-          "    for (var i = 0; i < objs.length; ++i) {\n"
-          "      if (objs[i].type == \"checkbox\") {\n"
-          "        objs[i].checked = value;\n"
-          "      }\n"
-          "    }\n"
-          "  }\n"
-          "}\n"
-          "function toggleAllCheckboxes()\n"
-          "{\n"
-          "  objs = document.forms[1].elements;\n"
-          "  if (objs != null) {\n"
-          "    for (var i = 0; i < objs.length; ++i) {\n"
-          "      if (objs[i].type == \"checkbox\") {\n"
-          "        objs[i].checked = !objs[i].checked;\n"
-          "      }\n"
-          "    }\n"
-          "  }\n"
-          "}\n"
-          "function setOperationVisibility(oper, value)\n"
-          "{\n"
-          "  obj1 = document.getElementById(\"Show\" + oper + \"Menu\");\n"
-          "  obj2 = document.getElementById(\"Hide\" + oper + \"Menu\");\n"
-          "  if (value) {\n"
-          "    obj1.style.display = \"none\";\n"
-          "    obj2.style.display = \"\";\n"
-          "  } else {\n"
-          "    obj1.style.display = \"\";\n"
-          "    obj2.style.display = \"none\";\n"
-          "  }\n"
-          "}\n"
-          "");
-  fprintf(out_f, "</script>\n");
-
-  fprintf(out_f, "<h1>%s</h1>\n", buf);
-
-  if (cnts) {
-    fprintf(out_f, "<h2>Contest %d: %s</h2>", cnts->id, ARMOR(cnts->name));
-  } else {
-    fprintf(out_f, "<br/>\n");
-  }
-
-  print_top_navigation_links(log_f, out_f, phr, contest_id, group_id, 0, marked_str);
-
-  if (!phr->userlist_clnt) {
-    fprintf(out_f, "<hr/><h2>Error</h2>\n");
-    fprintf(out_f, "<pre>No connection to the server!</pre>\n");
-    goto do_footer;
-  }
-
-  if (phr->ss->user_filter_set) {
-    user_filter = phr->ss->user_filter;
-    user_offset = phr->ss->user_offset;
-    user_count = phr->ss->user_count;
-  }
-
-  html_start_form(out_f, 1, phr->self_url, "");
-  html_hidden(out_f, "SID", "%016llx", phr->session_id);
-  html_hidden(out_f, "action", "%d", SSERV_CMD_HTTP_REQUEST);
-  if (contest_id > 0) {
-    html_hidden(out_f, "contest_id", "%d", contest_id);
-  }
-  if (group_id > 0) {
-    html_hidden(out_f, "group_id", "%d", group_id);
-  }
-  if (marked_str && marked_str) {
-    html_hidden(out_f, "marked", "%s", marked_str);
-  }
-  fprintf(out_f, "<table class=\"b0\">");
-  s = user_filter;
-  if (!s) s = "";
-  fprintf(out_f, "<!--<tr><td class=\"b0\">Filter:</td><td class=\"b0\">%s</td></tr>-->",
-          html_input_text(buf, sizeof(buf), "user_filter", 50, 0, "%s", ARMOR(s)));
-  hbuf[0] = 0;
-  if (phr->ss->user_filter_set) {
-    snprintf(hbuf, sizeof(hbuf), "%d", user_offset);
-  }
-  fprintf(out_f, "<tr><td class=\"b0\">Offset:</td><td class=\"b0\">%s</td></tr>",
-          html_input_text(buf, sizeof(buf), "user_offset", 10, 0, "%s", hbuf));
-  hbuf[0] = 0;
-  if (phr->ss->user_filter_set) {
-    snprintf(hbuf, sizeof(hbuf), "%d", user_count);
-  }
-  fprintf(out_f, "<tr><td class=\"b0\">Count:</td><td class=\"b0\">%s</td></tr>",
-          html_input_text(buf, sizeof(buf), "user_count", 10, 0, "%s", hbuf));
-  fprintf(out_f, "<tr><td class=\"b0\">&nbsp;</td><td class=\"b0\"><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td></tr>",
-          SSERV_CMD_USER_FILTER_CHANGE_ACTION, "Change");
-  fprintf(out_f, "</table>");
-  fprintf(out_f, "<table class=\"b0\"><tr>");
-  fprintf(out_f, "<td class=\"b0\"><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>", SSERV_CMD_USER_FILTER_FIRST_PAGE_ACTION, "&lt;&lt;");
-  fprintf(out_f, "<td class=\"b0\"><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>", SSERV_CMD_USER_FILTER_PREV_PAGE_ACTION, "&lt;");
-  fprintf(out_f, "<td class=\"b0\"><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>", SSERV_CMD_USER_FILTER_NEXT_PAGE_ACTION, "&gt;");
-  fprintf(out_f, "<td class=\"b0\"><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>", SSERV_CMD_USER_FILTER_LAST_PAGE_ACTION, "&gt;&gt;");
-  fprintf(out_f, "</tr></table>\n");
-  //fprintf(out_f, "</form>\n");
-
-  cl = " class=\"b0\"";
-  fprintf(out_f, "<table%s>", cl);
-  fprintf(out_f, "<tr><td%s><b>%s:</b></td>", cl, "Jump to contest");
-  hbuf[0] = 0;
-  if (contest_id > 0) {
-    snprintf(hbuf, sizeof(hbuf), "%d", contest_id);
-  }
-  fprintf(out_f, "<td%s>%s</td>", cl,
-          html_input_text(buf, sizeof(buf), "jump_contest_id", 10, 0, "%s", hbuf));
-  fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td></tr>",
-          cl, SSERV_CMD_USER_JUMP_CONTEST_ACTION, "Jump");
-  fprintf(out_f, "<tr><td%s><b>%s:</b></td>", cl, "Jump to group");
-  hbuf[0] = 0;
-  if (group_id > 0) {
-    snprintf(hbuf, sizeof(hbuf), "%d", group_id);
-  }
-  fprintf(out_f, "<td%s>%s</td>", cl,
-          html_input_text(buf, sizeof(buf), "jump_group_id", 10, 0, "%s", hbuf));
-  fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td></tr>",
-          cl, SSERV_CMD_USER_JUMP_GROUP_ACTION, "Jump");
-  fprintf(out_f, "</table>\n");
-
-  r = userlist_clnt_list_users_2(phr->userlist_clnt, ULS_LIST_ALL_USERS_2,
-                                 contest_id, group_id, user_filter, user_offset, user_count,
-                                 &xml_text);
-  if (r < 0) {
-    fprintf(out_f, "</form>\n");
-    fprintf(out_f, "<hr/><h2>Error</h2>\n");
-    fprintf(out_f, "<pre>Cannot get user list: %s</pre>\n",
-            userlist_strerror(-r));
-    goto do_footer;
-  }
-  users = userlist_parse_str(xml_text);
-  if (!users) {
-    fprintf(out_f, "</form>\n");
-    fprintf(out_f, "<hr/><h2>Error</h2>\n");
-    fprintf(out_f, "<pre>XML parse error</pre>\n");
-    goto do_footer;
-  }
-
-  for (user_id = 1; user_id < users->user_map_size; ++user_id) {
-    if (!(u = users->user_map[user_id])) continue;
-    if (user_id >= max_user_id) max_user_id = user_id;
-    if (user_id <= min_user_id) min_user_id = user_id;
-  }
-
-  //html_start_form(out_f, 1, phr->self_url, "");
-  /*
-  html_hidden(out_f, "SID", "%016llx", phr->session_id);
-  html_hidden(out_f, "action", "%d", SSERV_CMD_HTTP_REQUEST);
-  if (contest_id > 0) {
-    html_hidden(out_f, "contest_id", "%d", contest_id);
-  }
-  if (group_id > 0) {
-    html_hidden(out_f, "group_id", "%d", group_id);
-  }
-  */
-  html_hidden(out_f, "min_user_id", "%d", min_user_id);
-  html_hidden(out_f, "max_user_id", "%d", max_user_id);
-  cl = " class=\"b1\"";
-  fprintf(out_f, "<table%s>\n", cl);
-
-  fprintf(out_f, "<tr>");
-  fprintf(out_f, "<th%s>&nbsp;</th>", cl);
-  fprintf(out_f, "<th%s>NN</th>", cl);
-  fprintf(out_f, "<th%s>User Id</th>", cl);
-  fprintf(out_f, "<th%s>User Login</th>", cl);
-  fprintf(out_f, "<th%s>E-mail</th>", cl);
-  fprintf(out_f, "<th%s>Name</th>", cl);
-  //fprintf(out_f, "<th%s>Flags</th>", cl);
-  if (contest_id > 0) {
-    fprintf(out_f, "<th%s>Status</th>", cl);
-    fprintf(out_f, "<th%s>Flags</th>", cl);
-  }
-  fprintf(out_f, "<th%s>Operations</th>", cl);
-  fprintf(out_f, "</tr>\n");
-
-  serial = user_offset - 1;
-  for (user_id = 1; user_id < users->user_map_size; ++user_id) {
-    if (!(u = users->user_map[user_id])) continue;
-    reg = 0;
-    if (contest_id > 0) {
-      reg = userlist_get_user_contest(u, contest_id);
-    }
-
-    ++serial;
-    fprintf(out_f, "<tr>\n");
-    s = "";
-    if (bitset_safe_get(&marked, user_id)) {
-      s = " checked=\"checked\"";
-    }
-    fprintf(out_f, "<td class=\"b1\"><input type=\"checkbox\" name=\"user_%d\" value=\"1\"%s/></td>", user_id, s);
-    fprintf(out_f, "<td class=\"b1\">%d</td>", serial);
-    fprintf(out_f, "<td class=\"b1\">%d</td>", user_id);
-    if (!u->login) {
-      fprintf(out_f, "<td class=\"b1\"><i>NULL</i></td>");
-    } else {
-      fprintf(out_f, "<td class=\"b1\"><tt>%s</tt></td>", ARMOR(u->login));
-    }
-    if (!u->email) {
-      fprintf(out_f, "<td class=\"b1\"><i>NULL</i></td>");
-    } else {
-      fprintf(out_f, "<td class=\"b1\"><tt>%s</tt></td>", ARMOR(u->email));
-    }
-    if (!u->cnts0 || !u->cnts0->name) {
-      fprintf(out_f, "<td class=\"b1\"><i>NULL</i></td>");
-    } else {
-      fprintf(out_f, "<td class=\"b1\"><tt>%s</tt></td>", ARMOR(u->cnts0->name));
-    }
-    /*
-    int flags_count = 0;
-    fprintf(out_f, "<td class=\"b1\">");
-    if (u->is_privileged) {
-      if (flags_count > 0) fprintf(out_f, ", ");
-      fprintf(out_f, "privileged");
-      ++flags_count;
-    }
-    if (u->is_invisible) {
-      if (flags_count > 0) fprintf(out_f, ", ");
-      fprintf(out_f, "invisible");
-      ++flags_count;
-    }
-    if (u->is_banned) {
-      if (flags_count > 0) fprintf(out_f, ", ");
-      fprintf(out_f, "banned");
-      ++flags_count;
-    }
-    if (u->is_locked) {
-      if (flags_count > 0) fprintf(out_f, ", ");
-      fprintf(out_f, "locked");
-      ++flags_count;
-    }
-    if (u->show_login) {
-      if (flags_count > 0) fprintf(out_f, ", ");
-      fprintf(out_f, "show_login");
-      ++flags_count;
-    }
-    if (u->show_email) {
-      if (flags_count > 0) fprintf(out_f, ", ");
-      fprintf(out_f, "show_email");
-      ++flags_count;
-    }
-    if (u->read_only) {
-      if (flags_count > 0) fprintf(out_f, ", ");
-      fprintf(out_f, "read_only");
-      ++flags_count;
-    }
-    if (u->never_clean) {
-      if (flags_count > 0) fprintf(out_f, ", ");
-      fprintf(out_f, "never_clean");
-      ++flags_count;
-    }
-    if (u->simple_registration) {
-      if (flags_count > 0) fprintf(out_f, ", ");
-      fprintf(out_f, "simple_reg");
-      ++flags_count;
-    }
-    if (!flags_count) {
-      fprintf(out_f, "&nbsp;");
-    }
-    fprintf(out_f, "</td>");
-    */
-
-    if (contest_id > 0) {
-      if (reg) {
-        r = reg->status;
-        if (r < 0 || r >= USERLIST_REG_LAST) r = USERLIST_REG_LAST;
-        fprintf(out_f, "<td%s>%s</td>", cl, reg_status_strs[r]);
-        fprintf(out_f, "<td%s>", cl);
-        r = 0;
-        if ((reg->flags & USERLIST_UC_INVISIBLE)) {
-          if (r++) fprintf(out_f, ", ");
-          fprintf(out_f, "invisible");
-        }
-        if ((reg->flags & USERLIST_UC_BANNED)) {
-          if (r++) fprintf(out_f, ", ");
-          fprintf(out_f, "banned");
-        }
-        if ((reg->flags & USERLIST_UC_LOCKED)) {
-          if (r++) fprintf(out_f, ", ");
-          fprintf(out_f, "locked");
-        }
-        if ((reg->flags & USERLIST_UC_INCOMPLETE)) {
-          if (r++) fprintf(out_f, ", ");
-          fprintf(out_f, "incomplete");
-        }
-        if ((reg->flags & USERLIST_UC_DISQUALIFIED)) {
-          if (r++) fprintf(out_f, ", ");
-          fprintf(out_f, "disqualified");
-        }
-        fprintf(out_f, "</td>");
-      } else {
-        fprintf(out_f, "<td%s>&nbsp;</td><td%s>&nbsp;</td>", cl, cl);
-      }
-    }
-
-    fprintf(out_f, "<td%s>", cl);
-    fprintf(out_f, "%s%s</a>",
-            html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
-                          NULL, "action=%d&amp;op=%d&amp;other_user_id=%d%s%s",
-                          SSERV_CMD_HTTP_REQUEST, SSERV_CMD_USER_DETAIL_PAGE,
-                          user_id, contest_id_str, group_id_str),
-            "[Details]");
-    fprintf(out_f, "&nbsp;%s%s</a>",
-            html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
-                          NULL, "action=%d&amp;op=%d&amp;next_op=%d&amp;other_user_id=%d%s%s",
-                          SSERV_CMD_HTTP_REQUEST, SSERV_CMD_USER_PASSWORD_PAGE,
-                          SSERV_CMD_USER_BROWSE_PAGE,
-                          user_id, contest_id_str, group_id_str),
-            "[Reg. password]");
-    if (contest_id > 0 && cnts && !cnts->disable_team_password) {
-      fprintf(out_f, "&nbsp;%s%s</a>",
-              html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
-                            NULL, "action=%d&amp;op=%d&amp;next_op=%d&amp;other_user_id=%d%s%s",
-                            SSERV_CMD_HTTP_REQUEST, SSERV_CMD_USER_CNTS_PASSWORD_PAGE,
-                            SSERV_CMD_USER_BROWSE_PAGE,
-                            user_id, contest_id_str, group_id_str),
-              "[Cnts. password]");
-    }
-    if (contest_id > 0) {
-      fprintf(out_f, "&nbsp;%s[%s]</a>",
-              html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
-                            NULL, "action=%d&amp;op=%d&amp;next_op=%d&amp;other_user_id=%d&amp;other_contest_id=%d%s%s",
-                            SSERV_CMD_HTTP_REQUEST, SSERV_CMD_USER_EDIT_REG_PAGE,
-                            SSERV_CMD_USER_BROWSE_PAGE,
-                            user_id, contest_id, contest_id_str, group_id_str),
-              "Change");
-      fprintf(out_f, "&nbsp;%s[%s]</a>",
-              html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
-                            NULL, "action=%d&amp;op=%d&amp;next_op=%d&amp;other_user_id=%d&amp;other_contest_id=%d%s%s",
-                            SSERV_CMD_HTTP_REQUEST, SSERV_CMD_USER_DELETE_REG_PAGE,
-                            SSERV_CMD_USER_BROWSE_PAGE,
-                            user_id, contest_id, contest_id_str, group_id_str),
-              "Delete");
-    }
-    fprintf(out_f, "</td>");
-    fprintf(out_f, "</tr>\n");
-  }
-  fprintf(out_f, "</table>\n");
-
-  cl = " class=\"b0\"";
-  fprintf(out_f, "<table%s><tr>", cl);
-  if (cnts) {
-    fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-            cl, SSERV_CMD_USER_BROWSE_MARK_ALL_ACTION, "Mark all");
-  }
-  fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-          cl, SSERV_CMD_USER_BROWSE_UNMARK_ALL_ACTION, "Unmark all");
-  if (cnts) {
-    fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-            cl, SSERV_CMD_USER_BROWSE_TOGGLE_ALL_ACTION, "Toggle all");
-  }
-  fprintf(out_f, "</tr></table>\n");
-
-  fprintf(out_f, "<div id=\"ShowRegistrationMenu\">");
-  fprintf(out_f, "<a onclick=\"setOperationVisibility('Registration', true)\">[%s]</a>\n",
-          "Registration operations");
-  fprintf(out_f, "</div>");
-  fprintf(out_f, "<div style=\"display: none;\" id=\"HideRegistrationMenu\">");
-  fprintf(out_f, "<a onclick=\"setOperationVisibility('Registration', false)\">[%s]</a><br/>\n",
-          "Hide registration operations");
-  fprintf(out_f, "<table%s>", cl);
-  fprintf(out_f, "<tr><td%s colspan=\"2\"><b>Contest ID:</b> <input type=\"text\" name=\"other_contest_id\" /></td></tr>\n", cl);
-  fprintf(out_f, "<tr><td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-          cl, SSERV_CMD_USER_SEL_CREATE_REG_PAGE, "Register for another contest");
-  if (cnts) {
-    fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-            cl, SSERV_CMD_USER_SEL_CREATE_REG_AND_COPY_PAGE, "Register for another contest and copy data");
-  }
-  fprintf(out_f, "</tr></table>\n");
-  fprintf(out_f, "</div>");
-
-  fprintf(out_f, "<div id=\"ShowGroupMenu\">");
-  fprintf(out_f, "<a onclick=\"setOperationVisibility('Group', true)\">[%s]</a>\n",
-          "Group operations");
-  fprintf(out_f, "</div>");
-  fprintf(out_f, "<div style=\"display: none;\" id=\"HideGroupMenu\">");
-  fprintf(out_f, "<a onclick=\"setOperationVisibility('Group', false)\">[%s]</a><br/>\n",
-          "Hide group operations");
-  fprintf(out_f, "<table%s>", cl);
-  fprintf(out_f, "<tr><td%s colspan=\"2\"><b>Group ID:</b> <input type=\"text\" name=\"other_group_id\" /></td></tr>\n", cl);
-  fprintf(out_f, "<tr><td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-          cl, SSERV_CMD_USER_SEL_CREATE_GROUP_MEMBER_PAGE, "Add users to another group");
-  if (group_id > 0) {
-    fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-            cl, SSERV_CMD_USER_SEL_DELETE_GROUP_MEMBER_PAGE, "Remove from group");
-  }
-  fprintf(out_f, "</tr></table>\n");
-  fprintf(out_f, "</div>");
-
-  if (cnts) {
-    fprintf(out_f, "<div id=\"ShowPasswordMenu\">");
-    fprintf(out_f, "<a onclick=\"setOperationVisibility('Password', true)\">[%s]</a>\n", "Password operations");
-    fprintf(out_f, "</div>");
-    fprintf(out_f, "<div style=\"display: none;\" id=\"HidePasswordMenu\">");
-    fprintf(out_f, "<a onclick=\"setOperationVisibility('Password', false)\">[%s]</a><br/>\n", "Hide password operations");
-    cl = " class=\"b0\"";
-    fprintf(out_f, "<table%s>", cl);
-    fprintf(out_f, "<tr><td%s><b>Registration passwords:</b></td>", cl);
-    fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-            cl, SSERV_CMD_USER_SEL_VIEW_PASSWD_REDIRECT, "View");
-    fprintf(out_f, "<td%s>&nbsp;</td>", cl);
-    fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-            cl, SSERV_CMD_USER_SEL_RANDOM_PASSWD_PAGE, "Generate random");
-    fprintf(out_f, "</tr>\n");
-    if (!cnts->disable_team_password) {
-      fprintf(out_f, "<tr><td%s><b>Contest passwords:</b></td>", cl);
-      fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-              cl, SSERV_CMD_USER_SEL_VIEW_CNTS_PASSWD_REDIRECT, "View");
-      fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-              cl, SSERV_CMD_USER_SEL_CLEAR_CNTS_PASSWD_PAGE, "Clear");
-      fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td>",
-              cl, SSERV_CMD_USER_SEL_RANDOM_CNTS_PASSWD_PAGE, "Generate random");
-      fprintf(out_f, "</tr>\n");
-    }
-    fprintf(out_f, "</table>\n");
-    fprintf(out_f, "</div>");
-
-    fprintf(out_f, "<div id=\"ShowStatusMenu\">");
-    fprintf(out_f, "<a onclick=\"setOperationVisibility('Status', true)\">[%s]</a>\n", "Status operations");
-    fprintf(out_f, "</div>");
-    fprintf(out_f, "<div style=\"display: none;\" id=\"HideStatusMenu\">");
-    fprintf(out_f, "<a onclick=\"setOperationVisibility('Status', false)\">[%s]</a><br/>\n", "Hide status operations");
-    cl = " class=\"b0\"";
-    fprintf(out_f, "<table%s>", cl);
-    fprintf(out_f, "<tr><td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td></tr>",
-            cl, SSERV_CMD_USER_SEL_DELETE_REG_PAGE, "Delete registrations");
-    fprintf(out_f, "<tr><td%s><b>%s:</b></td><td%s>", cl, "Status", cl);
-    ss_select(out_f, "status", (const unsigned char* []) { "OK", "Pending", "Rejected", NULL }, 0);
-    fprintf(out_f, "</td>");
-    fprintf(out_f, "<td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td></tr>",
-            cl, SSERV_CMD_USER_SEL_CHANGE_REG_STATUS_PAGE, "Change status");
-    fprintf(out_f, "</table>\n");
-    fprintf(out_f, "</div>");
-
-    fprintf(out_f, "<div id=\"ShowFlagsMenu\">");
-    fprintf(out_f, "<a onclick=\"setOperationVisibility('Flags', true)\">[%s]</a>\n", "Flags operations");
-    fprintf(out_f, "</div>");
-    fprintf(out_f, "<div style=\"display: none;\" id=\"HideFlagsMenu\">");
-    fprintf(out_f, "<a onclick=\"setOperationVisibility('Flags', false)\">[%s]</a><br/>\n", "Hide flags operations");
-
-    cl = " class=\"b0\"";
-    fprintf(out_f, "<table%s>", cl);
-
-    static const unsigned char * const flag_vars[] =
-    {
-      "invisible_op", "banned_op", "locked_op", "incomplete_op", "disqualified_op", NULL,
-    };
-    static const unsigned char * const flag_legends[] =
-    {
-      "Invisible", "Banned", "Locked", "Incomplete", "Disqualified", NULL,
-    };
-
-    for (int flag = 0; flag_vars[flag]; ++flag) {
-      fprintf(out_f, "<tr><td%s><b>%s</b></td>", cl, flag_legends[flag]);
-      for (int op = 0; flag_op_legends[op]; ++op) {
-        s = "";
-        if (!op) s = " checked=\"checked\"";
-        fprintf(out_f, "<td%s><input type=\"radio\" name=\"%s\" value=\"%d\"%s /> %s</td>",
-                cl, flag_vars[flag], op, s, flag_op_legends[op]);
-      }
-      fprintf(out_f, "</tr>\n");
-    }
-
-    fprintf(out_f, "<tr><td%s><input type=\"submit\" name=\"op_%d\" value=\"%s\" /></td></tr>",
-            cl, SSERV_CMD_USER_SEL_CHANGE_REG_FLAGS_PAGE, "Change flags");
-    fprintf(out_f, "</table>\n");
-    fprintf(out_f, "</div>");
-  }
-
-  fprintf(out_f, "</form>\n");
-
-  if (opcaps_check(gcaps, OPCAP_CREATE_USER) >= 0) {
-    fprintf(out_f, "<div id=\"ShowCreateUserMenu\">");
-    fprintf(out_f, "<a onclick=\"setOperationVisibility('CreateUser', true)\">[%s]</a>\n",
-            "User creation operations");
-    fprintf(out_f, "</div>");
-    fprintf(out_f, "<div style=\"display: none;\" id=\"HideCreateUserMenu\">");
-    fprintf(out_f, "<a onclick=\"setOperationVisibility('CreateUser', false)\">[%s]</a><br/>\n",
-            "Hide user creation operations");
-    cl = " class=\"b0\"";
-    fprintf(out_f, "<table%s><tr>", cl);
-    fprintf(out_f, "<td%s>%s[%s]</a></td>", cl,
-            html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
-                          NULL, "action=%d&amp;op=%d%s%s",
-                          SSERV_CMD_HTTP_REQUEST, SSERV_CMD_USER_CREATE_ONE_PAGE,
-                          contest_id_str, group_id_str),
-            "Create one new user");
-    fprintf(out_f, "<td%s>%s[%s]</a></td>", cl,
-            html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
-                          NULL, "action=%d&amp;op=%d%s%s",
-                          SSERV_CMD_HTTP_REQUEST, SSERV_CMD_USER_CREATE_MANY_PAGE,
-                          contest_id_str, group_id_str),
-            "Create MANY new users");
-    fprintf(out_f, "<td%s>%s[%s]</a></td>", cl,
-            html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
-                          NULL, "action=%d&amp;op=%d%s%s",
-                          SSERV_CMD_HTTP_REQUEST, SSERV_CMD_USER_CREATE_FROM_CSV_PAGE,
-                          contest_id_str, group_id_str),
-            "Create users from a CSV table");
-    if (contest_id > 0) {
-      fprintf(out_f, "<td%s>%s[%s]</a></td>", cl,
-              html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
-                            NULL, "action=%d&amp;op=%d%s%s",
-                            SSERV_CMD_HTTP_REQUEST, SSERV_CMD_USER_IMPORT_CSV_PAGE,
-                            contest_id_str, group_id_str),
-              "Import user data from a CSV table");
-    }
-    fprintf(out_f, "</tr></table>\n");
-    fprintf(out_f, "</div>");
-  }
-
-do_footer:
-  ss_write_html_footer(out_f);
-
-cleanup:
-  userlist_free(&users->b); users = 0;
-  xfree(xml_text); xml_text = 0;
-  html_armor_free(&ab);
-  bitset_free(&marked);
-  xfree(marked_str);
-  return retval;
-}
-
 static unsigned char *
 collect_marked_set(
         struct http_request_info *phr,
         bitset_t *pms)
 {
   const unsigned char *s = 0;
+
+  if (hr_cgi_param(phr, "selected_users", &s) > 0 && s) {
+    const unsigned char *p = s;
+    int max_user_id = -1;
+    while (1) {
+      int n, v;
+      if (sscanf(p, "%d%n", &v, &n) != 1) break;
+      p += n;
+      if (v > 0 && v < 10000000 && v > max_user_id) {
+        max_user_id = v;
+      }
+      if (*p == ',') ++p;
+    }
+    if (max_user_id <= 0) {
+      return bitset_url_encode(pms);
+    }
+    bitset_init(pms, max_user_id + 1);
+    p = s;
+    while (1) {
+      int n, v;
+      if (sscanf(p, "%d%n", &v, &n) != 1) break;
+      p += n;
+      if (v > 0 && v < 10000000) {
+        bitset_on(pms, v);
+      }
+      if (*p == ',') ++p;
+    }
+    return bitset_url_encode(pms);
+  }
 
   if (hr_cgi_param(phr, "marked", &s) > 0 && s) {
     bitset_url_decode(s, pms);
@@ -1226,7 +653,10 @@ super_serve_op_USER_FILTER_CHANGE_ACTION(
     goto cleanup;
   }
   if ((r = userlist_clnt_get_count(phr->userlist_clnt, ULS_GET_USER_COUNT,
-                                   contest_id, group_id, 0, &total_count)) < 0) {
+                                   contest_id, group_id, 0,
+                                   // FIXME: fill these fields
+                                   -1 /* filter_field */, 0 /* filter_op */,
+                                   &total_count)) < 0) {
     err("set_user_filter: get_count failed: %d", -r);
     goto cleanup;
   }
@@ -1635,6 +1065,9 @@ super_serve_op_USER_SEL_RANDOM_PASSWD_PAGE(
   if (!phr->userlist_clnt) FAIL(SSERV_ERR_DB_ERROR);
   r = userlist_clnt_list_users_2(phr->userlist_clnt, ULS_LIST_ALL_USERS_3,
                                  contest_id, group_id, marked_str, 0, 0,
+                                 // FIXME: fill these fields
+                                 -1 /* page */, -1 /* sort_field */, 0 /* sort_order */,
+                                 -1 /* filter_field */, 0 /* filter_op */,
                                  &xml_text);
   if (r < 0) FAIL(SSERV_ERR_DB_ERROR);
   users = userlist_parse_str(xml_text);
@@ -1766,7 +1199,7 @@ super_serve_op_USER_SEL_RANDOM_PASSWD_PAGE(
     abort();
   }
 
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<script language=\"javascript\">\n");
   fprintf(out_f,
@@ -2295,6 +1728,9 @@ super_serve_op_USER_SEL_RANDOM_PASSWD_ACTION(
   if (!phr->userlist_clnt) FAIL(SSERV_ERR_DB_ERROR);
   r = userlist_clnt_list_users_2(phr->userlist_clnt, ULS_LIST_ALL_USERS_3,
                                  contest_id, group_id, marked_str, 0, 0,
+                                 // FIXME: fill the fields
+                                 -1 /* page */, -1 /* sort_field */, 0 /* sort_order */,
+                                 -1 /* filter_field */, 0 /* filter_op */,
                                  &xml_text);
   if (r < 0) FAIL(SSERV_ERR_DB_ERROR);
   users = userlist_parse_str(xml_text);
@@ -2721,7 +2157,7 @@ super_serve_op_USER_DETAIL_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, viewing user %d",
            phr->html_name, other_user_id);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<script language=\"javascript\">\n");
   fprintf(out_f,
@@ -3501,7 +2937,7 @@ super_serve_op_USER_PASSWORD_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, change registration password for user %d",
            phr->html_name, other_user_id);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<script language=\"javascript\">\n");
   fprintf(out_f,
@@ -3655,7 +3091,7 @@ super_serve_op_USER_CNTS_PASSWORD_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, change contest password for user %d in contest %d",
            phr->html_name, other_user_id, contest_id);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<script language=\"javascript\">\n");
   fprintf(out_f,
@@ -3801,7 +3237,7 @@ super_serve_op_USER_CREATE_REG_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, create a contest registration for user %d",
            phr->html_name, other_user_id);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<script language=\"javascript\">\n");
   fprintf(out_f,
@@ -3968,7 +3404,7 @@ super_serve_op_USER_EDIT_REG_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, edit the contest registration for user %d, contest %d",
            phr->html_name, other_user_id, other_contest_id);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
   fprintf(out_f, "<h1>%s</h1>\n<br/>\n", buf);
 
   print_top_navigation_links(log_f, out_f, phr, contest_id, group_id, other_user_id, NULL);
@@ -4145,7 +3581,7 @@ super_serve_op_USER_DELETE_REG_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, delete the contest registration for user %d, contest %d",
            phr->html_name, other_user_id, other_contest_id);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
   fprintf(out_f, "<h1>%s</h1>\n<br/>\n", buf);
 
   print_top_navigation_links(log_f, out_f, phr, contest_id, group_id, other_user_id, NULL);
@@ -4284,7 +3720,7 @@ super_serve_op_USER_CREATE_ONE_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, create a new user",
            phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<script language=\"javascript\">\n");
   fprintf(out_f,
@@ -4641,7 +4077,7 @@ super_serve_op_USER_CREATE_MANY_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, create many new users",
            phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<script language=\"javascript\" src=\"%ssprintf.js\" ></script>\n",
           CONF_STYLE_PREFIX);
@@ -5025,7 +4461,7 @@ super_serve_op_USER_CREATE_FROM_CSV_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, create users from a CSV file",
            phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<script language=\"javascript\">\n");
   fprintf(out_f,
@@ -6728,7 +6164,7 @@ super_serve_op_USER_DELETE_MEMBER_PAGE(
   snprintf(buf, sizeof(buf), "serve-control: %s, delete the member '%s'::%d (%d) of user %d, contest %d",
            phr->html_name, member_string[role], num + 1, serial,
            other_user_id, contest_id);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
   fprintf(out_f, "<h1>%s</h1>\n<br/>\n", buf);
 
   print_top_navigation_links(log_f, out_f, phr, contest_id, group_id, other_user_id, NULL);
@@ -7229,6 +6665,9 @@ super_serve_op_USER_SEL_VIEW_PASSWD_PAGE(
   if (!phr->userlist_clnt) FAIL(SSERV_ERR_DB_ERROR);
   r = userlist_clnt_list_users_2(phr->userlist_clnt, ULS_LIST_ALL_USERS_4,
                                  contest_id, group_id, marked_str, 0, 0,
+                                 // FIXME: fill the fields
+                                 -1 /* page */, -1 /* sort_field */, 0 /* sort_order */,
+                                 -1 /* filter_field */, 0 /* filter_op */,
                                  &xml_text);
 
   if (r < 0) FAIL(SSERV_ERR_DB_ERROR);
@@ -7246,7 +6685,7 @@ super_serve_op_USER_SEL_VIEW_PASSWD_PAGE(
     abort();
   }
 
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
   if (cnts && cnts->name) {
@@ -7447,7 +6886,7 @@ super_serve_op_USER_IMPORT_CSV_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, import user data from a CSV file",
            phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n<br/>\n", buf);
 
@@ -7814,7 +7253,7 @@ super_serve_op_GROUP_BROWSE_PAGE(
   }
 
   snprintf(buf, sizeof(buf), "serve-control: %s, browsing groups", phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
   print_top_navigation_links(log_f, out_f, phr, 0, 0, 0, NULL);
@@ -7863,6 +7302,9 @@ super_serve_op_GROUP_BROWSE_PAGE(
 
   r = userlist_clnt_list_users_2(phr->userlist_clnt, ULS_LIST_ALL_GROUPS_2,
                                  0, 0, group_filter, group_offset, group_count,
+                                 // FIXME: fill the fields
+                                 -1 /* page */, -1 /* sort_field */, 0 /* sort_order */,
+                                 -1 /* filter_field */, 0 /* filter_op */,
                                  &xml_text);
   if (r < 0) {
     fprintf(out_f, "</form>\n");
@@ -7983,7 +7425,10 @@ super_serve_GROUP_FILTER_CHANGE_ACTION(
     goto cleanup;
   }
   if ((r = userlist_clnt_get_count(phr->userlist_clnt, ULS_GET_GROUP_COUNT,
-                                   0, 0, 0, &total_count)) < 0) {
+                                   0, 0, 0,
+                                   // FIXME: fill the fields
+                                   -1 /* filter_field */, 0 /* filter_op */,
+                                   &total_count)) < 0) {
     err("set_group_filter: get_count failed: %d", -r);
     goto cleanup;
   }
@@ -8051,7 +7496,7 @@ super_serve_op_GROUP_CREATE_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, create a new group",
            phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -8114,7 +7559,7 @@ super_serve_op_GROUP_MODIFY_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, modifying group %d",
            phr->html_name, group_id);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -8192,7 +7637,7 @@ super_serve_op_GROUP_DELETE_PAGE(
 
   snprintf(buf, sizeof(buf), "serve-control: %s, modifying group %d",
            phr->html_name, group_id);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -8717,7 +8162,7 @@ migration_page(
   unsigned char hbuf[1024];
 
   snprintf(buf, sizeof(buf), "serve-control: %s, upgrade of ejudge.xml", phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -8837,7 +8282,7 @@ super_serve_op_USER_MAP_MAIN_PAGE(
   }
 
   snprintf(buf, sizeof(buf), "serve-control: %s, user map", phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -8942,7 +8387,7 @@ super_serve_op_EJUDGE_XML_MUST_RESTART(
   unsigned char hbuf[1024];
 
   snprintf(buf, sizeof(buf), "serve-control: %s, you must restart ejudge", phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -9196,7 +8641,7 @@ super_serve_op_CAPS_MAIN_PAGE(
   }
 
   snprintf(buf, sizeof(buf), "serve-control: %s, global user capabilities", phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -9462,7 +8907,7 @@ super_serve_op_CAPS_EDIT_PAGE(
   unsigned char hbuf[1024];
 
   snprintf(buf, sizeof(buf), "serve-control: %s, global capabilities for %s", phr->html_name, ARMOR(p->login));
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -9713,7 +9158,7 @@ super_serve_op_IMPORT_FROM_POLYGON_PAGE(
   if (!saved_url) saved_url = xstrdup("");
 
   snprintf(buf, sizeof(buf), "serve-control: %s, importing problem from polygon", phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -9735,12 +9180,12 @@ super_serve_op_IMPORT_FROM_POLYGON_PAGE(
   fprintf(out_f, "<li>%s%s</a></li>",
           html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
                         NULL, "action=%d",
-                        SSERV_CMD_CNTS_EDIT_CUR_LANGUAGE_PAGE),
+                        SSERV_CMD_CNTS_EDIT_CUR_LANGUAGES_PAGE),
           "Language settings (serve.cfg)");
   fprintf(out_f, "<li>%s%s</a></li>",
           html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
                         NULL, "action=%d",
-                        SSERV_CMD_CNTS_EDIT_CUR_PROBLEM_PAGE),
+                        SSERV_CMD_CNTS_EDIT_CUR_PROBLEMS_PAGE),
           "Problems (serve.cfg)");
   fprintf(out_f, "<li>%s%s</a></li>",
           html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
@@ -10233,6 +9678,25 @@ super_serve_op_DOWNLOAD_PROGRESS_PAGE(
     } else if (us->pid_file && (f = fopen(us->pid_file, "r"))) {
       if (fscanf(f, "%d", &pid) <= 0 || pid <= 0) pid = 0;
       fclose(f); f = NULL;
+
+      // check that the process still exists
+      if (kill(pid, 0) < 0) {
+        // the process does not exists, so create status file
+        if (us->log_file) {
+          if ((f = fopen(us->log_file, "a")) != NULL) {
+            fprintf(f, "\nej-polygon process has terminated unexpectedly!\n");
+            fclose(f); f = NULL;
+          }
+        }
+        if (us->status_file) {
+          if ((f = fopen(us->status_file, "w")) != NULL) {
+            fprintf(f, "127\n0\n");
+            fclose(f); f = NULL;
+            return super_serve_op_DOWNLOAD_PROGRESS_PAGE(log_f, out_f, phr);
+          }
+        }
+      }
+
       snprintf(buf, sizeof(buf), "serve-control: %s, download in progress", phr->html_name);
     } else if (us->start_time > 0 && cur_time < us->start_time + 5) {
       snprintf(buf, sizeof(buf), "serve-control: %s, download started", phr->html_name);
@@ -10242,7 +9706,7 @@ super_serve_op_DOWNLOAD_PROGRESS_PAGE(
     }
   }
 
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -10265,12 +9729,12 @@ super_serve_op_DOWNLOAD_PROGRESS_PAGE(
     fprintf(out_f, "<li>%s%s</a></li>",
             html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
                           NULL, "action=%d",
-                          SSERV_CMD_CNTS_EDIT_CUR_LANGUAGE_PAGE),
+                          SSERV_CMD_CNTS_EDIT_CUR_LANGUAGES_PAGE),
             "Language settings (serve.cfg)");
     fprintf(out_f, "<li>%s%s</a></li>",
             html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
                           NULL, "action=%d",
-                          SSERV_CMD_CNTS_EDIT_CUR_PROBLEM_PAGE),
+                          SSERV_CMD_CNTS_EDIT_CUR_PROBLEMS_PAGE),
             "Problems (serve.cfg)");
     fprintf(out_f, "<li>%s%s</a></li>",
             html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
@@ -10434,7 +9898,7 @@ super_serve_op_DOWNLOAD_CLEANUP_ACTION(
   ss->update_state = NULL;
 
   if (ss->edited_cnts) {
-    ss_redirect_3(out_f, phr, SSERV_CMD_CNTS_EDIT_CUR_PROBLEM_PAGE, NULL);
+    ss_redirect_3(out_f, phr, SSERV_CMD_CNTS_EDIT_CUR_PROBLEMS_PAGE, NULL);
     goto cleanup;
   }
   if (us->contest_id <= 0) {
@@ -10673,7 +10137,7 @@ super_serve_op_DOWNLOAD_CLEANUP_AND_IMPORT_ACTION(
   if (!us) {
     int action = 0;
     if (ss->global) {
-      action = SSERV_CMD_CNTS_EDIT_CUR_PROBLEM_PAGE;
+      action = SSERV_CMD_CNTS_EDIT_CUR_PROBLEMS_PAGE;
     } else if (ss->edited_cnts) {
       action = SSERV_CMD_CNTS_EDIT_CUR_CONTEST_PAGE;
     }
@@ -10719,7 +10183,7 @@ super_serve_op_DOWNLOAD_CLEANUP_AND_IMPORT_ACTION(
   ss->update_state = NULL;
   update_state_free(us); us = NULL;
 
-  ss_redirect_3(out_f, phr, SSERV_CMD_CNTS_EDIT_CUR_PROBLEM_PAGE, NULL);
+  ss_redirect_3(out_f, phr, SSERV_CMD_CNTS_EDIT_CUR_PROBLEMS_PAGE, NULL);
 
 cleanup:
   if (f) fclose(f);
@@ -10777,7 +10241,7 @@ super_serve_op_UPDATE_FROM_POLYGON_PAGE(
   if (!saved_url) saved_url = xstrdup("");
 
   snprintf(buf, sizeof(buf), "serve-control: %s, updating problem from polygon", phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -11271,7 +10735,7 @@ super_serve_op_IMPORT_CONTEST_FROM_POLYGON_PAGE(
   if (!saved_url) saved_url = xstrdup("");
 
   snprintf(buf, sizeof(buf), "serve-control: %s, importing contest from polygon", phr->html_name);
-  ss_write_html_header(out_f, phr, buf, 0, NULL);
+  ss_write_html_header(out_f, phr, buf);
 
   fprintf(out_f, "<h1>%s</h1>\n", buf);
 
@@ -11293,12 +10757,12 @@ super_serve_op_IMPORT_CONTEST_FROM_POLYGON_PAGE(
   fprintf(out_f, "<li>%s%s</a></li>",
           html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
                         NULL, "action=%d",
-                        SSERV_CMD_CNTS_EDIT_CUR_LANGUAGE_PAGE),
+                        SSERV_CMD_CNTS_EDIT_CUR_LANGUAGES_PAGE),
           "Language settings (serve.cfg)");
   fprintf(out_f, "<li>%s%s</a></li>",
           html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,
                         NULL, "action=%d",
-                        SSERV_CMD_CNTS_EDIT_CUR_PROBLEM_PAGE),
+                        SSERV_CMD_CNTS_EDIT_CUR_PROBLEMS_PAGE),
           "Problems (serve.cfg)");
   fprintf(out_f, "<li>%s%s</a></li>",
           html_hyperref(hbuf, sizeof(hbuf), phr->session_id, phr->self_url,

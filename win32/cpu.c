@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: cpu.c 8189 2014-05-14 19:15:57Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 

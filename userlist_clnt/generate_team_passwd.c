@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: generate_team_passwd.c 8183 2014-05-14 10:26:11Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 

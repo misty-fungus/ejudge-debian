@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id: new_server_tables.c 8238 2014-05-17 10:52:34Z cher $ */
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -149,6 +148,8 @@ const unsigned char * const ns_submit_button_labels[NEW_SRV_ACTION_LAST]=
   [NEW_SRV_ACTION_IGNORE_DISPLAYED_2] = __("Ignore displayed runs!"),
   [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_1] = __("Disqualify displayed runs"),
   [NEW_SRV_ACTION_DISQUALIFY_DISPLAYED_2] = __("Disqualify displayed runs!"),
+  [NEW_SRV_ACTION_TOKENIZE_DISPLAYED_1] = __("Tokenize displayed runs"),
+  [NEW_SRV_ACTION_TOKENIZE_DISPLAYED_2] = __("Tokenize displayed runs!"),
   [NEW_SRV_ACTION_REG_SUBMIT_GENERAL_EDITING] = __("Save"),
   [NEW_SRV_ACTION_REG_CANCEL_GENERAL_EDITING] = __("Cancel"),
   [NEW_SRV_ACTION_REG_SUBMIT_MEMBER_EDITING] = __("Save"),
@@ -173,6 +174,7 @@ const unsigned char * const ns_submit_button_labels[NEW_SRV_ACTION_LAST]=
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_IGNORE] = __("Send run comment and ignore run"),
   [NEW_SRV_ACTION_CHANGE_FINISH_TIME] = __("Change"),
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_OK] = __("Send run comment and OK run"),
+  [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_COMMENT_AND_REJECT] = __("Send run comment and REJECT run"),
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_IGNORE] = __("Just ignore the run"),
   [NEW_SRV_ACTION_PRIV_SUBMIT_RUN_JUST_OK] = __("Just OK the run"),
   [NEW_SRV_ACTION_PRIV_SET_RUN_REJECTED] = __("Set REJECTED run status"),

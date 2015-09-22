@@ -1,4 +1,4 @@
-/* $Id: random_passwd.c 7519 2013-10-31 18:31:22Z cher $ */
+/* $Id$ */
 
 #include <stdio.h>
 #include <stdlib.h>

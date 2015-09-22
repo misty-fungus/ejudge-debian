@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: pasabc-linux-version.in 7333 2013-02-02 15:55:30Z cher $
+# $Id$
 # Copyright (c) 2013 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"

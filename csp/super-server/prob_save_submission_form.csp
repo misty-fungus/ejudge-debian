@@ -1,0 +1,136 @@
+<% //-*- c -*-
+%><%@include "includes.csp"
+%><%
+
+#define COPYSTR(f) snprintf(prob->f, sizeof(prob->f), "%s", (f))
+#define MOVEENV(f) sarray_free(prob->f); prob->f = f; f = NULL
+
+%><%@set getter_name = "csp_get_prob_save_submission_form"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_prob_save_submission_form(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    snprintf(phr->content_type, sizeof(phr->content_type), "application/json; charset=%s", EJUDGE_CHARSET);
+
+    int prob_id = 0;
+    int disable_user_submit = -1;
+    int disable_submit_after_ok = -1;
+    int advance_to_next = -1;
+    int disable_ctrl_chars = -1;
+    int enable_text_form = -1;
+    int binary = -1;
+    int max_user_run_count = -1;
+    ejintbool_t max_user_run_count_dflt = -1;
+    char **disable_language = NULL;
+    char **enable_language = NULL;
+    char **require = NULL;
+    const unsigned char *start_date_date = NULL;
+    const unsigned char *start_date_time = NULL;
+    const unsigned char *deadline_date = NULL;
+    const unsigned char *deadline_time = NULL;
+
+    int i;
+    struct section_problem_data *prob = NULL;
+    time_t start_date = 0;
+    time_t deadline = 0;
+
+    char *msg_s = NULL;
+    size_t msg_z = 0;
+    FILE *msg_f = open_memstream(&msg_s, &msg_z);
+
+%><s:read var="prob_id" required="yes" /><%
+%><s:read var="disable_user_submit" default="-1" /><%
+%><s:read var="disable_submit_after_ok" default="-1" /><%
+%><s:read var="advance_to_next" default="-1" /><%
+%><s:read var="disable_ctrl_chars" default="-1" /><%
+%><s:read var="enable_text_form" default="-1" /><%
+%><s:read var="binary" default="-1" /><%
+%><s:read var="max_user_run_count" default="-1" /><%
+%><s:read var="max_user_run_count_dflt" default="0" /><%
+%><s:read var="disable_language" /><%
+%><s:read var="enable_language" /><%
+%><s:read var="require" /><%
+%><s:read var="start_date_date" /><%
+%><s:read var="start_date_time" /><%
+%><s:read var="deadline_date" /><%
+%><s:read var="deadline_time" /><%
+
+    if (retval || !phr->ss) goto cleanup;
+
+    if (disable_user_submit > 0) disable_user_submit = 1;
+    if (disable_submit_after_ok > 0) disable_submit_after_ok = 1;
+    if (advance_to_next > 0) advance_to_next = 1;
+    if (disable_ctrl_chars > 0) disable_user_submit = 1;
+    if (enable_text_form > 0) enable_text_form = 1;
+    if (binary > 0) binary = 1;
+    if (max_user_run_count < 0) max_user_run_count = -1;
+    if (max_user_run_count_dflt) max_user_run_count = -1;
+    if (parse_date_twopart(start_date_date, start_date_time, &start_date) < 0) {
+        fprintf(msg_f, "Invalid start_date<br/>");
+        retval = SSERV_ERR_INV_PARAM;
+    }
+    if (start_date < 0) start_date = 0;
+    if (parse_date_twopart(deadline_date, deadline_time, &deadline) < 0) {
+        fprintf(msg_f, "Invalid deadline<br/>");
+        retval = SSERV_ERR_INV_PARAM;
+    }
+    if (deadline < 0) deadline = 0;
+
+    if (prob_id <= 0) {
+        i = -prob_id;
+        if (i >= phr->ss->aprob_u) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        prob = phr->ss->aprobs[i];
+        if (!prob) FAIL(SSERV_ERR_INVALID_PARAMETER);
+
+        if (disable_user_submit < 0) disable_user_submit = 0;
+        if (disable_submit_after_ok < 0) disable_submit_after_ok = 0;
+        if (advance_to_next < 0) advance_to_next = 0;
+        if (disable_ctrl_chars < 0) disable_ctrl_chars = 0;
+        if (enable_text_form < 0) enable_text_form = 0;
+        if (binary < 0) binary = 0;
+    } else {
+        i = prob_id;
+        if (i >= phr->ss->prob_a) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        prob = phr->ss->probs[i];
+        if (!prob) FAIL(SSERV_ERR_INVALID_PARAMETER);
+
+        if (disable_user_submit < 0) disable_user_submit = -1;
+        if (disable_submit_after_ok < 0) disable_submit_after_ok = -1;
+        if (advance_to_next < 0) advance_to_next = -1;
+        if (disable_ctrl_chars < 0) disable_ctrl_chars = -1;
+        if (enable_text_form < 0) enable_text_form = -1;
+        if (binary < 0) binary = -1;
+    }
+
+    if (!retval && phr->ss) {
+        prob->disable_user_submit = disable_user_submit;
+        prob->disable_submit_after_ok = disable_submit_after_ok;
+        prob->advance_to_next = advance_to_next;
+        prob->disable_ctrl_chars = disable_ctrl_chars;
+        prob->enable_text_form = enable_text_form;
+        prob->binary = binary;
+        prob->max_user_run_count = max_user_run_count;
+        MOVEENV(disable_language);
+        MOVEENV(enable_language);
+        MOVEENV(require);
+        prob->start_date = start_date;
+        prob->deadline = deadline;
+    }
+
+cleanup:;
+    fclose(msg_f); msg_f = NULL;
+%>
+{
+    "input" : {
+    },
+    "retval" : <s:v value="retval" />,
+    "messages" : "<s:v value="msg_s" json="yes" checkExpr="" />"
+}
+<%
+    html_armor_free(&ab);
+    xfree(msg_s);
+    sarray_free(disable_language);
+    sarray_free(enable_language);
+    sarray_free(require);
+%>

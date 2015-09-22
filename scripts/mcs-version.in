@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: mcs-version.in 5550 2009-02-19 18:14:43Z cher $
+# $Id$
 # Copyright (c) 2005-2008 Alexander Chernov <cher@ejudge.ru>
 
 LANG_CONFIG_DIR="@lang_config_dir@"

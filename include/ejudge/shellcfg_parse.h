@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: shellcfg_parse.h 8212 2014-05-15 12:48:23Z cher $ */
+/* $Id$ */
 #ifndef __SHELLCONFIG_H__
 #define __SHELLCONFIG_H__
 

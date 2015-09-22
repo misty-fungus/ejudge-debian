@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id: prepare.c 8795 2014-12-11 22:25:52Z cher $ */
 
-/* Copyright (C) 2000-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -289,6 +288,8 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(checker_real_time_limit, "d"),
   GLOBAL_PARAM(compile_real_time_limit, "d"),
   GLOBAL_PARAM(show_deadline, "d"),
+  GLOBAL_PARAM(show_sha1, "d"),
+  GLOBAL_PARAM(show_judge_identity, "d"),
   GLOBAL_PARAM(enable_runlog_merge, "d"),
   GLOBAL_PARAM(prune_empty_users, "d"),
   GLOBAL_PARAM(enable_report_upload, "d"),
@@ -334,9 +335,9 @@ static const struct config_parse_info section_global_params[] =
 
   GLOBAL_PARAM(tokens, "S"),
 
-  GLOBAL_PARAM(compile_max_vm_size, "z"),
-  GLOBAL_PARAM(compile_max_stack_size, "z"),
-  GLOBAL_PARAM(compile_max_file_size, "z"),
+  GLOBAL_PARAM(compile_max_vm_size, "E"),
+  GLOBAL_PARAM(compile_max_stack_size, "E"),
+  GLOBAL_PARAM(compile_max_file_size, "E"),
 
   { 0, 0, 0, 0 }
 };
@@ -369,6 +370,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(score_latest, "d"),
   PROBLEM_PARAM(score_latest_or_unmarked, "d"),
   PROBLEM_PARAM(score_latest_marked, "d"),
+  PROBLEM_PARAM(score_tokenized, "d"),
   PROBLEM_PARAM(time_limit, "d"),
   PROBLEM_PARAM(time_limit_millis, "d"),
   PROBLEM_PARAM(real_time_limit, "d"),
@@ -400,7 +402,9 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(unrestricted_statement, "d"),
   PROBLEM_PARAM(restricted_statement, "d"),
   PROBLEM_PARAM(hide_file_names, "d"),
+  PROBLEM_PARAM(hide_real_time_limit, "d"),
   PROBLEM_PARAM(enable_tokens, "d"),
+  PROBLEM_PARAM(tokens_for_user_ac, "d"),
   PROBLEM_PARAM(disable_submit_after_ok, "d"),
   PROBLEM_PARAM(disable_security, "d"),
   PROBLEM_PARAM(enable_compilation, "d"),
@@ -425,11 +429,11 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(prev_runs_to_show, "d"),
   PROBLEM_PARAM(max_user_run_count, "d"),
   PROBLEM_ALIAS(output_only, type, "d"),
-  PROBLEM_PARAM(max_vm_size, "z"),
-  PROBLEM_PARAM(max_stack_size, "z"),
-  PROBLEM_PARAM(max_data_size, "z"),
-  PROBLEM_PARAM(max_core_size, "z"),
-  PROBLEM_PARAM(max_file_size, "z"),
+  PROBLEM_PARAM(max_vm_size, "E"),
+  PROBLEM_PARAM(max_stack_size, "E"),
+  PROBLEM_PARAM(max_data_size, "E"),
+  PROBLEM_PARAM(max_core_size, "E"),
+  PROBLEM_PARAM(max_file_size, "E"),
   PROBLEM_PARAM(max_open_file_count, "d"),
   PROBLEM_PARAM(max_process_count, "d"),
   PROBLEM_PARAM_2(type, do_problem_parse_type),
@@ -512,6 +516,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(super_run_dir, "S"),
   PROBLEM_PARAM(tokens, "S"),
   PROBLEM_PARAM(umask, "S"),
+  PROBLEM_PARAM(ok_status, "S"),
 
   { 0, 0, 0, 0 }
 };
@@ -542,9 +547,9 @@ static const struct config_parse_info section_language_params[] =
 
   LANGUAGE_PARAM(disable_auto_testing, "d"),
   LANGUAGE_PARAM(disable_testing, "d"),
-  LANGUAGE_PARAM(max_vm_size, "z"),
-  LANGUAGE_PARAM(max_stack_size, "z"),
-  LANGUAGE_PARAM(max_file_size, "z"),
+  LANGUAGE_PARAM(max_vm_size, "E"),
+  LANGUAGE_PARAM(max_stack_size, "E"),
+  LANGUAGE_PARAM(max_file_size, "E"),
 
   LANGUAGE_PARAM(compile_dir, "s"),
   LANGUAGE_PARAM(compile_dir_index, "d"),
@@ -815,6 +820,8 @@ global_init_func(struct generic_section_config *gp)
   p->team_download_time = -1;
   p->ignore_duplicated_runs = -1;
   p->show_deadline = -1;
+  p->show_sha1 = -1;
+  p->show_judge_identity = -1;
   p->inactivity_timeout = -1;
   p->checker_real_time_limit = -1;
   p->compile_real_time_limit = -1;
@@ -834,9 +841,9 @@ global_init_func(struct generic_section_config *gp)
   p->disable_user_database = -1;
   p->enable_max_stack_size = -1;
 
-  p->compile_max_vm_size = -1L;
-  p->compile_max_stack_size = -1L;
-  p->compile_max_file_size = -1L;
+  p->compile_max_vm_size = ~(ej_size64_t) 0;
+  p->compile_max_stack_size = ~(ej_size64_t) 0;
+  p->compile_max_file_size = ~(ej_size64_t) 0;
 
   p->enable_tokens = -1;
 }
@@ -929,6 +936,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->score_latest = -1;
   p->score_latest_or_unmarked = -1;
   p->score_latest_marked = -1;
+  p->score_tokenized = -1;
   p->time_limit = -1;
   p->time_limit_millis = -1;
   p->real_time_limit = -1;
@@ -961,7 +969,9 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->disable_tab = -1;
   p->unrestricted_statement = -1;
   p->hide_file_names = -1;
+  p->hide_real_time_limit = -1;
   p->enable_tokens = -1;
+  p->tokens_for_user_ac = -1;
   p->disable_submit_after_ok = -1;
   p->disable_security = -1;
   p->enable_compilation = -1;
@@ -972,6 +982,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->variable_full_score = -1;
   p->hidden = -1;
   p->advance_to_next = -1;
+  p->stand_hide_time = -1;
   p->disable_ctrl_chars = -1;
   p->valuer_sets_marked = -1;
   p->ignore_unmarked = -1;
@@ -988,11 +999,11 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->info_pat[0] = 1;
   p->tgz_pat[0] = 1;
   p->tgzdir_pat[0] = 1;
-  p->max_vm_size = -1L;
-  p->max_stack_size = -1L;
-  p->max_data_size = -1L;
-  p->max_core_size = -1L;
-  p->max_file_size = -1L;
+  p->max_vm_size = -1LL;
+  p->max_stack_size = -1LL;
+  p->max_data_size = -1LL;
+  p->max_core_size = -1LL;
+  p->max_file_size = -1LL;
   p->max_open_file_count = -1;
   p->max_process_count = -1;
   p->interactor_time_limit = -1;
@@ -1024,6 +1035,7 @@ prepare_problem_free_func(struct generic_section_config *gp)
   xfree(p->tokens);
   xfree(p->token_info);
   xfree(p->umask);
+  xfree(p->ok_status);
   sarray_free(p->test_sets);
   sarray_free(p->date_penalty);
   sarray_free(p->group_start_date);
@@ -1679,8 +1691,8 @@ parse_personal_deadlines(char **pdstr, int *p_total,
     if (sscanf(pdstr[i], "%s%s%s%n", s1, s2, s3, &n) == 3 && !pdstr[i][n]) {
       strcat(s2, " ");
       strcat(s2, s3);
-    } else if (!sscanf(pdstr[i], "%s%s%n", s1, s2, &n) == 2 && !pdstr[i][n]) {
-    } else if (!sscanf(pdstr[i], "%s%n", s1, &n) == 1 && !pdstr[i][n]) {
+    } else if (sscanf(pdstr[i], "%s%s%n", s1, s2, &n) == 2 && !pdstr[i][n]) {
+    } else if (sscanf(pdstr[i], "%s%n", s1, &n) == 1 && !pdstr[i][n]) {
       strcpy(s2, "2038/01/19");
     }
 
@@ -2106,6 +2118,9 @@ parse_tokens_cost(
       value2 &= ~TOKEN_TESTS_MASK;
       value2 |= TOKEN_FINALTESTS_BIT;
       p += 14;
+    } else if (!strncasecmp(p, "valuerjudgecomment", 18)) {
+      value2 |= TOKEN_VALUER_JUDGE_COMMENT_BIT;
+      p += 18;
     } else {
       break;
     }
@@ -2224,6 +2239,7 @@ prepare_insert_variant_num(
 
 static int
 set_defaults(
+        const struct contest_desc *cnts,
         serve_state_t state,
         int mode,
         const unsigned char **subst_src,
@@ -2247,6 +2263,7 @@ set_defaults(
   path_t xml_path;
   path_t tmp_buf;
 
+  int contest_id = 0;
   /* find global section */
   for (p = state->config; p; p = p->next)
     if (!p->name[0] || !strcmp(p->name, "global"))
@@ -2256,6 +2273,12 @@ set_defaults(
     return -1;
   }
   g = state->global = (struct section_global_data*) p;
+
+  if (cnts) {
+    contest_id = cnts->id;
+  } else {
+    contest_id = g->contest_id;
+  }
 
   /* userlist-server interaction */
   if (mode == PREPARE_SERVE) {
@@ -2320,6 +2343,8 @@ set_defaults(
     g->ignore_duplicated_runs = DFLT_G_IGNORE_DUPLICATED_RUNS;
   if (g->show_deadline == -1)
     g->show_deadline = DFLT_G_SHOW_DEADLINE;
+  if (g->show_sha1 < 0) g->show_sha1 = 0;
+  if (g->show_judge_identity < 0) g->show_judge_identity = 0;
   if (g->enable_printing == -1)
     g->enable_printing = DFLT_G_ENABLE_PRINTING;
   if (g->disable_banner_page == -1)
@@ -2431,7 +2456,7 @@ set_defaults(
   }
 
   if (!g->root_dir[0]) {
-    snprintf(g->root_dir, sizeof(g->root_dir), "%06d", g->contest_id);
+    snprintf(g->root_dir, sizeof(g->root_dir), "%06d", contest_id);
   }
   if (!os_IsAbsolutePath(g->root_dir) && ejudge_config
       && ejudge_config->contests_home_dir
@@ -2465,6 +2490,10 @@ set_defaults(
       && ejudge_config->default_rundb_plugin[0]) {
     snprintf(g->rundb_plugin, sizeof(g->rundb_plugin), "%s",
              ejudge_config->default_rundb_plugin);
+  }
+  if (!g->xuser_plugin[0] && ejudge_config
+      && ejudge_config->default_xuser_plugin && ejudge_config->default_xuser_plugin[0]) {
+    snprintf(g->xuser_plugin, sizeof(g->xuser_plugin), "%s", ejudge_config->default_xuser_plugin);
   }
 
   if (!g->conf_dir[0]) {
@@ -2565,7 +2594,7 @@ set_defaults(
   if (mode == PREPARE_SERVE) {
     /* compile_out_dir is no longer parametrized, also it uses compile_dir */
     snprintf(g->compile_out_dir, sizeof(g->compile_out_dir),
-             "%s/%06d", g->compile_dir, g->contest_id);
+             "%s/%06d", g->compile_dir, contest_id);
     vinfo("global.compile_out_dir is %s", g->compile_out_dir);
     pathmake(g->compile_status_dir, g->compile_out_dir, "/",
              DFLT_G_COMPILE_STATUS_DIR, 0);
@@ -2614,7 +2643,7 @@ set_defaults(
   }
   if (mode == PREPARE_SERVE) {
     snprintf(g->run_out_dir, sizeof(g->run_out_dir),
-             "%s/%06d", g->run_dir, g->contest_id);
+             "%s/%06d", g->run_dir, contest_id);
     vinfo("global.run_out_dir is %s", g->run_out_dir);
     pathmake(g->run_status_dir, g->run_out_dir, "/",
              DFLT_G_RUN_STATUS_DIR, 0);
@@ -2638,14 +2667,14 @@ set_defaults(
 #if defined EJUDGE_LOCAL_DIR
     if (!g->run_work_dir[0]) {
       snprintf(g->run_work_dir, sizeof(g->run_work_dir),
-               "%s/%06d/work", EJUDGE_LOCAL_DIR, g->contest_id);
+               "%s/%06d/work", EJUDGE_LOCAL_DIR, contest_id);
     }
 #endif
     GLOBAL_INIT_FIELD(run_work_dir, DFLT_G_RUN_WORK_DIR, work_dir);
 #if defined EJUDGE_LOCAL_DIR
     if (!g->run_check_dir[0]) {
       snprintf(g->run_check_dir, sizeof(g->run_check_dir),
-               "%s/%06d/check", EJUDGE_LOCAL_DIR, g->contest_id);
+               "%s/%06d/check", EJUDGE_LOCAL_DIR, contest_id);
     }
 #endif
     GLOBAL_INIT_FIELD(run_check_dir, DFLT_G_RUN_CHECK_DIR, work_dir);
@@ -2952,7 +2981,7 @@ set_defaults(
         pathmake(lang->compile_src_dir, lang->compile_dir, "/",
                  DFLT_G_COMPILE_SRC_DIR, 0);
         snprintf(lang->compile_out_dir, sizeof(lang->compile_out_dir),
-                 "%s/%06d", lang->compile_dir, g->contest_id);
+                 "%s/%06d", lang->compile_dir, contest_id);
         pathmake(lang->compile_status_dir, lang->compile_out_dir, "/",
                  DFLT_G_COMPILE_STATUS_DIR, 0);
         pathmake(lang->compile_report_dir, lang->compile_out_dir, "/",
@@ -2974,7 +3003,7 @@ set_defaults(
                  DFLT_G_COMPILE_SRC_DIR, 0);
         vinfo("language.%d.compile_src_dir is %s", i, lang->compile_src_dir);
         snprintf(lang->compile_out_dir, sizeof(lang->compile_out_dir),
-                 "%s/%06d", lang->compile_dir, g->contest_id);
+                 "%s/%06d", lang->compile_dir, contest_id);
         vinfo("language.%d.compile_out_dir is %s", i, lang->compile_out_dir);
         pathmake(lang->compile_status_dir, lang->compile_out_dir, "/",
                  DFLT_G_COMPILE_STATUS_DIR, 0);
@@ -3131,6 +3160,7 @@ set_defaults(
 
     prepare_set_prob_value(CNTSPROB_type, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_use_ac_not_ok, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_ok_status, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_ignore_prev_ac, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_team_enable_rep_view, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_team_enable_ce_view, prob, aprob, g);
@@ -3146,7 +3176,9 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_disable_tab, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_unrestricted_statement, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_hide_file_names, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_hide_real_time_limit, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_enable_tokens, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_tokens_for_user_ac, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_submit_after_ok, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_auto_testing, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_testing, prob, aprob, g);
@@ -3164,6 +3196,7 @@ set_defaults(
 
     prepare_set_prob_value(CNTSPROB_hidden, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_advance_to_next, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_stand_hide_time, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_ctrl_chars, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_valuer_sets_marked, prob, aprob, g);    
     prepare_set_prob_value(CNTSPROB_ignore_unmarked, prob, aprob, g);    
@@ -3192,6 +3225,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_score_latest, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest_or_unmarked, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_score_latest_marked, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_score_tokenized, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_time_limit_millis, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_real_time_limit, prob, aprob, g);
@@ -3706,7 +3740,7 @@ set_defaults(
                    DFLT_G_RUN_EXE_DIR, 0);
           vinfo("tester.%d.run_exe_dir is %s", i, tp->run_exe_dir);
           snprintf(tp->run_out_dir, sizeof(tp->run_out_dir), "%s/%06d",
-                   tp->run_dir, g->contest_id);
+                   tp->run_dir, cnts->id);
           vinfo("tester.%d.run_out_dir is %s", i, tp->run_out_dir);
           pathmake(tp->run_status_dir, tp->run_out_dir, "/",
                    DFLT_G_RUN_STATUS_DIR, 0);
@@ -4285,27 +4319,23 @@ create_dirs(serve_state_t state, int mode)
   return 0;
 }
 
-int
+static int
 parse_version_string(int *pmajor, int *pminor, int *ppatch, int *pbuild)
 {
   const unsigned char *p = compile_version;
   int n, x;
 
-  if (sscanf(p, "%d.%dpre%d #%d%n", pmajor, pminor, ppatch, pbuild, &n) == 4
-      && !p[n]) {
+  if (sscanf(p, "%d.%dpre%d #%d%n", pmajor, pminor, ppatch, pbuild, &n) == 4 && !p[n]) {
     *ppatch = -*ppatch;
-  } else if (sscanf(p, "%d.%dpre%d%n", pmajor, pminor, ppatch, &n) == 3
-             && !p[n]) {
+  } else if (sscanf(p, "%d.%dpre%d%n", pmajor, pminor, ppatch, &n) == 3 && !p[n]) {
     *ppatch = -*ppatch;
     *pbuild = 0;
-  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d) #%d%n", pmajor, pminor, ppatch,
-                    pbuild, &x, &n) == 5 && !p[n]) {
-  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d)%n", pmajor, pminor, ppatch,
-                    pbuild, &n) == 4 && !p[n]) {
-  } else if (sscanf(p, "%d.%d.%d #%d%n", pmajor, pminor, ppatch, pbuild, &n)==4
-             && !p[n]) {
-  } else if (sscanf(p, "%d.%d.%d%n", pmajor, pminor, ppatch, &n) == 3
-             && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (GIT %x) #%d%n", pmajor, pminor, ppatch, pbuild, &x, &n) == 5 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (GIT %x)%n", pmajor, pminor, ppatch, pbuild, &n) == 4 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d) #%d%n", pmajor, pminor, ppatch, pbuild, &x, &n) == 5 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d+ (SVN r%d)%n", pmajor, pminor, ppatch, pbuild, &n) == 4 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d #%d%n", pmajor, pminor, ppatch, pbuild, &n)==4 && !p[n]) {
+  } else if (sscanf(p, "%d.%d.%d%n", pmajor, pminor, ppatch, &n) == 3 && !p[n]) {
     *pbuild = 0;
   } else {
     err("cannot parse version string %s", compile_version);
@@ -4318,6 +4348,7 @@ parse_version_string(int *pmajor, int *pminor, int *ppatch, int *pbuild)
 
 int
 prepare(
+        const struct contest_desc *cnts,
         serve_state_t state,
         char const *config_file,
         int flags,
@@ -4378,7 +4409,7 @@ prepare(
     return -1;
   }
   */
-  if (set_defaults(state, mode, subst_src, subst_dst) < 0) return -1;
+  if (set_defaults(cnts, state, mode, subst_src, subst_dst) < 0) return -1;
   return 0;
 }
 
@@ -4839,6 +4870,8 @@ prepare_set_global_defaults(struct section_global_data *g)
     g->ignore_duplicated_runs = DFLT_G_IGNORE_DUPLICATED_RUNS;
   if (g->show_deadline < 0)
     g->show_deadline = DFLT_G_SHOW_DEADLINE;
+  if (g->show_sha1 < 0) g->show_sha1 = 0;
+  if (g->show_judge_identity < 0) g->show_judge_identity = 0;
   if (g->report_error_code < 0)
     g->report_error_code = DFLT_G_REPORT_ERROR_CODE;
   if (g->enable_continue < 0)
@@ -4910,6 +4943,7 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->score_latest < 0) prob->score_latest = 0;
   if (prob->score_latest_or_unmarked < 0) prob->score_latest_or_unmarked = 0;
   if (prob->score_latest_marked < 0) prob->score_latest_marked = 0;
+  if (prob->score_tokenized < 0) prob->score_tokenized = 0;
   if (prob->time_limit < 0) prob->time_limit = 0;
   if (prob->time_limit_millis < 0) prob->time_limit_millis = 0;
   if (prob->real_time_limit < 0) prob->real_time_limit = 0;
@@ -4927,6 +4961,7 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->accept_partial < 0) prob->accept_partial = 0;
   if (prob->hidden < 0) prob->hidden = 0;
   if (prob->advance_to_next < 0) prob->advance_to_next = 0;
+  if (prob->stand_hide_time < 0) prob->stand_hide_time = 0;
   if (prob->disable_ctrl_chars < 0) prob->disable_ctrl_chars = 0;
   if (prob->valuer_sets_marked < 0) prob->valuer_sets_marked = 0;
   if (prob->ignore_unmarked < 0) prob->ignore_unmarked = 0;
@@ -5020,7 +5055,6 @@ prepare_new_global_section(int contest_id, const unsigned char *root_dir,
   global->rounding_mode = SEC_FLOOR;
   global->is_virtual = 0;
 
-  global->contest_id = contest_id;
   global->sleep_time = DFLT_G_SLEEP_TIME;
   global->serve_sleep_time = DFLT_G_SERVE_SLEEP_TIME;
   global->contest_time = DFLT_G_CONTEST_TIME;
@@ -5062,7 +5096,8 @@ prepare_new_global_section(int contest_id, const unsigned char *root_dir,
   global->cr_serialization_key = config->serialization_key;
   global->show_astr_time = DFLT_G_SHOW_ASTR_TIME;
   global->ignore_duplicated_runs = DFLT_G_IGNORE_DUPLICATED_RUNS;
-  global->show_deadline = DFLT_G_SHOW_DEADLINE;
+  global->show_sha1 = 0;
+  global->show_judge_identity = 0;
   global->report_error_code = DFLT_G_REPORT_ERROR_CODE;
   global->auto_short_problem_name = 0;
   global->enable_continue = DFLT_G_ENABLE_CONTINUE;
@@ -5111,9 +5146,9 @@ prepare_new_global_section(int contest_id, const unsigned char *root_dir,
   strcpy(global->standings_file_name, DFLT_G_STANDINGS_FILE_NAME);
   global->plog_update_time = DFLT_G_PLOG_UPDATE_TIME;
 
-  global->compile_max_vm_size = -1L;
-  global->compile_max_stack_size = -1L;
-  global->compile_max_file_size = -1L;
+  global->compile_max_vm_size = ~(ej_size64_t) 0;
+  global->compile_max_stack_size = ~(ej_size64_t) 0;
+  global->compile_max_file_size = ~(ej_size64_t) 0;
 
   /*
   GLOBAL_PARAM(test_sfx, "s"),
@@ -5391,6 +5426,9 @@ prepare_copy_problem(const struct section_problem_data *in)
   if (in->umask) {
     out->umask = xstrdup(in->umask);
   }
+  if (in->ok_status) {
+    out->ok_status = xstrdup(in->ok_status);
+  }
 
   return out;
 }
@@ -5406,284 +5444,96 @@ prepare_set_prob_value(
 
   switch (field) {
   case CNTSPROB_type:
-    if (out->type == -1 && abstr) out->type = abstr->type;
-    if (out->type == -1) out->type = 0;
+    if (out->type < 0 && abstr) out->type = abstr->type;
+    if (out->type < 0) out->type = 0;
+    if (out->type >= PROB_TYPE_LAST) out->type = 0;
     break;
 
-  case CNTSPROB_scoring_checker:
-    if (out->scoring_checker == -1 && abstr)
-      out->scoring_checker = abstr->scoring_checker;
-    if (out->scoring_checker == -1) out->scoring_checker = 0;
-    break;
+#define INHERIT_BOOLEAN(f) case CNTSPROB_##f: if (out->f < 0 && abstr) out->f = abstr->f; if (out->f < 0) out->f = 0; if (out->f > 0) out->f = 1; break
 
-  case CNTSPROB_interactive_valuer:
-    if (out->interactive_valuer == -1 && abstr)
-      out->interactive_valuer = abstr->interactive_valuer;
-    if (out->interactive_valuer == -1) out->interactive_valuer = 0;
-    break;
-
-  case CNTSPROB_disable_pe:
-    if (out->disable_pe == -1 && abstr)
-      out->disable_pe = abstr->disable_pe;
-    if (out->disable_pe == -1) out->disable_pe = 0;
-    break;
-
-  case CNTSPROB_disable_wtl:
-    if (out->disable_wtl == -1 && abstr)
-      out->disable_wtl = abstr->disable_wtl;
-    if (out->disable_wtl == -1) out->disable_wtl = 0;
-    break;
-
-  case CNTSPROB_manual_checking:
-    if (out->manual_checking == -1 && abstr)
-      out->manual_checking = abstr->manual_checking;
-    if (out->manual_checking == -1) out->manual_checking = 0;
-    break;
+  INHERIT_BOOLEAN(scoring_checker);
+  INHERIT_BOOLEAN(interactive_valuer);
+  INHERIT_BOOLEAN(disable_pe);
+  INHERIT_BOOLEAN(disable_wtl);
+  INHERIT_BOOLEAN(manual_checking);
 
   case CNTSPROB_examinator_num:
-    if (out->examinator_num <= 0 && abstr)
-      out->examinator_num = abstr->examinator_num;
-    if (out->manual_checking <= 0) out->manual_checking = 0;
+    if (out->examinator_num < 0 && abstr) out->examinator_num = abstr->examinator_num;
+    if (out->manual_checking < 0) out->manual_checking = 0;
     break;
 
-  case CNTSPROB_check_presentation:
-    if (out->check_presentation == -1 && abstr)
-      out->check_presentation = abstr->check_presentation;
-    if (out->check_presentation == -1) out->check_presentation = 0;
-    break;
-
-  case CNTSPROB_use_stdin:
-    if (out->use_stdin == -1 && abstr) out->use_stdin = abstr->use_stdin;
-    if (out->use_stdin == -1) out->use_stdin = 0;
-    break;
-
-  case CNTSPROB_use_stdout:
-    if (out->use_stdout == -1 && abstr) out->use_stdout = abstr->use_stdout;
-    if (out->use_stdout == -1) out->use_stdout = 0;
-    break;
-
-  case CNTSPROB_combined_stdin:
-    if (out->combined_stdin == -1 && abstr)
-      out->combined_stdin = abstr->combined_stdin;
-    if (out->combined_stdin == -1) out->combined_stdin = 0;
-    break;
-
-  case CNTSPROB_combined_stdout:
-    if (out->combined_stdout == -1 && abstr)
-      out->combined_stdout = abstr->combined_stdout;
-    if (out->combined_stdout == -1) out->combined_stdout = 0;
-    break;
-
-  case CNTSPROB_binary_input:
-    if (out->binary_input == -1 && abstr) out->binary_input = abstr->binary_input;
-    if (out->binary_input == -1) out->binary_input = DFLT_P_BINARY_INPUT;
-    break;
-
-  case CNTSPROB_binary:
-    if (out->binary == -1 && abstr) out->binary = abstr->binary;
-    if (out->binary == -1) out->binary = 0;
-    break;
-
-  case CNTSPROB_ignore_exit_code:
-    if (out->ignore_exit_code == -1 && abstr) out->ignore_exit_code = abstr->ignore_exit_code;
-    if (out->ignore_exit_code == -1) out->ignore_exit_code = 0;
-    break;
-
-  case CNTSPROB_olympiad_mode:
-    if (out->olympiad_mode == -1 && abstr) out->olympiad_mode = abstr->olympiad_mode;
-    if (out->olympiad_mode == -1) out->olympiad_mode = 0;
-    break;
-
-  case CNTSPROB_score_latest:
-    if (out->score_latest == -1 && abstr) out->score_latest = abstr->score_latest;
-    if (out->score_latest == -1) out->score_latest = 0;
-    break;
-
-  case CNTSPROB_score_latest_or_unmarked:
-    if (out->score_latest_or_unmarked == -1 && abstr) out->score_latest_or_unmarked = abstr->score_latest_or_unmarked;
-    if (out->score_latest_or_unmarked == -1) out->score_latest_or_unmarked = 0;
-    break;
-
-  case CNTSPROB_score_latest_marked:
-    if (out->score_latest_marked == -1 && abstr) out->score_latest_marked = abstr->score_latest_marked;
-    if (out->score_latest_marked == -1) out->score_latest_marked = 0;
-    break;
+  INHERIT_BOOLEAN(check_presentation);
+  INHERIT_BOOLEAN(use_stdin);
+  INHERIT_BOOLEAN(use_stdout);
+  INHERIT_BOOLEAN(combined_stdin);
+  INHERIT_BOOLEAN(combined_stdout);
+  INHERIT_BOOLEAN(binary_input);
+  INHERIT_BOOLEAN(binary);
+  INHERIT_BOOLEAN(ignore_exit_code);
+  INHERIT_BOOLEAN(olympiad_mode);
+  INHERIT_BOOLEAN(score_latest);
+  INHERIT_BOOLEAN(score_latest_or_unmarked);
+  INHERIT_BOOLEAN(score_latest_marked);
+  INHERIT_BOOLEAN(score_tokenized);
 
   case CNTSPROB_time_limit:
-    if (out->time_limit == -1 && abstr) out->time_limit = abstr->time_limit;
-    if (out->time_limit == -1) out->time_limit = 0;
+    if (out->time_limit < 0 && abstr) out->time_limit = abstr->time_limit;
+    if (out->time_limit < 0) out->time_limit = 0;
     break;
 
   case CNTSPROB_time_limit_millis:
-    if (out->time_limit_millis == -1 && abstr)
-      out->time_limit_millis = abstr->time_limit_millis;
-    if (out->time_limit_millis == -1) out->time_limit_millis = 0;
+    if (out->time_limit_millis < 0 && abstr) out->time_limit_millis = abstr->time_limit_millis;
+    if (out->time_limit_millis < 0) out->time_limit_millis = 0;
     break;
 
   case CNTSPROB_real_time_limit:
-    if (out->real_time_limit == -1 && abstr)
-      out->real_time_limit = abstr->real_time_limit;
-    if (out->real_time_limit == -1) out->real_time_limit = 0;
+    if (out->real_time_limit < 0 && abstr) out->real_time_limit = abstr->real_time_limit;
+    if (out->real_time_limit < 0) out->real_time_limit = 0;
     break;
 
   case CNTSPROB_interactor_time_limit:
-    if (out->interactor_time_limit < 0 && abstr)
-      out->interactor_time_limit = abstr->interactor_time_limit;
+    if (out->interactor_time_limit < 0 && abstr) out->interactor_time_limit = abstr->interactor_time_limit;
     if (out->interactor_time_limit < 0) out->interactor_time_limit = 0;
     break;
 
-  case CNTSPROB_use_ac_not_ok:
-    if (out->use_ac_not_ok == -1 && abstr)
-      out->use_ac_not_ok = abstr->use_ac_not_ok;
-    if (out->use_ac_not_ok == -1 && global)
-      out->use_ac_not_ok = global->use_ac_not_ok;
-    if (out->use_ac_not_ok == -1)
-      out->use_ac_not_ok = 0;
+#define INHERIT_BOOLEAN_2(f) case CNTSPROB_##f: if (out->f < 0 && abstr) out->f = abstr->f; if (out->f < 0 && global) out->f = global->f; if (out->f < 0) out->f = 0; if (out->f > 0) out->f = 1; break
+
+  INHERIT_BOOLEAN_2(use_ac_not_ok);
+
+  case CNTSPROB_ok_status:
+    if (!out->ok_status && abstr && abstr->ok_status) {
+      out->ok_status = xstrdup(abstr->ok_status);
+    }
     break;
 
-  case CNTSPROB_ignore_prev_ac:
-    if (out->ignore_prev_ac < 0 && abstr)
-      out->ignore_prev_ac = abstr->ignore_prev_ac;
-    if (out->ignore_prev_ac < 0)
-      out->ignore_prev_ac = 0;
-    break;
-
-  case CNTSPROB_team_enable_rep_view:
-    if (out->team_enable_rep_view == -1 && abstr)
-      out->team_enable_rep_view = abstr->team_enable_rep_view;
-    if (out->team_enable_rep_view == -1 && global)
-      out->team_enable_rep_view = global->team_enable_rep_view;
-    if (out->team_enable_rep_view == -1)
-      out->team_enable_rep_view = 0;
-    break;
-
-  case CNTSPROB_team_enable_ce_view:
-    if (out->team_enable_ce_view == -1 && abstr)
-      out->team_enable_ce_view = abstr->team_enable_ce_view;
-    if (out->team_enable_ce_view == -1 && global)
-      out->team_enable_ce_view = global->team_enable_ce_view;
-    if (out->team_enable_ce_view == -1)
-      out->team_enable_ce_view = 0;
-    break;
-
-  case CNTSPROB_team_show_judge_report:
-    if (out->team_show_judge_report == -1 && abstr)
-      out->team_show_judge_report = abstr->team_show_judge_report;
-    if (out->team_show_judge_report == -1 && global)
-      out->team_show_judge_report = global->team_show_judge_report;
-    if (out->team_show_judge_report == -1)
-      out->team_show_judge_report = 0;
-    break;
-
-  case CNTSPROB_show_checker_comment:
-    if (out->show_checker_comment == -1 && abstr)
-      out->show_checker_comment = abstr->show_checker_comment;
-    if (out->show_checker_comment == -1)
-      out->show_checker_comment = 0;
-    break;
-
-  case CNTSPROB_ignore_compile_errors:
-    if (out->ignore_compile_errors == -1 && abstr)
-      out->ignore_compile_errors = abstr->ignore_compile_errors;
-    if (out->ignore_compile_errors == -1 && global)
-      out->ignore_compile_errors = global->ignore_compile_errors;
-    if (out->ignore_compile_errors == -1)
-      out->ignore_compile_errors = 0;
-    break;
-
-  case CNTSPROB_disable_user_submit:
-    if (out->disable_user_submit == -1 && abstr)
-      out->disable_user_submit = abstr->disable_user_submit;
-    if (out->disable_user_submit == -1)
-      out->disable_user_submit = 0;
-    break;
-
-  case CNTSPROB_disable_tab:
-    if (out->disable_tab == -1 && abstr)
-      out->disable_tab = abstr->disable_tab;
-    if (out->disable_tab == -1)
-      out->disable_tab = 0;
-    break;
-
-  case CNTSPROB_unrestricted_statement:
-    if (out->unrestricted_statement == -1 && abstr)
-      out->unrestricted_statement = abstr->unrestricted_statement;
-    if (out->unrestricted_statement == -1)
-      out->unrestricted_statement = 0;
-    break;
-
-  case CNTSPROB_hide_file_names:
-    if (out->hide_file_names < 0 && abstr)
-      out->hide_file_names = abstr->hide_file_names;
-    if (out->hide_file_names < 0)
-      out->hide_file_names = 0;
-    break;
-
-  case CNTSPROB_enable_tokens:
-    if (out->enable_tokens < 0 && abstr)
-      out->enable_tokens = abstr->enable_tokens;
-    if (out->enable_tokens < 0)
-      out->enable_tokens = 0;
-    break;
-
-  case CNTSPROB_disable_submit_after_ok:
-    if (out->disable_submit_after_ok < 0 && abstr)
-      out->disable_submit_after_ok = abstr->disable_submit_after_ok;
-    if (out->disable_submit_after_ok < 0 && global)
-      out->disable_submit_after_ok = global->disable_submit_after_ok;
-    if (out->disable_submit_after_ok < 0)
-      out->disable_submit_after_ok = 0;
-    break;
-
-  case CNTSPROB_disable_security:
-    if (out->disable_security < 0 && abstr)
-      out->disable_security = abstr->disable_security;
-    if (out->disable_security < 0)
-      out->disable_security = 0;
-    break;
-
-  case CNTSPROB_disable_testing:
-    if (out->disable_testing == -1 && abstr)
-      out->disable_testing = abstr->disable_testing;
-    if (out->disable_testing == -1 && global)
-      out->disable_testing = global->disable_testing;
-    if (out->disable_testing == -1)
-      out->disable_testing = 0;
-    break;
-
-  case CNTSPROB_disable_auto_testing:
-    if (out->disable_auto_testing == -1 && abstr)
-      out->disable_auto_testing = abstr->disable_auto_testing;
-    if (out->disable_auto_testing == -1 && global)
-      out->disable_auto_testing = global->disable_auto_testing;
-    if (out->disable_auto_testing == -1)
-      out->disable_auto_testing = 0;
-    break;
-
-  case CNTSPROB_enable_compilation:
-    if (out->enable_compilation == -1 && abstr)
-      out->enable_compilation = abstr->enable_compilation;
-    if (out->enable_compilation == -1)
-      out->enable_compilation = 0;
-    break;
-
-  case CNTSPROB_skip_testing:
-    if (out->skip_testing == -1 && abstr)
-      out->skip_testing = abstr->skip_testing;
-    if (out->skip_testing == -1)
-      out->skip_testing = 0;
-    break;
+  INHERIT_BOOLEAN(ignore_prev_ac);
+  INHERIT_BOOLEAN_2(team_enable_rep_view);
+  INHERIT_BOOLEAN_2(team_enable_ce_view);
+  INHERIT_BOOLEAN_2(team_show_judge_report);
+  INHERIT_BOOLEAN(show_checker_comment);
+  INHERIT_BOOLEAN_2(ignore_compile_errors);
+  INHERIT_BOOLEAN(disable_user_submit);
+  INHERIT_BOOLEAN(disable_tab);
+  INHERIT_BOOLEAN(unrestricted_statement);
+  INHERIT_BOOLEAN(hide_file_names);
+  INHERIT_BOOLEAN(hide_real_time_limit);
+  INHERIT_BOOLEAN(enable_tokens);
+  INHERIT_BOOLEAN(tokens_for_user_ac);
+  INHERIT_BOOLEAN_2(disable_submit_after_ok);
+  INHERIT_BOOLEAN(disable_security);
+  INHERIT_BOOLEAN_2(disable_testing);
+  INHERIT_BOOLEAN_2(disable_auto_testing);
+  INHERIT_BOOLEAN(enable_compilation);
+  INHERIT_BOOLEAN(skip_testing);
 
   case CNTSPROB_max_user_run_count:
-    if (out->max_user_run_count < 0 && abstr)
-      out->max_user_run_count = abstr->max_user_run_count;
-    if (out->max_user_run_count < 0)
-      out->max_user_run_count = 0;
+    if (out->max_user_run_count < 0 && abstr) out->max_user_run_count = abstr->max_user_run_count;
+    if (out->max_user_run_count < 0) out->max_user_run_count = 0;
     break;
 
   case CNTSPROB_full_score:
-    if (out->full_score == -1 && abstr) out->full_score = abstr->full_score;
-    if (out->full_score == -1) out->full_score = DFLT_P_FULL_SCORE;
+    if (out->full_score < 0 && abstr) out->full_score = abstr->full_score;
+    if (out->full_score < 0) out->full_score = DFLT_P_FULL_SCORE;
     break;
 
   case CNTSPROB_full_user_score:
@@ -5691,182 +5541,85 @@ prepare_set_prob_value(
     break;
 
   case CNTSPROB_test_score:
-    if (out->test_score == -1 && abstr) out->test_score = abstr->test_score;
-    if (out->test_score == -1) out->test_score = DFLT_P_TEST_SCORE;
+    if (out->test_score < 0 && abstr) out->test_score = abstr->test_score;
+    if (out->test_score < 0) out->test_score = DFLT_P_TEST_SCORE;
     break;
 
   case CNTSPROB_run_penalty:
-    if (out->run_penalty == -1 && abstr) out->run_penalty = abstr->run_penalty;
-    if (out->run_penalty == -1) out->run_penalty = DFLT_P_RUN_PENALTY;
+    if (out->run_penalty < 0 && abstr) out->run_penalty = abstr->run_penalty;
+    if (out->run_penalty < 0) out->run_penalty = DFLT_P_RUN_PENALTY;
     break;
 
   case CNTSPROB_acm_run_penalty:
-    if (out->acm_run_penalty == -1 && abstr)
-      out->acm_run_penalty = abstr->acm_run_penalty;
-    if (out->acm_run_penalty == -1) out->acm_run_penalty = DFLT_P_ACM_RUN_PENALTY;
+    if (out->acm_run_penalty < 0 && abstr) out->acm_run_penalty = abstr->acm_run_penalty;
+    if (out->acm_run_penalty < 0) out->acm_run_penalty = DFLT_P_ACM_RUN_PENALTY;
     break;
 
   case CNTSPROB_disqualified_penalty:
-    if (out->disqualified_penalty == -1 && abstr)
-      out->disqualified_penalty = abstr->disqualified_penalty;
-    if (out->disqualified_penalty == -1)
-      out->disqualified_penalty = DFLT_P_RUN_PENALTY;;
+    if (out->disqualified_penalty < 0 && abstr) out->disqualified_penalty = abstr->disqualified_penalty;
+    if (out->disqualified_penalty < 0) out->disqualified_penalty = DFLT_P_RUN_PENALTY;;
     break;
 
-  case CNTSPROB_variable_full_score:
-    if (out->variable_full_score == -1 && abstr)
-      out->variable_full_score = abstr->variable_full_score;
-    if (out->variable_full_score == -1)
-      out->variable_full_score = DFLT_P_VARIABLE_FULL_SCORE;
-    break;
+  INHERIT_BOOLEAN(variable_full_score);
 
   case CNTSPROB_tests_to_accept:
-    if (out->tests_to_accept == -1 && abstr)
-      out->tests_to_accept = abstr->tests_to_accept;
-    if (out->tests_to_accept == -1 && global)
-      out->tests_to_accept = global->tests_to_accept;
-    if (out->tests_to_accept == -1)
-      out->tests_to_accept = DFLT_G_TESTS_TO_ACCEPT;
+    if (out->tests_to_accept < 0 && abstr) out->tests_to_accept = abstr->tests_to_accept;
+    if (out->tests_to_accept < 0 && global) out->tests_to_accept = global->tests_to_accept;
+    if (out->tests_to_accept < 0) out->tests_to_accept = DFLT_G_TESTS_TO_ACCEPT;
     break;
 
-  case CNTSPROB_accept_partial:
-    if (out->accept_partial == -1 && abstr)
-      out->accept_partial = abstr->accept_partial;
-    if (out->accept_partial == -1)
-      out->accept_partial = 0;
-    break;
+  INHERIT_BOOLEAN(accept_partial);
 
   case CNTSPROB_min_tests_to_accept:
-    if (out->min_tests_to_accept < 0 && abstr)
-      out->min_tests_to_accept = abstr->min_tests_to_accept;
+    if (out->min_tests_to_accept < 0 && abstr) out->min_tests_to_accept = abstr->min_tests_to_accept;
     break;
 
-  case CNTSPROB_hidden:
-    if (out->hidden == -1 && abstr)
-      out->hidden = abstr->hidden;
-    if (out->hidden == -1)
-      out->hidden = 0;
-    break;
-
-  case CNTSPROB_advance_to_next:
-    if (out->advance_to_next == -1 && abstr)
-      out->advance_to_next = abstr->advance_to_next;
-    if (out->advance_to_next == -1)
-      out->advance_to_next = 0;
-    break;
-
-  case CNTSPROB_disable_ctrl_chars:
-    if (out->disable_ctrl_chars == -1 && abstr)
-      out->disable_ctrl_chars = abstr->disable_ctrl_chars;
-    if (out->disable_ctrl_chars == -1)
-      out->disable_ctrl_chars = 0;
-    break;
-
-  case CNTSPROB_valuer_sets_marked:
-    if (out->valuer_sets_marked == -1 && abstr)
-      out->valuer_sets_marked = abstr->valuer_sets_marked;
-    if (out->valuer_sets_marked == -1)
-      out->valuer_sets_marked = 0;
-    break;
-
-  case CNTSPROB_ignore_unmarked:
-    if (out->ignore_unmarked == -1 && abstr)
-      out->ignore_unmarked = abstr->ignore_unmarked;
-    if (out->ignore_unmarked == -1)
-      out->ignore_unmarked = 0;
-    break;
-
-  case CNTSPROB_disable_stderr:
-    if (out->disable_stderr == -1 && abstr)
-      out->disable_stderr = abstr->disable_stderr;
-    if (out->disable_stderr == -1)
-      out->disable_stderr = 0;
-    break;
-
-  case CNTSPROB_enable_process_group:
-    if (out->enable_process_group < 0 && abstr)
-      out->enable_process_group = abstr->enable_process_group;
-    break;
-
-  case CNTSPROB_hide_variant:
-    if (out->hide_variant < 0 && abstr)
-      out->hide_variant = abstr->hide_variant;
-    break;
-
-  case CNTSPROB_autoassign_variants:
-    if (out->autoassign_variants < 0 && abstr)
-      out->autoassign_variants = abstr->autoassign_variants;
-    break;
-
-  case CNTSPROB_enable_text_form:
-    if (out->enable_text_form == -1 && abstr)
-      out->enable_text_form = abstr->enable_text_form;
-    if (out->enable_text_form == -1)
-      out->enable_text_form = 0;
-    break;
-
-  case CNTSPROB_stand_ignore_score:
-    if (out->stand_ignore_score == -1 && abstr)
-      out->stand_ignore_score = abstr->stand_ignore_score;
-    if (out->stand_ignore_score == -1)
-      out->stand_ignore_score = 0;
-    break;
-
-  case CNTSPROB_stand_last_column:
-    if (out->stand_last_column == -1 && abstr)
-      out->stand_last_column = abstr->stand_last_column;
-    if (out->stand_last_column == -1)
-      out->stand_last_column = 0;
-    break;
+  INHERIT_BOOLEAN(hidden);
+  INHERIT_BOOLEAN(advance_to_next);
+  INHERIT_BOOLEAN(stand_hide_time);
+  INHERIT_BOOLEAN(disable_ctrl_chars);
+  INHERIT_BOOLEAN(valuer_sets_marked);
+  INHERIT_BOOLEAN(ignore_unmarked);
+  INHERIT_BOOLEAN(disable_stderr);
+  INHERIT_BOOLEAN(enable_process_group);
+  INHERIT_BOOLEAN(hide_variant);
+  INHERIT_BOOLEAN(autoassign_variants);
+  INHERIT_BOOLEAN(enable_text_form);
+  INHERIT_BOOLEAN(stand_ignore_score);
+  INHERIT_BOOLEAN(stand_last_column);
 
   case CNTSPROB_checker_real_time_limit:
-    if (out->checker_real_time_limit == -1 && abstr)
-      out->checker_real_time_limit = abstr->checker_real_time_limit;
-    if (out->checker_real_time_limit == -1 && global)
-      out->checker_real_time_limit = global->checker_real_time_limit;
-    if (out->checker_real_time_limit == -1)
-      out->checker_real_time_limit = DFLT_G_CHECKER_REAL_TIME_LIMIT;
+    if (out->checker_real_time_limit < 0 && abstr) out->checker_real_time_limit = abstr->checker_real_time_limit;
+    if (out->checker_real_time_limit < 0 && global) out->checker_real_time_limit = global->checker_real_time_limit;
+    if (out->checker_real_time_limit < 0) out->checker_real_time_limit = DFLT_G_CHECKER_REAL_TIME_LIMIT;
     break;
 
   case CNTSPROB_max_vm_size:
-    if (out->max_vm_size == -1L && abstr)
-      out->max_vm_size = abstr->max_vm_size;
-    if (out->max_vm_size == -1L)
-      out->max_vm_size = 0;
+    if (out->max_vm_size < 0 && abstr) out->max_vm_size = abstr->max_vm_size;
     break;
 
   case CNTSPROB_max_stack_size:
-    if (out->max_stack_size == -1L && abstr)
-      out->max_stack_size = abstr->max_stack_size;
-    if (out->max_stack_size == -1L)
-      out->max_stack_size = 0;
+    if (out->max_stack_size < 0 && abstr) out->max_stack_size = abstr->max_stack_size;
     break;
 
   case CNTSPROB_max_data_size:
-    if (out->max_data_size == -1L && abstr)
-      out->max_data_size = abstr->max_data_size;
-    if (out->max_data_size == -1L)
-      out->max_data_size = 0;
+    if (out->max_data_size < 0 && abstr) out->max_data_size = abstr->max_data_size;
     break;
 
   case CNTSPROB_max_core_size:
-    if (out->max_core_size == -1L && abstr)
-      out->max_core_size = abstr->max_core_size;
+    if (out->max_core_size < 0 && abstr) out->max_core_size = abstr->max_core_size;
     break;
 
   case CNTSPROB_max_file_size:
-    if (out->max_file_size == -1L && abstr)
-      out->max_file_size = abstr->max_file_size;
+    if (out->max_file_size < 0 && abstr) out->max_file_size = abstr->max_file_size;
     break;
 
   case CNTSPROB_max_open_file_count:
-    if (out->max_open_file_count < 0 && abstr)
-      out->max_open_file_count = abstr->max_open_file_count;
+    if (out->max_open_file_count < 0 && abstr) out->max_open_file_count = abstr->max_open_file_count;
     break;
 
   case CNTSPROB_max_process_count:
-    if (out->max_process_count < 0 && abstr)
-      out->max_process_count = abstr->max_process_count;
+    if (out->max_process_count < 0 && abstr) out->max_process_count = abstr->max_process_count;
     break;
 
   case CNTSPROB_input_file:
@@ -5890,25 +5643,18 @@ prepare_set_prob_value(
     break;
 
   case CNTSPROB_use_corr:
-    if (out->use_corr == -1 && abstr) out->use_corr = abstr->use_corr;
-    if (out->use_corr == -1 && out->corr_dir[0]) out->use_corr = 1;
-    if (out->use_corr == -1) out->use_corr = 0;
+    if (out->use_corr < 0 && abstr) out->use_corr = abstr->use_corr;
+    if (out->use_corr < 0 && out->corr_dir[0]) out->use_corr = 1;
+    if (out->use_corr < 0) out->use_corr = 0;
+    if (out->use_corr > 0) out->use_corr = 1;
     break;
 
-  case CNTSPROB_use_info:
-    if (out->use_info == -1 && abstr) out->use_info = abstr->use_info;
-    if (out->use_info == -1) out->use_info = 0;
-    break;
-
-  case CNTSPROB_use_tgz:
-    if (out->use_tgz == -1 && abstr) out->use_tgz = abstr->use_tgz;
-    if (out->use_tgz == -1) out->use_tgz = 0;
-    break;
+  INHERIT_BOOLEAN(use_info);
+  INHERIT_BOOLEAN(use_tgz);
 
   case CNTSPROB_test_dir:
-    if (!out->test_dir[0] && abstr && abstr->test_dir[0] && abstr->test_dir[0] != 1) {
-      sformat_message(out->test_dir, PATH_MAX, 0, abstr->test_dir,
-                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+    if (!out->test_dir[0] && abstr && abstr->test_dir[0]) {
+      sformat_message(out->test_dir, PATH_MAX, 0, abstr->test_dir, NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
     if (!out->test_dir[0]) {
       pathcpy(out->test_dir, out->short_name);
@@ -5920,8 +5666,7 @@ prepare_set_prob_value(
 
   case CNTSPROB_corr_dir:
     if (!out->corr_dir[0] && abstr && abstr->corr_dir[0] && abstr->corr_dir[0] != 1) {
-      sformat_message(out->corr_dir, PATH_MAX, 0, abstr->corr_dir,
-                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      sformat_message(out->corr_dir, PATH_MAX, 0, abstr->corr_dir, NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
     if (global && out->corr_dir[0]) {
       path_add_dir(out->corr_dir, global->corr_dir);
@@ -5930,8 +5675,7 @@ prepare_set_prob_value(
 
   case CNTSPROB_info_dir:
     if (!out->info_dir[0] && abstr && abstr->info_dir[0] && abstr->info_dir[0] != 1) {
-      sformat_message(out->info_dir, PATH_MAX, 0, abstr->info_dir,
-                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      sformat_message(out->info_dir, PATH_MAX, 0, abstr->info_dir, NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
     if (!out->info_dir[0]) {
       snprintf(out->info_dir, sizeof(out->info_dir), "%s", out->short_name);
@@ -5943,8 +5687,7 @@ prepare_set_prob_value(
 
   case CNTSPROB_tgz_dir:
     if (!out->tgz_dir[0] && abstr && abstr->tgz_dir[0] && abstr->tgz_dir[0] != 1) {
-      sformat_message(out->tgz_dir, PATH_MAX, 0, abstr->tgz_dir,
-                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      sformat_message(out->tgz_dir, PATH_MAX, 0, abstr->tgz_dir, NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
     if (!out->tgz_dir[0]) {
       snprintf(out->tgz_dir, sizeof(out->tgz_dir), "%s", out->short_name);
@@ -6097,8 +5840,7 @@ prepare_set_prob_value(
 
   case CNTSPROB_check_cmd:
     if (!out->check_cmd[0] && abstr && abstr->check_cmd[0] && abstr->check_cmd[0] != 1) {
-      sformat_message(out->check_cmd, PATH_MAX, 0, abstr->check_cmd,
-                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      sformat_message(out->check_cmd, PATH_MAX, 0, abstr->check_cmd, NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
     /*
     if (global) {
@@ -6109,8 +5851,7 @@ prepare_set_prob_value(
 
   case CNTSPROB_valuer_cmd:
     if (!out->valuer_cmd[0] && abstr && abstr->valuer_cmd[0] && abstr->valuer_cmd[0] != 1) {
-      sformat_message(out->valuer_cmd, PATH_MAX, 0, abstr->valuer_cmd,
-                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      sformat_message(out->valuer_cmd, PATH_MAX, 0, abstr->valuer_cmd, NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
     if (global && out->valuer_cmd[0] && global->advanced_layout <= 0) {
       pathmake2(out->valuer_cmd, global->checker_dir, "/", out->valuer_cmd, NULL);
@@ -6119,38 +5860,31 @@ prepare_set_prob_value(
 
   case CNTSPROB_interactor_cmd:
     if (!out->interactor_cmd[0] && abstr && abstr->interactor_cmd[0] && abstr->interactor_cmd[0] != 1) {
-      sformat_message(out->interactor_cmd, PATH_MAX, 0, abstr->interactor_cmd,
-                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      sformat_message(out->interactor_cmd, PATH_MAX, 0, abstr->interactor_cmd, NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
     if (global && out->interactor_cmd[0] && global->advanced_layout <= 0) {
-      pathmake2(out->interactor_cmd, global->checker_dir, "/",
-                out->interactor_cmd, NULL);
+      pathmake2(out->interactor_cmd, global->checker_dir, "/", out->interactor_cmd, NULL);
     }
     break;
 
   case CNTSPROB_style_checker_cmd:
     if (!out->style_checker_cmd[0] && abstr && abstr->style_checker_cmd[0] && abstr->style_checker_cmd[0] != 1) {
-      sformat_message(out->style_checker_cmd, PATH_MAX, 0,
-                      abstr->style_checker_cmd,
-                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      sformat_message(out->style_checker_cmd, PATH_MAX, 0, abstr->style_checker_cmd, NULL, out, NULL, NULL, NULL, 0, 0, 0);
     }
     if (global && out->style_checker_cmd[0] && global->advanced_layout <= 0) {
-      pathmake2(out->style_checker_cmd, global->checker_dir, "/",
-                out->style_checker_cmd, NULL);
+      pathmake2(out->style_checker_cmd, global->checker_dir, "/", out->style_checker_cmd, NULL);
     }
     break;
 
   case CNTSPROB_test_checker_cmd:
     if (!out->test_checker_cmd && abstr && abstr->test_checker_cmd) {
-      sformat_message(tmp_buf, sizeof(tmp_buf), 0, abstr->test_checker_cmd,
-                      NULL, out, NULL, NULL, NULL, 0, 0, 0);
+      sformat_message(tmp_buf, sizeof(tmp_buf), 0, abstr->test_checker_cmd, NULL, out, NULL, NULL, NULL, 0, 0, 0);
       out->test_checker_cmd = xstrdup(tmp_buf);
     }
     if (out->test_checker_cmd && out->test_checker_cmd[0]
         && global && global->advanced_layout <= 0
         && !os_IsAbsolutePath(out->test_checker_cmd)) {
-      snprintf(tmp_buf, sizeof(tmp_buf), "%s/%s", global->checker_dir,
-               out->test_checker_cmd);
+      snprintf(tmp_buf, sizeof(tmp_buf), "%s/%s", global->checker_dir, out->test_checker_cmd);
       xfree(out->test_checker_cmd);
       out->test_checker_cmd = xstrdup(tmp_buf);
     }
@@ -6279,15 +6013,14 @@ prepare_set_prob_value(
     break;
 
   case CNTSPROB_normalization:
-    if (!out->normalization[0] && abstr && abstr->normalization[0] && abstr->normalization[0] != 1) {
+    if (!out->normalization[0] && abstr && abstr->normalization[0]) {
       strcpy(out->normalization, abstr->normalization);
     }
     break;
 
   case CNTSPROB_xml_file:
-    if (!out->xml_file[0] && abstr && abstr->xml_file[0] && abstr->xml_file[0] != 1) {
-      sformat_message(out->xml_file, sizeof(out->xml_file), 0,
-                      abstr->xml_file, 0, out, 0, 0, 0, 0, 0, 0);
+    if (!out->xml_file[0] && abstr && abstr->xml_file[0]) {
+      sformat_message(out->xml_file, sizeof(out->xml_file), 0, abstr->xml_file, 0, out, 0, 0, 0, 0, 0, 0);
     }
     if (global && out->xml_file[0] && global->advanced_layout <= 0) {
       path_add_dir(out->xml_file, global->statement_dir);
@@ -6308,1192 +6041,180 @@ prepare_set_prob_value(
   }
 }
 
-static const int prob_settable_list[] =
-{
-  CNTSPROB_id, CNTSPROB_tester_id, CNTSPROB_abstract, CNTSPROB_type,
-  CNTSPROB_super, CNTSPROB_short_name, CNTSPROB_long_name,
-  CNTSPROB_group_name, CNTSPROB_stand_name, CNTSPROB_stand_column,
-  CNTSPROB_internal_name, 
-  CNTSPROB_scoring_checker, CNTSPROB_interactive_valuer, CNTSPROB_disable_pe, CNTSPROB_disable_wtl,
-  CNTSPROB_manual_checking, CNTSPROB_examinator_num,
-  CNTSPROB_check_presentation, CNTSPROB_use_stdin, CNTSPROB_use_stdout,
-  CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
-  CNTSPROB_binary_input, CNTSPROB_binary, CNTSPROB_ignore_exit_code,
-  CNTSPROB_olympiad_mode,
-  CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked, CNTSPROB_score_latest_marked, CNTSPROB_time_limit, CNTSPROB_time_limit_millis,
-  CNTSPROB_real_time_limit, CNTSPROB_interactor_time_limit, CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac,
-  CNTSPROB_team_enable_rep_view, CNTSPROB_team_enable_ce_view,
-  CNTSPROB_team_show_judge_report, CNTSPROB_show_checker_comment, CNTSPROB_ignore_compile_errors,
-  CNTSPROB_full_score, CNTSPROB_full_user_score, CNTSPROB_test_score, CNTSPROB_run_penalty,
-  CNTSPROB_acm_run_penalty, CNTSPROB_disqualified_penalty,
-  CNTSPROB_ignore_penalty, CNTSPROB_use_corr, CNTSPROB_use_info,
-  CNTSPROB_use_tgz, CNTSPROB_tests_to_accept, CNTSPROB_accept_partial,
-  CNTSPROB_min_tests_to_accept, CNTSPROB_checker_real_time_limit,
-  CNTSPROB_disable_auto_testing, CNTSPROB_disable_testing,
-  CNTSPROB_disable_user_submit, CNTSPROB_disable_tab,
-  CNTSPROB_unrestricted_statement, CNTSPROB_hide_file_names, CNTSPROB_enable_tokens, CNTSPROB_disable_submit_after_ok,
-  CNTSPROB_disable_security, CNTSPROB_enable_compilation,
-  CNTSPROB_skip_testing, CNTSPROB_variable_full_score, CNTSPROB_hidden,
-  CNTSPROB_priority_adjustment, CNTSPROB_spelling, CNTSPROB_stand_hide_time,
-  CNTSPROB_advance_to_next, CNTSPROB_disable_ctrl_chars,
-  CNTSPROB_valuer_sets_marked, CNTSPROB_ignore_unmarked,
-  CNTSPROB_disable_stderr, CNTSPROB_enable_process_group, CNTSPROB_hide_variant, CNTSPROB_autoassign_variants,
-  CNTSPROB_enable_text_form,
-  CNTSPROB_stand_ignore_score, CNTSPROB_stand_last_column,
-  CNTSPROB_score_multiplier, CNTSPROB_prev_runs_to_show,
-  CNTSPROB_max_user_run_count,
-  CNTSPROB_max_vm_size, CNTSPROB_max_stack_size, CNTSPROB_max_data_size,
-  CNTSPROB_max_core_size, CNTSPROB_max_file_size,
-  CNTSPROB_max_open_file_count, CNTSPROB_max_process_count,
-  CNTSPROB_test_dir, CNTSPROB_test_sfx,
-  CNTSPROB_corr_dir, CNTSPROB_corr_sfx, CNTSPROB_info_dir, CNTSPROB_info_sfx,
-  CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx, CNTSPROB_tgzdir_sfx, CNTSPROB_input_file,
-  CNTSPROB_output_file, CNTSPROB_test_score_list, CNTSPROB_tokens, CNTSPROB_umask, CNTSPROB_score_tests,
-  CNTSPROB_test_sets, CNTSPROB_deadline, CNTSPROB_start_date,
-  CNTSPROB_variant_num, CNTSPROB_date_penalty, CNTSPROB_group_start_date,
-  CNTSPROB_group_deadline, CNTSPROB_disable_language,
-  CNTSPROB_enable_language, CNTSPROB_require, CNTSPROB_provide_ok, CNTSPROB_standard_checker,
-  CNTSPROB_lang_compiler_env,
-  CNTSPROB_checker_env, CNTSPROB_valuer_env, CNTSPROB_interactor_env,
-  CNTSPROB_style_checker_env, CNTSPROB_test_checker_env, CNTSPROB_init_env,
-  CNTSPROB_start_env, CNTSPROB_lang_time_adj,
-  CNTSPROB_lang_time_adj_millis, CNTSPROB_check_cmd, CNTSPROB_valuer_cmd,
-  CNTSPROB_interactor_cmd, CNTSPROB_style_checker_cmd,
-  CNTSPROB_test_checker_cmd, CNTSPROB_init_cmd, CNTSPROB_start_cmd, CNTSPROB_solution_src, CNTSPROB_solution_cmd,
-  CNTSPROB_test_pat, CNTSPROB_corr_pat, CNTSPROB_info_pat, CNTSPROB_tgz_pat,
-  CNTSPROB_tgzdir_pat,
-  CNTSPROB_personal_deadline, CNTSPROB_score_bonus, CNTSPROB_statement_file,
-  CNTSPROB_alternatives_file, CNTSPROB_plugin_file, CNTSPROB_xml_file,
-  CNTSPROB_alternative, CNTSPROB_stand_attr, CNTSPROB_source_header,
-  CNTSPROB_source_footer, CNTSPROB_score_view,
-  CNTSPROB_open_tests, CNTSPROB_final_open_tests, CNTSPROB_token_open_tests,
-  CNTSPROB_normalization, CNTSPROB_super_run_dir, CNTSPROB_lang_max_vm_size, CNTSPROB_lang_max_stack_size,
-
-  0
-};
-
-static const unsigned char prob_settable_set[CNTSPROB_LAST_FIELD] =
-{
-  [CNTSPROB_id] = 1,
-  [CNTSPROB_tester_id] = 1,
-  [CNTSPROB_abstract] = 1,
-  [CNTSPROB_scoring_checker] = 1,  
-  [CNTSPROB_interactive_valuer] = 1,  
-  [CNTSPROB_disable_pe] = 1,  
-  [CNTSPROB_disable_wtl] = 1,  
-  [CNTSPROB_manual_checking] = 1,  
-  [CNTSPROB_examinator_num] = 1,  
-  [CNTSPROB_check_presentation] = 1,  
-  [CNTSPROB_use_stdin] = 1,
-  [CNTSPROB_use_stdout] = 1,
-  [CNTSPROB_combined_stdin] = 1,
-  [CNTSPROB_combined_stdout] = 1,
-  [CNTSPROB_binary_input] = 1,
-  [CNTSPROB_binary] = 1,
-  [CNTSPROB_ignore_exit_code] = 1,
-  [CNTSPROB_olympiad_mode] = 1,
-  [CNTSPROB_score_latest] = 1,
-  [CNTSPROB_score_latest_or_unmarked] = 1,
-  [CNTSPROB_score_latest_marked] = 1,
-  [CNTSPROB_time_limit] = 1,
-  [CNTSPROB_time_limit_millis] = 1,
-  [CNTSPROB_real_time_limit] = 1,
-  [CNTSPROB_interactor_time_limit] = 1,
-  [CNTSPROB_use_ac_not_ok] = 1,
-  [CNTSPROB_ignore_prev_ac] = 1,
-  [CNTSPROB_team_enable_rep_view] = 1,
-  [CNTSPROB_team_enable_ce_view] = 1,
-  [CNTSPROB_team_show_judge_report] = 1,
-  [CNTSPROB_show_checker_comment] = 1,
-  [CNTSPROB_ignore_compile_errors] = 1,
-  [CNTSPROB_full_score] = 1,
-  [CNTSPROB_full_user_score] = 1,
-  [CNTSPROB_test_score] = 1,
-  [CNTSPROB_run_penalty] = 1,
-  [CNTSPROB_acm_run_penalty] = 1,
-  [CNTSPROB_disqualified_penalty] = 1,
-  [CNTSPROB_ignore_penalty] = 1,
-  [CNTSPROB_use_corr] = 1,
-  [CNTSPROB_use_info] = 1,
-  [CNTSPROB_use_tgz] = 1,
-  [CNTSPROB_tests_to_accept] = 1,
-  [CNTSPROB_accept_partial] = 1,
-  [CNTSPROB_min_tests_to_accept] = 1,
-  [CNTSPROB_checker_real_time_limit] = 1,
-  [CNTSPROB_disable_auto_testing] = 1,
-  [CNTSPROB_disable_testing] = 1,
-  [CNTSPROB_disable_user_submit] = 1,
-  [CNTSPROB_disable_tab] = 1,
-  [CNTSPROB_unrestricted_statement] = 1,
-  [CNTSPROB_hide_file_names] = 1,
-  [CNTSPROB_enable_tokens] = 1,
-  [CNTSPROB_disable_submit_after_ok] = 1,
-  [CNTSPROB_disable_security] = 1,
-  [CNTSPROB_enable_compilation] = 1,
-  [CNTSPROB_skip_testing] = 1,
-  [CNTSPROB_variable_full_score] = 1,
-  [CNTSPROB_hidden] = 1,
-  [CNTSPROB_priority_adjustment] = 1,
-  [CNTSPROB_spelling] = 1,
-  [CNTSPROB_stand_hide_time] = 1,
-  [CNTSPROB_advance_to_next] = 1,
-  [CNTSPROB_disable_ctrl_chars] = 1,
-  [CNTSPROB_valuer_sets_marked] = 1,
-  [CNTSPROB_ignore_unmarked] = 1,
-  [CNTSPROB_disable_stderr] = 1,
-  [CNTSPROB_enable_process_group] = 1,
-  [CNTSPROB_hide_variant] = 1,
-  [CNTSPROB_autoassign_variants] = 1,
-  [CNTSPROB_enable_text_form] = 1,
-  [CNTSPROB_stand_ignore_score] = 1,
-  [CNTSPROB_stand_last_column] = 1,
-  [CNTSPROB_score_multiplier] = 1,
-  [CNTSPROB_prev_runs_to_show] = 1,
-  [CNTSPROB_max_user_run_count] = 1,
-  [CNTSPROB_max_vm_size] = 1,
-  [CNTSPROB_max_stack_size] = 1,
-  [CNTSPROB_max_data_size] = 1,
-  [CNTSPROB_max_core_size] = 1,
-  [CNTSPROB_max_file_size] = 1,
-  [CNTSPROB_max_open_file_count] = 1,
-  [CNTSPROB_max_process_count] = 1,
-  [CNTSPROB_super] = 1,
-  [CNTSPROB_short_name] = 1,
-  [CNTSPROB_long_name] = 1,
-  [CNTSPROB_group_name] = 1,
-  [CNTSPROB_stand_name] = 1,
-  [CNTSPROB_stand_column] = 1,
-  [CNTSPROB_internal_name] = 1,
-  [CNTSPROB_test_dir] = 1,
-  [CNTSPROB_test_sfx] = 1,
-  [CNTSPROB_corr_dir] = 1,
-  [CNTSPROB_corr_sfx] = 1,
-  [CNTSPROB_info_dir] = 1,
-  [CNTSPROB_info_sfx] = 1,
-  [CNTSPROB_tgz_dir] = 1,
-  [CNTSPROB_tgz_sfx] = 1,
-  [CNTSPROB_tgzdir_sfx] = 1,
-  [CNTSPROB_input_file] = 1,
-  [CNTSPROB_output_file] = 1,
-  [CNTSPROB_test_score_list] = 1,
-  [CNTSPROB_score_tests] = 1,
-  [CNTSPROB_test_sets] = 1,
-  [CNTSPROB_deadline] = 1,
-  [CNTSPROB_start_date] = 1,
-  [CNTSPROB_variant_num] = 1,
-  [CNTSPROB_date_penalty] = 1,
-  [CNTSPROB_group_start_date] = 1,
-  [CNTSPROB_group_deadline] = 1,
-  [CNTSPROB_disable_language] = 1,
-  [CNTSPROB_enable_language] = 1,
-  [CNTSPROB_require] = 1,
-  [CNTSPROB_provide_ok] = 1,
-  [CNTSPROB_standard_checker] = 1,
-  [CNTSPROB_lang_compiler_env] = 1,
-  [CNTSPROB_checker_env] = 1,
-  [CNTSPROB_valuer_env] = 1,
-  [CNTSPROB_interactor_env] = 1,
-  [CNTSPROB_style_checker_env] = 1,
-  [CNTSPROB_test_checker_env] = 1,
-  [CNTSPROB_init_env] = 1,
-  [CNTSPROB_start_env] = 1,
-  [CNTSPROB_lang_time_adj] = 1,
-  [CNTSPROB_lang_time_adj_millis] = 1,
-  [CNTSPROB_lang_max_vm_size] = 1,
-  [CNTSPROB_lang_max_stack_size] = 1,
-  [CNTSPROB_check_cmd] = 1,
-  [CNTSPROB_valuer_cmd] = 1,
-  [CNTSPROB_interactor_cmd] = 1,
-  [CNTSPROB_style_checker_cmd] = 1,
-  [CNTSPROB_test_checker_cmd] = 1,
-  [CNTSPROB_init_cmd] = 1,
-  [CNTSPROB_start_cmd] = 1,
-  [CNTSPROB_solution_src] = 1,
-  [CNTSPROB_solution_cmd] = 1,
-  [CNTSPROB_test_pat] = 1,
-  [CNTSPROB_corr_pat] = 1,
-  [CNTSPROB_info_pat] = 1,
-  [CNTSPROB_tgz_pat] = 1,
-  [CNTSPROB_tgzdir_pat] = 1,
-  [CNTSPROB_personal_deadline] = 1,
-  [CNTSPROB_score_bonus] = 1,
-  [CNTSPROB_statement_file] = 1,
-  [CNTSPROB_alternatives_file] = 1,
-  [CNTSPROB_plugin_file] = 1,
-  [CNTSPROB_xml_file] = 1,
-  [CNTSPROB_type] = 1,
-  [CNTSPROB_alternative] = 1,
-  [CNTSPROB_stand_attr] = 1,
-  [CNTSPROB_source_header] = 1,
-  [CNTSPROB_source_footer] = 1,
-  [CNTSPROB_score_view] = 1,
-  [CNTSPROB_open_tests] = 1,
-  [CNTSPROB_final_open_tests] = 1,
-  [CNTSPROB_token_open_tests] = 1,
-  [CNTSPROB_normalization] = 1,
-  [CNTSPROB_super_run_dir] = 1,
-  [CNTSPROB_tokens] = 1,
-  [CNTSPROB_umask] = 1,
-};
-
-static const int prob_inheritable_list[] =
-{
-  CNTSPROB_scoring_checker, CNTSPROB_interactive_valuer, CNTSPROB_disable_pe, CNTSPROB_disable_wtl,
-  CNTSPROB_manual_checking,  
-  CNTSPROB_examinator_num, CNTSPROB_check_presentation,
-  CNTSPROB_use_stdin, CNTSPROB_use_stdout,
-  CNTSPROB_combined_stdin, CNTSPROB_combined_stdout,
-  CNTSPROB_binary_input, CNTSPROB_binary,
-  CNTSPROB_ignore_exit_code, CNTSPROB_olympiad_mode, CNTSPROB_score_latest, CNTSPROB_score_latest_or_unmarked,
-  CNTSPROB_score_latest_marked,
-  CNTSPROB_time_limit, CNTSPROB_time_limit_millis, CNTSPROB_real_time_limit,
-  CNTSPROB_interactor_time_limit,
-  CNTSPROB_use_ac_not_ok, CNTSPROB_ignore_prev_ac, CNTSPROB_team_enable_rep_view,
-  CNTSPROB_team_enable_ce_view, CNTSPROB_team_show_judge_report, CNTSPROB_show_checker_comment,
-  CNTSPROB_ignore_compile_errors, CNTSPROB_full_score, CNTSPROB_full_user_score, CNTSPROB_test_score,
-  CNTSPROB_run_penalty, CNTSPROB_acm_run_penalty, 
-  CNTSPROB_disqualified_penalty, CNTSPROB_ignore_penalty,
-  CNTSPROB_use_corr, CNTSPROB_use_info, CNTSPROB_use_tgz,
-  CNTSPROB_tests_to_accept, CNTSPROB_accept_partial,
-  CNTSPROB_min_tests_to_accept, CNTSPROB_checker_real_time_limit,
-  CNTSPROB_disable_auto_testing, CNTSPROB_disable_testing,
-  CNTSPROB_disable_user_submit, CNTSPROB_disable_tab,
-  CNTSPROB_unrestricted_statement, CNTSPROB_hide_file_names, CNTSPROB_enable_tokens, CNTSPROB_disable_submit_after_ok,
-  CNTSPROB_disable_security, CNTSPROB_enable_compilation,
-  CNTSPROB_skip_testing, CNTSPROB_variable_full_score,
-  CNTSPROB_hidden, CNTSPROB_priority_adjustment, CNTSPROB_spelling,
-  CNTSPROB_stand_hide_time, CNTSPROB_advance_to_next,
-  CNTSPROB_disable_ctrl_chars, CNTSPROB_valuer_sets_marked,
-  CNTSPROB_ignore_unmarked, CNTSPROB_disable_stderr,
-  CNTSPROB_enable_process_group,
-  CNTSPROB_hide_variant,
-  CNTSPROB_autoassign_variants,
-  CNTSPROB_enable_text_form, CNTSPROB_stand_ignore_score,
-  CNTSPROB_stand_last_column, CNTSPROB_score_multiplier,
-  CNTSPROB_prev_runs_to_show, CNTSPROB_max_user_run_count,
-  CNTSPROB_max_vm_size,
-  CNTSPROB_max_stack_size, CNTSPROB_max_data_size,
-  CNTSPROB_max_core_size, CNTSPROB_max_file_size,
-  CNTSPROB_max_open_file_count, CNTSPROB_max_process_count,
-  CNTSPROB_test_dir, CNTSPROB_test_sfx, CNTSPROB_corr_dir, CNTSPROB_corr_sfx,
-  CNTSPROB_info_dir, CNTSPROB_info_sfx, CNTSPROB_tgz_dir, CNTSPROB_tgz_sfx,
-  CNTSPROB_tgzdir_sfx,
-  CNTSPROB_input_file, CNTSPROB_output_file, CNTSPROB_test_score_list, CNTSPROB_tokens, CNTSPROB_umask,
-  CNTSPROB_score_tests, CNTSPROB_test_sets, CNTSPROB_deadline,
-  CNTSPROB_start_date, CNTSPROB_variant_num, CNTSPROB_date_penalty,
-  CNTSPROB_group_start_date, CNTSPROB_group_deadline,
-  CNTSPROB_disable_language, CNTSPROB_enable_language, CNTSPROB_require, CNTSPROB_provide_ok,
-  CNTSPROB_standard_checker, CNTSPROB_checker_env, CNTSPROB_valuer_env,
-  CNTSPROB_interactor_env, CNTSPROB_style_checker_env, CNTSPROB_lang_compiler_env,
-  CNTSPROB_test_checker_env, CNTSPROB_init_env, CNTSPROB_start_env,
-  CNTSPROB_lang_time_adj,
-  CNTSPROB_lang_time_adj_millis, CNTSPROB_check_cmd, CNTSPROB_valuer_cmd,
-  CNTSPROB_interactor_cmd, CNTSPROB_style_checker_cmd,
-  CNTSPROB_test_checker_cmd, CNTSPROB_init_cmd, CNTSPROB_start_cmd, CNTSPROB_solution_src, CNTSPROB_solution_cmd,
-  CNTSPROB_test_pat, CNTSPROB_corr_pat,
-  CNTSPROB_info_pat, CNTSPROB_tgz_pat, CNTSPROB_tgzdir_pat, CNTSPROB_personal_deadline,
-  CNTSPROB_score_bonus, CNTSPROB_statement_file, CNTSPROB_alternatives_file,
-  CNTSPROB_plugin_file, CNTSPROB_xml_file, CNTSPROB_type,
-  CNTSPROB_alternative, CNTSPROB_stand_attr, CNTSPROB_source_header,
-  CNTSPROB_source_footer, CNTSPROB_score_view,
-  CNTSPROB_normalization, CNTSPROB_super_run_dir, CNTSPROB_lang_max_vm_size, CNTSPROB_lang_max_stack_size,
-
-  0,
-};
-
-static const unsigned char prob_inheritable_set[CNTSPROB_LAST_FIELD] =
-{
-  [CNTSPROB_scoring_checker] = 1,
-  [CNTSPROB_interactive_valuer] = 1,
-  [CNTSPROB_disable_pe] = 1,
-  [CNTSPROB_disable_wtl] = 1,
-  [CNTSPROB_manual_checking] = 1,  
-  [CNTSPROB_examinator_num] = 1,
-  [CNTSPROB_check_presentation] = 1,
-  [CNTSPROB_use_stdin] = 1,
-  [CNTSPROB_use_stdout] = 1,
-  [CNTSPROB_combined_stdin] = 1,
-  [CNTSPROB_combined_stdout] = 1,
-  [CNTSPROB_binary_input] = 1,
-  [CNTSPROB_binary] = 1,
-  [CNTSPROB_ignore_exit_code] = 1,
-  [CNTSPROB_olympiad_mode] = 1,
-  [CNTSPROB_score_latest] = 1,
-  [CNTSPROB_score_latest_or_unmarked] = 1,
-  [CNTSPROB_score_latest_marked] = 1,
-  [CNTSPROB_time_limit] = 1,
-  [CNTSPROB_time_limit_millis] = 1,
-  [CNTSPROB_real_time_limit] = 1,
-  [CNTSPROB_interactor_time_limit] = 1,
-  [CNTSPROB_use_ac_not_ok] = 1,
-  [CNTSPROB_ignore_prev_ac] = 1,
-  [CNTSPROB_team_enable_rep_view] = 1,
-  [CNTSPROB_team_enable_ce_view] = 1,
-  [CNTSPROB_team_show_judge_report] = 1,
-  [CNTSPROB_show_checker_comment] = 1,
-  [CNTSPROB_ignore_compile_errors] = 1,
-  [CNTSPROB_full_score] = 1,
-  [CNTSPROB_full_user_score] = 1,
-  [CNTSPROB_test_score] = 1,
-  [CNTSPROB_run_penalty] = 1,
-  [CNTSPROB_acm_run_penalty] = 1, 
-  [CNTSPROB_disqualified_penalty] = 1,
-  [CNTSPROB_ignore_penalty] = 1,
-  [CNTSPROB_use_corr] = 1,
-  [CNTSPROB_use_info] = 1,
-  [CNTSPROB_use_tgz] = 1,
-  [CNTSPROB_tests_to_accept] = 1,
-  [CNTSPROB_accept_partial] = 1,
-  [CNTSPROB_min_tests_to_accept] = 1,
-  [CNTSPROB_checker_real_time_limit] = 1,
-  [CNTSPROB_disable_auto_testing] = 1,
-  [CNTSPROB_disable_testing] = 1,
-  [CNTSPROB_disable_user_submit] = 1,
-  [CNTSPROB_disable_tab] = 1,
-  [CNTSPROB_unrestricted_statement] = 1,
-  [CNTSPROB_hide_file_names] = 1,
-  [CNTSPROB_enable_tokens] = 1,
-  [CNTSPROB_disable_submit_after_ok] = 1,
-  [CNTSPROB_disable_security] = 1,
-  [CNTSPROB_enable_compilation] = 1,
-  [CNTSPROB_skip_testing] = 1,
-  [CNTSPROB_variable_full_score] = 1,
-  [CNTSPROB_hidden] = 1,
-  [CNTSPROB_priority_adjustment] = 1,
-  [CNTSPROB_spelling] = 1,
-  [CNTSPROB_stand_hide_time] = 1,
-  [CNTSPROB_advance_to_next] = 1,
-  [CNTSPROB_disable_ctrl_chars] = 1,
-  [CNTSPROB_valuer_sets_marked] = 1,
-  [CNTSPROB_ignore_unmarked] = 1,
-  [CNTSPROB_disable_stderr] = 1,
-  [CNTSPROB_enable_process_group] = 1,
-  [CNTSPROB_hide_variant] = 1,
-  [CNTSPROB_autoassign_variants] = 1,
-  [CNTSPROB_enable_text_form] = 1,
-  [CNTSPROB_stand_ignore_score] = 1,
-  [CNTSPROB_stand_last_column] = 1,
-  [CNTSPROB_score_multiplier] = 1,
-  [CNTSPROB_prev_runs_to_show] = 1,
-  [CNTSPROB_max_user_run_count] = 1,
-  [CNTSPROB_max_vm_size] = 1,
-  [CNTSPROB_max_stack_size] = 1,
-  [CNTSPROB_max_data_size] = 1,
-  [CNTSPROB_max_core_size] = 1,
-  [CNTSPROB_max_file_size] = 1,
-  [CNTSPROB_max_open_file_count] = 1,
-  [CNTSPROB_max_process_count] = 1,
-  [CNTSPROB_test_dir] = 1,
-  [CNTSPROB_test_sfx] = 1,
-  [CNTSPROB_corr_dir] = 1,
-  [CNTSPROB_corr_sfx] = 1,
-  [CNTSPROB_info_dir] = 1,
-  [CNTSPROB_info_sfx] = 1,
-  [CNTSPROB_tgz_dir] = 1,
-  [CNTSPROB_tgz_sfx] = 1,
-  [CNTSPROB_tgzdir_sfx] = 1,
-  [CNTSPROB_input_file] = 1,
-  [CNTSPROB_output_file] = 1,
-  [CNTSPROB_test_score_list] = 1,
-  [CNTSPROB_score_tests] = 1,
-  [CNTSPROB_test_sets] = 1,
-  [CNTSPROB_deadline] = 1,
-  [CNTSPROB_start_date] = 1,
-  [CNTSPROB_variant_num] = 1,
-  [CNTSPROB_date_penalty] = 1,
-  [CNTSPROB_group_start_date] = 1,
-  [CNTSPROB_group_deadline] = 1,
-  [CNTSPROB_disable_language] = 1,
-  [CNTSPROB_enable_language] = 1,
-  [CNTSPROB_require] = 1,
-  [CNTSPROB_provide_ok] = 1,
-  [CNTSPROB_standard_checker] = 1,
-  [CNTSPROB_lang_compiler_env] = 1,
-  [CNTSPROB_checker_env] = 1,
-  [CNTSPROB_valuer_env] = 1,
-  [CNTSPROB_interactor_env] = 1,
-  [CNTSPROB_style_checker_env] = 1,
-  [CNTSPROB_test_checker_env] = 1,
-  [CNTSPROB_init_env] = 1,
-  [CNTSPROB_start_env] = 1,
-  [CNTSPROB_lang_time_adj] = 1,
-  [CNTSPROB_lang_time_adj_millis] = 1,
-  [CNTSPROB_lang_max_vm_size] = 1,
-  [CNTSPROB_lang_max_stack_size] = 1,
-  [CNTSPROB_check_cmd] = 1,
-  [CNTSPROB_valuer_cmd] = 1,
-  [CNTSPROB_interactor_cmd] = 1,
-  [CNTSPROB_style_checker_cmd] = 1,
-  [CNTSPROB_test_checker_cmd] = 1,
-  [CNTSPROB_init_cmd] = 1,
-  [CNTSPROB_start_cmd] = 1,
-  [CNTSPROB_solution_src] = 1,
-  [CNTSPROB_solution_cmd] = 1,
-  [CNTSPROB_test_pat] = 1,
-  [CNTSPROB_corr_pat] = 1,
-  [CNTSPROB_info_pat] = 1,
-  [CNTSPROB_tgz_pat] = 1,
-  [CNTSPROB_tgzdir_pat] = 1,
-  [CNTSPROB_personal_deadline] = 1,
-  [CNTSPROB_score_bonus] = 1,
-  [CNTSPROB_statement_file] = 1,
-  [CNTSPROB_alternatives_file] = 1,
-  [CNTSPROB_plugin_file] = 1,
-  [CNTSPROB_xml_file] = 1,
-  [CNTSPROB_type] = 1,
-  [CNTSPROB_alternative] = 1,
-  [CNTSPROB_stand_attr] = 1,
-  [CNTSPROB_source_header] = 1,
-  [CNTSPROB_source_footer] = 1,
-  [CNTSPROB_score_view] = 1,
-  [CNTSPROB_normalization] = 1,
-  [CNTSPROB_super_run_dir] = 1,
-  [CNTSPROB_tokens] = 1,
-  [CNTSPROB_umask] = 1,
-
-  0,
-};
-
-static const struct section_problem_data prob_undef_values =
-{
-  .id = 0,
-  .tester_id = 0,
-  .abstract = 0,
-  .type = -1,
-  .manual_checking = -1,
-  .examinator_num = -1,
-  .check_presentation = -1,
-  .scoring_checker = -1,
-  .interactive_valuer = -1,
-  .disable_pe = -1,
-  .disable_wtl = -1,
-  .use_stdin = -1,
-  .use_stdout = -1,
-  .combined_stdin = -1,
-  .combined_stdout = -1,
-  .binary_input = -1,
-  .binary = -1,
-  .ignore_exit_code = -1,
-  .olympiad_mode = -1,
-  .score_latest = -1,
-  .score_latest_or_unmarked = -1,
-  .score_latest_marked = -1,
-  .real_time_limit = -1,
-  .time_limit = -1,
-  .time_limit_millis = -1,
-  .interactor_time_limit = -1,
-  .use_ac_not_ok = -1,
-  .ignore_prev_ac = -1,
-  .team_enable_rep_view = -1,
-  .team_enable_ce_view = -1,
-  .team_show_judge_report = -1,
-  .show_checker_comment = -1,
-  .ignore_compile_errors = -1,
-  .full_score = -1,
-  .full_user_score = -1,
-  .variable_full_score = -1,
-  .test_score = -1,
-  .run_penalty = -1,
-  .acm_run_penalty = -1,
-  .disqualified_penalty = -1,
-  .ignore_penalty = -1,
-  .use_corr = -1,
-  .use_info = -1,
-  .use_tgz = -1,
-  .tests_to_accept = -1,
-  .accept_partial = -1,
-  .min_tests_to_accept = -1,
-  .checker_real_time_limit = -1,
-  .disable_user_submit = -1,
-  .disable_tab = -1,
-  .unrestricted_statement = -1,
-  .hide_file_names = -1,
-  .enable_tokens = -1,
-  .disable_submit_after_ok = -1,
-  .disable_auto_testing = -1,
-  .disable_testing = -1,
-  .enable_compilation = -1,
-  .skip_testing = -1,
-  .hidden = -1,
-  .priority_adjustment = -256,//???
-  .stand_hide_time = -1,
-  .score_multiplier = -1,
-  .prev_runs_to_show = -1,
-  .max_user_run_count = -1,
-  .advance_to_next = -1,
-  .disable_ctrl_chars = -1,
-  .valuer_sets_marked = -1,
-  .ignore_unmarked = -1,
-  .disable_stderr = -1,
-  .enable_process_group = -1,
-  .hide_variant = -1,
-  .autoassign_variants = -1,
-  .enable_text_form = -1,
-  .stand_ignore_score = -1,
-  .stand_last_column = -1,
-  .disable_security = -1,
-  .super = { 0 },
-  .short_name = { 0 },
-  .long_name = { 0 },
-  .stand_name = { 0 },
-  .stand_column = { 0 },
-  .group_name = { 0 },
-  .internal_name = { 0 },
-  .test_dir = { 1, 0 },
-  .test_sfx = { 1, 0 },
-  .corr_dir = { 1, 0 },
-  .corr_sfx = { 1, 0 },
-  .info_dir = { 1, 0 },
-  .info_sfx = { 1, 0 },
-  .tgz_dir = { 1, 0 },
-  .tgz_sfx = { 1, 0 },
-  .tgzdir_sfx = { 1, 0 },
-  .input_file = { 0 },
-  .output_file = { 0 },
-  .test_score_list = NULL,
-  .score_tests = { 1, 0 },
-  .standard_checker = { 1, 0 },
-  .spelling = { 1, 0 },
-  .statement_file = { 1, 0 },
-  .alternatives_file = { 1, 0 },
-  .plugin_file = { 1, 0 },
-  .xml_file = { 1, 0 },
-  .stand_attr = { 1, 0 },
-  .source_header = { 1, 0 },
-  .source_footer = { 1, 0 },
-  .test_pat = { 1, 0 },
-  .corr_pat = { 1, 0 },
-  .info_pat = { 1, 0 },
-  .tgz_pat = { 1, 0 },
-  .tgzdir_pat = { 1, 0 },
-  .type = -1,
-  .test_sets = 0,
-  .deadline = -1,
-  .start_date = -1,
-  .variant_num = -1,
-  .date_penalty = 0,
-  .group_start_date = 0,
-  .group_deadline = 0,
-  .disable_language = 0,
-  .enable_language = 0,
-  .require = 0,
-  .provide_ok = 0,
-  .lang_compiler_env = 0,
-  .checker_env = 0,
-  .valuer_env = 0,
-  .interactor_env = 0,
-  .style_checker_env = 0,
-  .test_checker_env = 0,
-  .init_env = 0,
-  .start_env = 0,
-  .check_cmd = { 1, 0 },
-  .valuer_cmd = { 1, 0 },
-  .interactor_cmd = { 1, 0 },
-  .style_checker_cmd = { 1, 0 },
-  .test_checker_cmd = 0,
-  .init_cmd = 0,
-  .start_cmd = 0,
-  .solution_src = 0,
-  .solution_cmd = 0,
-  .lang_time_adj = 0,
-  .lang_time_adj_millis = 0,
-  .lang_max_vm_size = 0,
-  .lang_max_stack_size = 0,
-  .alternative = 0,
-  .personal_deadline = 0,
-  .score_bonus = { 1, 0 },
-  .max_vm_size = (size_t) -1L,
-  .max_data_size = (size_t) -1L,
-  .max_stack_size = (size_t) -1L,
-  .max_core_size = (size_t) -1L,
-  .max_file_size = (size_t) -1L,
-  .max_open_file_count = -1,
-  .max_process_count = -1,
-  .score_view = 0,
-  .normalization = { 0 },
-  .super_run_dir = NULL,
-  .tokens = NULL,
-  .umask = NULL,
-};
-
-static const struct section_problem_data prob_default_values =
-{
-  //.id = 0,
-  //.tester_id = 0,
-  //.abstract = 0,
-  .manual_checking = 0,
-  .examinator_num = 0,
-  .check_presentation = 0,
-  .scoring_checker = 0,
-  .interactive_valuer = 0,
-  .disable_pe = 0,
-  .disable_wtl = 0,
-  .use_stdin = 0,
-  .use_stdout = 0,
-  .combined_stdin = 0,
-  .combined_stdout = 0,
-  .binary_input = 0,
-  .binary = 0,
-  .ignore_exit_code = 0,
-  .olympiad_mode = 0,
-  .score_latest = 0,
-  .score_latest_or_unmarked = 0,
-  .score_latest_marked = 0,
-  .real_time_limit = 0,
-  .time_limit = 0,
-  .time_limit_millis = 0,
-  .interactor_time_limit = 0,
-  .use_ac_not_ok = 0,
-  .ignore_prev_ac = 0,
-  .team_enable_rep_view = 0,
-  .team_enable_ce_view = 0,
-  .team_show_judge_report = 0,
-  .show_checker_comment = 0,
-  .ignore_compile_errors = 0,
-  .full_score = 50,
-  .full_user_score = -1,
-  .variable_full_score = 0,
-  .test_score = 1,
-  .run_penalty = 1,
-  .acm_run_penalty = 20,
-  .disqualified_penalty = 1,    // run_penalty
-  .ignore_penalty = 0,
-  .use_corr = 0,
-  .use_info = 0,
-  .use_tgz = 0,
-  .tests_to_accept = 1,
-  .accept_partial = 0,
-  .min_tests_to_accept = 0,
-  .checker_real_time_limit = 0,
-  .disable_user_submit = 0,
-  .disable_tab = 0,
-  .unrestricted_statement = 0,
-  .hide_file_names = 0,
-  .enable_tokens = 0,
-  .disable_submit_after_ok = 0,
-  .disable_auto_testing = 0,
-  .disable_testing = 0,
-  .enable_compilation = 0,
-  .skip_testing = 0,
-  .hidden = 0,
-  .priority_adjustment = 0,
-  .stand_hide_time = 0,
-  .score_multiplier = 0,
-  .prev_runs_to_show = 0,
-  .max_user_run_count = 0,
-  .advance_to_next = 0,
-  .disable_ctrl_chars = 0,
-  .valuer_sets_marked = 0,
-  .ignore_unmarked = 0,
-  .disable_stderr = 0,
-  .enable_process_group = 0,
-  .hide_variant = 0,
-  .autoassign_variants = 0,
-  .enable_text_form = 0,
-  .stand_ignore_score = 0,
-  .stand_last_column = 0,
-  .disable_security = 0,
-
-  //.super,
-  //.short_name,
-  //.long_name,
-  //.stand_name,
-  //.stand_column,
-  //.group_name,
-  //.internal_name,
-
-  .test_dir = "",
-  .test_sfx = "",
-  .corr_dir = "",
-  .corr_sfx = "",
-  .info_dir = "",
-  .info_sfx = "",
-  .tgz_dir = "",
-  .tgz_sfx = "",
-  .tgzdir_sfx = "",
-  .input_file = "input",
-  .output_file = "output",
-  .test_score_list = NULL,
-  .score_tests = "",
-  .standard_checker = "",
-  .spelling = "",
-  .statement_file = "",
-  .alternatives_file = "",
-  .plugin_file = "",
-  .xml_file = "",
-  .stand_attr = "",
-  .source_header = "",
-  .source_footer = "",
-  .test_pat = "",
-  .corr_pat = "",
-  .info_pat = "",
-  .tgz_pat = "",
-  .tgzdir_pat = "",
-  .type = 0,
-  .deadline = 0,
-  .start_date = 0,
-  .variant_num = 0,
-  .check_cmd = "",
-  .valuer_cmd = "",
-  .interactor_cmd = "",
-  .style_checker_cmd = "",
-  .test_checker_cmd = 0,
-  .init_cmd = 0,
-  .start_cmd = 0,
-  .solution_src = 0,
-  .solution_cmd = 0,
-  .score_bonus = "",
-  .max_vm_size = 0,
-  .max_data_size = 0,
-  .max_stack_size = 0,
-  .max_core_size = -1L,
-  .max_file_size = -1L,
-  .max_open_file_count = -1,
-  .max_process_count = -1,
-  .normalization = "",
-  .super_run_dir = NULL,
-  .tokens = NULL,
-  .umask = NULL,
-};
-
-static const int prob_global_map[CNTSPROB_LAST_FIELD] =
-{
-  [CNTSPROB_use_ac_not_ok] = CNTSGLOB_use_ac_not_ok,
-  [CNTSPROB_team_enable_rep_view] = CNTSGLOB_team_enable_rep_view,
-  [CNTSPROB_team_enable_ce_view ] = CNTSGLOB_team_enable_ce_view,
-  [CNTSPROB_team_show_judge_report] = CNTSGLOB_team_show_judge_report,
-  [CNTSPROB_ignore_compile_errors] = CNTSGLOB_ignore_compile_errors,
-  [CNTSPROB_disable_submit_after_ok] = CNTSGLOB_disable_submit_after_ok,
-  [CNTSPROB_disable_testing] = CNTSGLOB_disable_testing,
-  [CNTSPROB_disable_auto_testing] = CNTSGLOB_disable_auto_testing,
-  [CNTSPROB_tests_to_accept] = CNTSGLOB_tests_to_accept,
-  [CNTSPROB_checker_real_time_limit] = CNTSGLOB_checker_real_time_limit,
-
-  [CNTSPROB_test_sfx] = CNTSGLOB_test_sfx,  
-  [CNTSPROB_corr_sfx] = CNTSGLOB_corr_sfx,  
-  [CNTSPROB_info_sfx] = CNTSGLOB_info_sfx,  
-  [CNTSPROB_tgz_sfx] = CNTSGLOB_tgz_sfx,  
-  [CNTSPROB_tgzdir_sfx] = CNTSGLOB_tgzdir_sfx,  
-
-  [CNTSPROB_test_pat] = CNTSGLOB_test_pat,
-  [CNTSPROB_corr_pat] = CNTSGLOB_corr_pat,
-  [CNTSPROB_info_pat] = CNTSGLOB_info_pat,
-  [CNTSPROB_tgz_pat] = CNTSGLOB_tgz_pat,
-  [CNTSPROB_tgzdir_pat] = CNTSGLOB_tgzdir_pat,
-};
-
-static const unsigned char prob_format_set[CNTSPROB_LAST_FIELD] =
-{
-  [CNTSPROB_input_file] = 1,
-  [CNTSPROB_output_file] = 1,
-  [CNTSPROB_test_dir] = 1,
-  [CNTSPROB_corr_dir] = 1,
-  [CNTSPROB_info_dir] = 1,
-  [CNTSPROB_tgz_dir] = 1,
-  [CNTSPROB_check_cmd] = 1,
-  [CNTSPROB_valuer_cmd] = 1,
-  [CNTSPROB_interactor_cmd] = 1,
-  [CNTSPROB_style_checker_cmd] = 1,
-  [CNTSPROB_test_checker_cmd] = 1,
-  [CNTSPROB_init_cmd] = 1,
-  [CNTSPROB_start_cmd] = 1,
-  [CNTSPROB_solution_src] = 1,
-  [CNTSPROB_solution_cmd] = 1,
-  [CNTSPROB_statement_file] = 1,
-  [CNTSPROB_alternatives_file] = 1,
-  [CNTSPROB_plugin_file] = 1,
-  [CNTSPROB_xml_file] = 1,
-};
-
-int
-cntsprob_is_undefined(
-        const void *prob,
-        int f_id)
-{
-  const void *f_ptr = cntsprob_get_ptr(prob, f_id);
-  const void *f_undef = cntsprob_get_ptr(&prob_undef_values, f_id);
-  int f_type = cntsprob_get_type(f_id);
-
-  // 'i', 'B', 'S', 'x', 't', 'X', 'Z', 'z'
-  switch (f_type) {
-  case 'i':
-    {
-      int i_ptr = *(const int *) f_ptr;
-      int i_undef = *(const int *) f_undef;
-      return i_ptr == i_undef;
-    }
-    break;
-  case 'B':
-    {
-      ejintbool_t b_ptr = *(const ejintbool_t *) f_ptr;
-      ejintbool_t b_undef = *(const ejintbool_t*) f_undef;
-      return b_ptr == b_undef;
-    }
-    break;
-  case 's':
-    {
-      const unsigned char *s_ptr = *(const unsigned char**) f_ptr;
-      return s_ptr == 0;
-    }
-    break;
-  case 'S':
-    {
-      const unsigned char *s_ptr = (const unsigned char*) f_ptr;
-      const unsigned char *s_undef = (const unsigned char*) f_undef;
-      return !strcmp(s_ptr, s_undef);
-    }
-    break;
-  case 'x':
-  case 'X':
-    {
-      char **x_ptr = *(char ***) f_ptr;
-      char **x_undef = *(char ***) f_undef;
-      return x_ptr == x_undef;
-    }
-    break;
-  case 't':
-    {
-      time_t t_ptr = *(const time_t*) f_ptr;
-      time_t t_undef = *(const time_t*) f_undef;
-      return t_ptr == t_undef;
-    }
-    break;
-  case 'z':
-    {
-      ejintsize_t z_ptr = *(const ejintsize_t*) f_ptr;
-      ejintsize_t z_undef = *(const ejintsize_t*) f_undef;
-      return z_ptr == z_undef;
-    }
-    break;
-  case 'Z':
-    {
-      size_t z_ptr = *(const size_t*) f_ptr;
-      size_t z_undef = *(const size_t*) f_undef;
-      return z_ptr == z_undef;
-    }
-    break;
-  default:
-    return 0;
-  }
-}
-
 void
-cntsprob_copy_and_set_default(
-        struct section_problem_data *dp,
-        const struct section_problem_data *sp,
-        const struct section_problem_data *ap,
-        const struct section_global_data *gp)
+prepare_set_all_prob_values(
+        struct section_problem_data *out,
+        const struct section_problem_data *abstr,
+        const struct section_global_data *global)
 {
-  int i, f_id, f_type, is_inh;
-  size_t f_size;
-  void *d_ptr;
-  const void *s_ptr;
-  const void *i_ptr = 0;
-  const void *u_ptr = 0;
-  const void *a_ptr = 0;
-  const void *g_ptr = 0;
-  path_t tmp_buf;
+  static int fields[] =
+  {
+    CNTSPROB_type,
+    CNTSPROB_manual_checking,
+    CNTSPROB_examinator_num,
+    CNTSPROB_check_presentation,
+    CNTSPROB_scoring_checker,
+    CNTSPROB_interactive_valuer,
+    CNTSPROB_disable_pe,
+    CNTSPROB_disable_wtl,
+    CNTSPROB_use_stdin,
+    CNTSPROB_use_stdout,
+    CNTSPROB_combined_stdin,
+    CNTSPROB_combined_stdout,
+    CNTSPROB_binary_input,
+    CNTSPROB_binary,
+    CNTSPROB_ignore_exit_code,
+    CNTSPROB_olympiad_mode,
+    CNTSPROB_score_latest,
+    CNTSPROB_score_latest_or_unmarked,
+    CNTSPROB_score_latest_marked,
+    CNTSPROB_score_tokenized,
+    CNTSPROB_real_time_limit,
+    CNTSPROB_time_limit,
+    CNTSPROB_time_limit_millis,
+    CNTSPROB_use_ac_not_ok,
+    CNTSPROB_ignore_prev_ac,
+    CNTSPROB_team_enable_rep_view,
+    CNTSPROB_team_enable_ce_view,
+    CNTSPROB_team_show_judge_report,
+    CNTSPROB_show_checker_comment,
+    CNTSPROB_ignore_compile_errors,
+    CNTSPROB_full_score,
+    CNTSPROB_full_user_score,
+    CNTSPROB_variable_full_score,
+    CNTSPROB_test_score,
+    CNTSPROB_run_penalty,
+    CNTSPROB_acm_run_penalty,
+    CNTSPROB_disqualified_penalty,
+    //CNTSPROB_ignore_penalty,
+    CNTSPROB_use_corr,
+    CNTSPROB_use_info,
+    CNTSPROB_use_tgz,
+    CNTSPROB_tests_to_accept,
+    CNTSPROB_accept_partial,
+    CNTSPROB_min_tests_to_accept,
+    CNTSPROB_checker_real_time_limit,
+    CNTSPROB_disable_user_submit,
+    CNTSPROB_disable_tab,
+    CNTSPROB_unrestricted_statement,
+    CNTSPROB_hide_file_names,
+    CNTSPROB_hide_real_time_limit,
+    CNTSPROB_enable_tokens,
+    CNTSPROB_tokens_for_user_ac,
+    CNTSPROB_disable_submit_after_ok,
+    CNTSPROB_disable_auto_testing,
+    CNTSPROB_disable_testing,
+    CNTSPROB_enable_compilation,
+    CNTSPROB_skip_testing,
+    CNTSPROB_hidden,
+    //CNTSPROB_priority_adjustment,
+    CNTSPROB_stand_hide_time,
+    //CNTSPROB_score_multiplier,
+    //CNTSPROB_prev_runs_to_show,
+    CNTSPROB_max_user_run_count,
+    CNTSPROB_advance_to_next,
+    CNTSPROB_disable_ctrl_chars,
+    CNTSPROB_enable_text_form,
+    CNTSPROB_stand_ignore_score,
+    CNTSPROB_stand_last_column,
+    CNTSPROB_disable_security,
+    //CNTSPROB_super,
+    //CNTSPROB_short_name,
+    //CNTSPROB_long_name,
+    //CNTSPROB_stand_name,
+    //CNTSPROB_stand_column,
+    //CNTSPROB_group_name,
+    //CNTSPROB_internal_name,
+    CNTSPROB_test_dir,
+    CNTSPROB_test_sfx,
+    CNTSPROB_corr_dir,
+    CNTSPROB_corr_sfx,
+    CNTSPROB_info_dir,
+    CNTSPROB_info_sfx,
+    CNTSPROB_tgz_dir,
+    CNTSPROB_tgz_sfx,
+    CNTSPROB_tgzdir_sfx,
+    CNTSPROB_input_file,
+    CNTSPROB_output_file,
+    //CNTSPROB_test_score_list,
+    //CNTSPROB_tokens,
+    //CNTSPROB_umask,
+    CNTSPROB_ok_status,
+    //CNTSPROB_token_info,
+    //CNTSPROB_score_tests,
+    //CNTSPROB_standard_checker,
+    //CNTSPROB_spelling,
+    CNTSPROB_xml_file,
+    CNTSPROB_stand_attr,
+    CNTSPROB_source_header,
+    CNTSPROB_source_footer,
+    CNTSPROB_valuer_sets_marked,
+    CNTSPROB_ignore_unmarked,
+    CNTSPROB_interactor_time_limit,
+    CNTSPROB_disable_stderr,
+    CNTSPROB_enable_process_group,
+    CNTSPROB_hide_variant,
+    CNTSPROB_test_pat,
+    CNTSPROB_corr_pat,
+    CNTSPROB_info_pat,
+    CNTSPROB_tgz_pat,
+    CNTSPROB_tgzdir_pat,
+    //CNTSPROB_test_sets,
+    CNTSPROB_normalization,
+    //CNTSPROB_deadline,
+    //CNTSPROB_start_date,
+    CNTSPROB_autoassign_variants,
+    //CNTSPROB_variant_num,
+    //CNTSPROB_date_penalty,
+    //CNTSPROB_group_start_date,
+    //CNTSPROB_group_deadline,
+    //CNTSPROB_disable_language,
+    //CNTSPROB_enable_language,
+    //CNTSPROB_require,
+    //CNTSPROB_provide_ok,
+    //CNTSPROB_lang_compiler_env,
+    //CNTSPROB_checker_env,
+    //CNTSPROB_valuer_env,
+    //CNTSPROB_interactor_env,
+    //CNTSPROB_style_checker_env,
+    //CNTSPROB_test_checker_env,
+    //CNTSPROB_init_env,
+    //CNTSPROB_start_env,
+    CNTSPROB_check_cmd,
+    CNTSPROB_valuer_cmd,
+    CNTSPROB_interactor_cmd,
+    CNTSPROB_style_checker_cmd,
+    CNTSPROB_test_checker_cmd,
+    CNTSPROB_init_cmd,
+    CNTSPROB_start_cmd,
+    CNTSPROB_solution_src,
+    CNTSPROB_solution_cmd,
+    //CNTSPROB_lang_time_adj,
+    //CNTSPROB_lang_time_adj_millis,
+    CNTSPROB_super_run_dir,
+    //CNTSPROB_lang_max_vm_size,
+    //CNTSPROB_lang_max_stack_size,
+    //CNTSPROB_personal_deadline,
+    CNTSPROB_score_bonus,
+    CNTSPROB_open_tests,
+    CNTSPROB_final_open_tests,
+    CNTSPROB_token_open_tests,
+    CNTSPROB_max_vm_size,
+    CNTSPROB_max_data_size,
+    CNTSPROB_max_stack_size,
+    CNTSPROB_max_core_size,
+    CNTSPROB_max_file_size,
+    CNTSPROB_max_open_file_count,
+    CNTSPROB_max_process_count,
+    //CNTSPROB_extid,
+    //CNTSPROB_score_view,
+    //CNTSPROB_score_view_text,
+    0
+  };
 
-  memset(dp, 0, sizeof(*dp));
-
-  for (i = 0; prob_settable_list[i]; ++i) {
-    f_id = prob_settable_list[i];
-    is_inh = prob_inheritable_set[f_id];
-    f_type = cntsprob_get_type(f_id);
-    f_size = cntsprob_get_size(f_id);
-    d_ptr = cntsprob_get_ptr_nc(dp, f_id);
-    s_ptr = cntsprob_get_ptr(sp, f_id);
-    i_ptr = 0;
-    u_ptr = 0;
-    a_ptr = 0;
-    g_ptr = 0;
-    if (is_inh) {
-      i_ptr = cntsprob_get_ptr(&prob_default_values, f_id);
-      u_ptr = cntsprob_get_ptr(&prob_undef_values, f_id);
-      if (ap) a_ptr = cntsprob_get_ptr(ap, f_id);
-    }
-    if (prob_global_map[f_id] > 0 && gp) {
-      g_ptr = cntsglob_get_ptr(gp, prob_global_map[f_id]);
-    }
-
-    // special cases
-    switch (f_id) {
-    case CNTSPROB_internal_name:
-      snprintf(dp->internal_name, sizeof(dp->internal_name), "%s",
-               sp->internal_name);
-      if (!dp->internal_name[0]) {
-        snprintf(dp->internal_name, sizeof(dp->internal_name), "%s",
-                 sp->short_name);
-      }
-      continue;
-    }
-
-    // 'i', 'B', 'S', 'x', 't', 'X', 'Z', 'z'
-    switch (f_type) {
-    case 'i':
-      {
-        int *d_int = (int*) d_ptr;
-        *d_int = *(const int*) s_ptr;
-        if (is_inh) {
-          int u_int = *(int*) u_ptr;
-          if (a_ptr && *d_int == u_int)
-            *d_int = *(const int*) a_ptr;
-          if (g_ptr && *d_int == u_int)
-            *d_int = *(const int*) g_ptr;
-          if (is_inh && *d_int == u_int)
-            *d_int = *(const int*) i_ptr;
-        }
-      }
-      break;
-    case 'B':
-      {
-        ejintbool_t *d_bool = (ejintbool_t*) d_ptr;
-        *d_bool = *(const ejintbool_t*) s_ptr;
-        if (is_inh) {
-          ejintbool_t u_bool = *(ejintbool_t*) u_ptr;
-          if (a_ptr && *d_bool == u_bool)
-            *d_bool = *(const ejintbool_t*) a_ptr;
-          if (g_ptr && *d_bool == u_bool)
-            *d_bool = *(const ejintbool_t*) g_ptr;
-          if (is_inh && *d_bool == u_bool)
-            *d_bool = *(const ejintbool_t*) i_ptr;
-        }
-      }
-      break;
-    case 's':
-      {
-        unsigned char **pd_str = (unsigned char **) d_ptr;
-        if (*(unsigned char **) s_ptr != 0) {
-          *pd_str = xstrdup(*(unsigned char **) s_ptr);
-        }
-        if (!*pd_str && is_inh && a_ptr && *(unsigned char **) a_ptr) {
-          *pd_str = xstrdup(*(unsigned char **) a_ptr);
-        }
-        if (*pd_str && prob_format_set[f_id]) {
-          sformat_message(tmp_buf, sizeof(tmp_buf), 0, *pd_str,
-                          gp, dp, NULL, NULL, NULL, NULL, NULL, NULL);
-          xfree(*pd_str);
-          *pd_str = xstrdup(tmp_buf);
-        }
-      }
-      break;
-    case 'S':
-      {
-        unsigned char *d_str = (unsigned char *) d_ptr;
-        snprintf(d_str, f_size, "%s", (const unsigned char*) s_ptr);
-        if (is_inh) {
-          const unsigned char *u_str = (const unsigned char *) u_ptr;
-          if (a_ptr && !strcmp(d_str, u_str))
-            snprintf(d_str, f_size, "%s", (const unsigned char *) a_ptr);
-          if (g_ptr && !strcmp(d_str, u_str))
-            snprintf(d_str, f_size, "%s", (const unsigned char *) g_ptr);
-          if (is_inh && !strcmp(d_str, u_str))
-            snprintf(d_str, f_size, "%s", (const unsigned char*) i_ptr);
-        }
-        if (prob_format_set[f_id]) {
-          sformat_message(tmp_buf, sizeof(tmp_buf), 0, d_str,
-                          gp, dp, NULL, NULL, NULL, NULL, NULL, NULL);
-          snprintf(d_str, f_size, "%s", tmp_buf);
-        }
-      }
-      break;
-    case 'x':
-      break;
-    case 'X':
-      break;
-    case 't':
-      {
-        time_t *d_time = (time_t*) d_ptr;
-        *d_time = *(const time_t*) s_ptr;
-        if (is_inh) {
-          time_t u_time = *(const time_t*) u_ptr;
-          if (a_ptr && *d_time == u_time)
-            *d_time = *(const time_t*) a_ptr;
-          if (g_ptr && *d_time == u_time)
-            *d_time = *(const time_t*) g_ptr;
-          if (is_inh && *d_time == u_time)
-            *d_time = *(const time_t*) i_ptr;
-        }
-      }
-      break;
-    case 'z':
-      {
-        ejintsize_t *d_size = (ejintsize_t*) d_ptr;
-        *d_size = *(const ejintsize_t*) s_ptr;
-        if (is_inh) {
-          ejintsize_t u_size = *(const ejintsize_t*) u_ptr;
-          if (a_ptr && *d_size == u_size)
-            *d_size = *(const ejintsize_t*) a_ptr;
-          if (g_ptr && *d_size == u_size)
-            *d_size = *(const ejintsize_t*) g_ptr;
-          if (is_inh && *d_size == u_size)
-            *d_size = *(const ejintsize_t*) i_ptr;
-        }
-      }
-      break;
-    case 'Z':
-      {
-        size_t *d_size = (size_t*) d_ptr;
-        *d_size = *(const size_t*) s_ptr;
-        if (is_inh) {
-          size_t u_size = *(const size_t*) u_ptr;
-          if (a_ptr && *d_size == u_size)
-            *d_size = *(const size_t*) a_ptr;
-          if (g_ptr && *d_size == u_size)
-            *d_size = *(const size_t*) g_ptr;
-          if (is_inh && *d_size == u_size)
-            *d_size = *(const size_t*) i_ptr;
-        }
-      }
-      break;
-    default:
-      abort();
-    }
-
-    switch (f_id) {
-    case CNTSPROB_test_dir:
-    case CNTSPROB_corr_dir:
-    case CNTSPROB_info_dir:
-    case CNTSPROB_tgz_dir:
-      {
-        unsigned char *d_str = (unsigned char *) d_ptr;
-        if (!d_str[0]) {
-          snprintf(d_str, f_size, "%s", dp->short_name);
-        }
-      }
-      break;
-    }
+  for (int i = 0; fields[i]; ++i) {
+    prepare_set_prob_value(fields[i], out, abstr, global);
   }
-
-  /*
-  case CNTSPROB_test_dir:
-    if (global && out->test_dir[0]) {
-      path_add_dir(out->test_dir, global->test_dir);
-    }
-    break;
-
-  case CNTSPROB_corr_dir:
-    if (global && out->corr_dir[0]) {
-      path_add_dir(out->corr_dir, global->corr_dir);
-    }
-    break;
-
-  case CNTSPROB_info_dir:
-    if (global && out->info_dir[0]) {
-      path_add_dir(out->info_dir, global->info_dir);
-    }
-    break;
-
-  case CNTSPROB_tgz_dir:
-    if (global && out->tgz_dir[0]) {
-      path_add_dir(out->tgz_dir, global->tgz_dir);
-    }
-    break;
-
-  case CNTSPROB_valuer_cmd:
-    if (global && out->valuer_cmd[0]) {
-      pathmake2(out->valuer_cmd, global->checker_dir, "/", out->valuer_cmd, NULL);
-    }
-    break;
-
-  case CNTSPROB_statement_file:
-    if (global && out->statement_file[0]) {
-      path_add_dir(out->statement_file, global->statement_dir);
-    }
-    break;
-
-  case CNTSPROB_alternatives_file:
-    if (global && out->alternatives_file[0]) {
-      path_add_dir(out->alternatives_file, global->statement_dir);
-    }
-    break;
-
-  case CNTSPROB_plugin_file:
-    if (global && out->plugin_file[0]) {
-      path_add_dir(out->plugin_file, global->statement_dir);
-    }
-    break;
-
-  case CNTSPROB_xml_file:
-    if (global && out->xml_file[0]) {
-      path_add_dir(out->xml_file, global->statement_dir);
-    }
-    break;
-    */
-}
-
-void
-cntsprob_clear_field(
-        struct section_problem_data *dp,
-        int f_id)
-{
-  const struct section_problem_data *sp = 0;
-  void *d_ptr;
-  const void *s_ptr;
-  int f_type;
-  size_t f_size;
-
-  if (!dp) return;
-  if (f_id <= 0 || f_id >= CNTSPROB_LAST_FIELD) return;
-  if (f_id == CNTSPROB_id) return;
-  if (!prob_settable_set[f_id]) return;
-  sp = &prob_default_values;
-  if (prob_inheritable_set[f_id]) {
-    sp = &prob_undef_values;
-  }
-
-  if (!(d_ptr = cntsprob_get_ptr_nc(dp, f_id))) return;
-  if (!(s_ptr = cntsprob_get_ptr(sp, f_id))) return;
-  f_type = cntsprob_get_type(f_id);
-  f_size = cntsprob_get_size(f_id);
-
-  // 'i', 'B', 'S', 'x', 't', 'X', 'Z', 'z'
-  switch (f_type) {
-  case 'i':
-    *(int *) d_ptr = *(const int*) s_ptr;
-    break;
-  case 'B':
-    *(ejintbool_t*) d_ptr = *(const ejintbool_t*) s_ptr;
-    break;
-  case 's':
-    xfree(*(unsigned char**) d_ptr);
-    *(unsigned char**) d_ptr = 0;
-    break;
-  case 'S':
-    memset(d_ptr, 0, f_size);
-    strcpy((char*) d_ptr, (const char*) s_ptr);
-    break;
-  case 't':
-    *(time_t*) d_ptr = *(const time_t*) s_ptr;
-    break;
-  case 'X':
-  case 'x':
-    sarray_free(*(char***) d_ptr);
-    *(char***) d_ptr = 0;
-    break;
-  case 'Z':
-    *(size_t*) d_ptr = *(const size_t*) s_ptr;
-    break;
-  case 'z':
-    *(ejintsize_t*) d_ptr = *(const ejintsize_t*) s_ptr;
-    break;
-  default:
-    abort();
-  }
-}
-
-int
-cntsprob_is_settable_field(int f_id)
-{
-  if (f_id <= 0 || f_id >= CNTSPROB_LAST_FIELD) return 0;
-  return prob_settable_set[f_id];
-}
-
-int
-cntsprob_is_inheritable_field(int f_id)
-{
-  if (f_id <= 0 || f_id >= CNTSPROB_LAST_FIELD) return 0;
-  return prob_inheritable_set[f_id];
 }
 
 const unsigned char*

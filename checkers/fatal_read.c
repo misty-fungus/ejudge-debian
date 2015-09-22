@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: fatal_read.c 7462 2013-10-22 05:39:39Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2013 Alexander Chernov <cher@ejudge.ru> */
 

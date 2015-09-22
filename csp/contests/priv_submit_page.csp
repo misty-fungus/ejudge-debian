@@ -1,5 +1,5 @@
 <%
-/* $Id: priv_submit_page.csp 8789 2014-12-07 12:11:00Z cher $ */
+/* $Id$ */
 %><%@include "priv_includes.csp"
 %><%
 void

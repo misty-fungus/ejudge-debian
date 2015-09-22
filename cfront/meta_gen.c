@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: meta_gen.c 8530 2014-08-22 12:09:30Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2008-2014 Alexander Chernov <cher@ejudge.ru> */
 
@@ -355,6 +355,8 @@ get_type_letter(tree_t ds, tree_t declr)
         return 'X';
       } else if (!strcmp(ident_get(tid), "size_t")) {
         return 'Z';
+      } else if (!strcmp(ident_get(tid), "ej_size64_t")) {
+        return 'E';
       } else if (!strcmp(ident_get(tid), "ej_int_opt_0_t")) {
         return '0';
       } else if (!strcmp(ident_get(tid), "ej_textbox_t")) {

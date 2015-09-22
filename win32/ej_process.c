@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: ej_process.c 8188 2014-05-14 19:09:53Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2005-2014 Alexander Chernov <cher@ejudge.ru> */
 

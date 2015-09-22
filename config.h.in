@@ -1,5 +1,5 @@
 /* -*- mode:c -*- */
-/* $Id: config.h.in 7690 2013-12-24 18:51:26Z cher $ */
+/* $Id$ */
 
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
@@ -117,6 +117,8 @@
 #undef HAVE_SIOCINQ
 
 #undef HAVE_F_NOTIFY
+
+#undef HAVE_LIBMONGO_CLIENT
 
 /* path to the web server cgi-bin dir */
 #undef EJUDGE_HTTPD_CGI_BIN_DIR

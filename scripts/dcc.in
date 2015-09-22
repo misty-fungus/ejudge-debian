@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: dcc.in 5550 2009-02-19 18:14:43Z cher $
+# $Id$
 # Copyright (c) 2003-2008 Alexander Chernov <cher@ejudge.ru>
 
 # using EJUDGE_FLAGS we may pass additional flags

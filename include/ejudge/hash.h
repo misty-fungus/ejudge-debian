@@ -1,4 +1,4 @@
-/* $Id: hash.h 8528 2014-08-22 11:25:35Z cher $ */
+/* $Id$ */
 
 #ifndef __REUSE_HASH_H__
 #define __REUSE_HASH_H__

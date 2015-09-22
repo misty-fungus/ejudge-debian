@@ -1,5 +1,5 @@
 /* -*- mode: fundamental -*- */
-/* $Id: filter_scan.lex 8700 2014-10-30 09:38:43Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
 

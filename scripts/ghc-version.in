@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: ghc-version.in 6904 2012-06-21 12:22:32Z cher $
+# $Id$
 # Copyright (c) 2011-2012 Alexander Chernov <cher@ejudge.ru>
 
 # compiler script interface is as follows

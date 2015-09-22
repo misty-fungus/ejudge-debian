@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: pasabc-linux.in 7292 2013-01-23 20:52:01Z cher $
+# $Id$
 # Copyright (c) 2013 Alexander Chernov <cher@ejudge.ru>
 
 # A script for compilation of Pascal ABC.NET programs using the mono compiler.

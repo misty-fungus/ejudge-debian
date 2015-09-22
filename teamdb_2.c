@@ -1,5 +1,5 @@
 /* -*- c -*- */
-/* $Id: teamdb_2.c 8271 2014-05-29 09:07:29Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,0 +1,118 @@
+<% //-*- c -*-
+%><%@include "includes.csp"
+%><%
+
+%><%@set getter_name = "csp_get_lang_save_main_form"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_lang_save_main_form(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    snprintf(phr->content_type, sizeof(phr->content_type), "application/json; charset=%s", EJUDGE_CHARSET);
+
+    int lang_id = 0;
+    int compile_id = 0;
+    unsigned char *long_name = NULL;
+    unsigned char *extid = NULL;
+    ejintbool_t disabled = 0;
+    ejintbool_t insecure = 0;
+    ejintbool_t disable_security = 0;
+    ejintbool_t disable_testing = 0;
+    ejintbool_t disable_auto_testing = 0;
+    ejintbool_t binary = 0;
+    ejintbool_t is_dos = 0;
+    ej_size64_t max_vm_size = -1LL;
+    ej_size64_t max_stack_size = -1LL;
+    ej_size64_t max_file_size = -1LL;
+    unsigned char *content_type = NULL;
+    unsigned char *style_checker_cmd = NULL;
+    char **style_checker_env = NULL;
+    unsigned char *opts = NULL;
+    unsigned char *libs = NULL;
+
+    char *msg_s = NULL;
+    size_t msg_z = 0;
+    FILE *msg_f = open_memstream(&msg_s, &msg_z);
+
+    struct section_language_data *lang = NULL;
+
+%><s:read var="lang_id" required="yes" /><%
+%><s:read var="compile_id" required="yes" /><%
+%><s:read var="long_name" normalize="yes" nonnull="yes" /><%
+%><s:read var="extid" normalize="yes" /><%
+%><s:read var="disabled" default="0" /><%
+%><s:read var="insecure" default="0" /><%
+%><s:read var="disable_security" default="0" /><%
+%><s:read var="disable_testing" default="0" /><%
+%><s:read var="disable_auto_testing" default="0" /><%
+%><s:read var="binary" default="0" /><%
+%><s:read var="is_dos" default="0" /><%
+%><s:read var="max_vm_size" default="-1LL" /><%
+%><s:read var="max_stack_size" default="-1LL" /><%
+%><s:read var="max_file_size" default="-1LL" /><%
+%><s:read var="content_type" normalize="yes" nonnull="yes" /><%
+%><s:read var="style_checker_cmd" normalize="yes" nonnull="yes" /><%
+%><s:read var="style_checker_env" /><%
+%><s:read var="opts" normalize="yes" /><%
+%><s:read var="libs" normalize="yes" /><%
+    if (retval || !phr->ss) goto cleanup;
+    if (!phr->ss->cs_langs) {
+        fprintf(msg_f, "Contest is not edited<br/>");
+        retval = SSERV_ERR_CONTEST_NOT_EDITED;
+        goto cleanup;
+    }
+    if (compile_id <= 0 || compile_id >= phr->ss->cs_lang_total || !phr->ss->cs_langs[compile_id]) {
+        fprintf(msg_f, "compile_id is invalid<br/>");
+        retval = SSERV_ERR_INVALID_PARAMETER;
+        goto cleanup;
+    }
+    if (phr->ss->cs_loc_map[compile_id] > 0) {
+        lang = phr->ss->langs[phr->ss->cs_loc_map[compile_id]];
+    }
+    if (!lang) {
+        fprintf(msg_f, "lang == null<br/>");
+        retval = SSERV_ERR_INVALID_PARAMETER;
+        goto cleanup;
+    }
+
+    if (!retval && phr->ss) {
+        snprintf(lang->long_name, sizeof(lang->long_name), "%s", long_name);
+        xfree(lang->extid); lang->extid = extid; extid = NULL;
+        lang->disabled = disabled;
+        lang->insecure = insecure;
+        lang->disable_security = disable_security;
+        lang->disable_testing = disable_testing;
+        lang->disable_auto_testing = disable_auto_testing;
+        lang->binary = binary;
+        lang->is_dos = is_dos;
+        if (max_vm_size >= 0) lang->max_vm_size = max_vm_size;
+        if (max_stack_size >= 0) lang->max_stack_size = max_stack_size;
+        if (max_file_size >= 0) lang->max_file_size = max_file_size;
+        snprintf(lang->content_type, sizeof(lang->content_type), "%s", content_type);
+        snprintf(lang->style_checker_cmd, sizeof(lang->style_checker_cmd), "%s", style_checker_cmd);
+        sarray_free(lang->style_checker_env); lang->style_checker_env = style_checker_env; style_checker_env = NULL;
+        xfree(phr->ss->lang_opts[compile_id]); phr->ss->lang_opts[compile_id] = opts; opts = NULL;
+        xfree(phr->ss->lang_libs[compile_id]); phr->ss->lang_libs[compile_id] = libs; libs = NULL;
+    }
+
+cleanup:;
+    fclose(msg_f); msg_f = NULL;
+%>
+{
+    "input" : {
+    },
+    "retval" : <s:v value="retval" />,
+    "messages" : "<s:v value="msg_s" json="yes" checkExpr="" />"
+}
+<%
+    html_armor_free(&ab);
+    xfree(msg_s);
+    xfree(long_name);
+    xfree(extid);
+    xfree(content_type);
+    xfree(style_checker_cmd);
+    xfree(style_checker_env);
+    xfree(opts);
+    xfree(libs);
+    sarray_free(style_checker_env);
+%>

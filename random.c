@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: random.c 8778 2014-11-23 18:18:39Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
 

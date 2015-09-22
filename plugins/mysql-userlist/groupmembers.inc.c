@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: groupmembers.inc.c 5813 2010-05-29 13:53:40Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2010 Alexander Chernov <cher@ejudge.ru> */
 

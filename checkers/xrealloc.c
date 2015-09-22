@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: xrealloc.c 7462 2013-10-22 05:39:39Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003-2013 Alexander Chernov <cher@ejudge.ru> */
 

@@ -1,5 +1,5 @@
 /* -*- mode: c -*- */
-/* $Id: fatal_wa.c 5687 2010-01-19 10:10:15Z cher $ */
+/* $Id$ */
 
 /* Copyright (C) 2003 Alexander Chernov <cher@ispras.ru> */
 

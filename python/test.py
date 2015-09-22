@@ -1,5 +1,5 @@
 #! /usr/bin/python
-# $Id: test.py 4540 2007-11-22 14:40:33Z cher $
+# $Id$
 
 import ejudge;
 
