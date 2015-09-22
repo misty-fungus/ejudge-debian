@@ -897,6 +897,22 @@ then
   AC_CHECK_HEADER([libintl.h],[],[ac_cv_nls=""])
 fi
 
+AC_MSG_CHECKING([for libmongo-client])
+if pkg-config --exists libmongo-client
+then
+  AC_MSG_RESULT([yes])
+  ac_cv_has_libmongo_client=1
+else
+  AC_MSG_RESULT([no])
+  ac_cv_has_libmongo_client=
+fi
+
+if [[ x"${ac_cv_has_libmongo_client}" = x1 ]]
+then
+  ac_cv_libmongo_client_cflags=`pkg-config --cflags libmongo-client`
+  ac_cv_libmongo_client_libs=`pkg-config --libs libmongo-client`
+fi
+
 dnl Checking for available languages
 dnl AC_MSG_NOTICE([checking available languages])
 
@@ -1104,6 +1120,9 @@ AC_SUBST(ac_cv_libcap_link)
 AC_SUBST(ac_cv_ejudge_server_bin_path_m)
 AC_SUBST(ac_cv_lang_config_dir)
 AC_SUBST(ac_cv_lang_config_dir_expanded)
+AC_SUBST(ac_cv_has_libmongo_client)
+AC_SUBST(ac_cv_libmongo_client_cflags)
+AC_SUBST(ac_cv_libmongo_client_libs)
 
 if [[ x"${ac_cv_has_regex}" = x1 ]]
 then
@@ -1287,11 +1306,16 @@ then
   AC_DEFINE(R_HAS___INT64, 1)
 fi
 
+if [[ x"${ac_cv_has_libmongo_client}" = x1 ]]
+then
+  AC_DEFINE(HAVE_LIBMONGO_CLIENT, 1)
+fi
+
 AC_CONFIG_HEADERS([config.h])
 
 AC_CONFIG_SUBDIRS([libdwarf])
 
-AC_OUTPUT(Makefile extra/Makefile extra/captest/Makefile checkers/Makefile scripts/Makefile ejudge-config.v scripts/festival plugins/mysql-common/Makefile plugins/mysql-userlist/Makefile plugins/mysql-clardb/Makefile plugins/mysql-rundb/Makefile style/ejudge-upgrade-web cfront/Makefile reuse/Makefile csp/contests/Makefile csp/super-server/Makefile csp_header.make)
+AC_OUTPUT(Makefile extra/Makefile extra/captest/Makefile checkers/Makefile scripts/Makefile ejudge-config.v scripts/festival plugins/mysql-common/Makefile plugins/mysql-userlist/Makefile plugins/mysql-clardb/Makefile plugins/mysql-rundb/Makefile plugins/mongo-common/Makefile plugins/mongo-xuser/Makefile style/ejudge-upgrade-web cfront/Makefile reuse/Makefile csp/contests/Makefile csp/super-server/Makefile csp_header.make)
 
 #cp -p config.h include/reuse
 cp -p config.h include/ejudge

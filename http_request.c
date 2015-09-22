@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id$ */
 
-/* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -178,6 +177,20 @@ hr_cgi_param_int_opt(
 }
 
 int
+hr_cgi_param_bool_opt(
+        struct http_request_info *phr,
+        const unsigned char *name,
+        int *p_val,
+        int default_value)
+{
+    int ret = hr_cgi_param_int_opt(phr, name, p_val, default_value);
+    if (p_val) {
+        if (*p_val != 1) *p_val = 0;
+    }
+    return ret;
+}
+
+int
 hr_cgi_param_int_opt_2(
         struct http_request_info *phr,
         const unsigned char *name,
@@ -207,6 +220,66 @@ hr_cgi_param_int_opt_2(
   *p_val = x;
   *p_set_flag = 1;
   return 0;
+}
+
+#define SIZE_T (1024LL * 1024L * 1024L * 1024L)
+#define SIZE_G (1024LL * 1024 * 1024)
+#define SIZE_M (1024LL * 1024)
+#define SIZE_K (1024LL)
+
+int
+hr_cgi_param_size64_opt(
+        struct http_request_info *phr,
+        const unsigned char *name,
+        ej_size64_t *p_val,
+        ej_size64_t default_value)
+{
+    const unsigned char *s = 0, *e;
+    char *eptr = 0;
+    long long x;
+    int len;
+
+    if (!(x = hr_cgi_param(phr, name, &s)) || !s) {
+        if (p_val) *p_val = default_value;
+        return 0;
+    } else if (x < 0) return -1;
+
+    len = strlen(s);
+    while (len > 0 && isspace(s[len - 1])) --len;
+    if (!len) {
+        if (p_val) *p_val = default_value;
+        return 0;
+    }
+    e = s + len;
+
+    errno = 0;
+    x = strtoll(s, &eptr, 10);
+    if (errno) return -1;
+    s = (const unsigned char *) eptr;
+    if (s == e) {
+        if (p_val) *p_val = x;
+        return 0;
+    }
+    while (isspace(*s)) ++s;
+    if (*s == 't' || *s == 'T') {
+        if (x < -8388608LL || x > 8388607LL) return -1;
+        x *= SIZE_T;
+    } else if (*s == 'g' || *s == 'G') {
+        if (x < -8589934592LL || x > 8589934591LL) return -1;
+        x *= SIZE_G;
+    } else if (*s == 'm' || *s == 'M') {
+        if (x < -8796093022208LL || x > 8796093022207LL) return -1;
+        x *= SIZE_M;
+    } else if (*s == 'k' || *s == 'K') {
+        if (x < -9007199254740992LL || x > 9007199254740991LL) return -1;
+        x *= SIZE_K;
+    } else {
+        return -1;
+    }
+    ++s;
+    if (s != e) return -1;
+    if (p_val) *p_val = x;
+    return 0;
 }
 
 void
@@ -426,10 +499,112 @@ hr_print_help_url(FILE *f, int action)
     help_url = help_urls[action];
   }
   if (help_url) {
-    fprintf(f, "<a target=\"_blank\" href=\"http://www.ejudge.ru/wiki/index.php/%s\">%s</a>", help_url, "Help");
+    fprintf(f, "<a target=\"_blank\" href=\"http://ejudge.ru/wiki/index.php/%s\">%s</a>", help_url, "Help");
   } else {
     fprintf(f, "&nbsp;");
   }
+}
+
+void
+hr_print_help_url_2(FILE *f, const unsigned char *topic)
+{
+  if (topic) {
+    fprintf(f, "<a target=\"_blank\" href=\"http://ejudge.ru/wiki/index.php/%s\">%s</a>", topic, "Help");
+  } else {
+    fprintf(f, "&nbsp;");
+  }
+}
+
+int
+hr_cgi_param_string(
+        const struct http_request_info *phr,
+        const unsigned char *param,
+        unsigned char **p_value,
+        const unsigned char *prepend_str)
+{
+    const unsigned char *str = NULL;
+    int r = hr_cgi_param(phr, param, &str);
+    if (r <= 0) {
+        *p_value = NULL;
+        return r;
+    }
+    if (!str) {
+        *p_value = NULL;
+        return 0;
+    }
+    int i = 0;
+    while (str[i] && (str[i] <= ' ' || str[i] == 0x7f)) ++i;
+    if (!str[i]) {
+        *p_value = NULL;
+        return 0;
+    }
+    int len = strlen(str);
+    while (len > 0 && (str[len - 1] <= ' ' || str[len - 1] == 0x7f)) --len;
+    if (len <= 0) {
+        *p_value = NULL;
+        return 0;
+    }
+    if (!prepend_str) prepend_str = "";
+    int prepend_len = strlen(prepend_str);
+    unsigned char *out = malloc(prepend_len + len + 1);
+    memcpy(out, prepend_str, prepend_len);
+    unsigned char *p = out + prepend_len;
+    for (; i < len; ++i) {
+        if (str[i] <= ' ' || str[i] == 0x7f) {
+            *p++ = ' ';
+        } else {
+            *p++ = str[i];
+        }
+    }
+    *p = 0;
+    *p_value = out;
+    return 1;
+}
+
+int
+hr_cgi_param_string_2(
+        const struct http_request_info *phr,
+        const unsigned char *param,
+        unsigned char **p_value,
+        const unsigned char *prepend_str)
+{
+    const unsigned char *str = NULL;
+    int r = hr_cgi_param(phr, param, &str);
+    if (r <= 0) {
+        *p_value = strdup("");
+        return r;
+    }
+    if (!str) {
+        *p_value = strdup("");
+        return 0;
+    }
+    int i = 0;
+    while (str[i] && (str[i] <= ' ' || str[i] == 0x7f)) ++i;
+    if (!str[i]) {
+        *p_value = strdup("");
+        return 0;
+    }
+    int len = strlen(str);
+    while (len > 0 && (str[len - 1] <= ' ' || str[len - 1] == 0x7f)) --len;
+    if (len <= 0) {
+        *p_value = strdup("");
+        return 0;
+    }
+    if (!prepend_str) prepend_str = "";
+    int prepend_len = strlen(prepend_str);
+    unsigned char *out = malloc(prepend_len + len + 1);
+    memcpy(out, prepend_str, prepend_len);
+    unsigned char *p = out + prepend_len;
+    for (; i < len; ++i) {
+        if (str[i] <= ' ' || str[i] == 0x7f) {
+            *p++ = ' ';
+        } else {
+            *p++ = str[i];
+        }
+    }
+    *p = 0;
+    *p_value = out;
+    return 1;
 }
 
 /*

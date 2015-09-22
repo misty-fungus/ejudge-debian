@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 3.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-01-16 19:00+0300\n"
+"POT-Creation-Date: 2015-06-23 13:33+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Kazakh <uk@li.org>\n"
@@ -417,6 +417,9 @@ msgstr ""
 msgid "Add the OBSERVER role to the selected users"
 msgstr ""
 
+msgid "Add users to another group"
+msgstr ""
+
 msgid "Adding new runs"
 msgstr ""
 
@@ -434,9 +437,6 @@ msgid "Additional test information"
 msgstr ""
 
 msgid "Administrator"
-msgstr ""
-
-msgid "Advanced view"
 msgstr ""
 
 msgid "Advisor"
@@ -558,6 +558,9 @@ msgstr ""
 msgid "Aug"
 msgstr ""
 
+msgid "Author"
+msgstr ""
+
 msgid "Auto-assign logins"
 msgstr ""
 
@@ -580,9 +583,6 @@ msgid "Ban"
 msgstr ""
 
 msgid "Banned?"
-msgstr ""
-
-msgid "Basic view"
 msgstr ""
 
 msgid ""
@@ -821,6 +821,9 @@ msgid "Compilation error"
 msgstr ""
 
 msgid "Compiled"
+msgstr ""
+
+msgid "Compiler options"
 msgstr ""
 
 msgid "Compiler output"
@@ -1110,13 +1113,7 @@ msgstr ""
 msgid "Details for user "
 msgstr ""
 
-msgid "Detect"
-msgstr ""
-
 msgid "Directory structure"
-msgstr ""
-
-msgid "Disable"
 msgstr ""
 
 msgid "Disable &quot;Name&quot; field"
@@ -1678,13 +1675,10 @@ msgstr ""
 msgid "Hidden?"
 msgstr ""
 
-msgid "Hide"
-msgstr ""
-
-msgid "Hide advanced"
-msgstr ""
-
 msgid "Hide closed contests"
+msgstr ""
+
+msgid "Hide compiler options"
 msgstr ""
 
 msgid "Hide details"
@@ -1995,6 +1989,12 @@ msgid "Judging priorities"
 msgstr ""
 
 msgid "Jul"
+msgstr ""
+
+msgid "Jump to contest"
+msgstr ""
+
+msgid "Jump to group"
 msgstr ""
 
 msgid "Jun"
@@ -2901,6 +2901,12 @@ msgstr ""
 msgid "Region"
 msgstr ""
 
+msgid "Register for another contest"
+msgstr ""
+
+msgid "Register for another contest and copy data"
+msgstr ""
+
 msgid "Registration"
 msgstr ""
 
@@ -3012,6 +3018,9 @@ msgstr ""
 msgid "Remove examiner"
 msgstr ""
 
+msgid "Remove from group"
+msgstr ""
+
 msgid "Remove registrations"
 msgstr ""
 
@@ -3101,6 +3110,9 @@ msgid "Run"
 msgstr ""
 
 msgid "Run ID"
+msgstr ""
+
+msgid "Run comment"
 msgstr ""
 
 msgid "Run comments"
@@ -3337,9 +3349,6 @@ msgstr ""
 msgid "Set the registration status of the selected users to REJECTED"
 msgstr ""
 
-msgid "Set unlimited"
-msgstr ""
-
 msgid "Settings"
 msgstr ""
 
@@ -3349,16 +3358,7 @@ msgstr ""
 msgid "Short name"
 msgstr ""
 
-msgid "Show"
-msgstr ""
-
-msgid "Show advanced"
-msgstr ""
-
 msgid "Show closed contests"
-msgstr ""
-
-msgid "Show details"
 msgstr ""
 
 msgid "Show hidden contests"

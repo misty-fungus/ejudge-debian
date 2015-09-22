@@ -1,0 +1,91 @@
+<% //-*- c -*-
+%><%@include "includes.csp"
+%><%
+
+#define COPYSTR(f) snprintf(prob->f, sizeof(prob->f), "%s", (f))
+#define MOVEENV(f) sarray_free(prob->f); prob->f = f; f = NULL
+#define MOVESTR(f) xfree(prob->f); prob->f = f; f = NULL
+
+%><%@set getter_name = "csp_get_prob_save_validation_form"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_prob_save_validation_form(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    snprintf(phr->content_type, sizeof(phr->content_type), "application/json; charset=%s", EJUDGE_CHARSET);
+
+    int prob_id = 0;
+    unsigned char *test_checker_cmd = NULL;
+    ejintbool_t test_checker_cmd_dflt = 0;
+    char **test_checker_env = NULL;
+    unsigned char *solution_src = NULL;
+    ejintbool_t solution_src_dflt = NULL;
+    unsigned char *solution_cmd = NULL;
+    ejintbool_t solution_cmd_dflt = NULL;
+
+    int i;
+    struct section_problem_data *prob = NULL;
+
+    char *msg_s = NULL;
+    size_t msg_z = 0;
+    FILE *msg_f = open_memstream(&msg_s, &msg_z);
+
+%><s:read var="prob_id" required="yes" /><%
+%><s:read var="test_checker_cmd" normalize="yes" nonnull="yes" /><%
+%><s:read var="test_checker_cmd_dflt" default="0" /><%
+%><s:read var="test_checker_env" /><%
+%><s:read var="solution_src" normalize="yes" nonnull="yes" /><%
+%><s:read var="solution_src_dflt" default="0" /><%
+%><s:read var="solution_cmd" normalize="yes" nonnull="yes" /><%
+%><s:read var="solution_cmd_dflt" default="0" /><%
+
+    if (retval || !phr->ss) goto cleanup;
+
+    if (prob_id <= 0) {
+        i = -prob_id;
+        if (i >= phr->ss->aprob_u) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        prob = phr->ss->aprobs[i];
+        if (!prob) FAIL(SSERV_ERR_INVALID_PARAMETER);
+    } else {
+        i = prob_id;
+        if (i >= phr->ss->prob_a) FAIL(SSERV_ERR_INVALID_PARAMETER);
+        prob = phr->ss->probs[i];
+        if (!prob) FAIL(SSERV_ERR_INVALID_PARAMETER);
+    }
+    if (test_checker_cmd_dflt) {
+        xfree(test_checker_cmd);
+        test_checker_cmd = NULL;
+    }
+    if (solution_src_dflt) {
+        xfree(solution_src);
+        solution_src = NULL;
+    }
+    if (solution_cmd_dflt) {
+        xfree(solution_cmd);
+        solution_cmd = NULL;
+    }
+
+    if (!retval && phr->ss) {
+        MOVESTR(test_checker_cmd);
+        MOVEENV(test_checker_env);
+        MOVESTR(solution_src);
+        MOVESTR(solution_cmd);
+    }
+
+cleanup:;
+    fclose(msg_f); msg_f = NULL;
+%>
+{
+    "input" : {
+    },
+    "retval" : <s:v value="retval" />,
+    "messages" : "<s:v value="msg_s" json="yes" checkExpr="" />"
+}
+<%
+    html_armor_free(&ab);
+    xfree(msg_s);
+    xfree(test_checker_cmd);
+    xfree(solution_src);
+    xfree(solution_cmd);
+    sarray_free(test_checker_env);
+%>

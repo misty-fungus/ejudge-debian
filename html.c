@@ -38,6 +38,7 @@
 #include "ejudge/charsets.h"
 #include "ejudge/compat.h"
 #include "ejudge/filter_eval.h"
+#include "ejudge/xuser_plugin.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -1074,6 +1075,7 @@ do_write_kirov_standings(
   struct filter_env env;
   int separate_user_score = 0;
   int token_flags = 0;
+  struct xuser_team_extras *extras = NULL;
 
   memset(&env, 0, sizeof(env));
 
@@ -1194,6 +1196,14 @@ do_write_kirov_standings(
     // use a fast function, if no `stand_collate_name'
     teamdb_get_user_map(state, cur_time, t_max,t_runs,&t_tot, t_rev, t_ind,
                         user_filter);
+  }
+
+  if (global->stand_show_contestant_status
+      || global->stand_show_warn_number
+      || global->contestant_status_row_attr) {
+    if (state->xuser_state) {
+      extras = state->xuser_state->vt->get_entries(state->xuser_state, t_tot, t_ind);
+    }
   }
 
   /* make problem index */
@@ -1486,13 +1496,13 @@ do_write_kirov_standings(
             // latest
             marked_flag[up_ind] = 1;
             prob_score[up_ind] = score;
-            if (!prob->stand_hide_time) sol_time[up_ind] = pe->time;
+            if (prob->stand_hide_time <= 0) sol_time[up_ind] = pe->time;
           } else if (marked_flag[up_ind]) {
             // do nothing
           } else if (score > prob_score[up_ind]) {
             // best score
             prob_score[up_ind] = score;
-            if (!prob->stand_hide_time) sol_time[up_ind] = pe->time;
+            if (prob->stand_hide_time <= 0) sol_time[up_ind] = pe->time;
           }
           sol_att[up_ind]++;
           succ_att[pind]++;
@@ -1510,13 +1520,13 @@ do_write_kirov_standings(
             // latest
             marked_flag[up_ind] = 1;
             prob_score[up_ind] = score;
-            if (!prob->stand_hide_time) sol_time[up_ind] = pe->time;
+            if (prob->stand_hide_time <= 0) sol_time[up_ind] = pe->time;
           } else if (marked_flag[up_ind]) {
             // do nothing
           } else if (score > prob_score[up_ind]) {
             // best score
             prob_score[up_ind] = score;
-            if (!prob->stand_hide_time) sol_time[up_ind] = pe->time;
+            if (prob->stand_hide_time <= 0) sol_time[up_ind] = pe->time;
           }
           if (!full_sol[up_ind]) sol_att[up_ind]++;
           att_num[up_ind]++;
@@ -1568,9 +1578,9 @@ do_write_kirov_standings(
                                      0, 0);
             if (prob->score_latest > 0 || score > prob_score[up_ind]) {
               prob_score[up_ind] = score;
-              if (!prob->stand_hide_time) sol_time[up_ind] = pe->time;
+              if (prob->stand_hide_time <= 0) sol_time[up_ind] = pe->time;
             }
-            if (!sol_time[up_ind] && !prob->stand_hide_time)
+            if (!sol_time[up_ind] && prob->stand_hide_time <= 0)
               sol_time[up_ind] = pe->time;
             if (!full_sol[up_ind]) {
               succ_att[pind]++;
@@ -1605,9 +1615,9 @@ do_write_kirov_standings(
                 */
                 if (dst_prob->score_latest > 0 || score > prob_score[dst_up_ind]) {
                   prob_score[dst_up_ind] = score;
-                  if (!dst_prob->stand_hide_time) sol_time[dst_up_ind] = pe->time;
+                  if (dst_prob->stand_hide_time <= 0) sol_time[dst_up_ind] = pe->time;
                 }
-                if (!sol_time[dst_up_ind] && !dst_prob->stand_hide_time) {
+                if (!sol_time[dst_up_ind] && dst_prob->stand_hide_time <= 0) {
                   sol_time[dst_up_ind] = pe->time;
                 }
                 if (!full_sol[dst_up_ind]) {
@@ -2156,12 +2166,9 @@ do_write_kirov_standings(
     } else {
       memset(&u_info, 0, sizeof(u_info));
     }
-    if (global->stand_show_contestant_status
-        || global->stand_show_warn_number
-        || global->contestant_status_row_attr) {
-      t_extra = team_extra_get_entry(state->team_extra_state, t_ind[t]);
-    } else {
-      t_extra = 0;
+    t_extra = NULL;
+    if (extras) {
+      t_extra = extras->get(extras, t_ind[t]);
     }
     if (tot_full[t] != prev_prob) {
       prev_prob = tot_full[t];
@@ -2510,6 +2517,7 @@ do_write_kirov_standings(
   xfree(marked_flag);
   html_armor_free(&ab);
   env.mem = filter_tree_delete(env.mem);
+  if (extras) extras->free(extras);
 }
 
 static int
@@ -2680,6 +2688,7 @@ do_write_moscow_standings(
   size_t encode_len = 0;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   struct filter_env env;
+  struct xuser_team_extras *extras = NULL;
   
   memset(&env, 0, sizeof(env));
 
@@ -2781,6 +2790,14 @@ do_write_moscow_standings(
       u_tot++;
     }
   */
+
+  if (global->stand_show_contestant_status
+      || global->stand_show_warn_number
+      || global->contestant_status_row_attr) {
+    if (state->xuser_state) {
+      extras = state->xuser_state->vt->get_entries(state->xuser_state, u_tot, u_ind);
+    }
+  }
 
   /* sorted index to u_ind */
   XALLOCA(u_sort, u_tot);
@@ -3272,10 +3289,9 @@ do_write_moscow_standings(
       memset(&u_info, 0, sizeof(u_info));
     }
     u_extra = 0;
-    if (global->stand_show_contestant_status
-        || global->stand_show_warn_number
-        || global->contestant_status_row_attr)
-      u_extra = team_extra_get_entry(state->team_extra_state, u_ind[u]);
+    if (extras) {
+      u_extra = extras->get(extras, u_ind[u]);
+    }
     /* FIXME: consider virtual and real users */
     if (prev_prob != u_score[u]) {
       prev_prob = u_score[u];
@@ -3523,6 +3539,7 @@ do_write_moscow_standings(
   xfree(up_pen);
   html_armor_free(&ab);
   env.mem = filter_tree_delete(env.mem);
+  if (extras) extras->free(extras);
 }
 
 /*
@@ -3602,6 +3619,7 @@ do_write_standings(
   unsigned char *cf_flag = 0;
   struct html_armor_buffer ab = HTML_ARMOR_INITIALIZER;
   struct filter_env env;
+  struct xuser_team_extras *extras = NULL;
 
   memset(&env, 0, sizeof(env));
 
@@ -3708,6 +3726,14 @@ do_write_standings(
   XALLOCAZ(t_pen,t_tot);
   XALLOCA(t_n1, t_tot);
   XALLOCA(t_n2, t_tot);
+
+  if (global->stand_show_contestant_status
+      || global->stand_show_warn_number
+      || global->contestant_status_row_attr) {
+    if (state->xuser_state) {
+      extras = state->xuser_state->vt->get_entries(state->xuser_state, t_tot, t_ind);
+    }
+  }
 
   /* make problem index */
   p_max = state->max_prob + 1;
@@ -4009,12 +4035,9 @@ do_write_standings(
     for (i = 0; i < t_tot; i++) {
       t = t_sort[i];
 
-      if (global->stand_show_contestant_status
-          || global->stand_show_warn_number
-          || global->contestant_status_row_attr) {
-        t_extra = team_extra_get_entry(state->team_extra_state, t_ind[t]);
-      } else {
-        t_extra = 0;
+      t_extra = 0;
+      if (extras) {
+        t_extra = extras->get(extras, t_ind[t]);
       }
 
       if (prev_prob != t_prob[t]) {
@@ -4232,6 +4255,7 @@ do_write_standings(
   xfree(cf_flag);
   html_armor_free(&ab);
   env.mem = filter_tree_delete(env.mem);
+  if (extras) extras->free(extras);
 }
 
 void

@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id$ */
 #ifndef __HTTP_REQUEST_H__
 #define __HTTP_REQUEST_H__
 
-/* Copyright (C) 2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -146,6 +145,19 @@ hr_cgi_param_bin(
         const unsigned char **p_value,
         size_t *p_size);
 
+int
+hr_cgi_param_string(
+        const struct http_request_info *phr,
+        const unsigned char *param,
+        unsigned char **p_value,
+        const unsigned char *prepend_str);
+int
+hr_cgi_param_string_2(
+        const struct http_request_info *phr,
+        const unsigned char *param,
+        unsigned char **p_value,
+        const unsigned char *prepend_str);
+
 const unsigned char *
 hr_cgi_nname(
         const struct http_request_info *phr,
@@ -171,11 +183,25 @@ hr_cgi_param_int_opt(
         int default_value);
 
 int
+hr_cgi_param_bool_opt(
+        struct http_request_info *phr,
+        const unsigned char *name,
+        int *p_val,
+        int default_value);
+
+int
 hr_cgi_param_int_opt_2(
         struct http_request_info *phr,
         const unsigned char *name,
         int *p_val,
         int *p_set_flag);
+
+int
+hr_cgi_param_size64_opt(
+        struct http_request_info *phr,
+        const unsigned char *name,
+        ej_size64_t *p_val,
+        ej_size64_t default_value);
 
 void
 hr_master_url(
@@ -232,6 +258,8 @@ hr_redirect_2(
 
 void
 hr_print_help_url(FILE *f, int action);
+void
+hr_print_help_url_2(FILE *f, const unsigned char *topic);
 
 #endif /* __HTTP_REQUEST_H__ */
 

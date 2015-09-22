@@ -34,6 +34,17 @@ l10n_html_locale_select_2(
         const unsigned char *name,
         const unsigned char *onchange,
         int locale_id);
+void
+l10n_html_locale_select_3(
+        FILE *out_f,
+        const unsigned char *id,
+        const unsigned char *cl,
+        const unsigned char *name,
+        const unsigned char *onchange,
+        int locale_id);
+
+const unsigned char *
+l10n_normalize(const unsigned char *str);
 
 #endif /* __L10N_H__ */
 

@@ -153,7 +153,7 @@ BINTARGETS = ejudge-jobs-cmd ejudge-edit-users ejudge-setup ejudge-configure-com
 SERVERBINTARGETS = ej-compile ej-compile-control ej-run ej-nwrun ej-ncheck ej-batch ej-serve ej-users ej-users-control ej-jobs ej-jobs-control ej-super-server ej-super-server-control ej-contests ej-contests-control uudecode ej-convert-clars ej-convert-runs ej-fix-db ej-super-run ej-super-run-control ej-normalize ej-polygon ej-import-contest ej-page-gen
 CGITARGETS = users${CGI_PROG_SUFFIX} serve-control${CGI_PROG_SUFFIX} new-client${CGI_PROG_SUFFIX}
 TARGETS = ${SERVERBINTARGETS} ${BINTARGETS} ${CGITARGETS} newrevinfo
-STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/unpriv3.css style/ejudge3.css style/priv.js style/unpriv.js style/filter_expr.html style/sprintf.js style/ejudge3_ss.css style/ejudge_mobile.css
+STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/unpriv3.css style/ejudge3.css style/priv.js style/priv_prob_dlg.js style/unpriv.js style/filter_expr.html style/sprintf.js style/ejudge3_ss.css style/ejudge_mobile.css style/jquery.min.js style/jquery.timepicker.css style/jquery.timepicker.min.js
 
 all: prereq_all local_all subdirs_all mo
 local_all: $(TARGETS) ejudge-config
@@ -174,6 +174,8 @@ subdirs_all:
 	$(MAKE) -C plugins/mysql-userlist DESTDIR="${DESTDIR}" all
 	$(MAKE) -C plugins/mysql-clardb DESTDIR="${DESTDIR}" all
 	$(MAKE) -C plugins/mysql-rundb DESTDIR="${DESTDIR}" all
+	$(MAKE) -C plugins/mongo-common DESTDIR="${DESTDIR}" all
+	$(MAKE) -C plugins/mongo-xuser DESTDIR="${DESTDIR}" all
 	$(MAKE) -C csp/contests DESTDIR="${DESTDIR}" all
 	$(MAKE) -C csp/super-server DESTDIR="${DESTDIR}" all
 
@@ -212,7 +214,8 @@ local_install: ${TARGETS} ejudge-config po mo
 	for i in ${STYLEFILES}; do install -m 0644 $$i "${DESTDIR}${datadir}/ejudge/style"; done
 	for i in style/*.jpg; do install -m 0644 $$i "${DESTDIR}${datadir}/ejudge/style"; done
 	for i in style/*.png; do install -m 0644 $$i "${DESTDIR}${datadir}/ejudge/style"; done
-	tar x -C "${DESTDIR}${datadir}/ejudge/style" -f style/dojo.tgz
+	tar x -C "${DESTDIR}${datadir}/ejudge/style" -f style/jquery-ui.tbz
+	tar x -C "${DESTDIR}${datadir}/ejudge/style" -f style/jqgrid.tbz
 	install -d "${DESTDIR}${datadir}/ejudge/style/icons"
 	for i in style/icons/*.png; do install -m 0644 $$i "${DESTDIR}${datadir}/ejudge/style/icons"; done
 	install -m 0755 style/ejudge-upgrade-web "${DESTDIR}${bindir}"
@@ -231,6 +234,8 @@ install: local_install
 	$(MAKE) -C plugins/mysql-userlist DESTDIR="${DESTDIR}" install
 	$(MAKE) -C plugins/mysql-clardb DESTDIR="${DESTDIR}" install
 	$(MAKE) -C plugins/mysql-rundb DESTDIR="${DESTDIR}" install
+	$(MAKE) -C plugins/mongo-common DESTDIR="${DESTDIR}" install
+	$(MAKE) -C plugins/mongo-xuser DESTDIR="${DESTDIR}" install
 	$(MAKE) -C csp/contests DESTDIR="${DESTDIR}" install
 	$(MAKE) -C csp/super-server DESTDIR="${DESTDIR}" install
 	#if [ ! -f "${INSTALLSCRIPT}" ]; then ./ejudge-setup -b; fi
@@ -297,7 +302,7 @@ ej-import-contest: ${IC_OBJECTS}
 	${LD} ${LDFLAGS} $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} ${LIBCURL} ${LIBZIP} -ldl
 
 ej-page-gen: ${G_OBJECTS} libuserlist_clnt.a libnew_server_clnt.a
-	${LD} ${LDFLAGS} -Wl,--whole-archive $^ -o $@ ${LDLIBS} libdwarf/libdwarf/libdwarf.a -lelf ${EXPAT_LIB} ${LIBZIP} -ldl -lpanel${NCURSES_SUFFIX} -lmenu${NCURSES_SUFFIX} -lncurses${NCURSES_SUFFIX} ${LIBUUID} -Wl,--no-whole-archive
+	${LD} ${LDFLAGS} -Wl,--whole-archive $^ -o $@ ${LDLIBS} libdwarf/libdwarf/libdwarf.a -lelf ${EXPAT_LIB} ${LIBZIP} -ldl -lpanel${NCURSES_SUFFIX} -lmenu${NCURSES_SUFFIX} -lncurses${NCURSES_SUFFIX} ${LIBUUID} -Wl,--no-whole-archive $(MONGO_LIBS)
 ej-page-gen.debug : ej-page-gen
 	objcopy --only-keep-debug $< $@
 
@@ -338,7 +343,7 @@ new-client${CGI_PROG_SUFFIX} : $(NC_OBJECTS)
 	$(LD) $(LDFLAGS) $^ -o $@ $(LDLIBS) ${EXPAT_LIB}
 
 ej-contests : $(NS_OBJECTS)
-	$(LD) $(LDFLAGS) -rdynamic $(NS_OBJECTS) -o $@ $(LDLIBS) -ldl ${EXPAT_LIB} ${LIBZIP} ${LIBUUID}
+	$(LD) $(LDFLAGS) -rdynamic $(NS_OBJECTS) -o $@ $(LDLIBS) -ldl ${EXPAT_LIB} ${LIBZIP} ${LIBUUID} $(MONGO_LIBS)
 
 ejudge-contests-cmd : $(NSM_OBJECTS)
 	$(LD) $(LDFLAGS) $(NSM_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB}
@@ -367,6 +372,8 @@ subdir_clean:
 	$(MAKE) -C plugins/mysql-userlist DESTDIR="${DESTDIR}" clean
 	$(MAKE) -C plugins/mysql-clardb DESTDIR="${DESTDIR}" clean
 	$(MAKE) -C plugins/mysql-rundb DESTDIR="${DESTDIR}" clean
+	$(MAKE) -C plugins/mongo-common DESTDIR="${DESTDIR}" clean
+	$(MAKE) -C plugins/mongo-xuser DESTDIR="${DESTDIR}" clean
 	$(MAKE) -C csp/contests DESTDIR="${DESTDIR}" clean
 	$(MAKE) -C csp/super-server DESTDIR="${DESTDIR}" clean
 	$(MAKE) -C cfront clean
@@ -387,6 +394,8 @@ subdir_distclean :
 	$(MAKE) -C plugins/mysql-userlist DESTDIR="${DESTDIR}" distclean
 	$(MAKE) -C plugins/mysql-clardb DESTDIR="${DESTDIR}" distclean
 	$(MAKE) -C plugins/mysql-rundb DESTDIR="${DESTDIR}" distclean
+	$(MAKE) -C plugins/mongo-common DESTDIR="${DESTDIR}" distclean
+	$(MAKE) -C plugins/mongo-xuser DESTDIR="${DESTDIR}" distclean
 	$(MAKE) -C csp/contests DESTDIR="${DESTDIR}" distclean
 	$(MAKE) -C csp/super-server DESTDIR="${DESTDIR}" distclean
 	$(MAKE) -C cfront distclean
@@ -532,5 +541,8 @@ cfront/ej-cfront : reuse/objs/libreuse.a
 
 include/libdwarf-internal/dwarf.h include/libdwarf-internal/libdwarf.h libdwarf/libdwarf/libdwarf.a:
 	$(MAKE) -C libdwarf all
+
+bson_utils.o : bson_utils.c
+	$(CC) $(CFLAGS) $(MONGO_CFLAGS) -c $< -o $@
 
 include deps.make

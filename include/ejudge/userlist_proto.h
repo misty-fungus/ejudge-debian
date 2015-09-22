@@ -1,10 +1,9 @@
 /* -*- c -*- */
-/* $Id$ */
 
 #ifndef __USERLIST_PROTO_H__
 #define __USERLIST_PROTO_H__
 
-/* Copyright (C) 2002-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -403,6 +402,11 @@ struct userlist_pk_list_users_2
   int   filter_len;
   int   offset;
   int   count;
+  int   page; // requested page (of size count)
+  int   sort_field; // valid: USERLIST_NN_ID, USERLIST_NN_LOGIN, USERLIST_NN_EMAIL, USERLIST_NC_NAME
+  int   sort_order; // valid: 1 - ascending, 2 - descending
+  int   filter_field; // one of valid fields
+  int   filter_op;    // one of valid filter operations
   unsigned char data[1];
 };
 

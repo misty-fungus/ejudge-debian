@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id$ */
 
-/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,6 +21,7 @@
 #include "ejudge/pathutl.h"
 #include "ejudge/errlog.h"
 #include "ejudge/xml_utils.h"
+#include "ejudge/ej_uuid.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -49,6 +49,8 @@ enum
   TE_T_STATUS,
   TE_T_DISQ_COMMENT,
   TE_T_RUN_FIELDS,
+  TE_T_UUID,
+  TE_T_CLAR_UUIDS,
 
   TE_T_LAST_TAG,
 };
@@ -59,6 +61,7 @@ enum
   TE_A_ISSUER_ID,
   TE_A_ISSUER_IP,
   TE_A_DATE,
+  TE_A_CONTEST_ID,
 
   TE_A_LAST_ATTR,
 };
@@ -73,6 +76,8 @@ static const char * const elem_map[] =
   [TE_T_STATUS]       = "status",
   [TE_T_DISQ_COMMENT] = "disq_comment",
   [TE_T_RUN_FIELDS]   = "run_fields",
+  [TE_T_UUID]         = "uuid",
+  [TE_T_CLAR_UUIDS]   = "clar_uuids",
   [TE_T_LAST_TAG]     = 0,
 };
 static const char * const attr_map[] =
@@ -81,6 +86,7 @@ static const char * const attr_map[] =
   [TE_A_ISSUER_ID] = "issuer_id",
   [TE_A_ISSUER_IP] = "issuer_ip",
   [TE_A_DATE]      = "date",
+  [TE_A_CONTEST_ID]= "contest_id",
   [TE_A_LAST_ATTR] = 0,
 };
 
@@ -142,6 +148,26 @@ parse_viewed_clars(struct xml_tree *t, struct team_extra *te, int *pv_flag)
     te->clar_map[x / BPE] |= (1UL << x % BPE);
   }
 
+  return 0;
+}
+
+static int
+parse_clar_uuids(struct xml_tree *t, struct team_extra *te, int *pu_flag)
+{
+  if (*pu_flag) return xml_err_elem_redefined(t);
+  *pu_flag = 1;
+
+  if (t->first) return xml_err_attrs(t);
+  if (xml_empty_text(t) < 0) return -1;
+
+  for (struct xml_tree *wt = t->first_down; wt; wt = wt->right) {
+    if (wt->tag != TE_T_UUID) return xml_err_elem_not_allowed(wt);
+    if (wt->first) return xml_err_attrs(t);
+    if (wt->first_down) return xml_err_nested_elems(wt);
+    ej_uuid_t uuid = {};
+    if (ej_uuid_parse(wt->text, &uuid) < 0) return xml_err_elem_invalid(wt);
+    team_extra_add_clar_uuid(te, &uuid);
+  }
   return 0;
 }
 
@@ -279,7 +305,7 @@ team_extra_parse_xml(const unsigned char *path, struct team_extra **pte)
   struct xml_tree *t = 0, *t2 = 0;
   struct team_extra *te = 0;
   struct xml_attr *a = 0;
-  int user_id = -1, x, n, v_flag = 0, w_flag = 0, s_flag = 0;
+  int user_id = -1, x, n, v_flag = 0, w_flag = 0, s_flag = 0, u_flag = 0;
 
   xml_err_path = path;
   xml_err_spec = &team_extra_parse_spec;
@@ -303,6 +329,9 @@ team_extra_parse_xml(const unsigned char *path, struct team_extra **pte)
         goto cleanup;
       }
       user_id = x;
+      break;
+    case TE_A_CONTEST_ID:
+      if (xml_attr_int(a, &te->contest_id) < 0) goto cleanup;
       break;
     default:
       xml_err_attr_not_allowed(t, a);
@@ -336,6 +365,15 @@ team_extra_parse_xml(const unsigned char *path, struct team_extra **pte)
     case TE_T_RUN_FIELDS:
       if (parse_run_felds(t2, te) < 0) goto cleanup;
       break;
+    case TE_T_UUID:
+      if (ej_uuid_parse(t2->text, &te->uuid) < 0) {
+        xml_err_elem_invalid(t2);
+        goto cleanup;
+      }
+      break;
+    case TE_T_CLAR_UUIDS:
+      if (parse_clar_uuids(t2, te, &u_flag) < 0) goto cleanup;
+      break;
     default:
       xml_err_elem_not_allowed(t2);
       goto cleanup;
@@ -354,7 +392,7 @@ team_extra_parse_xml(const unsigned char *path, struct team_extra **pte)
 }
 
 int
-team_extra_unparse_xml(FILE *f, struct team_extra *te)
+team_extra_unparse_xml(FILE *f, const struct team_extra *te)
 {
   int i, j;
 
@@ -363,17 +401,28 @@ team_extra_unparse_xml(FILE *f, struct team_extra *te)
   ASSERT(te->user_id > 0);
 
   fprintf(f, "<?xml version=\"1.0\" encoding=\"%s\"?>\n", EJUDGE_CHARSET);
-  fprintf(f, "<%s %s=\"%d\">\n", elem_map[TE_T_TEAM_EXTRA],
+  fprintf(f, "<%s %s=\"%d\"", elem_map[TE_T_TEAM_EXTRA],
           attr_map[TE_A_USER_ID], te->user_id);
-  fprintf(f, "  <%s>", elem_map[TE_T_VIEWED_CLARS]);
-  for (i = 0, j = 0; i < te->clar_map_size; i++) {
-    if (te->clar_map[i / BPE] & (1UL << i % BPE)) {
-      if (j) putc(' ', f);
-      fprintf(f, "%d", i);
-      j++;
-    }
+  if (te->contest_id > 0) {
+    fprintf(f, " %s=\"%d\"", attr_map[TE_A_CONTEST_ID], te->contest_id);
   }
-  fprintf(f, "  </%s>\n", elem_map[TE_T_VIEWED_CLARS]);
+  fprintf(f, ">\n");
+  if (ej_uuid_is_nonempty(te->uuid)) {
+    fprintf(f, "  <%s>%s</%s>\n", elem_map[TE_T_UUID],
+            ej_uuid_unparse(&te->uuid, NULL),
+            elem_map[TE_T_UUID]);
+  }
+  if (te->clar_map_size > 0) {
+    fprintf(f, "  <%s>", elem_map[TE_T_VIEWED_CLARS]);
+    for (i = 0, j = 0; i < te->clar_map_size; i++) {
+      if (te->clar_map[i / BPE] & (1UL << i % BPE)) {
+        if (j) putc(' ', f);
+        fprintf(f, "%d", i);
+        j++;
+      }
+    }
+    fprintf(f, "  </%s>\n", elem_map[TE_T_VIEWED_CLARS]);
+  }
   if (te->status > 0) {
     fprintf(f, "  <%s>%d</%s>\n", elem_map[TE_T_STATUS],
             te->status, elem_map[TE_T_STATUS]);
@@ -393,6 +442,14 @@ team_extra_unparse_xml(FILE *f, struct team_extra *te)
       fprintf(f, "    </%s>\n", elem_map[TE_T_WARNING]);
     }
     fprintf(f, "  </%s>\n", elem_map[TE_T_WARNINGS]);
+  }
+  if (te->clar_uuids_size > 0) {
+    fprintf(f, "  <%s>\n", elem_map[TE_T_CLAR_UUIDS]);
+    for (i = 0; i < te->clar_uuids_size; ++i) {
+      fprintf(f, "    <%s>%s</%s>\n", elem_map[TE_T_UUID],
+              ej_uuid_unparse(&te->clar_uuids[i], NULL), elem_map[TE_T_UUID]);
+    }
+    fprintf(f, "  </%s>\n", elem_map[TE_T_CLAR_UUIDS]);
   }
   if (te->disq_comment) {
     xml_unparse_text(f, elem_map[TE_T_DISQ_COMMENT], te->disq_comment, "  ");

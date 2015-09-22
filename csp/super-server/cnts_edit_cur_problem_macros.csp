@@ -1,0 +1,147 @@
+<% // -*- html -*-
+%>
+<%#define MENU_TEXTFIELD_WITH_DEFAULT 
+        <div id="edit-@1-div">
+            <div style="width: @4px; display: inline-block;"><label style="display:block; width: @4px" for="edit-@1">@3:</label></div>
+            <input type="text" size="20" name="@1" id="edit-@1" value="" class="text ui-widget-content ui-corner-all" onchange="@2DialogOnChange('@1')" /><%
+  if (sup_prob) {
+%>(Default: <input type="checkbox" name="@1_dflt" id="edit-@1_dflt" value="1" onchange="@2DialogOnChange('@1_dflt')" />)<%
+  }
+%>
+        </div>
+#%>
+
+<%#define MENU_TEXTFIELD
+        <div id="edit-@1-div">
+            <div style="width: @4px; display: inline-block;"><label style="display:block; width: @4px" for="edit-@1">@3:</label></div>
+            <input type="text" size="20" name="@1" id="edit-@1" value="" class="text ui-widget-content ui-corner-all" onchange="@2DialogOnChange('@1')" />
+        </div>
+#%>
+
+<%#define MENU_YESNO
+        <div id="edit-@1-div">
+            <div style="width: @4px; display: inline-block;"><label for="edit-@1">@3?</label></div>
+            <select id="edit-@1" name="@1" onchange="@2DialogOnChange()">
+                <option value="0">No</option>
+                <option value="1">Yes</option>
+            </select>
+        </div>
+#%>
+
+<%#define MENU_YESNO3
+        <div id="edit-@1-div">
+            <div style="width: @4px; display: inline-block;"><label for="edit-@1">@3?</label></div>
+            <select id="edit-@1" name="@1" onchange="@2DialogOnChange()">
+<%
+  if (sup_prob) {
+%>
+                <option value="-1">Default</option>
+<%
+  }
+%>
+                <option value="0">No</option>
+                <option value="1">Yes</option>
+            </select>
+        </div>
+#%>
+
+<%#define MENU_DATETIME
+        <div id="edit-@1-div">
+            <div style="width: @4px; display: inline-block;"><label style="display:block; width: @4px" for="edit-@1_time">@3:</label></div>
+            <input id="edit-@1_time" type="text" name="@1_time" class="time" size="6" class="text ui-widget-content ui-corner-all" />
+            <input id="edit-@1_date" type="text" name="@1_date" size="10" class="text ui-widget-content ui-corner-all" />
+        </div>
+#%>
+
+<%#define ONCHANGE_WITH_DEFAULT
+    if (field == "@1_dflt") {
+        if ($("#edit-@1_dflt").is(':checked')) {
+            $("#edit-@1").val("");
+        }
+    } else if (field == "@1") {
+        if ($("#edit-@1").val() != "") {
+            $("#edit-@1_dflt").prop('checked', false);
+        }
+    }
+#%>
+
+<%#define COPY_SIMPLE
+    $("#edit-@1").val($("#orig-@1").val());
+#%>
+
+<%#define COPY_YESNO3
+    $("#edit-@1").val($("#orig-@1").val());
+#%>
+
+<%#define COPY_TEXTFIELD
+    $("#edit-@1").val($("#orig-@1").val());
+#%>
+
+<%#define COPY_TEXTFIELD_WITH_DEFAULT
+    $("#edit-@1").val($("#orig-@1").val());
+<%
+  if (sup_prob) {
+%>
+    $("#edit-@1_dflt").prop('checked', <s:v type="jsbool" value="@2" />);
+<%
+  }
+%>
+#%>
+
+<%#define COPY_DATETIME
+    $("#edit-@1_time").val($("#orig-@1_time").val());
+    $("#edit-@1_date").val($("#orig-@1_date").val());
+#%>
+
+<%#define ORIG_INHERITABLE_BOOLEAN
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-@1-div">
+                <td>@3?</td>
+                <td><%
+    if (!sup_prob) {
+%><s:yesno id="orig-@1" readonly="readonly" name="param" value="tmp_prob->@1" /><%
+    } else {
+%><s:yesno3 id="orig-@1" readonly="readonly" name="param" value="prob->@1" default="tmp_prob->@1" /><%
+    }
+%></td>
+                <td>&nbsp;</td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:@1" /></td>
+            </s:tr>
+#%>
+
+<%#define ORIG_ENV
+            <s:tr attr="form_row_attrs[row ^= 1]" id="orig-@1-div">
+                <td>@3:</td>
+                <td><%
+    xfree(alloc_value);
+    alloc_value = sarray_unparse(prob->@1);
+%><s:textfield id="orig-@1" readonly="readonly" name="param" value="alloc_value" size="48" maxlength="1024" checkExpr="" /></td>
+                <td><input type="button" onclick="popup@2Dialog(event, '@1')" value="Clear" /></td>
+                <td onclick="np(event);"><s:help topic="Serve.cfg:problem:@1" /></td>
+            </s:tr>
+#%>
+
+<%#define CLEAR_TEXTFIELD
+    if (skipField == "@1") {
+        $("#edit-@1").val("");
+    }
+#%>
+
+<%#define CLEAR_TEXTFIELD_WITH_DEFAULT
+    if (skipField == "@1") {
+        $("#edit-@1").val("");
+<%
+        if (sup_prob) {
+%>
+            $("#edit-@1_dflt").prop('checked', true);
+<%
+        }
+%>
+    }
+#%>
+
+<%#define CLEAR_DATETIME
+    if (skipField == "@1") {
+        $("#edit-@1_date").val("");
+        $("#edit-@1_time").val("");
+    }
+#%>

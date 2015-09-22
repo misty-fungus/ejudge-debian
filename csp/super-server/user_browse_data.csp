@@ -1,0 +1,194 @@
+<% //-*- c -*-
+%><%@include "includes.csp"
+%><%
+#include "ejudge/userlist.h"
+#include "ejudge/userlist_clnt.h"
+#include "ejudge/userlist_proto.h"
+%><%@set getter_name = "csp_get_user_browse_data"
+%><%@set ac_prefix = "SSERV_CMD_"
+%><%@set err_prefix = "SSERV_ERR_"
+%><%@page csp_view_user_browse_data(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "stdvars.csp"
+%><%
+    snprintf(phr->content_type, sizeof(phr->content_type), "application/json; charset=%s", EJUDGE_CHARSET);
+
+static const unsigned char * const reg_status_strs[] =
+{
+  "OK",
+  "Pending",
+  "Rejected",
+  "Invalid status",
+};
+
+    const unsigned char *separator = "";
+    unsigned char *xml_text = NULL;
+    struct userlist_list *users = NULL;
+    int contest_id = 0;
+    int group_id = 0;
+    int page = -1;
+    int rows = 0;
+    const unsigned char *sidx = NULL;
+    const unsigned char *sord = NULL;
+    const unsigned char *searchField = NULL;
+    const unsigned char *searchOper = NULL;
+    const unsigned char *searchString = NULL;
+%><s:read var="contest_id" default="0" /><%
+%><s:read var="group_id" default="0" /><%
+%><s:read var="page" default="-1" /><%
+%><s:read var="rows" default="0" /><%
+%><s:read var="sidx" /><%
+%><s:read var="sord" /><%
+%><s:read var="searchField" required="no" /><%
+%><s:read var="searchOper" required="no" /><%
+%><s:read var="searchString" required="no" /><%
+
+    if (page <= 0) page = 1;
+    --page;
+    if (rows <= 0) rows = 10;
+    int sort_order = 1;
+    if (sord) {
+        if (!strcmp(sord, "asc")) {
+            sort_order = 1;
+        } else if (!strcmp(sord, "desc")) {
+            sort_order = 2;
+        }
+    }
+    int sort_field = -1;
+    if (sidx) {
+        if (!strcmp(sidx, "id")) {
+            sort_field = USERLIST_NN_ID;
+        } else if (!strcmp(sidx, "login")) {
+            sort_field = USERLIST_NN_LOGIN;
+        } else if (!strcmp(sidx, "email")) {
+            sort_field = USERLIST_NN_EMAIL;
+        } else if (!strcmp(sidx, "name")) {
+            sort_field = USERLIST_NC_NAME;
+        }
+    }
+
+    int filter_field = -1;
+    if (searchField) {
+        if (!strcmp(searchField, "id")) {
+            filter_field = USERLIST_NN_ID;
+        } else if (!strcmp(searchField, "login")) {
+            filter_field = USERLIST_NN_LOGIN;
+        } else if (!strcmp(searchField, "email")) {
+            filter_field = USERLIST_NN_EMAIL;
+        } else if (!strcmp(searchField, "name")) {
+            filter_field = USERLIST_NC_NAME;
+        }
+    }
+    int filter_op = userlist_parse_filter_op(searchOper);
+
+    int r = userlist_clnt_list_users_2(phr->userlist_clnt, ULS_LIST_ALL_USERS_2,
+                                       contest_id, group_id, searchString, 0, rows,
+                                       page, sort_field, sort_order,
+                                       filter_field, filter_op,
+                                       &xml_text);
+    int records = 0;
+    if (r > 0 && xml_text) {
+        users = userlist_parse_str(xml_text);
+    }
+    if (users) {
+        records = users->total;
+    }
+    if (records <= 0) records = 0;
+    int total = (records + rows - 1) / rows;
+    int serial = page * rows + 1;
+    ++page;
+
+%>
+{
+    "input" : {
+        "contest_id" : "<s:v value="contest_id" />",
+        "group_id" : "<s:v value="group_id" />",
+        "page" : "<s:v value="page" />",
+        "rows" : "<s:v value="rows" />",
+        "sort_order" : "<s:v value="sort_order" />",
+        "sort_field" : "<s:v value="sort_field" />",
+        "filter_field" : "<s:v value="filter_field" />",
+        "filter_op" : "<s:v value="filter_op" />",
+        "searchString" : "<s:v value="searchString" json="yes" checkExpr="" />"
+    },
+    "page" : "<s:v value="page" />",
+    "total" : "<s:v value="total" />",
+    "records" : "<s:v value="records" />",
+    "rows" : [
+<%
+    if (users) {
+        struct xml_tree *t;
+        for (t = users->b.first_down; t; t = t->right) {
+            if (t->tag != USERLIST_T_USER) continue;
+            const struct userlist_user *u = (const struct userlist_user *) t;
+            const unsigned char *name = NULL;
+            const struct userlist_user_info *ui = userlist_get_user_info(u, contest_id);
+            if (ui) name = ui->name;
+            if (!name) name = "";
+            const struct userlist_contest *reg = NULL;
+            if (contest_id > 0) {
+                reg = userlist_get_user_contest(u, contest_id);
+            }
+            const unsigned char *status_str = "";
+            if (reg) {
+                if (reg->status >= 0 && reg->status < USERLIST_REG_LAST) {
+                    status_str = reg_status_strs[reg->status];
+                } else {
+                    status_str = reg_status_strs[USERLIST_REG_LAST];
+                }
+            }
+            char *flags_s = NULL; size_t flags_z = 0;
+            if (reg) {
+                FILE *flags_f = open_memstream(&flags_s, &flags_z);
+                r = 0;
+                if ((reg->flags & USERLIST_UC_INVISIBLE)) {
+                    if (r++) fprintf(flags_f, ", ");
+                    fprintf(flags_f, "invisible");
+                }
+                if ((reg->flags & USERLIST_UC_BANNED)) {
+                    if (r++) fprintf(flags_f, ", ");
+                    fprintf(flags_f, "banned");
+                }
+                if ((reg->flags & USERLIST_UC_LOCKED)) {
+                    if (r++) fprintf(flags_f, ", ");
+                    fprintf(flags_f, "locked");
+                }
+                if ((reg->flags & USERLIST_UC_INCOMPLETE)) {
+                    if (r++) fprintf(flags_f, ", ");
+                    fprintf(flags_f, "incomplete");
+                }
+                if ((reg->flags & USERLIST_UC_DISQUALIFIED)) {
+                    if (r++) fprintf(flags_f, ", ");
+                    fprintf(flags_f, "disqualified");
+                }
+                fclose(flags_f); flags_f = NULL;
+            }
+            if (!flags_s) flags_s = xstrdup("");
+%>
+        <s:v value="separator" escape="false" />
+        {
+            "id" : "<s:v value="u->id" />",
+            "cell" : [
+                "<s:v value="serial" />",
+                "<s:v value="u->id" />",
+                "<s:v value="u->login" checkExpr="" json="yes" />",
+                "<s:v value="u->email" checkExpr="" json="yes" />",
+                "<s:v value="name" json="yes" />",
+                "<s:v value="status_str" json="yes" />",
+                "<s:v value="flags_s" json="yes" />"
+             ]
+        }
+<%
+            ++serial;
+            separator = ",";
+            xfree(flags_s); flags_s = NULL; flags_z = 0;
+        }
+    }
+%>
+    ]
+}
+<%
+cleanup:;
+    userlist_free(&users->b);
+    xfree(xml_text);
+    html_armor_free(&ab);
+%>

@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id$ */
 #ifndef __SUPER_SERVE_H__
 #define __SUPER_SERVE_H__
 
-/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -103,15 +102,6 @@ struct sid_state
   unsigned char *user_name;
   int edit_page;
 
-  ejintbool_t advanced_view;
-  ejintbool_t show_html_attrs;
-  ejintbool_t show_html_headers;
-  ejintbool_t show_paths;
-  ejintbool_t show_access_rules;
-  ejintbool_t show_permissions;
-  ejintbool_t show_form_fields;
-  ejintbool_t show_notifications;
-
   unsigned char *users_header_text;
   unsigned char *users_footer_text;
   unsigned char *register_header_text;
@@ -175,13 +165,6 @@ struct sid_state
   int tester_total;
   struct section_tester_data **testers;
 
-  ejintbool_t show_global_1;
-  ejintbool_t show_global_2;
-  ejintbool_t show_global_3;
-  ejintbool_t show_global_4;
-  ejintbool_t show_global_5;
-  ejintbool_t show_global_6;
-  ejintbool_t show_global_7;
   ejintbool_t enable_stand2;
   ejintbool_t enable_plog;
   ejintbool_t enable_extra_col;
@@ -264,5 +247,8 @@ struct update_state *
 update_state_create(void);
 struct update_state *
 update_state_free(struct update_state *us);
+
+struct section_problem_data *
+super_serve_find_problem(struct sid_state *ss, const unsigned char *name);
 
 #endif /* __SUPER_SERVE_H__ */

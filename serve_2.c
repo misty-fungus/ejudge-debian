@@ -47,6 +47,7 @@
 #include "ejudge/ej_uuid.h"
 #include "ejudge/team_extra.h"
 #include "ejudge/packet_name.h"
+#include "ejudge/xuser_plugin.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -714,10 +715,10 @@ generate_statistics_email(
   snprintf(esubj, sizeof(esubj),
            "Daily statistics for %04d/%02d/%02d, contest %d",
            ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday,
-           state->global->contest_id);
+           cnts->id);
 
   eout = open_memstream(&etxt, &elen);
-  generate_daily_statistics(state, eout, from_time, to_time, utf8_mode);
+  generate_daily_statistics(cnts, state, eout, from_time, to_time, utf8_mode);
   close_memstream(eout); eout = 0;
   if (!etxt || !*etxt) {
     xfree(etxt);
@@ -736,7 +737,7 @@ generate_statistics_email(
           "-\n"
           "Regards,\n"
           "the ejudge contest management system\n",
-          state->global->contest_id, cnts->name,
+          cnts->id, cnts->name,
           tm1.tm_year + 1900, tm1.tm_mon + 1, tm1.tm_mday,
           etxt);
   close_memstream(fout); fout = 0;
@@ -1152,27 +1153,27 @@ serve_compile_request(
   cp.env_num = -1;
   cp.env_vars = (unsigned char**) compiler_env;
   cp.style_check_only = !!style_check_only;
-  cp.max_vm_size = -1L;
-  cp.max_stack_size = -1L;
-  cp.max_file_size = -1L;
+  cp.max_vm_size = ~(ej_size64_t) 0;
+  cp.max_stack_size = ~(ej_size64_t) 0;
+  cp.max_file_size = ~(ej_size64_t) 0;
   if (puuid && (puuid->v[0] || puuid->v[1] || puuid->v[2] || puuid->v[3])) {
     cp.use_uuid = 1;
     cp.uuid = *puuid;
   }
   if (lang) {
-    if (((ssize_t) lang->max_vm_size) > 0) {
+    if (lang->max_vm_size > 0) {
       cp.max_vm_size = lang->max_vm_size;
-    } else if (((ssize_t) global->compile_max_vm_size) > 0) {
+    } else if (global->compile_max_vm_size > 0) {
       cp.max_vm_size = global->compile_max_vm_size;
     }
-    if (((ssize_t) lang->max_stack_size) > 0) {
+    if (lang->max_stack_size > 0) {
       cp.max_stack_size = lang->max_stack_size;
-    } else if (((ssize_t) global->compile_max_stack_size) > 0) {
+    } else if (global->compile_max_stack_size > 0) {
       cp.max_stack_size = global->compile_max_stack_size;
     }
-    if (((ssize_t) lang->max_file_size) > 0) {
+    if (lang->max_file_size > 0) {
       cp.max_file_size = lang->max_file_size;
-    } else if (((ssize_t) global->compile_max_file_size) > 0) {
+    } else if (global->compile_max_file_size > 0) {
       cp.max_file_size = global->compile_max_file_size;
     }
   }
@@ -1348,7 +1349,7 @@ static int
 find_lang_specific_size(
         char **values,
         const struct section_language_data *lang,
-        size_t *p_size)
+        ej_size64_t *p_size)
 {
   if (!values || !values[0] || !lang) return 0;
   if (lang->short_name[0] <= ' ') return 0;
@@ -1358,7 +1359,7 @@ find_lang_specific_size(
   for (int i = 0; (sn = values[i]); ++i) {
     int vl = strlen(sn);
     if (vl > lsn + 1 && !strncmp(sn, lang->short_name, lsn) && sn[lsn] == '=') {
-      return size_str_to_size_t(sn + lsn + 1, p_size) >= 0;
+      return size_str_to_size64_t(sn + lsn + 1, p_size) >= 0;
     }
   }
 
@@ -1421,7 +1422,7 @@ serve_run_request(
   FILE *srp_f = NULL;
   char *srp_t = NULL;
   size_t srp_z = 0;
-  size_t lang_specific_size;
+  ej_size64_t lang_specific_size = 0;
 
   get_current_time(&current_time, &current_time_us);
 
@@ -1918,12 +1919,10 @@ serve_run_request(
     srpp->umask = xstrdup(prob->umask);
   }
 
-  if (find_lang_specific_size(prob->lang_max_vm_size, lang,
-                              &lang_specific_size) > 0) {
+  if (find_lang_specific_size(prob->lang_max_vm_size, lang, &lang_specific_size) > 0) {
     srpp->max_vm_size = lang_specific_size;
   }
-  if (find_lang_specific_size(prob->lang_max_stack_size, lang,
-                              &lang_specific_size) > 0) {
+  if (find_lang_specific_size(prob->lang_max_stack_size, lang, &lang_specific_size) > 0) {
     srpp->max_stack_size = lang_specific_size;
   }
 
@@ -2508,7 +2507,7 @@ prepare_run_request:
   }
 
   if (serve_run_request(state, cnts, stderr, run_text, run_size,
-                        global->contest_id, comp_pkt->run_id,
+                        cnts->id, comp_pkt->run_id,
                         re.user_id, re.prob_id, re.lang_id, re.variant,
                         comp_extra->priority_adjustment,
                         comp_pkt->judge_id, comp_extra->accepting_mode,
@@ -2800,6 +2799,12 @@ serve_read_run_packet(
       && reply_pkt->status == RUN_ACCEPTED
       && prob->ignore_prev_ac > 0) {
     ignore_prev_ac = 1;
+  } else if (prob->ok_status && *prob->ok_status && reply_pkt->status == RUN_OK) {
+    int status = 0;
+    if (run_str_short_to_status(prob->ok_status, &status) >= 0) {
+      reply_pkt->status = status;
+      if (prob->ignore_prev_ac > 0) ignore_prev_ac = 1;
+    }
   } else if (prob->use_ac_not_ok > 0 && reply_pkt->status == RUN_OK) {
     reply_pkt->status = RUN_PENDING_REVIEW;
     if (prob->ignore_prev_ac > 0) ignore_prev_ac = 1;
@@ -3296,7 +3301,7 @@ serve_rejudge_run(
     }
 
     if (prob->style_checker_cmd && prob->style_checker_cmd[0]) {
-      r = serve_compile_request(state, 0 /* str*/, -1 /* len*/, global->contest_id,
+      r = serve_compile_request(state, 0 /* str*/, -1 /* len*/, cnts->id,
                                 run_id, re.user_id, 0 /* lang_id */, re.variant,
                                 0 /* locale_id */, 1 /* output_only*/,
                                 mime_type_get_suffix(re.mime_type),
@@ -3325,7 +3330,7 @@ serve_rejudge_run(
       return;
 
     serve_run_request(state, cnts, stderr, run_text, run_size,
-                      global->contest_id, run_id,
+                      cnts->id, run_id,
                       re.user_id, re.prob_id, re.lang_id,
                       re.variant, priority_adjustment,
                       -1, accepting_mode, 1, re.mime_type, re.eoln_type,
@@ -3345,7 +3350,7 @@ serve_rejudge_run(
     accepting_mode = 0;
   }
 
-  r = serve_compile_request(state, 0, -1, global->contest_id, run_id, re.user_id,
+  r = serve_compile_request(state, 0, -1, cnts->id, run_id, re.user_id,
                             lang->compile_id, re.variant, re.locale_id,
                             (prob->type > 0),
                             lang->src_sfx,
@@ -5377,9 +5382,184 @@ serve_count_unread_clars(
     if (clar.to > 0 && clar.to != user_id) continue;
     if (!clar.to && clar.from > 0) continue;
     if (start_time <= 0 && clar.hide_flag) continue;
-    if (clar.from != user_id
-        && !team_extra_get_clar_status(state->team_extra_state, user_id, i))
+    if (clar.from != user_id) {
       total++;
+    }
   }
+  if (state->xuser_state) {
+    total -= state->xuser_state->vt->count_read_clars(state->xuser_state, user_id);
+  }
+  if (total < 0) total = 0;
   return total;
+}
+
+static unsigned char *
+get_compiler_option(
+        const serve_state_t state,
+        const struct section_language_data *lang)
+{
+  if (!lang) return NULL;
+
+  const unsigned char *flags = NULL;
+  const unsigned char *libs = NULL;
+
+  if (lang->compiler_env) {
+    for (int i = 0; lang->compiler_env[i]; ++i) {
+      if (!strncmp(lang->compiler_env[i], "EJUDGE_FLAGS=", 13)) {
+        flags = lang->compiler_env[i] + 13;
+      } else if (!strncmp(lang->compiler_env[i], "EJUDGE_LIBS=", 12)) {
+        libs = lang->compiler_env[i] + 12;
+      }
+    }
+  }
+
+  const unsigned char *mandatory = "";
+  if (!strcmp(lang->short_name, "clang-32")) {
+    mandatory = "-m32";
+  } else if (!strcmp(lang->short_name, "clang++-32")) {
+    mandatory = "-m32";
+  } else if (!strcmp(lang->short_name, "dcc")) {
+    mandatory = "-Q";
+  } else if (!strcmp(lang->short_name, "fbc")) {
+    mandatory = "-lang qb";
+  } else if (!strcmp(lang->short_name, "fpc")) {
+    mandatory = "-XS";
+  } else if (!strcmp(lang->short_name, "gcc")) {
+    mandatory = "-static";
+  } else if (!strcmp(lang->short_name, "gcc-32")) {
+    mandatory = "-m32";
+  } else if (!strcmp(lang->short_name, "g++")) {
+    mandatory = "-static";
+  } else if (!strcmp(lang->short_name, "g++-32")) {
+    mandatory = "-m32";
+  } else if (!strcmp(lang->short_name, "g77")) {
+    mandatory = "-static";
+  } else if (!strcmp(lang->short_name, "gfortran")) {
+    mandatory = "-static";
+  } else if (!strcmp(lang->short_name, "gccgo")) {
+    mandatory = "-g";
+  } else if (!strcmp(lang->short_name, "gcj")) {
+    mandatory = "--main=Main Main.java";
+  } else if (!strcmp(lang->short_name, "gpc")) {
+    mandatory = "-static";
+  } else if (!strcmp(lang->short_name, "gprolog")) {
+    mandatory = "--min-size";
+  } else if (!strcmp(lang->short_name, "nasm-x86")) {
+    mandatory = "-DUNIX -f elf";
+  }
+
+  if (!flags) {
+    if (!strcmp(lang->short_name, "clang")) {
+      flags = "-Wall -O2 -std=gnu99";
+    } else if (!strcmp(lang->short_name, "clang-32")) {
+      flags = "-Wall -O2 -std=gnu99";
+    } else if (!strcmp(lang->short_name, "clang++")) {
+      flags = "-Wall -O2";
+    } else if (!strcmp(lang->short_name, "clang++-32")) {
+      flags = "-Wall -O2";
+    } else if (!strcmp(lang->short_name, "gcc")) {
+      flags = "-Wall -O2 -std=gnu11";
+    } else if (!strcmp(lang->short_name, "gcc-32")) {
+      flags = "-Wall -O2 -std=gnu99";
+    } else if (!strcmp(lang->short_name, "gcc-vg")) {
+      flags = "-g -O2 -std=gnu11";
+    } else if (!strcmp(lang->short_name, "g++")) {
+      flags = "-Wall -O2 -std=gnu++11";
+    } else if (!strcmp(lang->short_name, "g++-32")) {
+      flags = "-Wall -O2";
+    } else if (!strcmp(lang->short_name, "g++-vg")) {
+      flags = "-g -O2";
+    } else if (!strcmp(lang->short_name, "g77")) {
+      flags = "-O2";
+    } else if (!strcmp(lang->short_name, "gfortran")) {
+      flags = "-O2";
+    } else if (!strcmp(lang->short_name, "gccgo")) {
+      flags = "-O2";
+    } else if (!strcmp(lang->short_name, "gcj")) {
+      flags = "-Wall -O2";
+    } else if (!strcmp(lang->short_name, "gpc")) {
+      flags = "-O2";
+    } else if (!strcmp(lang->short_name, "mcs")) {
+      flags = "-optimize+";
+    } else if (!strcmp(lang->short_name, "nasm-x86")) {
+      flags = "-Werror";
+    }
+  }
+
+  if (!libs) {
+    if (!strcmp(lang->short_name, "clang")) {
+      libs = "-lm";
+    } else if (!strcmp(lang->short_name, "clang-32")) {
+      libs = "-lm";
+    } else if (!strcmp(lang->short_name, "clang++")) {
+      libs = "-lm";
+    } else if (!strcmp(lang->short_name, "clang++-32")) {
+      libs = "-lm";
+    } else if (!strcmp(lang->short_name, "gcc")) {
+      libs = "-lm";
+    } else if (!strcmp(lang->short_name, "gcc-32")) {
+      libs = "-lm";
+    } else if (!strcmp(lang->short_name, "gcc-vg")) {
+      libs = "-lm";
+    } else if (!strcmp(lang->short_name, "g++")) {
+      libs = "-lm";
+    } else if (!strcmp(lang->short_name, "g++-32")) {
+      libs = "-lm";
+    } else if (!strcmp(lang->short_name, "g++-vg")) {
+      libs = "-lm";
+    }
+  }
+
+  if (!mandatory) mandatory = "";
+  if (!flags) flags = "";
+  if (!libs) libs = "";
+
+  const unsigned char *spc = "";
+  unsigned char *out = xmalloc(strlen(mandatory) + strlen(flags) + strlen(libs) + 3);
+  *out = 0;
+  if (*mandatory) {
+    strcat(out, mandatory);
+    spc = " ";
+  }
+  if (*flags) {
+    strcat(out, spc);
+    strcat(out, flags);
+    spc = " ";
+  }
+  if (*libs) {
+    strcat(out, spc);
+    strcat(out, libs);
+  }
+  return out;
+}
+
+static void
+fill_compiler_options(const serve_state_t state)
+{
+  if (state->compiler_options) return;
+  if (state->max_lang <= 0) return;
+  XCALLOC(state->compiler_options, state->max_lang + 1);
+
+  for (int lang_id = 1; lang_id <= state->max_lang; ++lang_id) {
+    const struct section_language_data *lang = state->langs[lang_id];
+    state->compiler_options[lang_id] = get_compiler_option(state, lang);
+  }
+}
+
+const unsigned char *
+serve_get_compiler_options(
+        const serve_state_t state,
+        int lang_id)
+{
+  const unsigned char *s = 0;
+
+  if (lang_id <= 0 || lang_id > state->max_lang) return "";
+
+  if (!state->compiler_options) {
+    fill_compiler_options(state);
+  }
+
+  s = state->compiler_options[lang_id];
+  if (!s) s = "";
+  return s;
 }

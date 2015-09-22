@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id$ */
 #ifndef __SUPER_HTML_H__
 #define __SUPER_HTML_H__
 
-/* Copyright (C) 2004-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2004-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -141,8 +140,6 @@ struct contest_desc *contest_tmpl_clone(struct sid_state *sstate,
                                         const unsigned char *login,
                                         const unsigned char *ss_login);
 
-int super_html_clear_variable(struct sid_state *sstate, int cmd);
-
 int super_html_set_contest_var(struct sid_state *sstate, int cmd,
                                int param1, const unsigned char *param2,
                                int param3, int param4, int param5);
@@ -158,11 +155,6 @@ int super_html_prob_cmd(struct sid_state *sstate, int cmd,
 int super_html_prob_param(struct sid_state *sstate, int cmd,
                           int param1, const unsigned char *param2,
                           int param3, int param4);
-
-int super_html_global_param(struct sid_state *sstate, int cmd,
-                            const struct ejudge_cfg *config,
-                            int param1, const unsigned char *param2,
-                            int param3, int param4);
 
 int super_html_report_error(FILE *f,
                             ej_cookie_t session_id,
@@ -269,37 +261,9 @@ void
 ss_write_html_header(
         FILE *out_f,
         struct http_request_info *phr,
-        const unsigned char *title,
-        int use_dojo,
-        const unsigned char *body_class);
+        const unsigned char *title);
 void
 ss_write_html_footer(FILE *out_f);
-
-void
-ss_dojo_button(
-        FILE *out_f,
-        const unsigned char *id,
-        const unsigned char *icon,
-        const unsigned char *alt,
-        const char *onclick,
-        ...)
-  __attribute__((format(printf, 5, 6)));
-
-int
-super_serve_op_browse_problem_packages(
-        FILE *log_f,
-        FILE *out_f,
-        struct http_request_info *phr);
-int
-super_serve_op_package_operation(
-        FILE *log_f,
-        FILE *out_f,
-        struct http_request_info *phr);
-int
-super_serve_op_edit_problem(
-        FILE *log_f,
-        FILE *out_f,
-        struct http_request_info *phr);
 
 int
 super_html_add_problem(

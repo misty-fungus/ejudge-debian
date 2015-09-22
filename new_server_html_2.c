@@ -49,6 +49,7 @@
 #include "ejudge/super_run_packet.h"
 #include "ejudge/ej_uuid.h"
 #include "ejudge/new_server_pi.h"
+#include "ejudge/xuser_plugin.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -140,8 +141,8 @@ ns_write_priv_all_runs(
   if (!u) u = user_filter_info_allocate(cs, phr->user_id, phr->session_id);
 
   run_fields = u->run_fields;
-  if (run_fields <= 0) {
-    run_fields = team_extra_get_run_fields(cs->team_extra_state, phr->user_id);
+  if (run_fields <= 0 && cs->xuser_state) {
+    run_fields = cs->xuser_state->vt->get_run_fields(cs->xuser_state, phr->user_id);
   }
   if (run_fields <= 0) {
     run_fields = RUN_VIEW_DEFAULT;
@@ -1241,16 +1242,18 @@ ns_write_all_clars(
   } else if (count < 0) {
     count = -count;
   }
-  if (last_clar > 0) {
-    for (i = first_clar; i < total && list_tot < count; ++i) {
-      if (match_clar(cs, i, mode_clar)) {
-        list_idx[list_tot++] = i;
+  if (total > 0) {
+    if (last_clar > 0) {
+      for (i = first_clar; i < total && list_tot < count; ++i) {
+        if (match_clar(cs, i, mode_clar)) {
+          list_idx[list_tot++] = i;
+        }
       }
-    }
-  } else {
-    for (i = first_clar; i >= 0 && list_tot < count; --i) {
-      if (match_clar(cs, i, mode_clar)) {
-        list_idx[list_tot++] = i;
+    } else {
+      for (i = first_clar; i >= 0 && list_tot < count; --i) {
+        if (match_clar(cs, i, mode_clar)) {
+          list_idx[list_tot++] = i;
+        }
       }
     }
   }
@@ -2671,6 +2674,7 @@ ns_reset_stand_filter(
 
 void
 ns_download_runs(
+        const struct contest_desc *cnts,
         const serve_state_t cs,
         FILE *fout,
         FILE *log_f,
@@ -2740,7 +2744,7 @@ ns_download_runs(
   need_remove = 1;
 
   snprintf(name3, sizeof(name3), "contest_%d_%04d%02d%02d%02d%02d%02d",
-           cs->global->contest_id, 
+           cnts->id, 
            ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday,
            ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
   snprintf(dir3, sizeof(dir3), "%s/%s", dir2, name3);
@@ -5632,9 +5636,13 @@ new_write_user_runs(
   /* write run statistics: show last 15 in the reverse order */
   fprintf(f,"<table class=\"table\"><tr><th%s>%s</th><th%s>%s</th>"
           "<th%s>%s</th>"
-          "<th%s>%s</th><th%s>%s</th><th%s>%s</th>",
+          "<th%s>%s</th><th%s>%s</th>",
           cl, _("Run ID"), cl, _("Time"), cl, _("Size"), cl, _("Problem"),
-          cl, _("Language"), cl, _("Result"));
+          cl, _("Language"));
+  if (global->show_sha1 > 0) {
+    fprintf(f, "<th%s>%s</th>", cl, "SHA1");
+  }
+  fprintf(f, "<th%s>%s</th>", cl, _("Result"));
 
   if (global->score_system == SCORE_KIROV
       || global->score_system == SCORE_OLYMPIAD) {
@@ -5744,6 +5752,9 @@ new_write_user_runs(
     fprintf(f, "<td%s>%u</td>", cl, re.size);
     fprintf(f, "<td%s>%s</td>", cl, prob_str);
     fprintf(f, "<td%s>%s</td>", cl, lang_str);
+    if (global->show_sha1 > 0) {
+      fprintf(f, "<td%s><tt>%s</tt></td>", cl, unparse_abbrev_sha1(re.sha1));
+    }
 
     write_html_run_status(state, f, start_time, &re, 1 /* user_mode */,
                           0, attempts, disq_attempts,
@@ -5884,13 +5895,15 @@ team_clar_flags(
         const serve_state_t state,
         int user_id,
         int clar_id,
+        const ej_uuid_t *p_clar_uuid,
         int flags,
         int from,
         int to)
 {
   if (from != user_id) {
-    if (!team_extra_get_clar_status(state->team_extra_state, user_id, clar_id))
+    if (state->xuser_state && !state->xuser_state->vt->get_clar_status(state->xuser_state, user_id, clar_id, p_clar_uuid)) {
       return "N";
+    }
     else return "&nbsp;";
   }
   if (!flags) return "U";
@@ -5962,7 +5975,7 @@ new_write_user_clars(
     if (start_time > time) time = start_time;
     duration_str(show_astr_time, time, start_time, dur_str, 0);
 
-    clar_flags = team_clar_flags(state, phr->user_id, i, clar.flags, clar.from, clar.to);
+    clar_flags = team_clar_flags(state, phr->user_id, i, &clar.uuid, clar.flags, clar.from, clar.to);
     fputs("<tr>", f);
     fprintf(f, "<td%s>%d</td>", cl, i);
     fprintf(f, "<td%s>%s</td>", cl, clar_flags);

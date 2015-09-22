@@ -33,12 +33,12 @@ struct section_tester_data;
 struct contest_desc;
 struct clarlog_state;
 struct teamdb_state;
-struct team_extra_state;
 struct user_state_info;
 struct user_filter_info;
 struct teamdb_db_callbacks;
 struct userlist_clnt;
 struct ejudge_cfg;
+struct xuser_cnts_state;
 
 /* error codes */
 enum
@@ -192,8 +192,8 @@ struct serve_state
   /* teamdb internal state */
   struct teamdb_state *teamdb_state;
 
-  /* team_extra internal state */
-  struct team_extra_state *team_extra_state;
+  /* new team extra internal state */
+  struct xuser_cnts_state *xuser_state;
 
   /* runlog internal state */
   struct runlog_state *runlog_state;
@@ -304,6 +304,9 @@ struct serve_state
   // memoized user results
   int user_result_a; // allocated size
   struct serve_user_results *user_results;
+
+  // compiler options to report
+  unsigned char **compiler_options;
 };
 typedef struct serve_state *serve_state_t;
 
@@ -758,5 +761,10 @@ serve_make_audit_read_path(
         unsigned char *path,
         size_t size,
         const struct run_entry *re);
+
+const unsigned char *
+serve_get_compiler_options(
+        const serve_state_t state,
+        int lang_id);
 
 #endif /* __SERVE_STATE_H__ */

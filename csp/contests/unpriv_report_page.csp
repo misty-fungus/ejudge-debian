@@ -5,6 +5,7 @@
 #include "ejudge/archive_paths.h"
 #include "ejudge/team_extra.h"
 #include "ejudge/ej_uuid.h"
+#include "ejudge/xuser_plugin.h"
 
 int
 ns_unpriv_parse_run_id(
@@ -91,6 +92,8 @@ ns_unpriv_parse_run_id(
   case RUN_SECURITY_ERR:
   case RUN_STYLE_ERR:
   case RUN_REJECTED:
+  case RUN_IGNORED:
+  case RUN_DISQUALIFIED:
     // these statuses have viewable reports
     break;
   default:
@@ -160,7 +163,9 @@ ns_unpriv_parse_run_id(
     if (clar_get_record(cs->clarlog_state, clar_id, &clar) >= 0) {
       if (clar.to == phr->user_id && clar.run_id > 0 && !memcmp(&re.run_uuid, &clar.run_uuid, sizeof(re.run_uuid))) {
         // mark as read
-        team_extra_set_clar_status(cs->team_extra_state, phr->user_id, clar_id);
+        if (cs->xuser_state) {
+          cs->xuser_state->vt->set_clar_status(cs->xuser_state, phr->user_id, clar_id, &clar.uuid);
+        }
       }
     }
   }
@@ -195,8 +200,8 @@ ns_unpriv_parse_run_id(
 <div class="width-100">
 <table class="message-table">
     <tr class="mes-top">
-        <td>Author</td>
-        <td>Run comment</td>
+        <td><s:_>Author</s:_></td>
+        <td><s:_>Run comment</s:_></td>
     </tr>
 <%
       for (i = 0; i < fcev.u; ++i) {
@@ -205,7 +210,11 @@ ns_unpriv_parse_run_id(
        <td class="profile">
 <%
         if (!fcev.v[i].e.from) {
-%><b>Judge</b><%
+            if (global->show_judge_identity > 0 && fcev.v[i].e.j_from > 0) {
+%><b><s:_>Judge</s:_></b> (<s:v value="teamdb_get_name_2(cs->teamdb_state, fcev.v[i].e.j_from)" />)<%
+            } else {
+%><b><s:_>Judge</s:_></b><%
+            }
         } else {
 %><s:v value="teamdb_get_name_2(cs->teamdb_state, fcev.v[i].e.from)" /><%
         }

@@ -120,6 +120,7 @@ COMMON_CFILES=\
  archive_paths.c\
  base64.c\
  bitset.c\
+ bson_utils.c\
  build_support.c\
  cgi.c\
  charsets.c\
@@ -258,6 +259,7 @@ COMMON_CFILES=\
  varsubst.c\
  vcs.c\
  watched_file.c\
+ xuser_plugin_file.c\
  zip_utils.c\
  xml_utils/attr_bool.c\
  xml_utils/attr_bool_byte.c\
@@ -494,6 +496,7 @@ HFILES=\
  ./include/ejudge/archive_paths.h\
  ./include/ejudge/base64.h\
  ./include/ejudge/bitset.h\
+ ./include/ejudge/bson_utils.h\
  ./include/ejudge/build_support.h\
  ./include/ejudge/cgi.h\
  ./include/ejudge/charsets.h\
@@ -611,6 +614,7 @@ HFILES=\
  ./include/ejudge/new_server_proto.h\
  new_server_clnt/new_server_clnt_priv.h\
  ./include/ejudge/xml_utils.h\
+ ./include/ejudge/xuser_plugin.h\
  ./include/ejudge/zip_utils.h
 
 OTHERFILES=\

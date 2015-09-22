@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id$ */
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -697,6 +696,13 @@ setup_log_file(void)
   }
   ejudge_config->new_server_log = xstrdup("/tmp/ej-contests.log");
 }
+
+extern int ej_bson_force_link_dummy;
+
+static void *forced_symbols[] __attribute__((unused)) =
+{
+  &ej_bson_force_link_dummy
+};
 
 int
 main(int argc, char *argv[])

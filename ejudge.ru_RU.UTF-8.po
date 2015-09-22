@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ejudge 3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-01-16 19:00+0300\n"
-"PO-Revision-Date: 2015-01-16 19:01+0300\n"
+"POT-Creation-Date: 2015-06-23 13:33+0300\n"
+"PO-Revision-Date: 2015-06-23 13:34+0300\n"
 "Last-Translator: Alexander Chernov <cher@ejudge.ru>\n"
 "Language-Team: Russian <ru@li.org>\n"
 "Language: ru\n"
@@ -478,6 +478,9 @@ msgstr "Разрешить работу в роли ЭКЗАМЕНАТОРА о�
 msgid "Add the OBSERVER role to the selected users"
 msgstr "Разрешить работу в роли НАБЛЮДАТЕЛЯ отмеченным пользователям"
 
+msgid "Add users to another group"
+msgstr "Добавить пользователей в другую группу"
+
 msgid "Adding new runs"
 msgstr "Добавление новых посылок"
 
@@ -496,9 +499,6 @@ msgstr "Доп. инф. о тесте"
 
 msgid "Administrator"
 msgstr "Администратор"
-
-msgid "Advanced view"
-msgstr "Расширенный просмотр"
 
 msgid "Advisor"
 msgstr "Руководитель команды"
@@ -537,7 +537,8 @@ msgid "Allow viewing the final scores"
 msgstr "Разрешить просмотр итогового балла"
 
 msgid "Allow viewing the judge comment of the valuer"
-msgstr "Разрешить просмотр комментария для судей, полученного от программы оценивания"
+msgstr ""
+"Разрешить просмотр комментария для судей, полученного от программы оценивания"
 
 #, c-format
 msgid "An e-mail messages is sent to the address <tt>%s</tt>."
@@ -622,6 +623,9 @@ msgstr "Журнал аудита пуст"
 msgid "Aug"
 msgstr "Авг"
 
+msgid "Author"
+msgstr "Автор"
+
 msgid "Auto-assign logins"
 msgstr "Назачить логины автоматически"
 
@@ -645,9 +649,6 @@ msgstr "Заблокировать"
 
 msgid "Banned?"
 msgstr "Заблокированный?"
-
-msgid "Basic view"
-msgstr "Базовый просмотр"
 
 msgid ""
 "Be careful and type the e-mail address correctly. If you make a mistake, you "
@@ -891,6 +892,9 @@ msgstr "Ошибка компиляции"
 
 msgid "Compiled"
 msgstr "Скомпилировано"
+
+msgid "Compiler options"
+msgstr "Опции компиляторов"
 
 msgid "Compiler output"
 msgstr "Вывод компилятора"
@@ -1179,14 +1183,8 @@ msgstr "Детали"
 msgid "Details for user "
 msgstr "Подробная информация о пользователе "
 
-msgid "Detect"
-msgstr "Обнаружить"
-
 msgid "Directory structure"
 msgstr "Структура каталогов"
-
-msgid "Disable"
-msgstr "Запретить"
 
 msgid "Disable &quot;Name&quot; field"
 msgstr "Запретить поле &quot;Имя&quot;"
@@ -1815,14 +1813,11 @@ msgstr "Помощь"
 msgid "Hidden?"
 msgstr "Скрыт?"
 
-msgid "Hide"
-msgstr "Скрыть"
-
-msgid "Hide advanced"
-msgstr "Скрыть расширенный"
-
 msgid "Hide closed contests"
 msgstr "Скрыть закрытые турниры"
+
+msgid "Hide compiler options"
+msgstr "Скрыть опции компиляторов"
 
 msgid "Hide details"
 msgstr "Скрыть детали"
@@ -2139,6 +2134,12 @@ msgstr "Приоритет проверки"
 
 msgid "Jul"
 msgstr "Июль"
+
+msgid "Jump to contest"
+msgstr "Перейти к турниру"
+
+msgid "Jump to group"
+msgstr "Перейти к группе"
 
 msgid "Jun"
 msgstr "Июнь"
@@ -3066,6 +3067,12 @@ msgstr "Перегенерировать регистрационные паро
 msgid "Region"
 msgstr "Регион"
 
+msgid "Register for another contest"
+msgstr "Зарегистрировать на другой турнир"
+
+msgid "Register for another contest and copy data"
+msgstr "Зарегистрировать на другой турнир и скопировать данные"
+
 msgid "Registration"
 msgstr "Регистрация"
 
@@ -3177,6 +3184,9 @@ msgstr "Снять блокировку"
 msgid "Remove examiner"
 msgstr "Удалить экзаменатора"
 
+msgid "Remove from group"
+msgstr "Удалить из группы"
+
 msgid "Remove registrations"
 msgstr "Удалить регистрации"
 
@@ -3269,6 +3279,9 @@ msgstr "Посылка"
 
 msgid "Run ID"
 msgstr "Номер решения"
+
+msgid "Run comment"
+msgstr "Комментарий к программе"
 
 msgid "Run comments"
 msgstr "Комментарии к программе"
@@ -3506,9 +3519,6 @@ msgstr "Установить статус регистрации в PENDING, т�
 msgid "Set the registration status of the selected users to REJECTED"
 msgstr "Установить статус регистрации в REJECTED, то есть отказать в участии"
 
-msgid "Set unlimited"
-msgstr "Установить неограниченный"
-
 msgid "Settings"
 msgstr "Настройки"
 
@@ -3518,17 +3528,8 @@ msgstr "Параметр shift"
 msgid "Short name"
 msgstr "ID Задачи"
 
-msgid "Show"
-msgstr "Показать"
-
-msgid "Show advanced"
-msgstr "Показать расширенные"
-
 msgid "Show closed contests"
 msgstr "Показать закрытые турниры"
-
-msgid "Show details"
-msgstr "Показать детали"
 
 msgid "Show hidden contests"
 msgstr "Показать скрытые турниры"

@@ -1,0 +1,96 @@
+<% // -*- html -*-
+%>
+<div id="StandingDialogDiv" title="Standings" style="overflow: auto;">
+    <s:form id="StandingDialogForm">
+        <s:hidden name="action" ac="prob-save-standing-form" />
+        <input type="hidden" id="StandingDialogProbId" name="prob_id" value="" />
+
+        <%@expand MENU_TEXTFIELD "stand_name" "standing" "Title for the standings column" "250" %>
+        <%@expand MENU_TEXTFIELD "stand_column" "standing" "Collate this problem with the specified one" "250" %>
+        <%@expand MENU_YESNO3 "hidden" "standing" "Do not show this problem in standings" "250" %>
+        <%@expand MENU_YESNO3 "stand_hide_time" "standing" "Do not show accept time" "250" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "stand_attr" "standing" "Standings attributes" "250" %>
+        <%@expand MENU_TEXTFIELD "score_view" "standing" "Special view for scores" "250" %>
+        <%@expand MENU_YESNO3 "stand_ignore_score" "standing" "Ignore problem score in standings" "250" %>
+        <%@expand MENU_YESNO3 "stand_last_column" "standing" "Show the problem after all results" "250" %>
+        <%@expand MENU_TEXTFIELD "provide_ok" "standing" "Provide OK to problems" "250" %>
+
+    </s:form>
+</div>
+
+<script type="text/javascript">
+$(function() {
+    standingDialog = $("#StandingDialogDiv").dialog({
+        autoOpen: false,
+        height: 350,
+        width: 650,
+        modal: true,
+        buttons: {
+            "Save": function() {
+                var postData = $("#StandingDialogForm").serialize();
+                var formURL = $("#StandingDialogForm").attr("action");
+                $.ajax({
+                    url : formURL,
+                    type: "POST",
+                    data : postData,
+                    success:function(data, textStatus, jqXHR) {
+                        //data: return data from server
+                        document.location.reload(true);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        //if fails     
+                    }
+                });
+            },
+            Cancel: function() {
+                standingDialog.dialog("close");
+            }
+        },
+        close : function() {
+        }
+    });
+
+
+    $("#orig-stand_name-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-stand_column-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-score_view-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-provide_ok-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+});
+
+function popupStandingDialog(e, skipField)
+{
+    $("#StandingDialogProbId").val(prob_id);
+
+    <%@expand COPY_TEXTFIELD "stand_name" %>
+    <%@expand COPY_TEXTFIELD "stand_column" %>
+    <%@expand COPY_YESNO3 "hidden" %>
+    <%@expand COPY_YESNO3 "stand_hide_time" %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "stand_attr" "!prob->stand_attr[0]" %>
+    <%@expand COPY_TEXTFIELD "score_view" %>
+    <%@expand COPY_YESNO3 "stand_ignore_score" %>
+    <%@expand COPY_YESNO3 "stand_last_column" %>
+    <%@expand COPY_TEXTFIELD "provide_ok" %>
+
+    <%@expand CLEAR_TEXTFIELD "stand_name" %>
+    <%@expand CLEAR_TEXTFIELD "stand_column" %>
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "stand_attr" %>
+    <%@expand CLEAR_TEXTFIELD "score_view" %>
+    <%@expand CLEAR_TEXTFIELD "provide_ok" %>
+
+    if (e) e.stopPropagation();
+    standingDialogOnChange();
+    $("#StandingDialogDiv").dialog('open');
+}
+
+function standingDialogOnChange(field)
+{
+    <%@expand ONCHANGE_WITH_DEFAULT "stand_attr" %>
+
+    $("#edit-stand_name-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-stand_column-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-score_view-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-provide_ok-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+}
+
+
+</script>

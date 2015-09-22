@@ -1,0 +1,107 @@
+<% // -*- html -*-
+%>
+<div id="SubmissionDialogDiv" title="Submission" style="overflow: auto;">
+    <s:form id="SubmissionDialogForm">
+        <s:hidden name="action" ac="prob-save-submission-form" />
+        <input type="hidden" id="SubmissionDialogProbId" name="prob_id" value="" />
+
+        <%@expand MENU_YESNO3 "disable_user_submit" "submission" "Disable user submissions" "300" %>
+        <%@expand MENU_YESNO3 "disable_submit_after_ok" "submission" "Disable submissions after OK" "300" %>
+        <%@expand MENU_YESNO3 "advance_to_next" "submission" "Automatically advance to the next problem" "300" %>
+        <%@expand MENU_YESNO3 "disable_ctrl_chars" "submission" "Disable control characters in the source code" "300" %>
+        <%@expand MENU_YESNO3 "enable_text_form" "submission" "Enable textarea input form" "300" %>
+        <%@expand MENU_YESNO3 "binary" "submission" "Submit is binary" "300" %>
+        <%@expand MENU_TEXTFIELD_WITH_DEFAULT "max_user_run_count" "submission" "Max submissions for the problem" "300" %>
+        <%@expand MENU_TEXTFIELD "disable_language" "submission" "Disabled languages" "300" %>
+        <%@expand MENU_TEXTFIELD "enable_language" "submission" "Enabled languages" "300" %>
+        <%@expand MENU_TEXTFIELD "require" "submission" "Required problems" "300" %>
+        <%@expand MENU_DATETIME "start_date" "submission" "Accept start date" "300" %>
+        <%@expand MENU_DATETIME "deadline" "submission" "Accept deadline" "300" %>
+
+    </s:form>
+</div>
+
+<script type="text/javascript">
+$(function() {
+    submissionDialog = $("#SubmissionDialogDiv").dialog({
+        autoOpen: false,
+        height: 500,
+        width: 650,
+        modal: true,
+        buttons: {
+            "Save": function() {
+                var postData = $("#SubmissionDialogForm").serialize();
+                var formURL = $("#SubmissionDialogForm").attr("action");
+                $.ajax({
+                    url : formURL,
+                    type: "POST",
+                    data : postData,
+                    success:function(data, textStatus, jqXHR) {
+                        //data: return data from server
+                        document.location.reload(true);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        //if fails     
+                    }
+                });
+            },
+            Cancel: function() {
+                submissionDialog.dialog("close");
+            }
+        },
+        close : function() {
+        }
+    });
+
+    $('#edit-start_date_time').timepicker({ 'timeFormat': 'H:i', 'step': 30 });
+    $('#edit-start_date_date').datepicker({ dateFormat: "yy-mm-dd", firstDay: 1, showButtonPanel: true });
+    $('#edit-deadline_time').timepicker({ 'timeFormat': 'H:i', 'step': 30 });
+    $('#edit-deadline_date').datepicker({ dateFormat: "yy-mm-dd", firstDay: 1, showButtonPanel: true });
+
+    $("#orig-disable_language-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-enable_language-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-require-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-start_date-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#orig-deadline-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+});
+
+function popupSubmissionDialog(e, skipField)
+{
+    $("#SubmissionDialogProbId").val(prob_id);
+
+    <%@expand COPY_YESNO3 "disable_user_submit"  %>
+    <%@expand COPY_YESNO3 "disable_submit_after_ok"  %>
+    <%@expand COPY_YESNO3 "advance_to_next"  %>
+    <%@expand COPY_YESNO3 "disable_ctrl_chars"  %>
+    <%@expand COPY_YESNO3 "enable_text_form"  %>
+    <%@expand COPY_YESNO3 "binary"  %>
+    <%@expand COPY_TEXTFIELD_WITH_DEFAULT "max_user_run_count" "prob->max_user_run_count < 0" %>
+    <%@expand COPY_TEXTFIELD "disable_language"  %>
+    <%@expand COPY_TEXTFIELD "enable_language"  %>
+    <%@expand COPY_TEXTFIELD "require"  %>
+    <%@expand COPY_DATETIME "start_date"  %>
+    <%@expand COPY_DATETIME "deadline"  %>
+
+    <%@expand CLEAR_TEXTFIELD_WITH_DEFAULT "max_user_run_count" %>
+    <%@expand CLEAR_TEXTFIELD "disable_language" %>
+    <%@expand CLEAR_TEXTFIELD "enable_language" %>
+    <%@expand CLEAR_TEXTFIELD "require" %>
+    <%@expand CLEAR_TEXTFIELD "start_date" %>
+    <%@expand CLEAR_TEXTFIELD "deadline" %>
+
+    if (e) e.stopPropagation();
+    submissionDialogOnChange();
+    $("#SubmissionDialogDiv").dialog('open');
+}
+
+function submissionDialogOnChange(field)
+{
+    $("#edit-disable_language-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-enable_language-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-require-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-start_date-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+    $("#edit-deadline-div").toggle(<s:v type="jsbool" value="prob_id > 0" />);
+}
+
+
+</script>

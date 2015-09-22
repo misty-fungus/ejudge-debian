@@ -186,3 +186,39 @@
 %></s:form><%
   }
 %>
+
+<script language="javascript">
+function setOperationVisibility(oper, value)
+{
+  obj1 = document.getElementById("Show" + oper);
+  obj2 = document.getElementById("Hide" + oper);
+  if (value) {
+    obj1.style.display = "none";
+    obj2.style.display = "";
+  } else {
+    obj1.style.display = "";
+    obj2.style.display = "none";
+  }
+}
+</script>
+
+<div id="ShowOptions"><a onclick="setOperationVisibility('Options', true)">[<s:_>Compiler options</s:_>]</a></div>
+<div style="display: none;" id="HideOptions"><a onclick="setOperationVisibility('Options', false)">[<s:_>Hide compiler options</s:_>]</a><br/>
+<table class="b0">
+<%
+  int cur_lang_id;
+  for (cur_lang_id = 1; cur_lang_id <= cs->max_lang; ++cur_lang_id) {
+    const struct section_language_data *lang = cs->langs[cur_lang_id];
+    if (!lang || lang->disabled > 0) continue;
+    const unsigned char *opts = serve_get_compiler_options(cs, cur_lang_id);
+%>
+  <tr>
+    <td class="b0"><tt><s:v value="lang->short_name" /></tt></td>
+    <td class="b0"><s:v value="lang->long_name" /></td>
+    <td class="b0"><tt><s:v value="opts" /></tt></td>
+  </tr>
+<%
+  }
+%>
+</table>
+</div>

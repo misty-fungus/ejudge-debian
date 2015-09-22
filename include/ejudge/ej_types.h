@@ -27,6 +27,7 @@ typedef ruint32_t ej_size_t;     /* size_t as stored in files */
 typedef ruint32_t ej_ip4_t;      /* IP address as stored in files */
 typedef unsigned long long ej_cookie_t;   /* cookie */
 typedef unsigned long long ej_tsc_t; /* timestamp counter type */
+typedef long long ej_size64_t;   /* size for use in config files, parse expressions, etc */
 
 #define NULL_CLIENT_KEY (0ULL)
 
@@ -142,6 +143,7 @@ enum
 
 int test_normalization_parse(const unsigned char *);
 const unsigned char *test_normalization_unparse(int normalization);
+const unsigned char *test_normalization_unparse_full(int value);
 
 /* valid end-of-line types for input files */
 enum

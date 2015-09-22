@@ -37,6 +37,7 @@
 #include "ejudge/xml_utils.h"
 #include "ejudge/win32_compat.h"
 #include "ejudge/variant_map.h"
+#include "ejudge/xuser_plugin.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -57,7 +58,6 @@ serve_state_init(int contest_id)
   XCALLOC(state, 1);
   state->clarlog_state = clar_init();
   state->teamdb_state = teamdb_init(contest_id);
-  state->team_extra_state = team_extra_init();
   state->runlog_state = run_init(state->teamdb_state);
   return state;
 }
@@ -103,14 +103,16 @@ serve_state_destroy(
     xfree(state->pending_xml_import);
   }
 
-  if (ul_conn && state->global && state->global->contest_id > 0) {
+  if (ul_conn && state->global && cnts->id > 0) {
     // ignore error code
-    userlist_clnt_notify(ul_conn, ULS_DEL_NOTIFY, state->global->contest_id);
+    userlist_clnt_notify(ul_conn, ULS_DEL_NOTIFY, cnts->id);
   }
 
   xfree(state->config_path);
   run_destroy(state->runlog_state);
-  team_extra_destroy(state->team_extra_state);
+  if (state->xuser_state) {
+    state->xuser_state->vt->close(state->xuser_state);
+  }
   teamdb_destroy(state->teamdb_state);
   clar_destroy(state->clarlog_state);
 
@@ -208,6 +210,13 @@ serve_state_destroy(
   xfree(state->testers);
 
   xfree(state->user_results);
+
+  if (state->compiler_options) {
+    for (i = 1; i <= state->max_lang; ++i) {
+      xfree(state->compiler_options[i]);
+    }
+    xfree(state->compiler_options);
+  }
 
   memset(state, 0, sizeof(*state));
   xfree(state);
@@ -665,9 +674,9 @@ serve_state_load_contest_config(
   state->current_time = time(0);
   state->load_time = state->current_time;
 
-  if (prepare(state, state->config_path, 0, PREPARE_SERVE, "", 1, 0, 0) < 0)
+  if (prepare(cnts, state, state->config_path, 0, PREPARE_SERVE, "", 1, 0, 0) < 0)
     goto failure;
-  if (prepare_serve_defaults(state, NULL) < 0) goto failure;
+  if (prepare_serve_defaults(cnts, state, NULL) < 0) goto failure;
 
   if (state->global) {
     teamdb_disable(state->teamdb_state, state->global->disable_user_database);
@@ -746,9 +755,9 @@ serve_state_load_contest(
   state->load_time = state->current_time;
 
   info("loading contest %d configuration file", contest_id);
-  if (prepare(state, state->config_path, 0, PREPARE_SERVE, "", 1, 0, 0) < 0)
+  if (prepare(cnts, state, state->config_path, 0, PREPARE_SERVE, "", 1, 0, 0) < 0)
     goto failure;
-  if (prepare_serve_defaults(state, p_cnts) < 0) goto failure;
+  if (prepare_serve_defaults(cnts, state, p_cnts) < 0) goto failure;
   if (create_dirs(state, PREPARE_SERVE) < 0) goto failure;
 
   global = state->global;
@@ -767,7 +776,11 @@ serve_state_load_contest(
     return 1;
   }
 
-  team_extra_set_dir(state->team_extra_state, global->team_extra_dir);
+  state->xuser_state = team_extra_open(config, cnts, global, NULL, 0);
+  if (!state->xuser_state) {
+    err("load_contest: contest %d xuser plugin failed to load", contest_id);
+    goto failure;
+  }
 
   if (teamdb_set_callbacks(state->teamdb_state, teamdb_callbacks, cnts->id) < 0)
     goto failure;
