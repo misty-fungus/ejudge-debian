@@ -2,7 +2,7 @@ Index: ejudge-debian/ej-super-run.c
 ===================================================================
 --- ejudge-debian.orig/ej-super-run.c
 +++ ejudge-debian/ej-super-run.c
-@@ -1022,6 +1022,10 @@ main(int argc, char *argv[])
+@@ -1021,6 +1021,10 @@ main(int argc, char *argv[])
      snprintf(super_run_log_path, sizeof(super_run_log_path), "%s/var/ej-super-run.log", contests_home_dir);
    }
  
@@ -18,25 +18,33 @@ Index: ejudge-debian/ejudge_cfg.c
 --- ejudge-debian.orig/ejudge_cfg.c
 +++ ejudge-debian/ejudge_cfg.c
 @@ -95,6 +95,7 @@ enum
-     TG_NEW_SERVER_LOG,
      TG_DEFAULT_CLARDB_PLUGIN,
      TG_DEFAULT_RUNDB_PLUGIN,
+     TG_DEFAULT_XUSER_PLUGIN,
 +    TG_SUPER_RUN_LOG,
      TG_HOSTS_OPTIONS,
      TG_CAPS_FILE,
  
-@@ -177,6 +178,7 @@ static char const * const elem_map[] =
-   "new_server_log",
+@@ -178,6 +179,7 @@ static char const * const elem_map[] =
    "default_clardb_plugin",
    "default_rundb_plugin",
+   "default_xuser_plugin",
 +  "super_run_log",
    "hosts_options",
    "caps_file",
    0,
-@@ -533,6 +535,7 @@ static const size_t cfg_final_offsets[TG
-   [TG_NEW_SERVER_LOG] = CONFIG_OFFSET(new_server_log),
+@@ -276,6 +278,7 @@ node_free(struct xml_tree *t)
+       xfree(p->default_clardb_plugin);
+       xfree(p->default_rundb_plugin);
+       xfree(p->default_xuser_plugin);
++      xfree(p->super_run_log);
+       xfree(p->caps_file);
+     }
+     break;
+@@ -536,6 +539,7 @@ static const size_t cfg_final_offsets[TG
    [TG_DEFAULT_CLARDB_PLUGIN] = CONFIG_OFFSET(default_clardb_plugin),
    [TG_DEFAULT_RUNDB_PLUGIN] = CONFIG_OFFSET(default_rundb_plugin),
+   [TG_DEFAULT_XUSER_PLUGIN] = CONFIG_OFFSET(default_xuser_plugin),
 +  [TG_SUPER_RUN_LOG] = CONFIG_OFFSET(super_run_log),
    [TG_CAPS_FILE] = CONFIG_OFFSET(caps_file),
  };
@@ -46,9 +54,9 @@ Index: ejudge-debian/include/ejudge/ejudge_cfg.h
 --- ejudge-debian.orig/include/ejudge/ejudge_cfg.h
 +++ ejudge-debian/include/ejudge/ejudge_cfg.h
 @@ -104,6 +104,7 @@ struct ejudge_cfg
-   unsigned char *new_server_log;
    unsigned char *default_clardb_plugin;
    unsigned char *default_rundb_plugin;
+   unsigned char *default_xuser_plugin;
 +  unsigned char *super_run_log;
    unsigned char *caps_file;
    struct xml_tree *user_map;
