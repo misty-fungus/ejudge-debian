@@ -2,8 +2,8 @@ Index: ejudge-debian/main.unix.make
 ===================================================================
 --- ejudge-debian.orig/main.unix.make
 +++ ejudge-debian/main.unix.make
-@@ -234,7 +234,7 @@ install: local_install
- 	$(MAKE) -C plugins/mysql-rundb DESTDIR="${DESTDIR}" install
+@@ -238,7 +238,7 @@ install: local_install
+ 	$(MAKE) -C plugins/mongo-xuser DESTDIR="${DESTDIR}" install
  	$(MAKE) -C csp/contests DESTDIR="${DESTDIR}" install
  	$(MAKE) -C csp/super-server DESTDIR="${DESTDIR}" install
 -	#if [ ! -f "${INSTALLSCRIPT}" ]; then ./ejudge-setup -b; fi
@@ -11,7 +11,7 @@ Index: ejudge-debian/main.unix.make
  	if [ -f "${INSTALLSCRIPT}" ]; then install -m 0755 "${INSTALLSCRIPT}" "${DESTDIR}${bindir}"; fi
  
  ej-compile$(EXESFX) : $(C_OBJECTS)
-@@ -354,7 +354,8 @@ struct-sizes : struct-sizes.o
+@@ -358,7 +358,8 @@ struct-sizes : struct-sizes.o
  	$(LD) $(LDFLAGS) $^ -o $@ $(LDLIBS) ${EXPAT_LIB}
  
  ejudge-install.sh : ejudge-setup
