@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id$ */
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -60,6 +59,7 @@ enum
   RUN_STYLE_ERR        = 14,
   RUN_WALL_TIME_LIMIT_ERR = 15,
   RUN_PENDING_REVIEW   = 16,
+  RUN_SYNC_ERR         = 19,
 };
 
 static const unsigned char *progname;
@@ -210,6 +210,7 @@ static const unsigned char * const run_status_str[] =
   [RUN_STYLE_ERR] = "SV",
   [RUN_WALL_TIME_LIMIT_ERR] = "WT",
   [RUN_PENDING_REVIEW] = "PR",
+  [RUN_SYNC_ERR] = "SY",
 };
 
 static const unsigned char * const
@@ -508,7 +509,7 @@ run_program(int argc, char *argv[], long *p_cpu_time, long *p_real_time)
     }
   }
 
-  if (info_file && (i = testinfo_parse(info_file, &tinfo)) < 0) {
+  if (info_file && (i = testinfo_parse(info_file, &tinfo, NULL)) < 0) {
     fatal("testinfo file parse error: %s", testinfo_strerror(-i));
   }
 

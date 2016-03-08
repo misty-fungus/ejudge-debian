@@ -1,6 +1,4 @@
-/* $Id$ */
-
-/* Copyright (C) 1998-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 1998-2016 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1998-01-21 14:33:28 cher> */
 
 /*
@@ -75,6 +73,7 @@ typedef struct tRedir
 struct tTask
 {
   int  (*main)(int, char **);   /* task start function */
+  char  *suid_helper_dir;       /* directory with suid helpers */
   char  *path;                  /* task invocation path */
   int    state;                 /* current task state */
   int    code;                  /* process termination code */
@@ -96,6 +95,7 @@ struct tTask
   int    disable_core;          /* disable core dumps? */
   int    enable_memory_limit_error; /* enable memory limit error detection? */
   int    enable_secure_exec;    /* drop capabilities before exec'ing */
+  int    enable_suid_exec;      /* change user_id through suid helper binaries */
   int    enable_security_violation_error;/*enable security violation detection*/
   int    clear_env;             /* clear the environment? */
   int    quiet_flag;            /* be quiet */
@@ -131,6 +131,7 @@ struct tTask
 
   char *last_error_msg;         /* last error text */
   unsigned long used_vm_size;   /* maximum used VM size (if available) */
+  int cleanup_invoked;          /* not to invoke cleanup handler several times */
 };
 
 #define PIDARR_SIZE 32
@@ -157,6 +158,8 @@ static void linux_set_fix_flag(void);
 static int linux_secure_exec_new_interface = 0;
 static void linux_set_secure_exec_supported_flag(void);
 #endif
+
+static int do_kill(tTask *tsk, int pid, int signal);
 
 /**
  * NAME:    sigchld_handler
@@ -454,6 +457,7 @@ task_Delete(tTask *tsk)
   xfree(tsk->redirs.v);
   xfree(tsk->working_dir);
   xfree(tsk->last_error_msg);
+  xfree(tsk->suid_helper_dir);
   xfree(tsk);
 }
 
@@ -1041,6 +1045,25 @@ task_EnableSecureExec(tTask *tsk)
 }
 
 int
+task_SetSuidHelperDir(tTask *tsk, const char *path)
+{
+  task_init_module();
+  ASSERT(tsk);
+  xfree(tsk->suid_helper_dir);
+  tsk->suid_helper_dir = xstrdup(path);
+  return 0;
+}
+
+int
+task_EnableSuidExec(tTask *tsk)
+{
+  task_init_module();
+  ASSERT(tsk);
+  tsk->enable_suid_exec = 1;
+  return 0;
+}
+
+int
 task_EnableAllSignals(tTask *tsk)
 {
   task_init_module();
@@ -1423,6 +1446,24 @@ set_limit(int fd, int resource, rlim_t value)
     write(fd, &code, sizeof(code));
     _exit(TASK_ERR_RLIMIT_FAILED);
   }
+}
+
+static void
+invoke_execv_helper(tTask *tsk, const char *path, char **args)
+{
+  char helper_path[PATH_MAX];
+  int count;
+  for (count = 0; args[count]; ++count) {}
+  snprintf(helper_path, sizeof(helper_path), "%s/%s", tsk->suid_helper_dir, "ej-suid-exec");
+  char **new_args = alloca((count + 3) * sizeof(new_args[0]));
+  new_args[0] = helper_path;
+  new_args[1] = "-d";
+  for (count = 0; args[count]; ++count) {
+    new_args[count + 2] = args[count];
+  }
+  new_args[count + 2] = NULL;
+  errno = 0;
+  execv(helper_path, new_args);
 }
 
 /**
@@ -1903,8 +1944,12 @@ task_Start(tTask *tsk)
       signal(SIGPIPE, SIG_IGN);
     }
 
-    errno = 0;
-    execv(tsk->path, tsk->args.v);
+    if (tsk->enable_suid_exec) {
+      invoke_execv_helper(tsk, tsk->path, tsk->args.v);
+    } else {
+      errno = 0;
+      execv(tsk->path, tsk->args.v);
+    }
     /*
     write_log(LOG_REUSE, LOG_CRIT,
               "task_Start: execv failed: %s",
@@ -1926,6 +1971,41 @@ task_Start(tTask *tsk)
 task_Wait(tTask *tsk)
 {
   return task_NewWait(tsk);
+}
+
+static void
+invoke_cleanup_helper(tTask *tsk)
+{
+  char helper_path[PATH_MAX];
+  char *args[3];
+
+  if (tsk->state != TSK_SIGNALED && tsk->state != TSK_EXITED) return;
+
+  snprintf(helper_path, sizeof(helper_path), "%s/%s", tsk->suid_helper_dir, "ej-suid-chown");
+  args[0] = helper_path;
+  if (tsk->working_dir) {
+    args[1] = tsk->working_dir;
+  } else {
+    args[1] = ".";
+  }
+  args[2] = NULL;
+
+  sigset_t cur, temp, empty;
+  sigfillset(&temp);
+  sigemptyset(&empty);
+  sigprocmask(SIG_SETMASK, &temp, &cur);
+  int helper_pid = fork();
+  if (helper_pid < 0) {
+    sigprocmask(SIG_SETMASK, &cur, NULL);
+    return;
+  }
+  if (!helper_pid) {
+    sigprocmask(SIG_SETMASK, &empty, NULL);
+    execv(helper_path, args);
+    _exit(1);
+  }
+  waitpid(helper_pid, NULL, 0);
+  sigprocmask(SIG_SETMASK, &cur, NULL);
 }
 
 struct process_info
@@ -2050,8 +2130,12 @@ task_NewWait(tTask *tsk)
 
   if (tsk->state == TSK_ERROR || tsk->state == TSK_STOPPED)
     return NULL;
-  if (tsk->state == TSK_SIGNALED || tsk->state == TSK_EXITED)
+  if (tsk->state == TSK_SIGNALED || tsk->state == TSK_EXITED) {
+    if (tsk->enable_suid_exec && !tsk->cleanup_invoked) {
+      invoke_cleanup_helper(tsk);
+    }
     return tsk;
+  }
   ASSERT(tsk->state == TSK_RUNNING);
 
   sigset_t bs;
@@ -2093,6 +2177,9 @@ task_NewWait(tTask *tsk)
     if (pid > 0) {
       find_prc_in_list(pid, stat, &usage);
       tsk->used_vm_size = used_vm_size;
+      if (tsk->enable_suid_exec && !tsk->cleanup_invoked) {
+        invoke_cleanup_helper(tsk);
+      }
       return tsk;
     }
 
@@ -2101,9 +2188,9 @@ task_NewWait(tTask *tsk)
       if (cur_time.tv_sec > rt_timeout.tv_sec
           || (cur_time.tv_sec == rt_timeout.tv_sec && cur_time.tv_usec >= rt_timeout.tv_usec)) {
         if (tsk->enable_process_group > 0) {
-          kill(-tsk->pid, tsk->termsig);
+          do_kill(tsk, -tsk->pid, tsk->termsig);
         } else {
-          kill(tsk->pid, tsk->termsig);
+          do_kill(tsk, tsk->pid, tsk->termsig);
         }
         tsk->was_timeout = 1;
         tsk->was_real_timeout = 1;
@@ -2125,9 +2212,9 @@ task_NewWait(tTask *tsk)
         //fprintf(stderr, "CPUTime: %lld\n", cur_utime);
         if (cur_utime >= max_time_ms) {
           if (tsk->enable_process_group > 0) {
-            kill(-tsk->pid, tsk->termsig);
+            do_kill(tsk, -tsk->pid, tsk->termsig);
           } else {
-            kill(tsk->pid, tsk->termsig);
+            do_kill(tsk, tsk->pid, tsk->termsig);
           }
           tsk->was_timeout = 1;
           tsk->used_vm_size = used_vm_size;
@@ -2147,10 +2234,12 @@ task_NewWait(tTask *tsk)
       wt.tv_nsec = 100000000;
     } else if (cur_utime >= 10) {
       // if running time >= 0.01 s poll each 0.01 s
-      wt.tv_nsec = 10000000;
+      //wt.tv_nsec = 10000000;
+      wt.tv_nsec = 100000000;
     } else {
       // poll each 0.002 s
-      wt.tv_nsec = 2000000;
+      //wt.tv_nsec = 2000000;
+      wt.tv_nsec = 100000000;
     }
     sigtimedwait(&bs, 0, &wt);
   }
@@ -2169,10 +2258,14 @@ task_NewWait(tTask *tsk)
     }
     if (pid > 0) {
       find_prc_in_list(pid, stat, &usage);
+      if (tsk->enable_suid_exec && !tsk->cleanup_invoked) {
+        invoke_cleanup_helper(tsk);
+      }
       return tsk;
     }
   }
 
+  abort();
   return tsk;
 }
 
@@ -2403,7 +2496,7 @@ task_Kill(tTask *tsk)
   task_init_module();
   ASSERT(tsk);
   if (tsk->pid > 0) {
-    kill(tsk->pid, tsk->termsig);
+    do_kill(tsk, tsk->pid, tsk->termsig);
   }
   return 0;
 }
@@ -2412,7 +2505,7 @@ int
 task_TryProcessGroup(tTask *tsk)
 {
   task_init_module();
-  return kill(-tsk->pid, 0);
+  return do_kill(tsk, -tsk->pid, 0);
 }
 
 int
@@ -2420,7 +2513,7 @@ task_KillProcessGroup(tTask *tsk)
 {
   task_init_module();
   if (tsk->pid > 0) {
-    kill(-tsk->pid, SIGKILL);
+    do_kill(tsk, -tsk->pid, SIGKILL);
   }
   return 0;
 }
@@ -2578,8 +2671,47 @@ linux_set_secure_exec_supported_flag(void)
 }
 #endif
 
-/*
- * Local variables:
- *  compile-command: "make -C .."
- * End:
- */
+static void
+invoke_kill_helper(tTask *tsk, int pid, int signal)
+  __attribute__((noreturn));
+static void
+invoke_kill_helper(tTask *tsk, int pid, int signal)
+{
+  char helper_path[PATH_MAX];
+  char pid_buf[64];
+  char signal_buf[64];
+  char *helper_args[] = { helper_path, pid_buf, signal_buf, NULL };
+  sigset_t empty;
+
+  sigemptyset(&empty);
+  sigprocmask(SIG_SETMASK, &empty, NULL);
+  snprintf(helper_path, sizeof(helper_path), "%s/%s", tsk->suid_helper_dir, "ej-suid-kill");
+  snprintf(pid_buf, sizeof(pid_buf), "%d", pid);
+  snprintf(signal_buf, sizeof(signal_buf), "%d", signal);
+  execv(helper_path, helper_args);
+  _exit(1);
+}
+
+static int
+do_kill(tTask *tsk, int pid, int signal)
+{
+  if (!tsk->enable_suid_exec) return kill(pid, signal);
+
+  // hold off everything while killing
+  sigset_t cur, temp;
+  sigfillset(&temp);
+  sigprocmask(SIG_SETMASK, &temp, &cur);
+  int helper_pid = fork();
+  if (helper_pid < 0) {
+    sigprocmask(SIG_SETMASK, &cur, NULL);
+    return -1;
+  }
+  if (!helper_pid) {
+    invoke_kill_helper(tsk, pid, signal);
+    // noreturn
+  }
+  int status = 0;
+  waitpid(helper_pid, &status, 0);
+  sigprocmask(SIG_SETMASK, &cur, NULL);
+  return (WIFEXITED(status) && !WEXITSTATUS(status))?0:-1;
+}

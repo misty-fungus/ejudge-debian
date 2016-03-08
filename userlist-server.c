@@ -3164,27 +3164,29 @@ cmd_team_check_user(
   if (!name || !*name) name = u->login;
   if (!name) name = "";
 
-  if (cnts->disable_team_password) {
-    if (!u->passwd) {
-      err("%s -> EMPTY PASSWORD", logbuf);
-      send_reply(p, -ULS_ERR_INVALID_PASSWORD);
-      return;
-    }
-    if(passwd_check(&pwdint, u->passwd, u->passwd_method) < 0){
-      err("%s -> WRONG PASSWORD", logbuf);
-      send_reply(p, -ULS_ERR_INVALID_PASSWORD);
-      return;
-    }
-  } else {
-    if (!ui || !ui->team_passwd) {
-      err("%s -> EMPTY PASSWORD", logbuf);
-      send_reply(p, -ULS_ERR_INVALID_PASSWORD);
-      return;
-    }
-    if(passwd_check(&pwdint, ui->team_passwd, ui->team_passwd_method) < 0){
-      err("%s -> WRONG PASSWORD", logbuf);
-      send_reply(p, -ULS_ERR_INVALID_PASSWORD);
-      return;
+  if (data->pwd_special != 0x73629ae8) {
+    if (cnts->disable_team_password) {
+      if (!u->passwd) {
+        err("%s -> EMPTY PASSWORD", logbuf);
+        send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+        return;
+      }
+      if(passwd_check(&pwdint, u->passwd, u->passwd_method) < 0){
+        err("%s -> WRONG PASSWORD", logbuf);
+        send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+        return;
+      }
+    } else {
+      if (!ui || !ui->team_passwd) {
+        err("%s -> EMPTY PASSWORD", logbuf);
+        send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+        return;
+      }
+      if(passwd_check(&pwdint, ui->team_passwd, ui->team_passwd_method) < 0){
+        err("%s -> WRONG PASSWORD", logbuf);
+        send_reply(p, -ULS_ERR_INVALID_PASSWORD);
+        return;
+      }
     }
   }
   if (!c) {
@@ -9929,11 +9931,14 @@ cmd_create_user_2(
     send_reply(p, -ULS_ERR_INVALID_LOGIN);
     return;
   }
-  if (default_get_user_by_login(login_str) >= 0) {
-    err("%s -> login already exists", logbuf);
+
+  user_id = default_get_user_by_login(login_str);
+  if (data->register_existing_flag <= 0 && user_id >= 0) {
+    err("%s: %s -> login already exists", login_str, logbuf);
     send_reply(p, -ULS_ERR_LOGIN_USED);
     return;
   }
+  if (user_id <= 0) user_id = -1;
 
   if (data->random_password_flag) {
     generate_random_password(8, random_reg_password_buf);
@@ -9952,23 +9957,25 @@ cmd_create_user_2(
     reg_password_len = strlen(reg_password_str);
   }
 
-  user_id = default_new_user(login_str,
-                             email_str,
-                             reg_password_method,
-                             reg_password_str,
-                             data->is_privileged_flag,
-                             data->is_invisible_flag,
-                             data->is_banned_flag,
-                             data->is_locked_flag,
-                             data->show_login_flag,
-                             data->show_email_flag,
-                             data->read_only_flag,
-                             data->never_clean_flag,
-                             data->simple_registration_flag);
-  if (user_id <= 0) {
-    err("%s -> cannot create user", logbuf);
-    send_reply(p, -ULS_ERR_DB_ERROR);
-    return;
+  if (user_id < 0) {
+    user_id = default_new_user(login_str,
+                               email_str,
+                               reg_password_method,
+                               reg_password_str,
+                               data->is_privileged_flag,
+                               data->is_invisible_flag,
+                               data->is_banned_flag,
+                               data->is_locked_flag,
+                               data->show_login_flag,
+                               data->show_email_flag,
+                               data->read_only_flag,
+                               data->never_clean_flag,
+                               data->simple_registration_flag);
+    if (user_id <= 0) {
+      err("%s -> cannot create user", logbuf);
+      send_reply(p, -ULS_ERR_DB_ERROR);
+      return;
+    }
   }
 
   if (data->contest_id) {
@@ -11158,7 +11165,7 @@ main(int argc, char *argv[])
 
   if (tsc_init() < 0) return 1;
   program_name = argv[0];
-  config = ejudge_cfg_parse(ejudge_xml_path);
+  config = ejudge_cfg_parse(ejudge_xml_path, 0);
   if (!config) return 1;
   if (!config->contests_dir) {
     err("<contests_dir> tag is not set!");

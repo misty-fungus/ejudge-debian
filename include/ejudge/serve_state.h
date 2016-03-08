@@ -2,7 +2,7 @@
 #ifndef __SERVE_STATE_H__
 #define __SERVE_STATE_H__
 
-/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -96,10 +96,19 @@ struct compile_dir_item
 };
 struct run_dir_item
 {
+  unsigned char *id;
   unsigned char *status_dir;
   unsigned char *report_dir;
   unsigned char *team_report_dir;
   unsigned char *full_report_dir;
+};
+
+struct run_queue_item
+{
+  unsigned char *id;
+  unsigned char *queue_dir;
+  unsigned char *exe_dir;
+  unsigned char *heartbeat_dir;
 };
 
 struct problem_extra_info
@@ -279,6 +288,9 @@ struct serve_state
   struct run_dir_item *run_dirs;
   int run_dirs_u, run_dirs_a;
 
+  struct run_queue_item *run_queues;
+  int run_queues_u, run_queues_a;
+
   struct problem_extra_info *prob_extras;
   unsigned short compile_request_id;
 
@@ -353,7 +365,7 @@ int serve_get_cnts_caps(serve_state_t state, const struct contest_desc *,
                         int user_id, opcap_t *out_caps);
 
 void serve_build_compile_dirs(serve_state_t state);
-void serve_build_run_dirs(serve_state_t state, int contest_id);
+void serve_build_run_dirs(serve_state_t state, const struct contest_desc *cnts);
 
 int serve_create_symlinks(serve_state_t state);
 
@@ -461,7 +473,8 @@ serve_run_request(
         const struct compile_reply_packet *comp_pkt,
         int no_db_flag,
         ej_uuid_t *puuid,
-        int rejudge_flag);
+        int rejudge_flag,
+        int zip_mode);
 
 int serve_is_valid_status(serve_state_t state, int status, int mode);
 
@@ -663,12 +676,14 @@ int
 serve_testing_queue_delete(
         const struct contest_desc *cnts, 
         serve_state_t state,
+        const unsigned char *queue_id,
         const unsigned char *packet,
         const unsigned char *user_login);
 int
 serve_testing_queue_change_priority(
         const struct contest_desc *cnts,
         const serve_state_t state,
+        const unsigned char *queue_id,
         const unsigned char *packet_name,
         int adjustment,
         const unsigned char *user_login);
@@ -766,5 +781,21 @@ const unsigned char *
 serve_get_compiler_options(
         const serve_state_t state,
         int lang_id);
+
+void
+serve_invoker_delete(
+        const serve_state_t state,
+        const unsigned char *queue,
+        const unsigned char *file);
+void
+serve_invoker_stop(
+        const serve_state_t state,
+        const unsigned char *queue,
+        const unsigned char *file);
+void
+serve_invoker_down(
+        const serve_state_t state,
+        const unsigned char *queue,
+        const unsigned char *file);
 
 #endif /* __SERVE_STATE_H__ */

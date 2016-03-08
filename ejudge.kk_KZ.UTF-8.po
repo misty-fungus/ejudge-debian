@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 3.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-06-23 13:33+0300\n"
+"POT-Creation-Date: 2015-12-25 08:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Kazakh <uk@li.org>\n"
@@ -333,6 +333,9 @@ msgstr ""
 msgid "A request parameter is invalid. Please, contact the site administrator."
 msgstr ""
 
+msgid "ALL PREVIOUS SUBMITS WILL BE LOST!"
+msgstr ""
+
 msgid "Accepted for testing"
 msgstr ""
 
@@ -511,9 +514,6 @@ msgid "Appeals deadline is exceeded"
 msgstr ""
 
 msgid "Apr"
-msgstr ""
-
-msgid "Architecture"
 msgstr ""
 
 msgid "Archive creation with tar failed"
@@ -912,6 +912,9 @@ msgstr ""
 msgid "Contest is not started"
 msgstr ""
 
+msgid "Contest is not stopped"
+msgstr ""
+
 msgid "Contest is ready for testing"
 msgstr ""
 
@@ -1010,9 +1013,6 @@ msgid "Create another account"
 msgstr ""
 
 msgid "Create contest!"
-msgstr ""
-
-msgid "Create time"
 msgstr ""
 
 msgid "Create user account"
@@ -1182,7 +1182,13 @@ msgstr ""
 msgid "Down all"
 msgstr ""
 
+msgid "Download OK and PR runs"
+msgstr ""
+
 msgid "Download OK runs"
+msgstr ""
+
+msgid "Download OK, PR, RJ, IG, PD, DQ runs"
 msgstr ""
 
 msgid "Download all runs"
@@ -1270,6 +1276,9 @@ msgid "Enable simple registration (no email)"
 msgstr ""
 
 msgid "End time"
+msgstr ""
+
+msgid "Enqueue Time"
 msgstr ""
 
 msgid "Error"
@@ -3085,6 +3094,9 @@ msgstr ""
 msgid "Reset the contest!!!"
 msgstr ""
 
+msgid "Restart virtual contest"
+msgstr ""
+
 msgid "Result"
 msgstr ""
 
@@ -3101,6 +3113,9 @@ msgid "Return to the main page"
 msgstr ""
 
 msgid "Retype new password"
+msgstr ""
+
+msgid "Review notes"
 msgstr ""
 
 msgid "Role"
@@ -3406,6 +3421,9 @@ msgstr ""
 msgid "Source file does not exist"
 msgstr ""
 
+msgid "Source for run"
+msgstr ""
+
 msgid "Source for this run is not available"
 msgstr ""
 
@@ -3568,6 +3586,9 @@ msgid "Suspend testing"
 msgstr ""
 
 msgid "Switch language"
+msgstr ""
+
+msgid "Synchronization error"
 msgstr ""
 
 msgid "System error"
@@ -3938,6 +3959,12 @@ msgstr ""
 msgid "Upsolving mode"
 msgstr ""
 
+msgid "Use 'extid' as problem name"
+msgstr ""
+
+msgid "Use Contest Id"
+msgstr ""
+
 msgid "Use an existing account"
 msgstr ""
 
@@ -3954,6 +3981,9 @@ msgid "Use run number"
 msgstr ""
 
 msgid "Use source language or content type suffix"
+msgstr ""
+
+msgid "Use submit time"
 msgstr ""
 
 msgid "Use token"

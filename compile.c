@@ -1,6 +1,6 @@
 /* -*- c -*- */
 
-/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -36,6 +36,13 @@
 #include "ejudge/ejudge_cfg.h"
 #include "ejudge/compat.h"
 #include "ejudge/ej_uuid.h"
+#include "ejudge/ej_libzip.h"
+#include "ejudge/testinfo.h"
+#include "ejudge/misctext.h"
+
+#include "ejudge/meta_generic.h"
+#include "ejudge/meta/compile_packet_meta.h"
+#include "ejudge/meta/prepare_meta.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -55,7 +62,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-enum { MAX_LOG_SIZE = 1024 * 1024 };
+enum { MAX_LOG_SIZE = 1024 * 1024, MAX_EXE_SIZE = 128 * 1024 * 1024 };
 
 struct serve_state serve_state;
 static int initialize_mode = 0;
@@ -207,7 +214,801 @@ internal_error:
   goto cleanup;
 }
 
+struct testinfo_subst_handler_compile
+{
+  struct testinfo_subst_handler b;
+  const struct compile_request_packet *request;
+  const struct section_language_data *lang;
+};
+
+static unsigned char *
+subst_get_variable(
+        const void *vp,
+        const unsigned char *name)
+{
+  const struct testinfo_subst_handler_compile *phc = (const struct testinfo_subst_handler_compile *) vp;
+  if (!strncmp(name, "request.", 8)) {
+    return meta_get_variable_str(&meta_compile_request_packet_methods, phc->request, name + 8);
+  } else if (!strncmp(name, "lang.", 5)) {
+    return meta_get_variable_str(&cntslang_methods, phc->lang, name + 5);
+  } else {
+    return xstrdup("");
+  }
+}
+
+static unsigned char *
+testinfo_subst_handler_substitute(struct testinfo_subst_handler *bp, const unsigned char *str)
+{
+  return text_substitute(bp, str, subst_get_variable);
+}
+
 #define VALID_SIZE(z) ((z) > 0 && (z) == (size_t) (z))
+
+static int
+invoke_style_checker(
+        FILE *log_f,
+        const struct serve_state *cs,
+        const struct section_language_data *lang,
+        const struct compile_request_packet *req,
+        const unsigned char *input_file,
+        const unsigned char *working_dir,
+        const unsigned char *log_path,
+        const testinfo_t *tinf)
+{
+  tpTask tsk = 0;
+  int retval = RUN_CHECK_FAILED;
+
+  tsk = task_New();
+  task_AddArg(tsk, req->style_checker);
+  task_AddArg(tsk, input_file);
+  task_SetPathAsArg0(tsk);
+  task_SetWorkingDir(tsk, working_dir);
+  task_EnableProcessGroup(tsk);
+  task_SetRedir(tsk, 0, TSR_FILE, "/dev/null", TSK_READ);
+  task_SetRedir(tsk, 1, TSR_FILE, log_path, TSK_APPEND, 0777);
+  task_SetRedir(tsk, 2, TSR_DUP, 1);
+  if (req->sc_env_num > 0) {
+    for (int i = 0; i < req->sc_env_num; i++)
+      task_PutEnv(tsk, req->sc_env_vars[i]);
+  }
+  if (tinf && tinf->style_checker_env_u > 0) {
+    for (int i = 0; i < tinf->style_checker_env_u; ++i)
+      task_PutEnv(tsk, tinf->style_checker_env_v[i]);
+  }
+  if (lang && lang->compile_real_time_limit > 0) {
+    task_SetMaxRealTime(tsk, lang->compile_real_time_limit);
+  }
+  task_EnableAllSignals(tsk);
+
+  task_PrintArgs(tsk);
+  if (task_Start(tsk) < 0) {
+    err("Failed to start style checker process");
+    fprintf(log_f, "\nFailed to start style checker %s\n", req->style_checker);
+    goto cleanup;
+  }
+  task_Wait(tsk);
+  if (task_IsTimeout(tsk)) {
+    err("Style checker process is timed out");
+    fprintf(log_f, "\nStyle checker %s process is timed out\n", req->style_checker);
+    goto cleanup;
+  }
+
+  int r = task_Status(tsk);
+  if (r != TSK_EXITED && r != TSK_SIGNALED) {
+    err("Style checker invalid task status");
+    fprintf(log_f, "\nStyle checker %s invalid task status %d\n", req->style_checker, r);
+    goto cleanup;
+  }
+  if (r == TSK_SIGNALED) {
+    err("Style checker terminated by signal");
+    fprintf(log_f, "\nStyle checker %s terminated by signal %d\n", req->style_checker, task_TermSignal(tsk));
+    goto cleanup;
+  }
+  r = task_ExitCode(tsk);
+  if (r != 0 && r != RUN_COMPILE_ERR && r != RUN_PRESENTATION_ERR && r != RUN_WRONG_ANSWER_ERR && r != RUN_STYLE_ERR) {
+    err("Invalid style checker exit code");
+    fprintf(log_f, "\nStyle checker %s invalid exit code %d\n", req->style_checker, r);
+    goto cleanup;
+  }
+  fprintf(log_f, "\n");
+  if (!r) {
+    retval = RUN_OK;
+  } else {
+    retval = RUN_STYLE_ERR;
+    fprintf(log_f, "\nStyle checker detected errors\n");
+  }
+
+cleanup:
+  task_Delete(tsk);
+  return retval;
+}
+
+static int
+invoke_compiler(
+        FILE *log_f,
+        const struct serve_state *cs,
+        const struct section_language_data *lang,
+        const struct compile_request_packet *req,
+        const unsigned char *input_file,
+        const unsigned char *output_file,
+        const unsigned char *working_dir,
+        const unsigned char *log_path,
+        const testinfo_t *tinf)
+{
+  const struct section_global_data *global = serve_state.global;
+  tpTask tsk = 0;
+
+  tsk = task_New();
+  task_AddArg(tsk, lang->cmd);
+  task_AddArg(tsk, input_file);
+  task_AddArg(tsk, output_file);
+  task_SetPathAsArg0(tsk);
+  task_EnableProcessGroup(tsk);
+  if (VALID_SIZE(req->max_vm_size)) {
+    task_SetVMSize(tsk, req->max_vm_size);
+  } else if (VALID_SIZE(lang->max_vm_size)) {
+    task_SetVMSize(tsk, lang->max_vm_size);
+  } else if (VALID_SIZE(global->compile_max_vm_size)) {
+    task_SetVMSize(tsk, global->compile_max_vm_size);
+  }
+  if (VALID_SIZE(req->max_stack_size)) {
+    task_SetStackSize(tsk, req->max_stack_size);
+  } else if (VALID_SIZE(lang->max_stack_size)) {
+    task_SetStackSize(tsk, lang->max_stack_size);
+  } else if (VALID_SIZE(global->compile_max_stack_size)) {
+    task_SetStackSize(tsk, global->compile_max_stack_size);
+  }
+  if (VALID_SIZE(req->max_file_size)) {
+    task_SetMaxFileSize(tsk, req->max_file_size);
+  } else if (VALID_SIZE(lang->max_file_size)) {
+    task_SetMaxFileSize(tsk, lang->max_file_size);
+  } else if (VALID_SIZE(global->compile_max_file_size)) {
+    task_SetMaxFileSize(tsk, global->compile_max_file_size);
+  }
+
+  if (req->env_num > 0) {
+    for (int i = 0; i < req->env_num; i++)
+      task_PutEnv(tsk, req->env_vars[i]);
+  }
+  if (tinf && tinf->compiler_env_u > 0) {
+    for (int i = 0; i < tinf->compiler_env_u; ++i)
+      task_PutEnv(tsk, tinf->compiler_env_v[i]);
+  }
+  task_SetWorkingDir(tsk, working_dir);
+  task_SetRedir(tsk, 0, TSR_FILE, "/dev/null", TSK_READ);
+  task_SetRedir(tsk, 1, TSR_FILE, log_path, TSK_APPEND, 0777);
+  task_SetRedir(tsk, 2, TSR_DUP, 1);
+  if (lang->compile_real_time_limit > 0) {
+    task_SetMaxRealTime(tsk, lang->compile_real_time_limit);
+  }
+  task_EnableAllSignals(tsk);
+
+  task_PrintArgs(tsk);
+
+  if (task_Start(tsk) < 0) {
+    err("failed to start compiler '%s'", lang->cmd);
+    fprintf(log_f, "\nFailed to start compiler '%s'\n", lang->cmd);
+    task_Delete(tsk);
+    return RUN_CHECK_FAILED;
+  }
+
+  task_Wait(tsk);
+
+  if (task_IsTimeout(tsk)) {
+    err("Compilation process timed out");
+    fprintf(log_f, "\nCompilation process timed out\n");
+    task_Delete(tsk);
+    return RUN_COMPILE_ERR;
+  } else if (task_IsAbnormal(tsk)) {
+    info("Compilation failed");
+    task_Delete(tsk);
+    return RUN_COMPILE_ERR;
+  } else {
+    info("Compilation sucessful");
+    task_Delete(tsk);
+    return RUN_OK;
+  }
+}
+
+static void
+handle_packet(
+        FILE *log_f,
+        const struct serve_state *cs,
+        const unsigned char *pkt_name,
+        const struct compile_request_packet *req,
+        struct compile_reply_packet *rpl,
+        const struct section_language_data *lang,
+        const unsigned char *run_name,            // the incoming packet name
+        const unsigned char *src_path,            // path to the source file in the spool directory
+        const unsigned char *exe_path,            // path to the resulting exe file in the spool directory
+        const unsigned char *working_dir,         // the working directory
+        const unsigned char *log_work_path,       // the path to the log file (open in APPEND mode)
+        unsigned char *exe_work_name,             // OUTPUT: the name of the executable
+        int *p_override_exe,
+        int *p_exe_copied)
+{
+  struct ZipData *zf = NULL;
+
+  if (req->output_only) {
+    if (rename(src_path, exe_path) >= 0) {
+      rpl->status = RUN_OK;
+      goto cleanup;
+    }
+    if (errno != EXDEV) {
+      fprintf(log_f, "cannot move '%s' -> '%s': %s\n", src_path, exe_path, strerror(errno));
+      rpl->status = RUN_CHECK_FAILED;
+      goto cleanup;
+    }
+    if (generic_copy_file(REMOVE, NULL, src_path, "", 0, NULL, exe_path, "") < 0) {
+      fprintf(log_f, "cannot copy '%s' -> '%s'\n", src_path, exe_path);
+      rpl->status = RUN_CHECK_FAILED;
+      goto cleanup;
+    }
+
+    *p_exe_copied = 1;
+    rpl->status = RUN_OK;
+    goto cleanup;
+  }
+
+  if (!lang) {
+    fprintf(log_f, "invalid language %d\n", req->lang_id);
+    rpl->status = RUN_CHECK_FAILED;
+    goto cleanup;
+  }
+
+  unsigned char src_work_name[PATH_MAX];
+  snprintf(src_work_name, sizeof(src_work_name), "%06d%s", req->run_id, lang->src_sfx);
+  unsigned char src_work_path[PATH_MAX];
+  snprintf(src_work_path, sizeof(src_work_path), "%s/%s", working_dir, src_work_name);
+
+  if (rename(src_path, src_work_path) >= 0) {
+  } else if (errno != EXDEV) {
+    fprintf(stderr, "cannot move '%s' -> '%s': %s\n", src_path, src_work_path, strerror(errno));
+    rpl->status = RUN_CHECK_FAILED;
+    goto cleanup;
+  } else {
+    if (generic_copy_file(REMOVE, NULL, src_path, "", 0, NULL, src_work_path, "") < 0) {
+      fprintf(log_f, "cannot copy '%s' -> '%s'\n", src_path, exe_path);
+      rpl->status = RUN_CHECK_FAILED;
+      goto cleanup;
+    }
+  }
+
+  if (!req->multi_header) {
+    snprintf(exe_work_name, PATH_MAX, "%06d%s", req->run_id, lang->exe_sfx);
+    unsigned char exe_work_path[PATH_MAX];
+    snprintf(exe_work_path, sizeof(exe_work_path), "%s/%s", working_dir, exe_work_name);
+
+    if (req->style_checker && req->style_checker[0]) {
+      int r = invoke_style_checker(log_f, cs, lang, req, src_work_name, working_dir, log_work_path, NULL);
+      if (r != RUN_OK) {
+        rpl->status = r;
+        goto cleanup;
+      }
+      if (req->style_check_only) {
+        rpl->status = RUN_OK;
+        *p_override_exe = 1;
+        goto cleanup;
+      }
+    }
+
+    int r = invoke_compiler(log_f, cs, lang, req, src_work_name, exe_work_name, working_dir, log_work_path, NULL);
+    rpl->status = r;
+    goto cleanup;
+  }
+
+  // multi-header mode
+  snprintf(exe_work_name, PATH_MAX, "%06d%s", req->run_id, lang->exe_sfx);
+  unsigned char exe_work_path[PATH_MAX];
+  snprintf(exe_work_path, sizeof(exe_work_path), "%s/%s", working_dir, exe_work_name);
+  zf = ej_libzip_open(log_f, exe_work_path, O_CREAT | O_TRUNC | O_WRONLY);
+  if (!zf) {
+    fprintf(log_f, "cannot create zip archive '%s'\n", exe_work_path);
+    rpl->status = RUN_CHECK_FAILED;
+    goto cleanup;
+  }
+
+  if (!req->header_dir || !req->header_dir[0]) {
+    fprintf(log_f, "'header_dir' parameter is not specified\n");
+    rpl->status = RUN_CHECK_FAILED;
+    goto cleanup;
+  }
+  struct stat stb;
+  if (stat(req->header_dir, &stb) < 0) {
+    fprintf(log_f, "header_dir directory '%s' does not exist\n", req->header_dir);
+    rpl->status = RUN_CHECK_FAILED;
+    goto cleanup;
+  }
+  if (!S_ISDIR(stb.st_mode)) {
+    fprintf(log_f, "header_dir '%s' is not directory\n", req->header_dir);
+    rpl->status = RUN_CHECK_FAILED;
+    goto cleanup;
+  }
+
+  int serial = 0;
+  int status = RUN_OK;
+  while (1) {
+    unsigned char header_base[PATH_MAX];
+    unsigned char footer_base[PATH_MAX];
+    unsigned char compiler_env_base[PATH_MAX];
+
+    ++serial;
+    header_base[0] = 0;
+    footer_base[0] = 0;
+    compiler_env_base[0] = 0;
+    if (req->header_pat && req->header_pat[0]) {
+      snprintf(header_base, sizeof(header_base), req->header_pat, serial);
+    }
+    if (req->footer_pat && req->footer_pat[0]) {
+      snprintf(footer_base, sizeof(footer_base), req->footer_pat, serial);
+    }
+    if (req->compiler_env_pat && req->compiler_env_pat[0]) {
+      snprintf(compiler_env_base, sizeof(compiler_env_base), req->compiler_env_pat, serial);
+    }
+
+    unsigned char header_path[PATH_MAX];
+    unsigned char footer_path[PATH_MAX];
+    unsigned char compiler_env_path[PATH_MAX];
+    header_path[0] = 0;
+    footer_path[0] = 0;
+    compiler_env_path[0] = 0;
+
+    if (header_base[0]) {
+      if (req->lang_header) {
+        snprintf(header_path, sizeof(header_path), "%s/%s.%s%s", req->header_dir, header_base, lang->short_name, lang->src_sfx);
+      } else {
+        snprintf(header_path, sizeof(header_path), "%s/%s%s", req->header_dir, header_base, lang->src_sfx);
+      }
+    }
+    if (footer_base[0]) {
+      if (req->lang_header) {
+        snprintf(footer_path, sizeof(footer_path), "%s/%s.%s%s", req->header_dir, footer_base, lang->short_name, lang->src_sfx);
+      } else {
+        snprintf(footer_path, sizeof(footer_path), "%s/%s%s", req->header_dir, footer_base, lang->src_sfx);
+      }
+    }
+    if (compiler_env_base[0]) {
+      if (req->lang_header) {
+        snprintf(compiler_env_path, sizeof(compiler_env_path), "%s/%s.%s", req->header_dir, compiler_env_base, lang->short_name);
+      } else {
+        snprintf(compiler_env_path, sizeof(compiler_env_path), "%s/%s", req->header_dir, compiler_env_base);
+      }
+    }
+
+    int header_exists = (header_path[0] && access(header_path, R_OK) >= 0);
+    int footer_exists = (footer_path[0] && access(footer_path, R_OK) >= 0);
+    int env_exists = (compiler_env_path[0] && access(compiler_env_path, R_OK) >= 0);
+    if (!header_exists && !footer_exists && !env_exists) {
+      if (serial == 1) {
+        fprintf(log_f, "no test-specific header, footer, or compiler_env file found\n");
+        status = RUN_CHECK_FAILED;
+      }
+      break;
+    }
+
+    testinfo_t test_info;
+    memset(&test_info, 0, sizeof(test_info));
+    testinfo_t *tinf = NULL;
+
+    if (compiler_env_path[0]) {
+      struct testinfo_subst_handler_compile hc;
+      memset(&hc, 0, sizeof(hc));
+      hc.b.substitute = testinfo_subst_handler_substitute;
+      hc.request = req;
+      hc.lang = lang;
+
+      if (stat(compiler_env_path, &stb) < 0) {
+        fprintf(log_f, "compiler env file '%s' does not exist: %s\n", compiler_env_path, strerror(errno));
+        status = RUN_CHECK_FAILED;
+        continue;
+      } else if (!S_ISREG(stb.st_mode)) {
+        fprintf(log_f, "compiler env file '%s' is not regular\n", compiler_env_path);
+        status = RUN_CHECK_FAILED;
+        continue;
+      } else if (access(compiler_env_path, R_OK) < 0) {
+        fprintf(log_f, "compiler env file '%s' is not readable: %s\n", compiler_env_path, strerror(errno));
+        status = RUN_CHECK_FAILED;
+        continue;
+      } else if (testinfo_parse(compiler_env_path, &test_info, &hc.b) < 0) {
+        fprintf(log_f, "invalid env file '%s'\n", compiler_env_path);
+        status = RUN_CHECK_FAILED;
+        continue;
+      } else {
+        tinf = &test_info;
+      }
+    }
+
+    int file_check_failed = 0;
+    char *header_s = NULL, *footer_s = NULL;
+    size_t header_z = 0, footer_z = 0;
+    if (header_path[0]) {
+      if (stat(header_path, &stb) < 0) {
+        fprintf(log_f, "header file '%s' does not exist: %s\n", header_path, strerror(errno));
+        file_check_failed = 1;
+      } else if (!S_ISREG(stb.st_mode)) {
+        fprintf(log_f, "header file '%s' is not regular\n", header_path);
+        file_check_failed = 1;
+      } else if (access(header_path, R_OK) < 0) {
+        fprintf(log_f, "header file '%s' is not readable: %s\n", header_path, strerror(errno));
+        file_check_failed = 1;
+      } else if (generic_read_file(&header_s, 0, &header_z, 0, NULL, header_path, "") < 0) {
+        fprintf(log_f, "failed to read file '%s'\n", header_path);
+        file_check_failed = 1;
+      }
+    }
+    if (footer_path[0]) {
+      if (stat(footer_path, &stb) < 0) {
+        fprintf(log_f, "footer file '%s' does not exist: %s\n", footer_path, strerror(errno));
+        file_check_failed = 1;
+      } else if (!S_ISREG(stb.st_mode)) {
+        fprintf(log_f, "footer file '%s' is not regular\n", footer_path);
+        file_check_failed = 1;
+      } else if (access(footer_path, R_OK) < 0) {
+        fprintf(log_f, "footer file '%s' is not readable: %s\n", footer_path, strerror(errno));
+        file_check_failed = 1;
+      } else if (generic_read_file(&footer_s, 0, &footer_z, 0, NULL, footer_path, "") < 0) {
+        fprintf(log_f, "failed to read file '%s'\n", footer_path);
+        file_check_failed = 1;
+      }
+    }
+    if (file_check_failed) {
+      testinfo_free(tinf);
+      xfree(header_s);
+      xfree(footer_s);
+      status = RUN_CHECK_FAILED;
+      continue;
+    }
+
+    char *src_s = NULL;
+    size_t src_z = 0;
+    if (generic_read_file(&src_s, 0, &src_z, 0, NULL, src_work_path, "") < 0) {
+      fprintf(log_f, "failed to read source file '%s'\n", src_work_path);
+      testinfo_free(tinf);
+      xfree(header_s);
+      xfree(footer_s);
+      status = RUN_CHECK_FAILED;
+      continue;
+    }
+
+    size_t full_z = header_z + src_z + footer_z;
+    char *full_s = xmalloc(full_z + 1);
+    if (header_s && header_z > 0) {
+      memcpy(full_s, header_s, header_z);
+    }
+    memcpy(full_s + header_z, src_s, src_z);
+    if (footer_s && footer_z > 0) {
+      memcpy(full_s + header_z + src_z, footer_s, footer_z);
+    }
+    full_s[full_z] = 0;
+    xfree(header_s); header_s = NULL; header_z = 0;
+    xfree(footer_s); footer_s = NULL; footer_z = 0;
+
+    unsigned char test_src_name[PATH_MAX];
+    snprintf(test_src_name, sizeof(test_src_name), "%06d_%03d%s", req->run_id, serial, lang->src_sfx);
+    unsigned char test_src_path[PATH_MAX];
+    snprintf(test_src_path, sizeof(test_src_path), "%s/%s", working_dir, test_src_name);
+    if (generic_write_file(full_s, full_z, 0, NULL, test_src_path, NULL) < 0) {
+      fprintf(log_f, "failed to write full source file '%s'\n", test_src_path);
+      testinfo_free(tinf);
+      xfree(full_s);
+      status = RUN_CHECK_FAILED;
+      continue;
+    }
+    xfree(full_s); full_s = NULL; full_z = 0;
+
+    unsigned char test_exe_name[PATH_MAX];
+    snprintf(test_exe_name, sizeof(test_exe_name), "%06d_%03d%s", req->run_id, serial, lang->exe_sfx);
+    unsigned char test_exe_path[PATH_MAX];
+    snprintf(test_exe_path, sizeof(test_exe_path), "%s/%s", working_dir, test_exe_name);
+
+    int cur_status = RUN_OK;
+    if (req->style_checker && req->style_checker[0]) {
+      cur_status = invoke_style_checker(log_f, cs, lang, req, test_src_name, working_dir, log_work_path, tinf);
+      // valid statuses: RUN_OK, RUN_STYLE_ERR, RUN_CHECK_FAILED
+      if (cur_status == RUN_CHECK_FAILED) {
+        status = RUN_CHECK_FAILED;
+      } else if (cur_status == RUN_STYLE_ERR) {
+        if (status == RUN_OK) {
+          status = RUN_STYLE_ERR;
+        }
+      } else if (cur_status != RUN_OK) {
+        fprintf(log_f, "invalid status %d returned from invoke_style_checker\n", cur_status);
+        status = RUN_CHECK_FAILED;
+      }
+    }
+    if (cur_status == RUN_OK) {
+      cur_status = invoke_compiler(log_f, cs, lang, req, test_src_name, test_exe_name, working_dir, log_work_path, tinf);
+      // valid statuses: RUN_OK, RUN_COMPILE_ERR, RUN_CHECK_FAILED
+      if (cur_status == RUN_CHECK_FAILED) {
+        status = RUN_CHECK_FAILED;
+      } else if (cur_status == RUN_COMPILE_ERR) {
+        if (status == RUN_OK || status == RUN_STYLE_ERR) { 
+          status = RUN_COMPILE_ERR;
+        }
+      } else if (cur_status != RUN_OK) {
+        fprintf(log_f, "invalid status %d returned from invoke_compiler\n", cur_status);
+        status = RUN_CHECK_FAILED;
+      } else {
+        // OK
+        if (lstat(test_exe_path, &stb) < 0) {
+          fprintf(log_f, "output file '%s' does not exist: %s\n", test_exe_path, strerror(errno));
+          status = RUN_CHECK_FAILED;
+        } else if (!S_ISREG(stb.st_mode)) {
+          fprintf(log_f, "output file '%s' is not regular\n", test_exe_path);
+          status = RUN_CHECK_FAILED;
+        } else if (access(test_exe_path, X_OK) < 0) {
+          fprintf(log_f, "output file '%s' is not executable: %s\n", test_exe_path, strerror(errno));
+          status = RUN_CHECK_FAILED;
+        } else {
+          if (zf->ops->add_file(zf, test_exe_name, test_exe_path) < 0) {
+            fprintf(log_f, "cannot add file '%s' to zip archive\n", test_exe_path);
+            status = RUN_CHECK_FAILED;
+          }
+        }
+      }
+    }
+  }
+
+  rpl->status = status;
+  rpl->zip_mode = 1;
+
+cleanup:
+  if (zf) zf->ops->close(zf);
+  return;
+}
+
+static int new_loop(void) __attribute__((unused));
+
+static int
+new_loop(void)
+{
+  int retval = 0;
+  const struct section_global_data *global = serve_state.global;
+  int override_exe = 0;
+  int exe_copied = 0;
+
+  interrupt_init();
+  interrupt_disable();
+
+  while (1) {
+    // terminate if signaled
+    if (interrupt_get_status() || interrupt_restart_requested()) break;
+
+    unsigned char pkt_name[PATH_MAX];
+    pkt_name[0] = 0;
+    int r = scan_dir(global->compile_queue_dir, pkt_name, sizeof(pkt_name), 0);
+
+    if (r < 0) {
+      switch (-r) {
+      case ENOMEM:
+      case ENOENT:
+      case ENFILE:
+        err("trying to recover, sleep for 5 seconds");
+        interrupt_enable();
+        os_Sleep(5000);
+        interrupt_disable();
+        continue;
+      default:
+        err("unrecoverable error, exiting");
+        return -1;
+      }
+    }
+
+    if (!r) {
+      interrupt_enable();
+      os_Sleep(global->sleep_time);
+      interrupt_disable();
+      continue;
+    }
+
+    char *pkt_ptr = NULL;
+    size_t pkt_len = 0;
+    r = generic_read_file(&pkt_ptr, 0, &pkt_len, SAFE | REMOVE, global->compile_queue_dir, pkt_name, "");
+    if (r == 0) continue;
+    if (r < 0 || !pkt_ptr) {
+      // it looks like there's no reasonable recovery strategy
+      // so, just ignore the error
+      continue;
+    }
+
+    struct compile_request_packet *req = NULL;
+    r = compile_request_packet_read(pkt_len, pkt_ptr, &req);
+    xfree(pkt_ptr); pkt_ptr = NULL;
+    if (r < 0) {
+      continue;
+    }
+
+    if (!req->contest_id) {
+      // special packets
+      r = req->lang_id;
+      req = compile_request_packet_free(req);
+      switch (r) {
+      case 1:
+        interrupt_flag_interrupt();
+        break;
+      case 2:
+        interrupt_flag_sighup();
+        break;
+      }
+      continue;
+    }
+
+    struct compile_reply_packet rpl;
+    memset(&rpl, 0, sizeof(rpl));
+    rpl.judge_id = req->judge_id;
+    rpl.contest_id = req->contest_id;
+    rpl.run_id = req->run_id;
+    rpl.ts1 = req->ts1;
+    rpl.ts1_us = req->ts1_us;
+    rpl.use_uuid = req->use_uuid;
+    rpl.uuid = req->uuid;
+    get_current_time(&rpl.ts2, &rpl.ts2_us);
+    rpl.run_block_len = req->run_block_len;
+    rpl.run_block = req->run_block; /* !!! shares memory with req */
+
+    unsigned char status_dir[PATH_MAX];
+    snprintf(status_dir, sizeof(status_dir), "%s/%06d/status", global->compile_dir, rpl.contest_id);
+    if (make_all_dir(status_dir, 0777) < 0) {
+      rpl.run_block = NULL;
+      compile_request_packet_free(req);
+      continue;
+    }
+
+    unsigned char run_name[PATH_MAX];
+    if (req->use_uuid > 0) {
+      snprintf(run_name, sizeof(run_name), "%s", ej_uuid_unparse(&req->uuid, NULL));
+    } else {
+      snprintf(run_name, sizeof(run_name), "%06d", rpl.run_id);
+    }
+
+    unsigned char report_dir[PATH_MAX];
+    snprintf(report_dir, sizeof(report_dir), "%s/%06d/report", global->compile_dir, rpl.contest_id);
+    if (make_dir(report_dir, 0777) < 0) {
+      rpl.run_block = NULL;
+      compile_request_packet_free(req);
+      continue;
+    }
+
+    unsigned char log_path[PATH_MAX];
+    snprintf(log_path, sizeof(log_path), "%s/%s.txt", report_dir, run_name);
+    unlink(log_path);
+
+    unsigned char exe_work_name[PATH_MAX];
+    exe_work_name[0] = 0;
+
+    unsigned char log_work_name[PATH_MAX];
+    snprintf(log_work_name, sizeof(log_work_name), "log_%06d.txt", req->run_id);
+    unsigned char log_work_path[PATH_MAX];
+    snprintf(log_work_path, sizeof(log_work_path), "%s/%s", global->compile_work_dir, log_work_name);
+    unlink(log_work_path);
+    FILE *log_f = fopen(log_work_path, "a");
+    if (!log_f) {
+      err("cannot open log file '%s': %s", log_work_path, strerror(errno));
+      rpl.run_block = NULL;
+      compile_request_packet_free(req);
+      continue;
+    }
+
+    const struct section_language_data *lang = NULL;
+    if (req->lang_id) {
+      if (req->lang_id <= 0 || req->lang_id > serve_state.max_lang || !(lang = serve_state.langs[req->lang_id])) {
+        fprintf(log_f, "invalid language id %d passed from ej-contest\n", req->lang_id);
+      }
+    }
+
+    unsigned char exe_path[PATH_MAX];
+    const unsigned char *exe_sfx = "";
+    if (lang && lang->exe_sfx) exe_sfx = lang->exe_sfx;
+    snprintf(exe_path, sizeof(exe_path), "%s/%s%s", report_dir, run_name, exe_sfx);
+    unlink(exe_path);
+
+    unsigned char src_path[PATH_MAX];
+    snprintf(src_path, sizeof(src_path), "%s/%s%s", global->compile_src_dir, pkt_name, req->src_sfx);
+
+    override_exe = 0;
+    exe_copied = 0;
+    handle_packet(log_f, &serve_state, pkt_name, req, &rpl,
+                  lang,
+                  run_name,
+                  src_path,
+                  exe_path,
+                  global->compile_work_dir,
+                  log_work_path,
+                  exe_work_name,
+                  &override_exe,
+                  &exe_copied);
+
+    get_current_time(&rpl.ts3, &rpl.ts3_us);
+
+    if (rpl.status == RUN_OK && !override_exe && !exe_copied) {
+      if (!exe_work_name[0]) {
+        err("the resulting executable name is empty");
+        fprintf(log_f, "\ncompiler output file is empty\n");
+        rpl.status = RUN_CHECK_FAILED;
+      } else {
+        unsigned char exe_work_path[PATH_MAX];
+        snprintf(exe_work_path, sizeof(exe_work_path), "%s/%s", global->compile_work_dir, exe_work_name);
+        struct stat stb;
+
+        if (lstat(exe_work_path, &stb) < 0) {
+          err("the resulting executable '%s' does not exist", exe_work_path);
+          fprintf(log_f, "\ncompiler output file '%s' does not exist\n", exe_work_path);
+          rpl.status = RUN_COMPILE_ERR;
+        } else {
+          if (!S_ISREG(stb.st_mode)) {
+            err("the resulting executable '%s' is not a regular file", exe_work_path);
+            fprintf(log_f, "\ncompiler output file '%s' is not a regular file\n", exe_work_path);
+            rpl.status = RUN_CHECK_FAILED;
+          } else if (stb.st_size > MAX_EXE_SIZE) {
+            err("the resulting executable '%s' is too large (size = %lld)", exe_work_path, (long long) stb.st_size);
+            fprintf(log_f, "\ncompiler output file '%s' is too large\n (size = %lld)", exe_work_path, (long long) stb.st_size);
+            rpl.status = RUN_COMPILE_ERR;
+          } else {
+            if (rename(exe_work_path, exe_path) >= 0) {
+              // good!
+            } else if (errno != EXDEV) {
+              int e = errno;
+              err("rename %s -> %s failed: %s", exe_work_path, exe_path, strerror(e));
+              fprintf(log_f, "\nrename %s -> %s failed: %s\n", exe_work_path, exe_path, strerror(e));
+              rpl.status = RUN_CHECK_FAILED;
+            } else {
+              if (generic_copy_file(0, NULL, exe_work_path, "", 0, NULL, exe_path, "") < 0) {
+                fprintf(log_f, "\ncopy %s -> %s failed\n", exe_work_path, exe_path);
+                rpl.status = RUN_CHECK_FAILED;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    fclose(log_f); log_f = NULL;
+
+    r = generic_copy_file(0, NULL, log_work_path, "", 0, NULL, log_path, "");
+    if (r < 0) {
+      rpl.run_block = NULL;
+      compile_request_packet_free(req);
+      clear_directory(global->compile_work_dir);
+      unlink(exe_path);
+      unlink(log_path);
+      continue;
+    }
+
+    if (override_exe || (rpl.status == RUN_STYLE_ERR || rpl.status == RUN_COMPILE_ERR || rpl.status == RUN_CHECK_FAILED)) {
+      generic_copy_file(0, NULL, log_work_path, "", 0, NULL, exe_path, "");
+    }
+
+    void *rpl_pkt = NULL;
+    size_t rpl_size = 0;
+    if (compile_reply_packet_write(&rpl, &rpl_size, &rpl_pkt) < 0) {
+      rpl.run_block = NULL;
+      compile_request_packet_free(req);
+      clear_directory(global->compile_work_dir);
+      unlink(exe_path);
+      unlink(log_path);
+      continue;
+    }
+    if (generic_write_file(rpl_pkt, rpl_size, SAFE, status_dir, run_name, 0) < 0) {
+      rpl.run_block = NULL;
+      compile_request_packet_free(req);
+      xfree(rpl_pkt);
+      clear_directory(global->compile_work_dir);
+      unlink(exe_path);
+      unlink(log_path);
+      continue;
+    }
+
+    // all good
+    rpl.run_block = NULL;
+    compile_request_packet_free(req);
+    xfree(rpl_pkt);
+    clear_directory(global->compile_work_dir);
+  }
+
+  return retval;
+}
+
+static int do_loop(void) __attribute__((unused));
 
 static int
 do_loop(void)
@@ -251,7 +1052,7 @@ do_loop(void)
     // terminate if signaled
     if (interrupt_get_status() || interrupt_restart_requested()) break;
 
-    r = scan_dir(global->compile_queue_dir, pkt_name, sizeof(pkt_name));
+    r = scan_dir(global->compile_queue_dir, pkt_name, sizeof(pkt_name), 0);
 
     if (r < 0) {
       switch (-r) {
@@ -761,7 +1562,7 @@ main(int argc, char *argv[])
 #endif
 
 #ifndef __WIN32__
-  ejudge_config = ejudge_cfg_parse(ejudge_xml_path);
+  ejudge_config = ejudge_cfg_parse(ejudge_xml_path, 1);
   if (!ejudge_config) {
     fprintf(stderr, "%s: ejudge.xml is invalid\n", argv[0]);
     return 1;
@@ -936,7 +1737,8 @@ main(int argc, char *argv[])
   xfree(lang_log_t); lang_log_t = 0; lang_log_z = 0;
 #endif /* HAVE_OPEN_MEMSTREAM */
 
-  if (do_loop() < 0) return 1;
+  //if (do_loop() < 0) return 1;
+  if (new_loop() < 0) return 1;
 
   if (interrupt_restart_requested()) start_restart();
 

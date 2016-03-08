@@ -172,7 +172,7 @@ enum
   NEW_SRV_ACTION_CHANGE_RUN_SCORE,
   NEW_SRV_ACTION_CHANGE_RUN_SCORE_ADJ,
   NEW_SRV_ACTION_CHANGE_RUN_PAGES,
-  NEW_SRV_ACTION_PRIV_DOWNLOAD_RUN,
+  NEW_SRV_ACTION_DOWNLOAD_RUN,
   NEW_SRV_ACTION_COMPARE_RUNS,
   NEW_SRV_ACTION_UPLOAD_REPORT,
   NEW_SRV_ACTION_STANDINGS,
@@ -227,6 +227,7 @@ enum
   NEW_SRV_ACTION_VIEW_SETTINGS,
   NEW_SRV_ACTION_VIRTUAL_START,
   NEW_SRV_ACTION_VIRTUAL_STOP,
+  NEW_SRV_ACTION_VIRTUAL_RESTART,
   NEW_SRV_ACTION_VIEW_USER_REPORT,
   NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_1,
   NEW_SRV_ACTION_DOWNLOAD_ARCHIVE_2,
@@ -332,6 +333,9 @@ enum
   NEW_SRV_ACTION_TESTING_DELETE_ALL,
   NEW_SRV_ACTION_TESTING_UP_ALL,
   NEW_SRV_ACTION_TESTING_DOWN_ALL,
+  NEW_SRV_ACTION_INVOKER_DELETE,
+  NEW_SRV_ACTION_INVOKER_STOP,
+  NEW_SRV_ACTION_INVOKER_DOWN,  
   NEW_SRV_ACTION_MARK_DISPLAYED_2,
   NEW_SRV_ACTION_UNMARK_DISPLAYED_2,
   NEW_SRV_ACTION_SET_STAND_FILTER,
@@ -350,6 +354,7 @@ enum
   NEW_SRV_ACTION_PING,
   NEW_SRV_ACTION_SUBMIT_RUN_BATCH,
   NEW_SRV_ACTION_CONTESTS_PAGE,
+  NEW_SRV_ACTION_CONTEST_BATCH,
 
   NEW_SRV_ACTION_LAST,
 };
@@ -727,6 +732,8 @@ enum
   NS_RUNSEL_ALL = 0,
   NS_RUNSEL_DISPLAYED,
   NS_RUNSEL_OK,
+  NS_RUNSEL_OKPR,
+  NS_RUNSEL_OKPRRJ,
 
   NS_FILE_PATTERN_RUN = 0x1,
   NS_FILE_PATTERN_UID = 0x2,
@@ -735,6 +742,8 @@ enum
   NS_FILE_PATTERN_LANG = 0x10,
   NS_FILE_PATTERN_SUFFIX = 0x20,
   NS_FILE_PATTERN_NAME = 0x40,
+  NS_FILE_PATTERN_CONTEST = 0x80,
+  NS_FILE_PATTERN_TIME = 0x100,
 };
 
 void
@@ -746,6 +755,7 @@ ns_download_runs(
         int run_selection,
         int dir_struct,
         int file_name_mask,
+        int use_problem_extid,
         size_t run_mask_size,
         unsigned long *run_mask);
 
@@ -995,9 +1005,13 @@ write_xml_testing_report(
 struct TestingQueueArray;
 void
 ns_scan_run_queue(
-        const unsigned char *dpath,
-        int contest_id,
+        serve_state_t cs,
         struct TestingQueueArray *vec);
+struct super_run_status_vector;
+void
+ns_scan_heartbeat_dirs(
+        serve_state_t cs,
+        struct super_run_status_vector *vec);
 
 int
 ns_parse_run_id(

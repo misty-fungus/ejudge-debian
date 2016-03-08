@@ -1,6 +1,6 @@
 /* -*- mode: c -*- */
 
-/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -50,6 +50,7 @@
 #include "ejudge/ej_uuid.h"
 #include "ejudge/new_server_pi.h"
 #include "ejudge/xuser_plugin.h"
+#include "ejudge/super_run_status.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -119,7 +120,7 @@ ns_write_priv_all_runs(
   unsigned char *fe_html;
   int fe_html_len;
   unsigned char first_run_str[32] = { 0 }, last_run_str[32] = { 0 };
-  unsigned char hbuf[128];
+  unsigned char hbuf[512];
   const unsigned char *imported_str;
   const unsigned char *examinable_str;
   const unsigned char *marked_str;
@@ -1863,6 +1864,7 @@ ns_priv_edit_run_action(
     case RUN_PARTIAL:
     case RUN_MEM_LIMIT_ERR:
     case RUN_SECURITY_ERR:
+    case RUN_SYNC_ERR:
       if (!value) {
         fprintf(log_f, "invalid 'test' field value\n");
         FAIL(NEW_SRV_ERR_INV_PARAM);
@@ -1922,6 +1924,7 @@ ns_priv_edit_run_action(
       case RUN_PARTIAL:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
         if (value < 0 || value > prob->full_score) {
           fprintf(log_f, "invalid 'score' field value\n");
           FAIL(NEW_SRV_ERR_INV_PARAM);
@@ -2039,6 +2042,7 @@ ns_priv_edit_run_action(
         case RUN_PARTIAL:
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
+        case RUN_SYNC_ERR:
           if (!value) {
             fprintf(log_f, "invalid 'saved_test' field value\n");
             FAIL(NEW_SRV_ERR_INV_PARAM);
@@ -2097,6 +2101,7 @@ ns_priv_edit_run_action(
           case RUN_PARTIAL:
           case RUN_MEM_LIMIT_ERR:
           case RUN_SECURITY_ERR:
+          case RUN_SYNC_ERR:
             if (value < 0 || value > prob->full_user_score) {
               fprintf(log_f, "invalid 'saved_score' field value\n");
               FAIL(NEW_SRV_ERR_INV_PARAM);
@@ -2631,6 +2636,7 @@ ns_set_stand_filter(
 
   if (!IS_EQUAL(stand_run_expr)) {
     if (!*stand_run_expr) {
+      xfree(u->stand_run_expr);
       u->stand_run_expr = 0;
       u->stand_run_tree = 0;
     } else {
@@ -2681,6 +2687,7 @@ ns_download_runs(
         int run_selection,
         int dir_struct,
         int file_name_mask,
+        int use_problem_extid,
         size_t run_mask_size,
         unsigned long *run_mask)
 {
@@ -2766,9 +2773,16 @@ ns_download_runs(
       goto cleanup;
     }
     if (run_selection == NS_RUNSEL_OK && info.status != RUN_OK) continue;
+    if (run_selection == NS_RUNSEL_OKPR && info.status != RUN_OK && info.status != RUN_PENDING_REVIEW) continue;
+    if (run_selection == NS_RUNSEL_OKPRRJ
+        && info.status != RUN_OK && info.status != RUN_PENDING_REVIEW
+        && info.status != RUN_IGNORED && info.status != RUN_REJECTED
+        && info.status != RUN_PENDING && info.status != RUN_DISQUALIFIED)
+      continue;
     if (info.status > RUN_LAST) continue;
     if (info.status > RUN_MAX_STATUS && info.status < RUN_TRANSIENT_FIRST)
       continue;
+    if (info.is_hidden) continue;
 
     if (!(login_ptr = teamdb_get_login(cs->teamdb_state, info.user_id))) {
       snprintf(login_buf, sizeof(login_buf), "!user_%d", info.user_id);
@@ -2778,13 +2792,16 @@ ns_download_runs(
       snprintf(name_buf, sizeof(name_buf), "!user_%d", info.user_id);
       name_ptr = name_buf;
     } else {
-      filename_armor_bytes(name_buf, sizeof(name_buf), name_ptr,
-                           strlen(name_ptr));
-      name_ptr = name_buf;
+      //filename_armor_bytes(name_buf, sizeof(name_buf), name_ptr, strlen(name_ptr));
+      //name_ptr = name_buf;
     }
     if (info.prob_id > 0 && info.prob_id <= cs->max_prob
         && cs->probs[info.prob_id]) {
-      prob_ptr = cs->probs[info.prob_id]->short_name;
+      if (use_problem_extid && cs->probs[info.prob_id]->extid && cs->probs[info.prob_id]->extid[0]) {
+        prob_ptr = cs->probs[info.prob_id]->extid;
+      } else {
+        prob_ptr = cs->probs[info.prob_id]->short_name;
+      }
     } else {
       snprintf(prob_buf, sizeof(prob_buf), "!prob_%d", info.prob_id);
       prob_ptr = prob_buf;
@@ -2867,7 +2884,7 @@ ns_download_runs(
       snprintf(dir5, sizeof(dir5), "%s", dir3);
     }
 
-    file_name_exp_len = 64 + strlen(login_ptr) + strlen(name_ptr)
+    file_name_exp_len = 128 + strlen(login_ptr) + strlen(name_ptr)
       + strlen(prob_ptr) + strlen(lang_ptr) + strlen(suff_ptr);
     if (file_name_exp_len > file_name_size) {
       while (file_name_exp_len > file_name_size) file_name_size *= 2;
@@ -2877,6 +2894,10 @@ ns_download_runs(
 
     sep = "";
     ptr = file_name_str;
+    if ((file_name_mask & NS_FILE_PATTERN_CONTEST)) {
+      ptr += sprintf(ptr, "%s%d", sep, cnts->id);
+      sep = "-";
+    }
     if ((file_name_mask & NS_FILE_PATTERN_RUN)) {
       ptr += sprintf(ptr, "%s%06d", sep, run_id);
       sep = "-";
@@ -2901,8 +2922,17 @@ ns_download_runs(
       ptr += sprintf(ptr, "%s%s", sep, lang_ptr);
       sep = "-";
     }
+    if ((file_name_mask & NS_FILE_PATTERN_TIME)) {
+      time_t ttm = info.time;
+      struct tm *rtm = localtime(&ttm);
+      ptr += sprintf(ptr, "%s%04d%02d%02d%02d%02d%02d", sep, rtm->tm_year + 1900, rtm->tm_mon + 1, rtm->tm_mday, rtm->tm_hour, rtm->tm_min, rtm->tm_sec);
+      sep = "-";
+    }
     if ((file_name_mask & NS_FILE_PATTERN_SUFFIX)) {
       ptr += sprintf(ptr, "%s", suff_ptr);
+    }
+    for (ptr = file_name_str; *ptr; ++ptr) {
+      if (*ptr <= ' ') *ptr = '_';
     }
     snprintf(dstpath, sizeof(dstpath), "%s/%s", dir5, file_name_str);
 
@@ -3936,6 +3966,7 @@ static int get_accepting_passed_tests(
   case RUN_WRONG_ANSWER_ERR:
   case RUN_MEM_LIMIT_ERR:
   case RUN_SECURITY_ERR:
+  case RUN_SYNC_ERR:
     r = re->test;
     if (re->passed_mode > 0) {
     } else {
@@ -4136,6 +4167,7 @@ ns_write_olympiads_user_runs(
       case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
       case RUN_STYLE_ERR:
         re.status = RUN_CHECK_FAILED;
         break;
@@ -4179,6 +4211,7 @@ ns_write_olympiads_user_runs(
       case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
         if (prob && prob->type != PROB_TYPE_STANDARD) {
           // This is presentation error
           report_comment = ns_get_checker_comment(cs, i, 1);
@@ -4270,17 +4303,21 @@ ns_write_olympiads_user_runs(
       case RUN_CHECK_FAILED:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
         if (prob && prob->type != PROB_TYPE_STANDARD) {
           snprintf(tests_buf, sizeof(tests_buf), "&nbsp;");
+          score = re.score;
+          if (score < 0) score = 0;
+          score_view_display(score_buf, sizeof(score_buf), prob, score);
         } else {
           if (re.passed_mode > 0) {
             snprintf(tests_buf, sizeof(tests_buf), "%d", re.test);
           } else {
             snprintf(tests_buf, sizeof(tests_buf), "%d", re.test);
           }
+          snprintf(score_buf, sizeof(score_buf), "&nbsp;");
         }
         report_allowed = 1;
-        snprintf(score_buf, sizeof(score_buf), "&nbsp;");
         break;
 
       default:
@@ -4434,6 +4471,7 @@ kirov_score_latest_or_unmarked(
   case RUN_CHECK_FAILED:
   case RUN_MEM_LIMIT_ERR:
   case RUN_SECURITY_ERR:
+  case RUN_SYNC_ERR:
     break;
 
   case RUN_PARTIAL:
@@ -4582,6 +4620,7 @@ kirov_score_latest(
   case RUN_PARTIAL:
   case RUN_MEM_LIMIT_ERR:
   case RUN_SECURITY_ERR:
+  case RUN_SYNC_ERR:
   case RUN_WALL_TIME_LIMIT_ERR:
     pinfo->marked_flag = re->is_marked;
     pinfo->solved_flag = 0;
@@ -4652,6 +4691,7 @@ kirov_score_tokenized(
   case RUN_WRONG_ANSWER_ERR:
   case RUN_MEM_LIMIT_ERR:
   case RUN_SECURITY_ERR:
+  case RUN_SYNC_ERR:
   case RUN_PARTIAL:
     break;
 
@@ -4750,6 +4790,7 @@ kirov_score_default(
   case RUN_WRONG_ANSWER_ERR:
   case RUN_MEM_LIMIT_ERR:
   case RUN_SECURITY_ERR:
+  case RUN_SYNC_ERR:
   case RUN_PARTIAL:
     ++pinfo->attempts;
     if (cur_score >= pinfo->best_score) {
@@ -4921,6 +4962,7 @@ ns_get_user_problems_summary(
         case RUN_CHECK_FAILED:
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
+        case RUN_SYNC_ERR:
         case RUN_STYLE_ERR:
         case RUN_REJECTED:
           status = RUN_CHECK_FAILED;
@@ -4973,6 +5015,7 @@ ns_get_user_problems_summary(
         case RUN_CHECK_FAILED:
         case RUN_MEM_LIMIT_ERR:
         case RUN_SECURITY_ERR:
+        case RUN_SYNC_ERR:
         case RUN_STYLE_ERR:
           if (!pinfo[re.prob_id].accepted_flag) {
             pinfo[re.prob_id].best_run = run_id;
@@ -4997,6 +5040,10 @@ ns_get_user_problems_summary(
     } else if (global->score_system == SCORE_OLYMPIAD) {
       // OLYMPIAD contest in judging mode
       //if (solved_flag[re.prob_id]) continue;
+      if (cur_prob->type != PROB_TYPE_STANDARD) {
+        if (status == RUN_PRESENTATION_ERR || status == RUN_WRONG_ANSWER_ERR)
+          status = RUN_PARTIAL;
+      }
 
       switch (status) {
       case RUN_OK:
@@ -5009,15 +5056,16 @@ ns_get_user_problems_summary(
         pinfo[re.prob_id].best_score = cur_score;
         break;
 
+      case RUN_PRESENTATION_ERR:
+      case RUN_WRONG_ANSWER_ERR:
       case RUN_COMPILE_ERR:
       case RUN_RUN_TIME_ERR:
       case RUN_TIME_LIMIT_ERR:
       case RUN_WALL_TIME_LIMIT_ERR:
-      case RUN_PRESENTATION_ERR:
-      case RUN_WRONG_ANSWER_ERR:
       case RUN_CHECK_FAILED:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
       case RUN_STYLE_ERR:
       case RUN_REJECTED:
         break;
@@ -5101,6 +5149,7 @@ ns_get_user_problems_summary(
       case RUN_CHECK_FAILED:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
         pinfo[re.prob_id].attempts++;
         cur_score = score;
         if (cur_score >= pinfo[re.prob_id].best_score
@@ -5152,6 +5201,7 @@ ns_get_user_problems_summary(
       case RUN_CHECK_FAILED:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
         pinfo[re.prob_id].attempts++;
         pinfo[re.prob_id].best_run = run_id;
         break;
@@ -5492,32 +5542,54 @@ ns_examiners_page(
   return 0;
 }
 
+TestingQueueArray *
+testing_queue_array_free(TestingQueueArray *parr, int free_struct_flag)
+{
+  if (parr) {
+    for (int i = 0; i < parr->u; ++i) {
+      xfree(parr->v[i].queue_id);
+      xfree(parr->v[i].entry_name);
+      super_run_in_packet_free(parr->v[i].packet);
+    }
+    xfree(parr->v);
+    memset(parr, 0, sizeof(*parr));
+    if (free_struct_flag) xfree(parr);
+  }
+  return NULL;
+}
+
 static int
 scan_run_sort_func(const void *v1, const void *v2)
 {
   const TestingQueueEntry *p1 = (const TestingQueueEntry*)v1;
   const TestingQueueEntry *p2 = (const TestingQueueEntry*)v2;
 
+  const unsigned char *qid1 = p1->queue_id;
+  const unsigned char *qid2 = p2->queue_id;
+  if (!qid1) qid1 = "";
+  if (!qid2) qid2 = "";
+  int v = strcmp(qid1, qid2);
+  if (v) return v;
+
   return strcmp(p1->entry_name, p2->entry_name);
 }
 
-void
-ns_scan_run_queue(
+static void
+ns_scan_run_queue_one(
+        serve_state_t cs,
+        const unsigned char *did,
         const unsigned char *dpath,
-        int contest_id,
         struct TestingQueueArray *vec)
 {
-  DIR *d = 0;
-  struct dirent *dd;
-  struct stat sb;
   path_t qpath;
   path_t path;
+  DIR *d = NULL;
+  struct dirent *dd;
+  struct stat sb;
   char *pkt_buf = 0;
   size_t pkt_size = 0;
   struct super_run_in_packet *srp = NULL;
   int priority = 0;
-
-  memset(vec, 0, sizeof(*vec));
 
   snprintf(qpath, sizeof(qpath), "%s/dir", dpath);
   if (!(d = opendir(qpath))) {
@@ -5576,16 +5648,58 @@ ns_scan_run_queue(
       }
     }
 
-    vec->v[vec->u].entry_name = xstrdup(dd->d_name);
-    vec->v[vec->u].priority = priority;
-    vec->v[vec->u].mtime = sb.st_mtime;
-    vec->v[vec->u].packet = srp; srp = 0;
+    TestingQueueEntry *cur = &vec->v[vec->u];
+    memset(cur, 0, sizeof(*cur));
+
+    cur->queue_id = xstrdup(did);
+    cur->entry_name = xstrdup(dd->d_name);
+    cur->priority = priority;
+    cur->mtime = sb.st_mtime;
+    cur->packet = srp; srp = 0;
     vec->u++;
   }
 
   if (d) closedir(d);
+}
+
+void
+ns_scan_run_queue(
+        serve_state_t cs,
+        struct TestingQueueArray *vec)
+{
+  memset(vec, 0, sizeof(*vec));
+
+  for (int i = 0; i < cs->run_queues_u; ++i) {
+    ns_scan_run_queue_one(cs, cs->run_queues[i].id, cs->run_queues[i].queue_dir, vec);
+  }
 
   qsort(vec->v, vec->u, sizeof(vec->v[0]), scan_run_sort_func);
+}
+
+static int
+heartbeat_status_sort_func(const void *v1, const void *v2)
+{
+  const struct super_run_status_vector_item *i1 = *(const struct super_run_status_vector_item**) v1;
+  const struct super_run_status_vector_item *i2 = *(const struct super_run_status_vector_item**) v2;
+  const struct super_run_status *p1 = &i1->status;
+  const struct super_run_status *p2 = &i2->status;
+  const unsigned char *s1 = super_run_status_get_str(p1, super_run_idx);
+  const unsigned char *s2 = super_run_status_get_str(p2, super_run_idx);
+  return strcmp(s1, s2);
+}
+
+void
+ns_scan_heartbeat_dirs(
+        serve_state_t cs,
+        struct super_run_status_vector *vec)
+{
+  memset(vec, 0, sizeof(*vec));
+  for (int i = 0; i < cs->run_queues_u; ++i) {
+    if (cs->run_queues[i].heartbeat_dir) {
+      super_run_status_scan(cs->run_queues[i].id, cs->run_queues[i].heartbeat_dir, vec);
+    }
+  }
+  qsort(vec->v, vec->u, sizeof(vec->v[0]), heartbeat_status_sort_func);
 }
 
 void
@@ -5609,7 +5723,7 @@ new_write_user_runs(
   unsigned char stat_str[128];
   unsigned char *prob_str;
   unsigned char *lang_str;
-  unsigned char href[128];
+  unsigned char href[512];
   struct run_entry re;
   const unsigned char *run_kind_str = 0;
   struct section_problem_data *cur_prob;
@@ -5786,6 +5900,7 @@ new_write_user_runs(
       case RUN_DISQUALIFIED:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
       case RUN_WALL_TIME_LIMIT_ERR:
       case RUN_PENDING_REVIEW:
       case RUN_REJECTED:
@@ -5927,7 +6042,7 @@ new_write_user_clars(
   const unsigned char *psubj = 0;
   char *asubj = 0; /* html armored subj */
   int   asubj_len = 0; /* html armored subj len */
-  unsigned char href[128];
+  unsigned char href[512];
   unsigned char *cl = "";
   struct clar_entry_v2 clar;
   const unsigned char *clar_flags = 0;
@@ -5998,9 +6113,9 @@ new_write_user_clars(
     fprintf(f, "<td%s>%s</td>", cl, asubj);
     fprintf(f, "<td%s>", cl);
     if (clar.run_id > 0 && clar_flags && clar_flags[0] == 'N') {
-      fprintf(f, "%s", ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_VIEW_REPORT, "run_id=%d&clar_id=%d", clar.run_id - 1, i));
+      fprintf(f, "%s", ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_VIEW_SOURCE, "run_id=%d&clar_id=%d", clar.run_id - 1, i));
     } else if (clar.run_id > 0) {
-      fprintf(f, "%s", ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_VIEW_REPORT, "run_id=%d", clar.run_id - 1));
+      fprintf(f, "%s", ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_VIEW_SOURCE, "run_id=%d", clar.run_id - 1));
     } else {
       fprintf(f, "%s", ns_aref(href, sizeof(href), phr, NEW_SRV_ACTION_VIEW_CLAR, "clar_id=%d", i));
     }
@@ -6509,6 +6624,7 @@ write_xml_team_output_only_acc_report(
 
     case RUN_MEM_LIMIT_ERR:
     case RUN_SECURITY_ERR:
+    case RUN_SYNC_ERR:
       fprintf(f, "&nbsp;");
       break;
 
@@ -6680,6 +6796,7 @@ write_xml_team_accepting_report(
 
     case RUN_MEM_LIMIT_ERR:
     case RUN_SECURITY_ERR:
+    case RUN_SYNC_ERR:
       fprintf(f, "&nbsp;");
       break;
 
@@ -7087,6 +7204,7 @@ write_xml_testing_report(
     case RUN_WRONG_ANSWER_ERR:
     case RUN_MEM_LIMIT_ERR:
     case RUN_SECURITY_ERR:
+    case RUN_SYNC_ERR:
       if (max_cpu_time_tl > 0) break;
       max_cpu_time_tl = 0;
       if (max_cpu_time < 0 || max_cpu_time < r->tests[i]->time) {
@@ -7239,6 +7357,7 @@ write_xml_testing_report(
 
     case RUN_MEM_LIMIT_ERR:
     case RUN_SECURITY_ERR:
+    case RUN_SYNC_ERR:
       fprintf(f, "&nbsp;");
       break;
 

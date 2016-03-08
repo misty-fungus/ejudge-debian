@@ -1,6 +1,6 @@
 /* -*- mode: c -*- */
 
-/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -127,7 +127,7 @@ cmd_login(
     r = userlist_clnt_login(ul_conn, ULS_TEAM_CHECK_USER,
                             &phr->ip, phr->client_key,
                             phr->ssl_flag, phr->contest_id,
-                            phr->locale_id, login, password,
+                            phr->locale_id, 0, login, password,
                             &phr->user_id,
                             &phr->session_id,
                             &phr->client_key,
@@ -1153,7 +1153,7 @@ cmd_submit_run(
                               cnts->id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
                               mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
-                              0 /* rejudge_flag */) < 0)
+                              0 /* rejudge_flag */, 0 /* zip_mode */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }
@@ -1206,7 +1206,7 @@ cmd_submit_run(
                               cnts->id, run_id,
                               phr->user_id, prob->id, 0, variant, 0, -1, -1, 0,
                               mime_type, 0, phr->locale_id, 0, 0, 0, &run_uuid,
-                              0 /* rejudge_flag */) < 0)
+                              0 /* rejudge_flag */, 0 /* zip_mode */) < 0)
           FAIL(NEW_SRV_ERR_DISK_WRITE_ERROR);
       }
     }
@@ -1294,6 +1294,7 @@ static const unsigned char has_failed_test_num[RUN_LAST + 1] =
   [RUN_CHECK_FAILED]     = 1,
   [RUN_MEM_LIMIT_ERR]    = 1,
   [RUN_SECURITY_ERR]     = 1,
+  [RUN_SYNC_ERR]         = 1,
   [RUN_WALL_TIME_LIMIT_ERR] = 1,
 };
 static const unsigned char has_passed_tests[RUN_LAST + 1] =

@@ -1,6 +1,6 @@
 /* -*- c -*- */
 
-/* Copyright (C) 2012-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -30,6 +30,7 @@
 #include "ejudge/ej_process.h"
 #include "ejudge/xml_utils.h"
 #include "ejudge/ej_uuid.h"
+#include "ejudge/super_run_status.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/osdeps.h"
@@ -44,6 +45,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <errno.h>
+#include <sys/time.h>
 
 struct ignored_problem_info
 {
@@ -61,10 +64,21 @@ static unsigned char super_run_spool_path[PATH_MAX];
 static unsigned char super_run_exe_path[PATH_MAX];
 static unsigned char super_run_conf_path[PATH_MAX];
 static unsigned char super_run_log_path[PATH_MAX];
+static unsigned char super_run_heartbeat_path[PATH_MAX];
 static int utf8_mode = 0;
 static struct serve_state serve_state;
 static int restart_flag = 0;
 static unsigned char *contests_home_dir = NULL;
+static int heartbeat_mode = 1;
+static unsigned char *super_run_id = NULL;
+static unsigned char *instance_id = NULL;
+static unsigned char *local_ip = NULL;
+static unsigned char *local_hostname = NULL;
+static unsigned char *public_ip = NULL;
+static unsigned char *public_hostname = NULL;
+static unsigned char *super_run_name = NULL;
+static unsigned char *queue_name = NULL;
+static unsigned char *status_file_name = NULL;
 
 static int ignored_archs_count = 0;
 static int ignored_problems_count = 0;
@@ -74,6 +88,18 @@ static int ignore_rejudge = 0;
 
 static unsigned char **host_names = NULL;
 static unsigned char *mirror_dir = NULL;
+
+#define HEARTBEAT_SAVE_INTERVAL_MS 5000
+static long long last_heartbear_save_time = 0;
+
+static unsigned char master_stop_enabled = 0;
+static unsigned char master_down_enabled = 0;
+static unsigned char pending_stop_flag = 0;
+static unsigned char pending_down_flag = 0;
+
+static int remap_spec_a = 0;
+static int remap_spec_u = 0;
+static struct remap_spec *remap_specs = 0;
 
 static void
 fatal(const char *format, ...)
@@ -149,6 +175,60 @@ find_abstract_tester(serve_state_t state, const unsigned char *arch)
   return NULL;
 }
 
+struct super_run_listener
+{
+  struct run_listener b;
+  int contest_id;
+  int run_id;
+  const unsigned char *packet_name;
+  const unsigned char *user;
+  const unsigned char *prob_short_name;
+  const unsigned char *lang_short_name;
+  long long queue_ts;
+  long long testing_start_ts;
+};
+
+static void
+do_super_run_status_init(struct super_run_status *prs);
+
+static void
+super_run_before_tests(struct run_listener *gself, int test_no)
+{
+  struct super_run_listener *self = (struct super_run_listener *) gself;
+  if (!heartbeat_mode) return;
+
+  struct super_run_status rs;
+  do_super_run_status_init(&rs);
+
+  struct timeval ctv;
+  gettimeofday(&ctv, NULL);
+  long long current_time_ms = ((long long) ctv.tv_sec) * 1000 + ctv.tv_usec / 1000;
+
+  rs.timestamp = current_time_ms;
+  rs.last_run_ts = current_time_ms;
+  rs.status = SRS_TESTING;
+  rs.contest_id = self->contest_id;
+  rs.run_id = self->run_id;
+  rs.pkt_name_idx = super_run_status_add_str(&rs, self->packet_name);
+  rs.test_num = test_no;
+  if (self->user) rs.user_idx = super_run_status_add_str(&rs, self->user);
+  if (self->prob_short_name) rs.prob_idx = super_run_status_add_str(&rs, self->prob_short_name);
+  if (self->lang_short_name) rs.lang_idx = super_run_status_add_str(&rs, self->lang_short_name);
+  rs.queue_ts = self->queue_ts;
+  rs.testing_start_ts = self->testing_start_ts;
+
+  super_run_status_save(super_run_heartbeat_path, status_file_name, &rs,
+                        current_time_ms, &last_heartbear_save_time, HEARTBEAT_SAVE_INTERVAL_MS,
+                        &pending_stop_flag, &pending_down_flag);
+  if (!master_stop_enabled) pending_stop_flag = 0;
+  if (!master_down_enabled) pending_down_flag = 0;
+}
+
+static const struct run_listener_ops super_run_listener_ops =
+{
+  super_run_before_tests,
+};
+
 static int
 handle_packet(
         serve_state_t state,
@@ -181,8 +261,11 @@ handle_packet(
   unsigned char *arch = NULL;
   unsigned char *short_name = NULL;
   const struct section_tester_data *tst = NULL;
+  struct super_run_listener run_listener;
 
   memset(&reply_pkt, 0, sizeof(reply_pkt));
+  memset(&run_listener, 0, sizeof(run_listener));
+  run_listener.b.ops = &super_run_listener_ops;
 
   r = generic_read_file(&srp_b, 0, &srp_z, SAFE | REMOVE, super_run_spool_path, pkt_name, "");
   if (r == 0) {
@@ -285,6 +368,19 @@ handle_packet(
       ej_uuid_parse(srgp->run_uuid, &reply_pkt.uuid);
     }
 
+    run_listener.contest_id = srgp->contest_id;
+    run_listener.run_id = srgp->run_id;
+    run_listener.packet_name = pkt_name;
+    run_listener.prob_short_name = srpp->short_name;
+    run_listener.lang_short_name = srgp->lang_short_name;
+    run_listener.queue_ts = ((long long) srgp->ts1) * 1000 + srgp->ts1_us / 1000;
+    run_listener.testing_start_ts = ((long long) reply_pkt.ts5) * 1000 + reply_pkt.ts5_us / 1000;
+    if (srgp->user_name) {
+      run_listener.user = srgp->user_name;
+    } else {
+      run_listener.user = srgp->user_login;
+    }
+
     //if (cr_serialize_lock(state) < 0) return -1;
     run_tests(ejudge_config, state, tst, srp, &reply_pkt,
               srgp->accepting_mode,
@@ -292,7 +388,9 @@ handle_packet(
               exe_name, run_base,
               report_path, full_report_path,
               srgp->user_spelling,
-              srpp->spelling, mirror_dir, utf8_mode);
+              srpp->spelling, mirror_dir, utf8_mode,
+              &run_listener.b, super_run_name,
+              remap_specs);
     //if (cr_serialize_unlock(state) < 0) return -1;
   }
 
@@ -381,13 +479,59 @@ cleanup:
   return retval;
 }
 
-int
+static void
+do_super_run_status_init(struct super_run_status *prs)
+{
+  super_run_status_init(prs);
+
+  if (instance_id) prs->inst_id_idx = super_run_status_add_str(prs, instance_id);
+  if (local_ip) prs->local_ip_idx = super_run_status_add_str(prs, local_ip);
+  if (local_hostname) prs->local_host_idx = super_run_status_add_str(prs, local_hostname);
+  if (public_ip) prs->public_ip_idx = super_run_status_add_str(prs, public_ip);
+  if (public_hostname) prs->public_host_idx = super_run_status_add_str(prs, public_hostname);
+  if (queue_name) prs->queue_idx = super_run_status_add_str(prs, queue_name);
+  prs->ej_ver_idx = super_run_status_add_str(prs, compile_version);
+  if (super_run_id) prs->super_run_idx = super_run_status_add_str(prs, super_run_id);
+  prs->super_run_pid = getpid();
+  prs->stop_pending = pending_stop_flag;
+  prs->down_pending = pending_down_flag;
+}
+
+static void
+report_waiting_state(long long current_time_ms, long long last_check_time_ms)
+{
+  struct super_run_status rs;
+
+  if (!heartbeat_mode) return;
+
+  do_super_run_status_init(&rs);
+  rs.timestamp = current_time_ms;
+  rs.last_run_ts = last_check_time_ms;
+  rs.status = SRS_WAITING;
+  super_run_status_save(super_run_heartbeat_path, status_file_name, &rs,
+                        current_time_ms, &last_heartbear_save_time, HEARTBEAT_SAVE_INTERVAL_MS,
+                        &pending_stop_flag, &pending_down_flag);
+  if (!master_stop_enabled) pending_stop_flag = 0;
+  if (!master_down_enabled) pending_down_flag = 0;
+}
+
+static int
 do_loop(
-        serve_state_t state)
+        serve_state_t state,
+        int halt_timeout,
+        int *p_halt_requested)
 {
   struct section_global_data *global = state->global;
   unsigned char pkt_name[PATH_MAX];
   int r;
+  struct timeval ctv;
+  time_t last_handled = 0;
+  long long last_handled_ms = 0;
+  long long current_time_ms = 0;
+
+  gettimeofday(&ctv, NULL);
+  last_handled = ctv.tv_sec;
+  last_handled_ms = ((long long) ctv.tv_sec) * 1000 + ctv.tv_usec / 1000;
 
   if (global->sleep_time <= 0) global->sleep_time = 1000;
 
@@ -414,10 +558,23 @@ do_loop(
     }
     if (restart_flag) break;
 
+    if (pending_stop_flag) break;
+    if (pending_down_flag) break;
+
+    time_t current_time = time(NULL);
+    if (halt_timeout > 0 && last_handled + halt_timeout <= current_time) {
+      if (p_halt_requested) *p_halt_requested = 1;
+      break;
+    }
+
     pkt_name[0] = 0;
-    r = scan_dir(super_run_spool_path, pkt_name, sizeof(pkt_name));
+    r = scan_dir(super_run_spool_path, pkt_name, sizeof(pkt_name), 1);
     if (r < 0) {
       err("scan_dir failed for %s, waiting...", super_run_spool_path);
+
+      gettimeofday(&ctv, NULL);
+      current_time_ms = ((long long) ctv.tv_sec) * 1000 + ctv.tv_usec / 1000;
+      report_waiting_state(current_time_ms, last_handled_ms);
 
       interrupt_enable();
       os_Sleep(global->sleep_time);
@@ -426,6 +583,10 @@ do_loop(
     }
 
     if (!r) {
+      gettimeofday(&ctv, NULL);
+      current_time_ms = ((long long) ctv.tv_sec) * 1000 + ctv.tv_usec / 1000;
+      report_waiting_state(current_time_ms, last_handled_ms);
+
       interrupt_enable();
       os_Sleep(global->sleep_time);
       interrupt_disable();
@@ -436,8 +597,13 @@ do_loop(
     if (!r) {
       scan_dir_add_ignored(super_run_spool_path, pkt_name);
     }
+
+    gettimeofday(&ctv, NULL);
+    last_handled = ctv.tv_sec;
+    last_handled_ms = ((long long) ctv.tv_sec) * 1000 + ctv.tv_usec / 1000;
   }
 
+  super_run_status_remove(super_run_heartbeat_path, status_file_name);  
   return 0;
 }
 
@@ -459,7 +625,13 @@ write_help(void)
          "    -r           ignore rejudging\n"
          "    -p DIR       specify alternate name for super-run directory\n"
          "    -a           write log file to an alternate location\n"
-         "    -m DIR       specify a directory for file mirroring",
+         "    -m DIR       specify a directory for file mirroring\n"
+         "    -e DIR1=DIR2 remap directory DIR1 to directory DIR2\n"
+         "    -ht TIMEOUT  machine halt timeout (in minutes)\n"
+         "    -hc CMD      machine halt command\n"
+         "    -hb          enable heartbeat mode (default)\n"
+         "    -nhb         disable heartbeat mode\n"
+         "    -hi          set super_run id\n",
          program_name, program_name);
   exit(0);
 }
@@ -475,13 +647,16 @@ write_version(void)
 static void
 create_directories(void)
 {
-  snprintf(super_run_spool_path, sizeof(super_run_spool_path), "%s/var/%s",
-           super_run_path, "queue");
-  snprintf(super_run_exe_path, sizeof(super_run_exe_path), "%s/var/%s",
-           super_run_path, "exe");
+  snprintf(super_run_spool_path, sizeof(super_run_spool_path), "%s/var/%s", super_run_path, "queue");
+  snprintf(super_run_exe_path, sizeof(super_run_exe_path), "%s/var/%s", super_run_path, "exe");
   os_MakeDirPath(super_run_spool_path, 0777);
   os_MakeDirPath(super_run_exe_path, 0777);
   make_all_dir(super_run_spool_path, 0777);
+  if (heartbeat_mode) {
+    snprintf(super_run_heartbeat_path, sizeof(super_run_heartbeat_path), "%s/var/%s", super_run_path, "heartbeat");
+    os_MakeDirPath(super_run_heartbeat_path, 0777);
+    make_all_dir(super_run_heartbeat_path, 0777);
+  }
 }
 
 static int
@@ -686,6 +861,34 @@ parse_ignored_problem(
 }
 
 static void
+parse_remap_spec(const unsigned char *arg)
+{
+  const unsigned char *sep = strchr(arg, '=');
+  if (!sep) fatal("'=' expected in remap specification");
+  unsigned char *src_dir = xmemdup(arg, (sep - arg));
+  unsigned char *dst_dir = xstrdup(sep + 1);
+  int len1 = strlen(src_dir);
+  int len2 = strlen(dst_dir);
+  if (len1 <= 0) fatal("remap source dir cannot be empty");
+  if (len2 <= 0) fatal("remap dest dir cannot be empty");
+  if (!strcmp(src_dir, "/")) fatal("remap source dir cannot be '/'");
+  if (!strcmp(dst_dir, "/")) fatal("remap dest dir cannot be '/'");
+  if (src_dir[0] != '/' || src_dir[len1 - 1] != '/') fatal("remap source dir must begin and end with '/'");
+  if (dst_dir[0] != '/' || dst_dir[len2 - 1] != '/') fatal("remap dest dir must begin and end with '/'");
+  if (remap_spec_u + 1 >= remap_spec_a) {
+    if (!(remap_spec_a *= 2)) remap_spec_a = 8;
+    remap_specs = xrealloc(remap_specs, remap_spec_a * sizeof(remap_specs[0]));
+  }
+  struct remap_spec *rs = &remap_specs[remap_spec_u++];
+  rs->src_dir = src_dir;
+  rs->dst_dir = dst_dir;
+  rs->src_len = len1;
+  rs->dst_len = len2;
+  ++remap_spec_u;
+  memset(&remap_specs[remap_spec_u], 0, sizeof(remap_specs[0]));
+}
+
+static void
 create_configs(
         const unsigned char *super_run_path,
         const unsigned char *super_run_conf_path)
@@ -718,8 +921,8 @@ create_configs(
           "secure_exec_type = \"static\"\n"
           "clear_env\n"
           "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
-          "start_env = \"LANG=C\"\n"
-          "start_env = \"LC_CTYPE=C\"\n"
+          "start_env = \"LANG=en_US.UTF-8\"\n"
+          "start_env = \"LC_CTYPE=en_US.UTF-8\"\n"
           "start_env = \"HOME\"\n\n");
 
   fprintf(f,
@@ -734,8 +937,8 @@ create_configs(
           "secure_exec_type = \"dll\"\n"
           "clear_env\n"
           "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
-          "start_env = \"LANG=C\"\n"
-          "start_env = \"LC_CTYPE=C\"\n"
+          "start_env = \"LANG=en_US.UTF-8\"\n"
+          "start_env = \"LC_CTYPE=en_US.UTF-8\"\n"
           "start_env = \"HOME\"\n\n");
 
   fprintf(f,
@@ -750,8 +953,8 @@ create_configs(
           "secure_exec_type = \"dll32\"\n"
           "clear_env\n"
           "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
-          "start_env = \"LANG=C\"\n"
-          "start_env = \"LC_CTYPE=C\"\n"
+          "start_env = \"LANG=en_US.UTF-8\"\n"
+          "start_env = \"LC_CTYPE=en_US.UTF-8\"\n"
           "start_env = \"HOME\"\n\n");
 
   fprintf(f,
@@ -764,8 +967,8 @@ create_configs(
           "memory_limit_type = \"java\"\n"
           "secure_exec_type = \"java\"\n"
           "start_cmd = \"runjava\"\n"
-          "start_env = \"LANG=C\"\n"
-          "start_env = \"LC_CTYPE=C\"\n"
+          "start_env = \"LANG=en_US.UTF-8\"\n"
+          "start_env = \"LC_CTYPE=en_US.UTF-8\"\n"
           "start_env = \"EJUDGE_PREFIX_DIR\"\n\n");
 
   fprintf(f,
@@ -778,9 +981,10 @@ create_configs(
           "memory_limit_type = \"mono\"\n"
           "secure_exec_type = \"mono\"\n"
           "start_cmd = \"runmono\"\n"
-          "start_env = \"LANG=C\"\n"
-          "start_env = \"LC_CTYPE=C\"\n"
-          "start_env = \"EJUDGE_PREFIX_DIR\"\n\n");
+          "start_env = \"LANG=en_US.UTF-8\"\n"
+          "start_env = \"LC_CTYPE=en_US.UTF-8\"\n"
+          "start_env = \"EJUDGE_PREFIX_DIR\"\n"
+          "start_env = \"MONO_DEBUG=no-gdb-backtrace\"\n\n");
 
   fprintf(f, "[tester]\n"
           "name = DOSTester\n"
@@ -814,8 +1018,8 @@ create_configs(
           "clear_env\n"
           "start_cmd = \"runvg\"\n"
           "start_env = \"PATH=/usr/local/bin:/usr/bin:/bin\"\n"
-          "start_env = \"LANG=C\"\n"
-          "start_env = \"LC_CTYPE=C\"\n"
+          "start_env = \"LANG=en_US.UTF-8\"\n"
+          "start_env = \"LC_CTYPE=en_US.UTF-8\"\n"
           "start_env = \"HOME\"\n\n");
 
   fclose(f); f = NULL;
@@ -828,6 +1032,8 @@ upgrade_times[] =
   "2012/05/26 00:00:00",
   "2012/06/21 00:00:00",
   "2012/11/05 00:00:00",
+  "2015/11/01 00:00:00",
+  "2016/01/18 18:00:00",
 
   NULL
 };
@@ -855,6 +1061,80 @@ remove_if_upgrade_needed(const unsigned char *path)
   }
 }
 
+static void
+check_environment(void)
+{
+  const unsigned char *s;
+  // AWS_INSTANCE_ID AWS_LOCAL_HOSTNAME AWS_LOCAL_IP AWS_PUBLIC_HOSTNAME AWS_PUBLIC_IP
+  if ((s = getenv("AWS_INSTANCE_ID")) && *s) {
+    instance_id = xstrdup(s);
+  }
+  if ((s = getenv("AWS_LOCAL_HOSTNAME")) && *s) {
+    local_hostname = xstrdup(s);
+  }
+  if ((s = getenv("AWS_LOCAL_IP")) && *s) {
+    local_ip = xstrdup(s);
+  }
+  if ((s = getenv("AWS_PUBLIC_HOSTNAME")) && *s) {
+    public_hostname = xstrdup(s);
+  }
+  if ((s = getenv("AWS_PUBLIC_IP")) && *s) {
+    public_ip = xstrdup(s);
+  }
+  if ((s = getenv("EJ_SUPER_RUN_ID")) && *s) {
+    xfree(super_run_id);
+    super_run_id = xstrdup(s);
+  }
+}
+
+static void
+make_super_run_name(void)
+{
+  char *text = NULL;
+  size_t size = 0;
+  FILE *f = open_memstream(&text, &size);
+  if (super_run_id) {
+    fprintf(f, "%s", super_run_id);
+    if (instance_id && public_hostname) {
+      fprintf(f, " (%s, %s)", instance_id, public_hostname);
+    } else if (instance_id) {
+      fprintf(f, " (%s)", instance_id);
+    } else if (public_hostname) {
+      fprintf(f, " (%s)", public_hostname);
+    }
+  } else if (instance_id) {
+    fprintf(f, "%s", instance_id);
+    if (public_hostname) {
+      fprintf(f, " (%s)", public_hostname);
+    }
+  } else if (public_hostname) {
+    fprintf(f, "%s", public_hostname);
+  }
+  fclose(f); f = NULL;
+  if (text && *text) {
+    super_run_name = text; text = NULL;
+  } else if (text) {
+    xfree(text); text = NULL;
+  }
+
+  const unsigned char *basename = NULL;
+  if (super_run_id) {
+    basename = super_run_id;
+  } else if (instance_id) {
+    basename = instance_id;
+  } else if (public_hostname) {
+    basename = public_hostname;
+  } else if (local_hostname) {
+    basename = local_hostname;
+  } else {
+    basename = os_NodeName();
+  }
+
+  unsigned char status_buf[1024];
+  snprintf(status_buf, sizeof(status_buf), "%s.%d", basename, getpid());
+  status_file_name = xstrdup(status_buf);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -868,6 +1148,8 @@ main(int argc, char *argv[])
   int retval = 0;
   int daemon_mode = 0, restart_mode = 0, alternate_log_mode = 0;
   const unsigned char *user = NULL, *group = NULL, *workdir = NULL;
+  int halt_timeout = 0, halt_requested = 0;
+  unsigned char *halt_command = NULL;
 
   signal(SIGPIPE, SIG_IGN);
 
@@ -913,6 +1195,14 @@ main(int argc, char *argv[])
       argv_restart[argc_restart++] = argv[cur_arg];
       alternate_log_mode = 1;
       ++cur_arg;
+    } else if (!strcmp(argv[cur_arg], "-hb")) {
+      argv_restart[argc_restart++] = argv[cur_arg];
+      heartbeat_mode = 1;
+      ++cur_arg;
+    } else if (!strcmp(argv[cur_arg], "-nhb")) {
+      argv_restart[argc_restart++] = argv[cur_arg];
+      heartbeat_mode = 0;
+      ++cur_arg;
     } else if (!strcmp(argv[cur_arg], "-r")) {
       argv_restart[argc_restart++] = argv[cur_arg];
       ignore_rejudge = 1;
@@ -921,6 +1211,7 @@ main(int argc, char *argv[])
       if (cur_arg + 1 >= argc) fatal("argument expected for -p");
       xfree(super_run_dir); super_run_dir = NULL;
       super_run_dir = xstrdup(argv[cur_arg + 1]);
+      xfree(queue_name); queue_name = xstrdup(argv[cur_arg + 1]);
       argv_restart[argc_restart++] = argv[cur_arg];
       argv_restart[argc_restart++] = argv[cur_arg + 1];
       cur_arg += 2;
@@ -939,6 +1230,39 @@ main(int argc, char *argv[])
       argv_restart[argc_restart++] = argv[cur_arg];
       argv_restart[argc_restart++] = argv[cur_arg + 1];
       cur_arg += 2;
+    } else if (!strcmp(argv[cur_arg], "-ht")) {
+      if (cur_arg + 1 >= argc) fatal("argument expected for -ht");
+      errno = 0;
+      char *eptr = NULL;
+      int val = strtol(argv[cur_arg + 1], &eptr, 10);
+      if (*eptr || errno || val <= 0) {
+        fatal("invalid argument for -ht: %s", argv[cur_arg + 1]);
+      }
+      if (val >= 100000) val = 0; // infinity
+      halt_timeout = val * 60;
+      argv_restart[argc_restart++] = argv[cur_arg];
+      argv_restart[argc_restart++] = argv[cur_arg + 1];
+      cur_arg += 2;
+    } else if (!strcmp(argv[cur_arg], "-hc")) {
+      if (cur_arg + 1 >= argc) fatal("argument expected for -hc");
+      xfree(halt_command); halt_command = NULL;
+      halt_command = xstrdup(argv[cur_arg + 1]);
+      argv_restart[argc_restart++] = argv[cur_arg];
+      argv_restart[argc_restart++] = argv[cur_arg + 1];
+      cur_arg += 2;
+    } else if (!strcmp(argv[cur_arg], "-hi")) {
+      if (cur_arg + 1 >= argc) fatal("argument expected for -hi");
+      xfree(super_run_id); super_run_id = NULL;
+      super_run_id = xstrdup(argv[cur_arg + 1]);
+      argv_restart[argc_restart++] = argv[cur_arg];
+      argv_restart[argc_restart++] = argv[cur_arg + 1];
+      cur_arg += 2;
+    } else if (!strcmp(argv[cur_arg], "-e")) {
+      if (cur_arg + 1 >= argc) fatal("argument expected for -e");
+      parse_remap_spec(argv[cur_arg + 1]);
+      argv_restart[argc_restart++] = argv[cur_arg];
+      argv_restart[argc_restart++] = argv[cur_arg + 1];
+      cur_arg += 2;
     } else {
       fatal("invalid command line parameter");
     }
@@ -948,6 +1272,13 @@ main(int argc, char *argv[])
 
   argv_restart[argc_restart] = NULL;
   start_set_args(argv_restart);
+
+  if (halt_command) {
+    master_down_enabled = 1;
+  }
+  master_stop_enabled = 1;
+
+  check_environment();
 
   if (!(host_names = ejudge_get_host_names())) {
     fatal("cannot obtain the list of host names");
@@ -974,7 +1305,7 @@ main(int argc, char *argv[])
     }
   }
 
-  ejudge_config = ejudge_cfg_parse(ejudge_xml_path);
+  ejudge_config = ejudge_cfg_parse(ejudge_xml_path, 1);
   if (!ejudge_config) return 1;
 
   int parallelism = ejudge_cfg_get_host_option_int(ejudge_config, host_names, "parallelism", 1, 0);
@@ -1062,10 +1393,17 @@ main(int argc, char *argv[])
     goto cleanup;
   }
 
+  make_super_run_name();
+
   fprintf(stderr, "%s %s, compiled %s\n", program_name, compile_version, compile_date);
 
-  if (do_loop(state) < 0) {
+  if (do_loop(state, halt_timeout, &halt_requested) < 0) {
     retval = 1;
+  }
+
+  if (halt_requested || pending_down_flag) {
+    info("halt timeout");
+    start_shutdown(halt_command);
   }
 
   if (interrupt_restart_requested()) start_restart();

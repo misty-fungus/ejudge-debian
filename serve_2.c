@@ -1,6 +1,6 @@
 /* -*- mode: c -*- */
 
-/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -62,6 +62,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <fcntl.h>
 
 #if CONF_HAS_LIBINTL - 0 == 1
 #include <libintl.h>
@@ -491,11 +492,13 @@ serve_build_compile_dirs(serve_state_t state)
 }
 
 static int
-do_build_run_dirs(serve_state_t state,
-                  const unsigned char *status_dir,
-                  const unsigned char *report_dir,
-                  const unsigned char *team_report_dir,
-                  const unsigned char *full_report_dir)
+do_build_run_dirs(
+        serve_state_t state,
+        const unsigned char *id,
+        const unsigned char *status_dir,
+        const unsigned char *report_dir,
+        const unsigned char *team_report_dir,
+        const unsigned char *full_report_dir)
 {
   int i;
 
@@ -512,73 +515,142 @@ do_build_run_dirs(serve_state_t state,
     XREALLOC(state->run_dirs, state->run_dirs_a);
   }
 
-  state->run_dirs[state->run_dirs_u].status_dir = xstrdup(status_dir);
-  state->run_dirs[state->run_dirs_u].report_dir = xstrdup(report_dir);
-  state->run_dirs[state->run_dirs_u].team_report_dir = xstrdup(team_report_dir);
-  state->run_dirs[state->run_dirs_u].full_report_dir = xstrdup(full_report_dir);
+  struct run_dir_item *cur = &state->run_dirs[state->run_dirs_u];
+  memset(cur, 0, sizeof(*cur));
+
+  cur->id = xstrdup(id);
+  cur->status_dir = xstrdup(status_dir);
+  cur->report_dir = xstrdup(report_dir);
+  cur->team_report_dir = xstrdup(team_report_dir);
+  cur->full_report_dir = xstrdup(full_report_dir);
   return state->run_dirs_u++;
 }
 
+static int
+do_build_queue_dirs(
+        serve_state_t state,
+        const unsigned char *id,
+        const unsigned char *queue_dir,
+        const unsigned char *exe_dir,
+        const unsigned char *heartbeat_dir)
+{
+  int i;
+
+  for (i = 0; i < state->run_queues_u; ++i) {
+    if (!strcmp(state->run_queues[i].queue_dir, queue_dir)) {
+      return i;
+    }
+  }
+
+  if (state->run_queues_u == state->run_queues_a) {
+    if (!state->run_queues_a) state->run_queues_a = 8;
+    state->run_queues_a *= 2;
+    XREALLOC(state->run_queues, state->run_queues_a);
+  }
+
+  struct run_queue_item *cur = &state->run_queues[state->run_queues_u];
+  memset(cur, 0, sizeof(*cur));
+
+  cur->id = xstrdup(id);
+  cur->queue_dir = xstrdup(queue_dir);
+  cur->exe_dir = xstrdup(exe_dir);
+  if (heartbeat_dir) {
+    cur->heartbeat_dir = xstrdup(heartbeat_dir);
+  }
+
+  return state->run_queues_u++;
+}
+
 void
-serve_build_run_dirs(serve_state_t state, int contest_id)
+serve_build_run_dirs(
+        serve_state_t state,
+        const struct contest_desc *cnts)
 {
   const struct section_global_data *global = state->global;
   int i;
+  unsigned char status_dir[PATH_MAX];
+  unsigned char report_dir[PATH_MAX];
+  unsigned char team_report_dir[PATH_MAX];
+  unsigned char full_report_dir[PATH_MAX];
+  unsigned char queue_dir[PATH_MAX];
+  unsigned char exe_dir[PATH_MAX];
+  unsigned char heartbeat_dir[PATH_MAX];
+
+  if (cnts && cnts->run_managed) {
+    snprintf(queue_dir, sizeof(queue_dir), "%s/super-run/var/queue", EJUDGE_CONTESTS_HOME_DIR);
+    snprintf(exe_dir, sizeof(exe_dir), "%s/super-run/var/exe", EJUDGE_CONTESTS_HOME_DIR);
+    snprintf(heartbeat_dir, sizeof(heartbeat_dir), "%s/super-run/var/heartbeat", EJUDGE_CONTESTS_HOME_DIR);
+    do_build_queue_dirs(state, "", queue_dir, exe_dir, heartbeat_dir);
+  }
 
   if (global->super_run_dir && global->super_run_dir[0]) {
-    unsigned char status_dir[PATH_MAX];
-    unsigned char report_dir[PATH_MAX];
-    unsigned char team_report_dir[PATH_MAX];
-    unsigned char full_report_dir[PATH_MAX];
-
     snprintf(status_dir, sizeof(status_dir),
-             "%s/var/%06d/status", global->super_run_dir, contest_id);
+             "%s/var/%06d/status", global->super_run_dir, cnts->id);
     snprintf(report_dir, sizeof(report_dir),
-             "%s/var/%06d/report", global->super_run_dir, contest_id);
+             "%s/var/%06d/report", global->super_run_dir, cnts->id);
     snprintf(full_report_dir, sizeof(full_report_dir),
-             "%s/var/%06d/output", global->super_run_dir, contest_id);
+             "%s/var/%06d/output", global->super_run_dir, cnts->id);
     snprintf(team_report_dir, sizeof(team_report_dir),
-             "%s/var/%06d/teamreports", global->super_run_dir, contest_id);
-    do_build_run_dirs(state, status_dir, report_dir, team_report_dir, full_report_dir);
+             "%s/var/%06d/teamreports", global->super_run_dir, cnts->id);
+    do_build_run_dirs(state, "", status_dir, report_dir, team_report_dir, full_report_dir);
 
-    for (i = 1; i <= state->max_lang; ++i) {
-      struct section_language_data *lang = state->langs[i];
-      if (lang && lang->super_run_dir && lang->super_run_dir[0]) {
-        snprintf(status_dir, sizeof(status_dir),
-                 "%s/var/%06d/status", lang->super_run_dir, contest_id);
-        snprintf(report_dir, sizeof(report_dir),
-                 "%s/var/%06d/report", lang->super_run_dir, contest_id);
-        snprintf(full_report_dir, sizeof(full_report_dir),
-                 "%s/var/%06d/output", lang->super_run_dir, contest_id);
-        snprintf(team_report_dir, sizeof(team_report_dir),
-                 "%s/var/%06d/teamreports", lang->super_run_dir, contest_id);
-        do_build_run_dirs(state, status_dir, report_dir, team_report_dir, full_report_dir);
-      }
-    }
+    snprintf(queue_dir, sizeof(queue_dir), "%s/var/queue", global->super_run_dir);
+    snprintf(exe_dir, sizeof(exe_dir), "%s/var/exe", global->super_run_dir);
+    snprintf(heartbeat_dir, sizeof(heartbeat_dir), "%s/var/heartbeat", global->super_run_dir);
+    do_build_queue_dirs(state, global->super_run_dir, queue_dir, exe_dir, heartbeat_dir);
+  }
 
-    for (i = 1; i <= state->max_prob; ++i) {
-      struct section_problem_data *prob = state->probs[i];
-      if (prob && prob->super_run_dir && prob->super_run_dir[0]) {
-        snprintf(status_dir, sizeof(status_dir),
-                 "%s/var/%06d/status", prob->super_run_dir, contest_id);
-        snprintf(report_dir, sizeof(report_dir),
-                 "%s/var/%06d/report", prob->super_run_dir, contest_id);
-        snprintf(full_report_dir, sizeof(full_report_dir),
-                 "%s/var/%06d/output", prob->super_run_dir, contest_id);
-        snprintf(team_report_dir, sizeof(team_report_dir),
-                 "%s/var/%06d/teamreports", prob->super_run_dir, contest_id);
-        do_build_run_dirs(state, status_dir, report_dir, team_report_dir, full_report_dir);
-      }
+  for (i = 1; i <= state->max_lang; ++i) {
+    struct section_language_data *lang = state->langs[i];
+    if (lang && lang->super_run_dir && lang->super_run_dir[0]) {
+      snprintf(status_dir, sizeof(status_dir),
+               "%s/var/%06d/status", lang->super_run_dir, cnts->id);
+      snprintf(report_dir, sizeof(report_dir),
+               "%s/var/%06d/report", lang->super_run_dir, cnts->id);
+      snprintf(full_report_dir, sizeof(full_report_dir),
+               "%s/var/%06d/output", lang->super_run_dir, cnts->id);
+      snprintf(team_report_dir, sizeof(team_report_dir),
+               "%s/var/%06d/teamreports", lang->super_run_dir, cnts->id);
+      do_build_run_dirs(state, lang->super_run_dir, status_dir, report_dir, team_report_dir, full_report_dir);
+
+      snprintf(queue_dir, sizeof(queue_dir), "%s/var/queue", lang->super_run_dir);
+      snprintf(exe_dir, sizeof(exe_dir), "%s/var/exe", lang->super_run_dir);
+      snprintf(heartbeat_dir, sizeof(heartbeat_dir), "%s/var/heartbeat", lang->super_run_dir);
+      do_build_queue_dirs(state, lang->super_run_dir, queue_dir, exe_dir, heartbeat_dir);
     }
-  } else {
-    for (i = 1; i <= state->max_tester; i++) {
-      if (!state->testers[i]) continue;
-      //if (state->testers[i]->any) continue;
-      do_build_run_dirs(state, state->testers[i]->run_status_dir,
-                        state->testers[i]->run_report_dir,
-                        state->testers[i]->run_team_report_dir,
-                        state->testers[i]->run_full_archive_dir);
+  }
+
+  for (i = 1; i <= state->max_prob; ++i) {
+    struct section_problem_data *prob = state->probs[i];
+    if (prob && prob->super_run_dir && prob->super_run_dir[0]) {
+      snprintf(status_dir, sizeof(status_dir),
+               "%s/var/%06d/status", prob->super_run_dir, cnts->id);
+      snprintf(report_dir, sizeof(report_dir),
+               "%s/var/%06d/report", prob->super_run_dir, cnts->id);
+      snprintf(full_report_dir, sizeof(full_report_dir),
+               "%s/var/%06d/output", prob->super_run_dir, cnts->id);
+      snprintf(team_report_dir, sizeof(team_report_dir),
+               "%s/var/%06d/teamreports", prob->super_run_dir, cnts->id);
+      do_build_run_dirs(state, prob->super_run_dir, status_dir, report_dir, team_report_dir, full_report_dir);
+
+      snprintf(queue_dir, sizeof(queue_dir), "%s/var/queue", prob->super_run_dir);
+      snprintf(exe_dir, sizeof(exe_dir), "%s/var/exe", prob->super_run_dir);
+      snprintf(heartbeat_dir, sizeof(heartbeat_dir), "%s/var/heartbeat", prob->super_run_dir);
+      do_build_queue_dirs(state, prob->super_run_dir, queue_dir, exe_dir, heartbeat_dir);
     }
+  }
+
+  for (i = 1; i <= state->max_tester; i++) {
+    if (!state->testers[i]) continue;
+    //if (state->testers[i]->any) continue;
+    do_build_run_dirs(state, state->testers[i]->name, state->testers[i]->run_status_dir,
+                      state->testers[i]->run_report_dir,
+                      state->testers[i]->run_team_report_dir,
+                      state->testers[i]->run_full_archive_dir);
+
+    do_build_queue_dirs(state, state->testers[i]->name,
+                        state->testers[i]->run_queue_dir,
+                        state->testers[i]->run_exe_dir, NULL);
   }
 }
 
@@ -1048,6 +1120,9 @@ serve_compile_request(
   const unsigned char *compile_src_dir = 0;
   const unsigned char *compile_queue_dir = 0;
   int errcode = -SERVE_ERR_GENERIC;
+  struct sformat_extra_data sformat_extra;
+
+  memset(&sformat_extra, 0, sizeof(sformat_extra));
 
   if (prob->variant_num <= 0 && variant > 0) {
     goto failed;
@@ -1059,9 +1134,12 @@ serve_compile_request(
     }
   }
 
+  sformat_extra.locale_id = locale_id;
+  sformat_extra.variant = variant;
+
   if (prob->source_header[0]) {
     sformat_message(tmp_path, sizeof(tmp_path), 0, prob->source_header,
-                    global, prob, lang, 0, 0, 0, 0, 0);
+                    global, prob, lang, 0, 0, 0, 0, &sformat_extra);
     if (os_IsAbsolutePath(tmp_path)) {
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s", tmp_path);
     } else if (global->advanced_layout > 0) {
@@ -1079,7 +1157,7 @@ serve_compile_request(
   }
   if (prob->source_footer[0]) {
     sformat_message(tmp_path, sizeof(tmp_path), 0, prob->source_footer,
-                    global, prob, lang, 0, 0, 0, 0, 0);
+                    global, prob, lang, 0, 0, 0, 0, &sformat_extra);
     if (os_IsAbsolutePath(tmp_path)) {
       snprintf(tmp_path_2, sizeof(tmp_path_2), "%s", tmp_path);
     } else if (global->advanced_layout > 0) {
@@ -1183,6 +1261,25 @@ serve_compile_request(
   cp.src_sfx = (unsigned char*) sfx;
   cp.sc_env_num = -1;
   cp.sc_env_vars = (unsigned char**) style_checker_env;
+
+  if (prob->enable_multi_header > 0) {
+    unsigned char test_dir[PATH_MAX];
+    test_dir[0] = 0;
+    if (global->advanced_layout > 0) {
+      get_advanced_layout_path(test_dir, sizeof(test_dir), global, prob, DFLT_P_TEST_DIR, variant);
+    } else if (variant > 0) {
+      snprintf(test_dir, sizeof(test_dir), "%s-%d", prob->test_dir, variant);
+    } else {
+      snprintf(test_dir, sizeof(test_dir), "%s", prob->test_dir);
+    }
+
+    cp.multi_header = 1;
+    cp.lang_header = (prob->use_lang_multi_header > 0);
+    cp.header_pat = prob->header_pat;
+    cp.footer_pat = prob->footer_pat;
+    cp.header_dir = test_dir;
+    cp.compiler_env_pat = prob->compiler_env_pat;
+  }
 
   memset(&rx, 0, sizeof(rx));
   rx.accepting_mode = accepting_mode;
@@ -1390,7 +1487,8 @@ serve_run_request(
         const struct compile_reply_packet *comp_pkt,
         int no_db_flag,
         ej_uuid_t *puuid,
-        int rejudge_flag)
+        int rejudge_flag,
+        int zip_mode)
 {
   int cn;
   struct section_global_data *global = state->global;
@@ -1413,6 +1511,7 @@ serve_run_request(
   unsigned char buf[1024];
   unsigned char pathbuf[PATH_MAX];
   int secure_run = 0;
+  int suid_run = 0;
   int current_time = 0;
   int current_time_us = 0;
   int time_limit_adj = 0;
@@ -1544,6 +1643,11 @@ serve_run_request(
   if (secure_run && prob->disable_security) secure_run = 0;
   if (secure_run && lang && lang->disable_security) secure_run = 0;
 
+  if (!secure_run) {
+    if (prob->enable_suid_run > 0) suid_run = 1;
+    if (lang && lang->enable_suid_run > 0) suid_run = 1;
+  }
+
   /* generate a packet name */
   serve_packet_name(contest_id, run_id, prio, pkt_base, sizeof(pkt_base));
   snprintf(exe_out_name, sizeof(exe_out_name), "%s%s", pkt_base, exe_sfx);
@@ -1577,10 +1681,11 @@ serve_run_request(
   time_limit_adj_millis = find_lang_specific_value(prob->lang_time_adj_millis, lang, 0);
   time_limit_adj = find_lang_specific_value(prob->lang_time_adj, lang, 0);
 
+  ui = 0;
   if (!no_db_flag) {
-    teamdb_export_team(state->teamdb_state, user_id, &te);
-    ui = 0;
-    if (te.user) ui = te.user->cnts0;
+    if (teamdb_export_team(state->teamdb_state, user_id, &te) >= 0 && te.user) {
+      ui = te.user->cnts0;
+    }
   }
 
   // new run packet creation
@@ -1601,6 +1706,7 @@ serve_run_request(
   srgp->advanced_layout = global->advanced_layout;
   srgp->enable_full_archive = global->enable_full_archive;
   srgp->secure_run = secure_run;
+  srgp->suid_run = suid_run;
   srgp->enable_memory_limit_error = global->enable_memory_limit_error;
   srgp->detect_violations = global->detect_violations;
   srgp->time_limit_retry_count = global->time_limit_retry_count;
@@ -1691,6 +1797,7 @@ serve_run_request(
     }
   }
   srgp->rejudge_flag = rejudge_flag;
+  srgp->zip_mode = zip_mode;
 
   struct super_run_in_problem_packet *srpp = srp->problem;
   srpp->type = xstrdup(problem_unparse_type(prob->type));
@@ -1700,6 +1807,7 @@ serve_run_request(
   srpp->interactive_valuer = prob->interactive_valuer;
   srpp->disable_pe = prob->disable_pe;
   srpp->disable_wtl = prob->disable_wtl;
+  srpp->wtl_is_cf = prob->wtl_is_cf;
   srpp->use_stdin = prob->use_stdin;
   srpp->use_stdout = prob->use_stdout;
   srpp->combined_stdin = prob->combined_stdin;
@@ -2233,14 +2341,14 @@ serve_read_compile_packet(
   snprintf(pkt_name, sizeof(pkt_name), "%06d", comp_pkt->run_id);
 
   if ((comp_pkt->status == RUN_CHECK_FAILED || comp_pkt->status == RUN_COMPILE_ERR || comp_pkt->status == RUN_STYLE_ERR)) {
-    if (generic_read_file(&txt_text, 0, &txt_size, REMOVE, compile_report_dir, pname, NULL) < 0) {
-      snprintf(errmsg, sizeof(errmsg),
-               "generic_read_file: %s, %s failed\n", compile_report_dir, pname);
+    if (generic_read_file(&txt_text, 0, &txt_size, REMOVE, compile_report_dir, pname, ".txt") < 0) {
+      snprintf(errmsg, sizeof(errmsg), "generic_read_file: %s/%s.txt failed\n", compile_report_dir, pname);
       goto report_check_failed;
     }
     testing_report = testing_report_alloc(comp_pkt->contest_id, comp_pkt->run_id, re.judge_id);
     testing_report->status = comp_pkt->status;
     testing_report->compiler_output = xstrdup(txt_text);
+    utf8_fix_string(testing_report->compiler_output, NULL);
     testing_report->scoring_system = global->score_system;
     testing_report->compile_error = 1;
     memcpy(&testing_report->uuid, &re.run_uuid, sizeof(testing_report->uuid));
@@ -2312,6 +2420,7 @@ serve_read_compile_packet(
     testing_report->status = RUN_RUNNING;
     if (txt_text) {
       testing_report->compiler_output = xstrdup(txt_text);
+      utf8_fix_string(testing_report->compiler_output, NULL);
     }
     testing_report->scoring_system = global->score_system;
     testing_report->compile_error = 1;
@@ -2349,10 +2458,9 @@ serve_read_compile_packet(
   if (comp_pkt->status == RUN_CHECK_FAILED
       || comp_pkt->status == RUN_COMPILE_ERR
       || comp_pkt->status == RUN_STYLE_ERR) {
-    if ((report_size = generic_file_size(compile_report_dir, pname, "")) < 0) {
+    if ((report_size = generic_file_size(compile_report_dir, pname, ".txt")) < 0) {
       err("read_compile_packet: cannot get report file size");
-      snprintf(errmsg, sizeof(errmsg), "cannot get size of %s/%s\n",
-               compile_report_dir, pname);
+      snprintf(errmsg, sizeof(errmsg), "cannot get size of %s/%s.txt\n", compile_report_dir, pname);
       goto report_check_failed;
     }
 
@@ -2401,14 +2509,12 @@ serve_read_compile_packet(
       if (uuid_archive_dir_prepare(state, &re.run_uuid, DFLT_R_UUID_XML_REPORT, 0) < 0)
         goto non_fatal_error;
     } else {
-      if (archive_dir_prepare(state, global->xml_report_archive_dir,
-                              comp_pkt->run_id, 0, 0) < 0)
+      if (archive_dir_prepare(state, global->xml_report_archive_dir, comp_pkt->run_id, 0, 0) < 0)
         goto non_fatal_error;
     }
-    if (generic_copy_file(REMOVE, compile_report_dir, pname, "",
-                          rep_flags, 0, rep_path, "") < 0) {
+    if (generic_copy_file(REMOVE, compile_report_dir, pname, ".txt", rep_flags, 0, rep_path, "") < 0) {
       snprintf(errmsg, sizeof(errmsg),
-               "generic_copy_file: %s, %s, %d, %s failed\n",
+               "generic_copy_file: %s/%s.txt, %d, %s failed\n",
                compile_report_dir, pname, rep_flags, rep_path);
       goto report_check_failed;
     }
@@ -2437,9 +2543,8 @@ serve_read_compile_packet(
         goto report_check_failed;
       }
     }
-    if (generic_copy_file(REMOVE, compile_report_dir, pname, "",
-                          rep_flags, 0, rep_path, "") < 0) {
-      snprintf(errmsg, sizeof(errmsg), "generic_copy_file: %s, %s, %d, %s failed\n",
+    if (generic_copy_file(REMOVE, compile_report_dir, pname, ".txt", rep_flags, 0, rep_path, "") < 0) {
+      snprintf(errmsg, sizeof(errmsg), "generic_copy_file: %s/%s.txt, %d, %s failed\n",
                compile_report_dir, pname, rep_flags, rep_path);
       goto report_check_failed;
     }
@@ -2513,7 +2618,7 @@ prepare_run_request:
                         comp_pkt->judge_id, comp_extra->accepting_mode,
                         comp_extra->notify_flag, re.mime_type, re.eoln_type,
                         re.locale_id, compile_report_dir, comp_pkt, 0, &re.run_uuid,
-                        comp_extra->rejudge_flag) < 0) {
+                        comp_extra->rejudge_flag, comp_pkt->zip_mode) < 0) {
     snprintf(errmsg, sizeof(errmsg), "failed to write run packet\n");
     goto report_check_failed;
   }
@@ -2575,6 +2680,7 @@ serve_is_valid_status(serve_state_t state, int status, int mode)
     case RUN_CHECK_FAILED:
     case RUN_MEM_LIMIT_ERR:
     case RUN_SECURITY_ERR:
+    case RUN_SYNC_ERR:
       return 1;
     case RUN_COMPILE_ERR:
     case RUN_STYLE_ERR:
@@ -2622,6 +2728,7 @@ serve_is_valid_status(serve_state_t state, int status, int mode)
     case RUN_CHECK_FAILED:
     case RUN_MEM_LIMIT_ERR:
     case RUN_SECURITY_ERR:
+    case RUN_SYNC_ERR:
       return 1;
     case RUN_COMPILE_ERR:
     case RUN_STYLE_ERR:
@@ -3335,7 +3442,7 @@ serve_rejudge_run(
                       re.variant, priority_adjustment,
                       -1, accepting_mode, 1, re.mime_type, re.eoln_type,
                       re.locale_id, 0, 0, 0, &re.run_uuid,
-                      1 /* rejudge_flag */);
+                      1 /* rejudge_flag */, 0 /* zip_mode */);
     xfree(run_text);
     return;
   }
@@ -3420,6 +3527,7 @@ static unsigned char olympiad_rejudgeable_runs[RUN_LAST + 1] =
   [RUN_PENDING]          = 0,
   [RUN_MEM_LIMIT_ERR]    = 0,
   [RUN_SECURITY_ERR]     = 0,
+  [RUN_SYNC_ERR]         = 0,
   [RUN_STYLE_ERR]        = 0,
   [RUN_REJECTED]         = 0,
   [RUN_VIRTUAL_START]    = 0,
@@ -3449,6 +3557,7 @@ static unsigned char olympiad_output_only_rejudgeable_runs[RUN_LAST + 1] =
   [RUN_PENDING]          = 0,
   [RUN_MEM_LIMIT_ERR]    = 0,
   [RUN_SECURITY_ERR]     = 0,
+  [RUN_SYNC_ERR]         = 0,
   [RUN_STYLE_ERR]        = 0,
   [RUN_REJECTED]         = 0,
   [RUN_VIRTUAL_START]    = 0,
@@ -3478,6 +3587,7 @@ static unsigned char generally_rejudgable_runs[RUN_LAST + 1] =
   [RUN_PENDING]          = 1,
   [RUN_MEM_LIMIT_ERR]    = 1,
   [RUN_SECURITY_ERR]     = 1,
+  [RUN_SYNC_ERR]         = 1,
   [RUN_STYLE_ERR]        = 1,
   [RUN_REJECTED]         = 1,
   [RUN_VIRTUAL_START]    = 0,
@@ -4910,40 +5020,41 @@ get_priority_code(int priority)
   if (priority < 0) priority = 0;
   if (priority > 31) priority = 31;
   if (priority < 10) return '0' + priority;
-  return 'A' + priority;
+  return 'A' - 10 + priority;
+}
+
+static struct run_queue_item *
+lookup_run_queue_item(
+        const serve_state_t state,
+        const unsigned char *queue_id)
+{
+  if (!queue_id) queue_id = "";
+  for (int i = 0; i < state->run_queues_u; ++i) {
+    if (!strcmp(state->run_queues[i].id, queue_id))
+      return &state->run_queues[i];
+  }
+  return NULL;
 }
 
 int
 serve_testing_queue_delete(
         const struct contest_desc *cnts,
         const serve_state_t state,
+        const unsigned char *queue_id,
         const unsigned char *packet_name,
         const unsigned char *user_login)
 {
-  const struct section_global_data *global = state->global;
   path_t out_path;
   path_t out_name;
   path_t exe_path;
   struct run_entry re;
   struct super_run_in_packet *srp = NULL;
   const unsigned char *exe_sfx = NULL;
-  unsigned char run_queue_dir[PATH_MAX];
-  unsigned char run_exe_dir[PATH_MAX];
 
-  if (cnts && cnts->run_managed) {
-    if (global && global->super_run_dir && global->super_run_dir[0]) {
-      snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/var/exe", global->super_run_dir);
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/var/queue", global->super_run_dir);
-    } else {
-      snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/super-run/var/exe", EJUDGE_CONTESTS_HOME_DIR);
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/super-run/var/queue", EJUDGE_CONTESTS_HOME_DIR);
-    }
-  } else {
-    snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/exe", global->run_dir);
-    snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/queue", global->run_dir);
-  }
+  const struct run_queue_item *rqi = lookup_run_queue_item(state, queue_id);
+  if (!rqi) return -1;
 
-  if (!(srp = testing_queue_lock_entry(cnts->id, user_login, run_queue_dir, packet_name,
+  if (!(srp = testing_queue_lock_entry(cnts->id, user_login, rqi->queue_dir, packet_name,
                                        out_name, sizeof(out_name),
                                        out_path, sizeof(out_path))))
     return -1;
@@ -4956,7 +5067,7 @@ serve_testing_queue_delete(
   exe_sfx = srp->global->exe_sfx;
   if (!exe_sfx) exe_sfx = "";
 
-  snprintf(exe_path, sizeof(exe_path), "%s/%s%s", run_exe_dir, packet_name, exe_sfx);
+  snprintf(exe_path, sizeof(exe_path), "%s/%s%s", rqi->exe_dir, packet_name, exe_sfx);
   unlink(out_path);
   unlink(exe_path);
 
@@ -4974,11 +5085,11 @@ int
 serve_testing_queue_change_priority(
         const struct contest_desc *cnts,
         const serve_state_t state,
+        const unsigned char *queue_id,
         const unsigned char *packet_name,
         int adjustment,
         const unsigned char *user_login)
 {
-  const struct section_global_data *global = state->global;
   path_t out_path;
   path_t out_name;
   path_t new_packet_name;
@@ -4986,23 +5097,11 @@ serve_testing_queue_change_priority(
   path_t new_exe_path;
   struct super_run_in_packet *srp = NULL;
   const unsigned char *exe_sfx = NULL;
-  unsigned char run_queue_dir[PATH_MAX];
-  unsigned char run_exe_dir[PATH_MAX];
 
-  if (cnts && cnts->run_managed) {
-    if (global && global->super_run_dir && global->super_run_dir[0]) {
-      snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/var/exe", global->super_run_dir);
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/var/queue", global->super_run_dir);
-    } else {
-      snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/super-run/var/exe", EJUDGE_CONTESTS_HOME_DIR);
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/super-run/var/queue", EJUDGE_CONTESTS_HOME_DIR);
-    }
-  } else {
-    snprintf(run_exe_dir, sizeof(run_exe_dir), "%s/exe", global->run_dir);
-    snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/queue", global->run_dir);
-  }
+  const struct run_queue_item *rqi = lookup_run_queue_item(state, queue_id);
+  if (!rqi) return -1;
 
-  if (!(srp = testing_queue_lock_entry(cnts->id, user_login, run_queue_dir, packet_name,
+  if (!(srp = testing_queue_lock_entry(cnts->id, user_login, rqi->queue_dir, packet_name,
                                        out_name, sizeof(out_name),
                                        out_path, sizeof(out_path)))) {
     goto fail;
@@ -5016,21 +5115,21 @@ serve_testing_queue_change_priority(
   new_packet_name[0] = get_priority_code(get_priority_value(new_packet_name[0]) + adjustment);
   if (!strcmp(packet_name, new_packet_name)) {
     // already hit min or max priority
-    testing_queue_unlock_entry(run_queue_dir, out_path, packet_name);
+    testing_queue_unlock_entry(rqi->queue_dir, out_path, packet_name);
     srp = super_run_in_packet_free(srp);
     return 0;
   }
 
-  snprintf(exe_path, sizeof(exe_path), "%s/%s%s", run_exe_dir, packet_name, exe_sfx);
-  snprintf(new_exe_path, sizeof(new_exe_path), "%s/%s%s", run_exe_dir, new_packet_name, exe_sfx);
+  snprintf(exe_path, sizeof(exe_path), "%s/%s%s", rqi->exe_dir, packet_name, exe_sfx);
+  snprintf(new_exe_path, sizeof(new_exe_path), "%s/%s%s", rqi->exe_dir, new_packet_name, exe_sfx);
   if (rename(exe_path, new_exe_path) < 0) {
     err("serve_testing_queue_up: rename %s -> %s failed: %s",
         exe_path, new_exe_path, os_ErrorMsg());
-    testing_queue_unlock_entry(run_queue_dir, out_path, packet_name);
+    testing_queue_unlock_entry(rqi->queue_dir, out_path, packet_name);
     goto fail;
   }
 
-  testing_queue_unlock_entry(run_queue_dir, out_path, new_packet_name);
+  testing_queue_unlock_entry(rqi->queue_dir, out_path, new_packet_name);
 
   srp = super_run_in_packet_free(srp);
   return 0;
@@ -5040,36 +5139,63 @@ fail:
   return -1;
 }
 
-static void
-collect_run_packets(const struct contest_desc *cnts, const serve_state_t state, strarray_t *vec)
+struct run_packet_item
 {
-  const struct section_global_data *global = state->global;
+  unsigned char *queue_id;
+  unsigned char *packet_name;
+};
+
+struct run_packet_vector
+{
+  struct run_packet_item *v;
+  int u, a;
+};
+
+static void
+run_packet_push_back(
+        struct run_packet_vector *pv,
+        const unsigned char *queue_id,
+        const unsigned char *packet_name)
+{
+  if (pv->u == pv->a) {
+    if (!(pv->a *= 2)) pv->a = 16;
+    XREALLOC(pv->v, pv->a);
+  }
+
+  struct run_packet_item *pp = &pv->v[pv->u++];
+  memset(pp, 0, sizeof(*pp));
+  pp->queue_id = xstrdup(queue_id);
+  pp->packet_name = xstrdup(packet_name);
+}
+
+static void
+run_packet_free(struct run_packet_vector *pv)
+{
+  for (int i = 0; i < pv->u; ++i) {
+    xfree(pv->v[i].queue_id);
+    xfree(pv->v[i].packet_name);
+  }
+  xfree(pv->v);
+  memset(pv, 0, sizeof(*pv));
+}
+
+static void
+collect_run_packets(const struct contest_desc *cnts, const serve_state_t state, struct run_packet_vector *pv)
+{
   path_t dir_path;
   DIR *d = 0;
   struct dirent *dd;
-  unsigned char run_queue_dir[PATH_MAX];
 
-  if (cnts && cnts->run_managed) {
-    if (global && global->super_run_dir && global->super_run_dir[0]) {
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/var/queue", global->super_run_dir);
-    } else {
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/super-run/var/queue", EJUDGE_CONTESTS_HOME_DIR);
+  for (int i = 0; i < state->run_queues_u; ++i) {
+    snprintf(dir_path, sizeof(dir_path), "%s/dir", state->run_queues[i].queue_dir);
+    if ((d = opendir(dir_path))) {
+      while ((dd = readdir(d))) {
+        if (!strcmp(dd->d_name, ".") && !strcmp(dd->d_name, "..")) continue;
+        run_packet_push_back(pv, state->run_queues[i].id, dd->d_name);
+      }
+      closedir(d); d = NULL;
     }
-  } else {
-    snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/queue", global->run_dir);
   }
-
-  memset(vec, 0, sizeof(*vec));
-  snprintf(dir_path, sizeof(dir_path), "%s/dir", run_queue_dir);
-  if (!(d = opendir(dir_path))) return;
-
-  while ((dd = readdir(d))) {
-    if (!strcmp(dd->d_name, ".") && !strcmp(dd->d_name, "..")) continue;
-    xexpand(vec);
-    vec->v[vec->u++] = xstrdup(dd->d_name);
-  }
-
-  closedir(d); d = 0;
 }
 
 int
@@ -5078,15 +5204,16 @@ serve_testing_queue_delete_all(
         const serve_state_t state,
         const unsigned char *user_login)
 {
-  strarray_t vec;
+  struct run_packet_vector vec;
   int i;
 
+  memset(&vec, 0, sizeof(vec));
   collect_run_packets(cnts, state, &vec);
   for (i = 0; i < vec.u; ++i) {
-    serve_testing_queue_delete(cnts, state, vec.v[i], user_login);
+    serve_testing_queue_delete(cnts, state, vec.v[i].queue_id, vec.v[i].packet_name, user_login);
   }
 
-  xstrarrayfree(&vec);
+  run_packet_free(&vec);
   return 0;
 }
 
@@ -5097,15 +5224,16 @@ serve_testing_queue_change_priority_all(
         int adjustment,
         const unsigned char *user_login)
 {
-  strarray_t vec;
+  struct run_packet_vector vec;
   int i;
 
+  memset(&vec, 0, sizeof(vec));
   collect_run_packets(cnts, state, &vec);
   for (i = 0; i < vec.u; ++i) {
-    serve_testing_queue_change_priority(cnts, state, vec.v[i], adjustment, user_login);
+    serve_testing_queue_change_priority(cnts, state, vec.v[i].queue_id, vec.v[i].packet_name, adjustment, user_login);
   }
 
-  xstrarrayfree(&vec);
+  run_packet_free(&vec);
   return 0;
 }
 
@@ -5562,4 +5690,82 @@ serve_get_compiler_options(
   s = state->compiler_options[lang_id];
   if (!s) s = "";
   return s;
+}
+
+void
+serve_invoker_delete(
+        const serve_state_t state,
+        const unsigned char *queue,
+        const unsigned char *file)
+{
+  unsigned char file2[PATH_MAX];
+  unsigned char path[PATH_MAX];
+
+  const struct run_queue_item *rqi = lookup_run_queue_item(state, queue);
+  if (!rqi) return;
+  if (!rqi->heartbeat_dir || !*rqi->heartbeat_dir) return;
+
+  snprintf(file2, sizeof(file2), "%s", file);
+  for (int i = 0; file2[i]; ++i) {
+    if (file2[i] <= ' ' || file2[i] >= 0x7f || file2[i] == '/') {
+      file2[i] = '_';
+    }
+  }
+
+  snprintf(path, sizeof(path), "%s/dir/%s", rqi->heartbeat_dir, file2);
+  unlink(path);
+  snprintf(path, sizeof(path), "%s/dir/%s@D", rqi->heartbeat_dir, file2);
+  unlink(path);
+  snprintf(path, sizeof(path), "%s/dir/%s@S", rqi->heartbeat_dir, file2);
+  unlink(path);
+}
+
+void
+serve_invoker_stop(
+        const serve_state_t state,
+        const unsigned char *queue,
+        const unsigned char *file)
+{
+  unsigned char file2[PATH_MAX];
+  unsigned char path[PATH_MAX];
+
+  const struct run_queue_item *rqi = lookup_run_queue_item(state, queue);
+  if (!rqi) return;
+  if (!rqi->heartbeat_dir || !*rqi->heartbeat_dir) return;
+
+  snprintf(file2, sizeof(file2), "%s", file);
+  for (int i = 0; file2[i]; ++i) {
+    if (file2[i] <= ' ' || file2[i] >= 0x7f || file2[i] == '/') {
+      file2[i] = '_';
+    }
+  }
+
+  snprintf(path, sizeof(path), "%s/dir/%s@S", rqi->heartbeat_dir, file2);
+  int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+  close(fd);
+}
+
+void
+serve_invoker_down(
+        const serve_state_t state,
+        const unsigned char *queue,
+        const unsigned char *file)
+{
+  unsigned char file2[PATH_MAX];
+  unsigned char path[PATH_MAX];
+
+  const struct run_queue_item *rqi = lookup_run_queue_item(state, queue);
+  if (!rqi) return;
+  if (!rqi->heartbeat_dir || !*rqi->heartbeat_dir) return;
+
+  snprintf(file2, sizeof(file2), "%s", file);
+  for (int i = 0; file2[i]; ++i) {
+    if (file2[i] <= ' ' || file2[i] >= 0x7f || file2[i] == '/') {
+      file2[i] = '_';
+    }
+  }
+
+  snprintf(path, sizeof(path), "%s/dir/%s@D", rqi->heartbeat_dir, file2);
+  int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+  close(fd);
 }

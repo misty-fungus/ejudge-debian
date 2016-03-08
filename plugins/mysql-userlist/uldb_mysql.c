@@ -1,6 +1,6 @@
 /* -*- mode: c -*- */
 
-/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1444,7 +1444,7 @@ user_contest_iterator_get_func(ptr_iterator_t data)
            "SELECT * FROM %scntsregs WHERE user_id = %d AND contest_id = %d ;",
            state->md->table_prefix, iter->user_id, iter->ids[iter->cur_i]);
   cmdlen = strlen(cmdbuf);
-  if (state->mi->query_one_row(state->md, cmdbuf, cmdlen, COOKIE_WIDTH) < 0) return 0;
+  if (state->mi->query_one_row(state->md, cmdbuf, cmdlen, CNTSREG_WIDTH) < 0) return 0;
   c = allocate_cntsreg_on_pool(state, iter->user_id, iter->ids[iter->cur_i]);
   if (!c) goto fail;
   if (parse_cntsreg(state, state->md->field_count,state->md->row,state->md->lengths, c) < 0)
@@ -5843,9 +5843,3 @@ get_client_key_func(
   if (p_cookie) *p_cookie = c;
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

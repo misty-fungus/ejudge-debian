@@ -27,6 +27,7 @@ static struct meta_info_item meta_info_super_run_in_global_packet_data[] =
   [META_SUPER_RUN_IN_GLOBAL_PACKET_secure_run] = { META_SUPER_RUN_IN_GLOBAL_PACKET_secure_run, 'B', XSIZE(struct super_run_in_global_packet, secure_run), "secure_run", XOFFSET(struct super_run_in_global_packet, secure_run) },
   [META_SUPER_RUN_IN_GLOBAL_PACKET_detect_violations] = { META_SUPER_RUN_IN_GLOBAL_PACKET_detect_violations, 'B', XSIZE(struct super_run_in_global_packet, detect_violations), "detect_violations", XOFFSET(struct super_run_in_global_packet, detect_violations) },
   [META_SUPER_RUN_IN_GLOBAL_PACKET_enable_memory_limit_error] = { META_SUPER_RUN_IN_GLOBAL_PACKET_enable_memory_limit_error, 'B', XSIZE(struct super_run_in_global_packet, enable_memory_limit_error), "enable_memory_limit_error", XOFFSET(struct super_run_in_global_packet, enable_memory_limit_error) },
+  [META_SUPER_RUN_IN_GLOBAL_PACKET_suid_run] = { META_SUPER_RUN_IN_GLOBAL_PACKET_suid_run, 'B', XSIZE(struct super_run_in_global_packet, suid_run), "suid_run", XOFFSET(struct super_run_in_global_packet, suid_run) },
   [META_SUPER_RUN_IN_GLOBAL_PACKET_enable_max_stack_size] = { META_SUPER_RUN_IN_GLOBAL_PACKET_enable_max_stack_size, 'B', XSIZE(struct super_run_in_global_packet, enable_max_stack_size), "enable_max_stack_size", XOFFSET(struct super_run_in_global_packet, enable_max_stack_size) },
   [META_SUPER_RUN_IN_GLOBAL_PACKET_user_id] = { META_SUPER_RUN_IN_GLOBAL_PACKET_user_id, 'i', XSIZE(struct super_run_in_global_packet, user_id), "user_id", XOFFSET(struct super_run_in_global_packet, user_id) },
   [META_SUPER_RUN_IN_GLOBAL_PACKET_user_login] = { META_SUPER_RUN_IN_GLOBAL_PACKET_user_login, 's', XSIZE(struct super_run_in_global_packet, user_login), "user_login", XOFFSET(struct super_run_in_global_packet, user_login) },
@@ -60,6 +61,7 @@ static struct meta_info_item meta_info_super_run_in_global_packet_data[] =
   [META_SUPER_RUN_IN_GLOBAL_PACKET_time_limit_retry_count] = { META_SUPER_RUN_IN_GLOBAL_PACKET_time_limit_retry_count, 'i', XSIZE(struct super_run_in_global_packet, time_limit_retry_count), "time_limit_retry_count", XOFFSET(struct super_run_in_global_packet, time_limit_retry_count) },
   [META_SUPER_RUN_IN_GLOBAL_PACKET_checker_locale] = { META_SUPER_RUN_IN_GLOBAL_PACKET_checker_locale, 's', XSIZE(struct super_run_in_global_packet, checker_locale), "checker_locale", XOFFSET(struct super_run_in_global_packet, checker_locale) },
   [META_SUPER_RUN_IN_GLOBAL_PACKET_run_uuid] = { META_SUPER_RUN_IN_GLOBAL_PACKET_run_uuid, 's', XSIZE(struct super_run_in_global_packet, run_uuid), "run_uuid", XOFFSET(struct super_run_in_global_packet, run_uuid) },
+  [META_SUPER_RUN_IN_GLOBAL_PACKET_zip_mode] = { META_SUPER_RUN_IN_GLOBAL_PACKET_zip_mode, 'B', XSIZE(struct super_run_in_global_packet, zip_mode), "zip_mode", XOFFSET(struct super_run_in_global_packet, zip_mode) },
 };
 
 int meta_super_run_in_global_packet_get_type(int tag)
@@ -121,6 +123,7 @@ static struct meta_info_item meta_info_super_run_in_problem_packet_data[] =
   [META_SUPER_RUN_IN_PROBLEM_PACKET_interactive_valuer] = { META_SUPER_RUN_IN_PROBLEM_PACKET_interactive_valuer, 'B', XSIZE(struct super_run_in_problem_packet, interactive_valuer), "interactive_valuer", XOFFSET(struct super_run_in_problem_packet, interactive_valuer) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_disable_pe] = { META_SUPER_RUN_IN_PROBLEM_PACKET_disable_pe, 'B', XSIZE(struct super_run_in_problem_packet, disable_pe), "disable_pe", XOFFSET(struct super_run_in_problem_packet, disable_pe) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_disable_wtl] = { META_SUPER_RUN_IN_PROBLEM_PACKET_disable_wtl, 'B', XSIZE(struct super_run_in_problem_packet, disable_wtl), "disable_wtl", XOFFSET(struct super_run_in_problem_packet, disable_wtl) },
+  [META_SUPER_RUN_IN_PROBLEM_PACKET_wtl_is_cf] = { META_SUPER_RUN_IN_PROBLEM_PACKET_wtl_is_cf, 'B', XSIZE(struct super_run_in_problem_packet, wtl_is_cf), "wtl_is_cf", XOFFSET(struct super_run_in_problem_packet, wtl_is_cf) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_use_stdin] = { META_SUPER_RUN_IN_PROBLEM_PACKET_use_stdin, 'B', XSIZE(struct super_run_in_problem_packet, use_stdin), "use_stdin", XOFFSET(struct super_run_in_problem_packet, use_stdin) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_use_stdout] = { META_SUPER_RUN_IN_PROBLEM_PACKET_use_stdout, 'B', XSIZE(struct super_run_in_problem_packet, use_stdout), "use_stdout", XOFFSET(struct super_run_in_problem_packet, use_stdout) },
   [META_SUPER_RUN_IN_PROBLEM_PACKET_combined_stdin] = { META_SUPER_RUN_IN_PROBLEM_PACKET_combined_stdin, 'B', XSIZE(struct super_run_in_problem_packet, combined_stdin), "combined_stdin", XOFFSET(struct super_run_in_problem_packet, combined_stdin) },

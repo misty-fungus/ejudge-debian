@@ -229,6 +229,7 @@ struct userlist_pk_do_login
   signed char   locale_id;
   unsigned char priv_level;
   int           role;
+  int           pwd_special;
   unsigned char login_length;
   unsigned char password_length;
   unsigned char data[2];
@@ -443,6 +444,7 @@ struct userlist_pk_create_user_2
   int cnts_use_sha1_flag;
   int cnts_name_len;
   int group_id;
+  int register_existing_flag;
   unsigned char data[5];
 };
 

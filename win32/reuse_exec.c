@@ -1,6 +1,4 @@
-/* $Id$ */
-
-/* Copyright (C) 1999-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 1999-2016 Alexander Chernov <cher@ejudge.ru> */
 /* Created: <1999-07-20 11:05:09 cher> */
 
 /*
@@ -649,7 +647,19 @@ task_EnableMemoryLimitError(tTask *tsk)
 }
 
 int
+task_SetSuidHelperDir(tTask *tsk, const char *path)
+{
+  return 0;
+}
+
+int
 task_EnableSecureExec(tTask *tsk)
+{
+  return 0;
+}
+
+int
+task_EnableSuidExec(tTask *tsk)
 {
   return 0;
 }
@@ -1623,11 +1633,3 @@ envvar_put(envvar_table_t *t, const char *str)
     }
   }
 }
-
-/* === Do not add stuff after this line === */
-
-/*
- * Local variables:
- *  compile-command: "make -C .."
- * End:
- */

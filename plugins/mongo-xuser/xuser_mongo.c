@@ -1,6 +1,6 @@
 /* -*- mode: c -*- */
 
-/* Copyright (C) 2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2015-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -246,6 +246,11 @@ close_func(
     if (state) {
         --state->plugin_state->nref;
         // FIXME: close connection?
+
+        for (int i = 0; i < state->u; ++i) {
+            team_extra_free(state->v[i]);
+        }
+        xfree(state->v);
         xfree(state);
     }
     return NULL;
@@ -788,6 +793,5 @@ done:
 /*
  * Local variables:
  *  c-basic-offset: 4
- *  compile-command: "make"
  * End:
  */

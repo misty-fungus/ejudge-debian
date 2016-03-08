@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id$ */
 
-/* Copyright (C) 2006-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2006-2015 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -558,7 +557,7 @@ do_work(void)
   struct stat stbuf;
 
   while (!term_signal_flag) {
-    if ((r = scan_dir(job_server_spool_path, pkt_name, sizeof(pkt_name))) < 0) {
+    if ((r = scan_dir(job_server_spool_path, pkt_name, sizeof(pkt_name), 0)) < 0) {
       // error
       break;
     }
@@ -681,7 +680,7 @@ main(int argc, char *argv[])
 
   info("ej-jobs %s, compiled %s", compile_version, compile_date);
 
-  config = ejudge_cfg_parse(ejudge_xml_path);
+  config = ejudge_cfg_parse(ejudge_xml_path, 0);
   if (!config) return 1;
   if (prepare_config_vars() < 0) return 1;
   prepare_sinals();
