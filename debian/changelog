@@ -1,3 +1,11 @@
+ejudge (3.4.1-1) sid; urgency=medium
+
+  * [4a68de3] new snapshot
+  * [8db174e] refreshed debian/patches/04_dont_run_ejudge-setup_on_install
+  * [7734acd] bumped changelog
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Tue, 08 Mar 2016 17:33:49 +0300
+
 ejudge (3.4.1-1~1.gbpc284a8) sid; urgency=medium
 
   ** SNAPSHOT build @c284a81e2f8ecbb8036608652fc9660a854b29b7 **
