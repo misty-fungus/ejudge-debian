@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id$ */
 
-/* Copyright (C) 2002-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2002-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -1327,6 +1326,7 @@ filter_tree_eval_node(struct filter_tree_mem *mem,
         break;
       case TOK_IP_L:
         filter_tree_ip_str(val, sizeof(val), &p1->v.p);
+        break;
       default:
         SWERR(("unhandled node %d", kind));
       }
@@ -1507,6 +1507,7 @@ filter_tree_eval_node(struct filter_tree_mem *mem,
       case RUN_PENDING:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
       case RUN_STYLE_ERR:
       case RUN_FULL_REJUDGE:
       case RUN_RUNNING:
@@ -1610,9 +1611,3 @@ filter_tree_is_value_node(struct filter_tree *p)
   }
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

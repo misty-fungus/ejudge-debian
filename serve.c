@@ -138,7 +138,7 @@ main(int argc, char *argv[])
     return 1;
   }
 
-  config = ejudge_cfg_parse(ejudge_xml_path);
+  config = ejudge_cfg_parse(ejudge_xml_path, 1);
   if (!config) return 1;
   if (contests_set_directory(config->contests_dir) < 0) return 1;
 
@@ -185,7 +185,7 @@ main(int argc, char *argv[])
     return 1;
   serve_load_status_file(&serve_state);
   serve_build_compile_dirs(&serve_state);
-  serve_build_run_dirs(&serve_state, cur_contest->id);
+  serve_build_run_dirs(&serve_state, cur_contest);
   if (serve_create_symlinks(&serve_state) < 0) return 1;
   serve_state.current_time = time(0);
   serve_update_status_file(&serve_state, 1);

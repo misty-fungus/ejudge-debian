@@ -1,6 +1,6 @@
 /* -*- c -*- */
 
-/* Copyright (C) 2012-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -38,6 +38,7 @@
 #include "ejudge/testing_report_xml.h"
 #include "ejudge/ej_uuid.h"
 #include "ejudge/base64.h"
+#include "ejudge/ej_libzip.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/osdeps.h"
@@ -205,7 +206,8 @@ generate_xml_report(
         const unsigned char *valuer_judge_comment,
         const unsigned char *valuer_errors,
         const unsigned char *cpu_model,
-        const unsigned char *cpu_mhz)
+        const unsigned char *cpu_mhz,
+        const unsigned char *hostname)
 {
   int i;
   unsigned char *msg = 0;
@@ -288,7 +290,9 @@ generate_xml_report(
   if (valuer_errors) {
     tr->valuer_errors = xstrdup(valuer_errors);
   }
-  if ((msg = os_NodeName())) {
+  if (hostname) {
+    tr->host = xstrdup(hostname);
+  } else if ((msg = os_NodeName())) {
     tr->host = xstrdup(msg);
   }
   if (cpu_model) {
@@ -331,10 +335,10 @@ generate_xml_report(
         trt->comment = xstrdup(tests[i].comment);
       }
       if (tests[i].team_comment && tests[i].team_comment[0]) {
-        trt->team_comment = tests[i].team_comment;
+        trt->team_comment = xstrdup(tests[i].team_comment);
       }
       if (tests[i].exit_comment && tests[i].exit_comment[0]) {
-        trt->exit_comment = tests[i].exit_comment;
+        trt->exit_comment = xstrdup(tests[i].exit_comment);
       }
       if ((tests[i].status == RUN_WRONG_ANSWER_ERR || tests[i].status == RUN_PRESENTATION_ERR || tests[i].status == RUN_OK)
           && tests[i].chk_out_size > 0 && tests[i].chk_out && tests[i].chk_out[0]) {
@@ -1004,7 +1008,7 @@ start_interactive_valuer(
   if (srgp->rejudge_flag > 0) {
     task_SetEnv(tsk, "EJUDGE_REJUDGE", "1");
   }
-  task_EnableAllSignals(tsk);
+  //task_EnableAllSignals(tsk);
 
   task_PrintArgs(tsk);
 
@@ -1357,7 +1361,7 @@ invoke_nwrun(
   //fprintf(stderr, "end time: %lld\n", wait_end_time);
 
   while (1) {
-    r = scan_dir(result_path, result_pkt_name, sizeof(result_pkt_name));
+    r = scan_dir(result_path, result_pkt_name, sizeof(result_pkt_name), 0);
     if (r < 0) {
       chk_printf(result, "scan_dir(%s) failed\n", result_path);
       goto fail;
@@ -1436,7 +1440,8 @@ invoke_nwrun(
       && result->status != RUN_WALL_TIME_LIMIT_ERR
       && result->status != RUN_CHECK_FAILED
       && result->status != RUN_MEM_LIMIT_ERR
-      && result->status != RUN_SECURITY_ERR) {
+      && result->status != RUN_SECURITY_ERR
+      && result->status != RUN_SYNC_ERR) {
     chk_printf(result, "invalid status %d\n", result->status);
     goto fail;
   }
@@ -1563,7 +1568,7 @@ invoke_tar(
   info("starting: %s", tar_path);
   tsk = task_New();
   task_AddArg(tsk, tar_path);
-  task_AddArg(tsk, "xfvz");
+  task_AddArg(tsk, "xfv");
   task_AddArg(tsk, archive_path);
   task_SetPathAsArg0(tsk);
   task_SetWorkingDir(tsk, working_dir);
@@ -1650,17 +1655,30 @@ invoke_init_cmd(
   }
 
   int exitcode = task_ExitCode(tsk);
-  if (exitcode == 1) exitcode = RUN_WRONG_ANSWER_ERR;
-  if (exitcode == 2) exitcode = RUN_PRESENTATION_ERR;
-  if (exitcode == RUN_PRESENTATION_ERR && disable_pe > 0) {
-    exitcode = RUN_WRONG_ANSWER_ERR;
-  }
-  if (exitcode != RUN_OK && exitcode != RUN_PRESENTATION_ERR
-      && exitcode != RUN_WRONG_ANSWER_ERR && exitcode != RUN_CHECK_FAILED) {
+  switch (exitcode) {
+  case RUN_OK:
+  case RUN_RUN_TIME_ERR:
+  case RUN_WRONG_ANSWER_ERR:
+  case RUN_MEM_LIMIT_ERR:
+  case RUN_TIME_LIMIT_ERR:
+  case RUN_SECURITY_ERR:
+  case RUN_WALL_TIME_LIMIT_ERR:
+  case RUN_SYNC_ERR:
+    break;
+
+  case RUN_PRESENTATION_ERR:
+    if (disable_pe > 0) {
+      exitcode = RUN_WRONG_ANSWER_ERR;
+    }
+    break;
+
+  case RUN_CHECK_FAILED:
+  default:
     append_msg_to_log(check_out_path, "init_cmd exited with code %d", exitcode);
     status = RUN_CHECK_FAILED;
     goto cleanup;
   }
+
   status = exitcode;
 
 cleanup:
@@ -1979,6 +1997,39 @@ is_java_memory_limit(const unsigned char *text, ssize_t size)
   return 0;
 }
 
+struct testinfo_subst_handler_super_run
+{
+  struct testinfo_subst_handler b;
+  const struct super_run_in_packet *srp;
+  char *eff_s; // effective .inf file text
+  size_t eff_z;
+  FILE *eff_f;
+};
+
+static unsigned char *testinfo_subst_handler_substitute(struct testinfo_subst_handler *bp, const unsigned char *str)
+{
+  struct testinfo_subst_handler_super_run *srh = (struct testinfo_subst_handler_super_run *) bp;
+  unsigned char *s = text_substitute(srh->srp, str, super_run_in_packet_get_variable);
+  if (srh->eff_f) {
+    fprintf(srh->eff_f, "%s\n", s);
+  }
+  return s;
+}
+
+static unsigned char *
+remap_command(const unsigned char *cmd, const struct remap_spec *specs)
+{
+  if (!specs) return xstrdup(cmd);
+  for (const struct remap_spec *spec = specs; spec->src_dir; ++spec) {
+    if (!strncmp(cmd, spec->src_dir, spec->src_len)) {
+      unsigned char *out = malloc(spec->dst_len + strlen(cmd + spec->src_len) + 1);
+      sprintf(out, "%s%s", spec->dst_dir, cmd + spec->src_len);
+      return out;
+    }
+  }
+  return xstrdup(cmd);
+}
+
 static int
 run_one_test(
         const struct ejudge_cfg *config,
@@ -2002,7 +2053,8 @@ run_one_test(
         int *p_has_max_memory_used,
         long *p_report_time_limit_ms,
         long *p_report_real_time_limit_ms,
-        const unsigned char *mirror_dir)
+        const unsigned char *mirror_dir,
+        const struct remap_spec *remaps)
 {
   const struct section_global_data *global = state->global;
 
@@ -2058,6 +2110,13 @@ run_one_test(
   unsigned char start_cmd_name[PATH_MAX];
   unsigned char start_cmd_arg[PATH_MAX];
   unsigned char start_cmd_path[PATH_MAX];
+
+  FILE *start_msg_f = NULL;
+  char *start_msg_s = NULL;
+  size_t start_msg_z = 0;
+  int start_msg_need_env = 0;
+
+  char *eff_inf_text = NULL;
 
 #ifdef HAVE_TERMIOS_H
   struct termios term_attrs;
@@ -2177,12 +2236,32 @@ run_one_test(
 
   /* Load test information file */
   if (srpp->use_info > 0) {
-    if ((errcode = testinfo_parse(info_src, &tstinfo)) < 0) {
+    struct testinfo_subst_handler_super_run sr;
+    memset(&sr, 0, sizeof(sr));
+    sr.b.substitute = testinfo_subst_handler_substitute;
+    sr.srp = srp;
+    sr.eff_f = open_memstream(&sr.eff_s, &sr.eff_z);
+    if ((errcode = testinfo_parse(info_src, &tstinfo, &sr.b)) < 0) {
+      fclose(sr.eff_f); xfree(sr.eff_s);
       err("Cannot parse test info file '%s': %s", info_src, testinfo_strerror(-errcode));
       append_msg_to_log(check_out_path, "failed to parse testinfo file '%s': %s\n",
                         info_src, testinfo_strerror(-errcode));
       goto check_failed;
     }
+    fclose(sr.eff_f);
+    eff_inf_text = sr.eff_s;
+
+    // if 'enable_subst' is enabled, save the effective .inf file into the working directory
+    // and further use it instead of the original file
+    if (tstinfo.enable_subst > 0) {
+      snprintf(info_src, sizeof(info_src), "%s/eff_%s", global->run_work_dir, info_base);
+      if (generic_write_file(sr.eff_s, sr.eff_z, 0, NULL, info_src, NULL) < 0) {
+        append_msg_to_log(check_out_path, "failed to save effective testinfo file '%s': %s\n",
+                          info_src, testinfo_strerror(-errcode));
+        goto check_failed;
+      }
+    }
+    xfree(eff_inf_text); eff_inf_text = NULL;
   }
 
   if (srpp->use_info > 0 && tstinfo.disable_stderr >= 0) {
@@ -2199,10 +2278,49 @@ run_one_test(
   clear_directory(check_dir);
   check_free_space(check_dir, expected_free_space);
 
-  if (generic_copy_file(0, global->run_work_dir, exe_name, "", 0, check_dir, exe_name, "") < 0) {
-    append_msg_to_log(check_out_path, "failed to copy %s/%s -> %s/%s", global->run_work_dir, exe_name,
-                      check_dir, exe_name);
-    goto check_failed;
+  if (srgp->zip_mode > 0) {
+    unsigned char zip_path[PATH_MAX];
+    snprintf(zip_path, sizeof(zip_path), "%s/%s", global->run_work_dir, exe_name);
+    FILE *log_f = fopen(check_out_path, "a");
+    struct ZipData *zf = ej_libzip_open(log_f, zip_path, O_RDONLY);
+    if (!zf) {
+      if (log_f) {
+        fprintf(log_f, "cannot open zip '%s' file for reading\n", check_out_path);
+        fclose(log_f);
+      }
+      goto check_failed;
+    }
+    unsigned char entry_name[PATH_MAX];
+    snprintf(entry_name, sizeof(entry_name), "%06d_%03d", srgp->run_id, cur_test);
+    unsigned char *bytes_s = NULL;
+    ssize_t bytes_z = 0;
+    if (zf->ops->read_file(zf, entry_name, &bytes_s, &bytes_z) < 0) {
+      if (log_f) {
+        fprintf(log_f, "cannot extract entry '%s' from zip archive\n", entry_name);
+        fclose(log_f);
+      }
+      zf->ops->close(zf);
+      goto check_failed;
+    }
+    zf->ops->close(zf); zf = NULL;
+    unsigned char target_path[PATH_MAX];
+    snprintf(target_path, sizeof(target_path), "%s/%s", check_dir, exe_name);
+    if (generic_write_file(bytes_s, bytes_z, 0, NULL, target_path, NULL) < 0) {
+      if (log_f) {
+        fprintf(log_f, "cannot save file '%s'\n", target_path);
+        fclose(log_f);
+      }
+      xfree(bytes_s);
+      goto check_failed;
+    }
+    xfree(bytes_s);
+    if (log_f) fclose(log_f);
+  } else {
+    if (generic_copy_file(0, global->run_work_dir, exe_name, "", 0, check_dir, exe_name, "") < 0) {
+      append_msg_to_log(check_out_path, "failed to copy %s/%s -> %s/%s", global->run_work_dir, exe_name,
+                        check_dir, exe_name);
+      goto check_failed;
+    }
   }
 
   snprintf(exe_path, sizeof(exe_path), "%s/%s", check_dir, exe_name);
@@ -2308,6 +2426,39 @@ run_one_test(
 #endif
 
   tsk = task_New();
+  start_msg_f = open_memstream(&start_msg_s, &start_msg_z);
+  fprintf(start_msg_f, "starting:");
+  if (start_cmd_arg[0]) {
+    fprintf(start_msg_f, " %s", start_cmd_arg);
+    start_msg_need_env = 1;
+    task_AddArg(tsk, start_cmd_arg);
+  }
+  if (tst && tst->start_cmd && tst->start_cmd[0]) {
+    if (remaps) {
+      unsigned char *new_cmd = remap_command(tst->start_cmd, remaps);
+      fprintf(start_msg_f, " %s", new_cmd);
+      task_AddArg(tsk, new_cmd);
+      free(new_cmd);
+    } else {
+      fprintf(start_msg_f, " %s", tst->start_cmd);
+      task_AddArg(tsk, tst->start_cmd);
+    }
+    start_msg_need_env = 1;
+  }
+  fprintf(start_msg_f, " %s", arg0_path);
+  fclose(start_msg_f); start_msg_f = NULL;
+  info("%s", start_msg_s);
+  xfree(start_msg_s); start_msg_s = NULL; start_msg_z = 0;
+  if (start_msg_need_env) {
+    if (srpp->input_file && srpp->input_file[0]) {
+      task_SetEnv(tsk, "INPUT_FILE", srpp->input_file);
+    }
+    if (srpp->output_file && srpp->output_file[0]) {
+      task_SetEnv(tsk, "OUTPUT_FILE", srpp->output_file);
+    }
+  }
+
+  /*  
   if (tst && tst->start_cmd && tst->start_cmd[0]) {
     info("starting: %s %s", tst->start_cmd, arg0_path);
     task_AddArg(tsk, tst->start_cmd);
@@ -2329,6 +2480,7 @@ run_one_test(
   } else {
     info("starting: %s", arg0_path);
   }
+  */
 
   task_AddArg(tsk, arg0_path);
   if (srpp->use_info > 0 && tstinfo.cmd_argc >= 1) {
@@ -2370,10 +2522,13 @@ run_one_test(
     } else {
       if (srpp->use_stdout > 0) {
         task_SetRedir(tsk, 1, TSR_FILE, output_path, TSK_REWRITE, TSK_FULL_RW);
+        touch_file(output_path);
       } else {
         task_SetRedir(tsk, 1, TSR_FILE, "/dev/null", TSK_WRITE, TSK_FULL_RW);
+        if (srgp->secure_run > 0 || srpp->use_tgz > 0) {
+          touch_file(output_path);
+        }
       }
-      touch_file(output_path);
       if (tst && tst->ignore_stderr > 0 && disable_stderr <= 0) {
         task_SetRedir(tsk, 2, TSR_FILE, "/dev/null", TSK_WRITE, TSK_FULL_RW);
       } else {
@@ -2451,6 +2606,16 @@ run_one_test(
     }
   }
 
+  if (tst && srgp->suid_run > 0) {
+    task_SetSuidHelperDir(tsk, EJUDGE_SERVER_BIN_PATH);
+    task_EnableSuidExec(tsk);
+    switch (tst->secure_exec_type_val) {
+    case SEXEC_TYPE_JAVA:
+      task_PutEnv(tsk, "EJUDGE_JAVA_POLICY=fileio.policy");
+      break;
+    }
+  }
+
   if (tst && tst->secure_exec_type_val > 0 && srgp->secure_run > 0) {
     switch (tst->secure_exec_type_val) {
     case SEXEC_TYPE_STATIC:
@@ -2484,6 +2649,10 @@ run_one_test(
 
   if (tst && tst->secure_exec_type_val == SEXEC_TYPE_JAVA && srgp->secure_run <= 0) {
     task_PutEnv(tsk, "EJUDGE_JAVA_POLICY=none");
+  }
+
+  if (tst && tst->secure_exec_type_val == SEXEC_TYPE_JAVA && srgp->lang_short_name) {
+    task_FormatEnv(tsk, "EJUDGE_JAVA_COMPILER", "%s", srgp->lang_short_name);
   }
 
   if (tst && tst->enable_memory_limit_error > 0 && srgp->secure_run > 0 && srgp->detect_violations > 0) {
@@ -2691,13 +2860,14 @@ run_one_test(
 
   // debug
   if (cur_info->times > 1000000 || cur_info->times < 0) {
-    append_msg_to_log(check_out_path, "bogus running time %ld",
-                      cur_info->times);
+    append_msg_to_log(check_out_path, "bogus running time %ld", cur_info->times);
     goto check_failed;
   }
 
   if (task_IsRealTimeout(tsk)) {
-    if (srpp->disable_wtl > 0) {
+    if (srpp->wtl_is_cf > 0) {
+      goto check_failed;
+    } else if (srpp->disable_wtl > 0) {
       status = RUN_TIME_LIMIT_ERR;
     } else {
       status = RUN_WALL_TIME_LIMIT_ERR;
@@ -2754,7 +2924,7 @@ run_one_test(
   }
 
   if (pg_not_empty) {
-    status = RUN_SECURITY_ERR;
+    status = RUN_SYNC_ERR;
     goto read_checker_output;
   }
 
@@ -2863,6 +3033,7 @@ cleanup:;
   if (score_out_path[0]) unlink(score_out_path);
 
   testinfo_free(&tstinfo);
+  xfree(eff_inf_text);
   task_Delete(tsk_int);
   task_Delete(tsk);
   if (check_dir[0]) {
@@ -3319,7 +3490,10 @@ run_tests(
         const unsigned char *user_spelling,
         const unsigned char *problem_spelling,
         const unsigned char *mirror_dir,
-        int utf8_mode)
+        int utf8_mode,
+        struct run_listener *listener,
+        const unsigned char *hostname,
+        const struct remap_spec *remaps)
 {
   const struct section_global_data *global = state->global;
   const struct super_run_in_global_packet *srgp = srp->global;
@@ -3572,6 +3746,10 @@ run_tests(
     int tl_retry_count = srgp->time_limit_retry_count;
     if (tl_retry_count <= 0) tl_retry_count = 1;
 
+    if (listener && listener->ops && listener->ops->before_test) {
+      listener->ops->before_test(listener, cur_test);
+    }
+
     while (1) {
       status = run_one_test(config, state, srp, tst, cur_test, &tests,
                             far, exe_name, report_path, check_cmd,
@@ -3581,7 +3759,7 @@ run_tests(
                             expected_free_space,
                             &has_real_time, &has_max_memory_used,
                             &report_time_limit_ms, &report_real_time_limit_ms,
-                            mirror_dir);
+                            mirror_dir, remaps);
       if (status != RUN_TIME_LIMIT_ERR && status != RUN_WALL_TIME_LIMIT_ERR)
         break;
       if (++tl_retry >= tl_retry_count) break;
@@ -3932,7 +4110,7 @@ done:;
                       user_run_tests,
                       additional_comment, valuer_comment,
                       valuer_judge_comment, valuer_errors,
-                      cpu_model, cpu_mhz);
+                      cpu_model, cpu_mhz, hostname);
 
   get_current_time(&reply_pkt->ts7, &reply_pkt->ts7_us);
 

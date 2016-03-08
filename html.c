@@ -152,8 +152,14 @@ calc_kirov_score(
     }
   }
   if (p_date_penalty) *p_date_penalty = dp;
-  score = init_score * score_mult - attempts * pr->run_penalty + dp + pe->score_adj - disq_attempts * pr->disqualified_penalty + score_bonus;
+  //score = init_score * score_mult - attempts * pr->run_penalty + dp + pe->score_adj - disq_attempts * pr->disqualified_penalty + score_bonus;
   //if (score > pr->full_score) score = pr->full_score;
+  // solution score is the initial score minus all score penalties plus score_bonus
+  score = init_score * score_mult - attempts * pr->run_penalty + pe->score_adj + score_bonus;
+  if (status == RUN_OK && pr->min_score_1 > 0 && score < pr->min_score_1) score = pr->min_score_1;
+  score += dp;
+  if (status == RUN_OK && pr->min_score_2 > 0 && score < pr->min_score_2) score = pr->min_score_2;
+  score -= disq_attempts * pr->disqualified_penalty;
   if (score < 0) score = 0;
   if (!outbuf) return score;
 
@@ -405,6 +411,7 @@ write_html_run_status(
             || status == RUN_WRONG_ANSWER_ERR
             || status == RUN_MEM_LIMIT_ERR
             || status == RUN_SECURITY_ERR
+            || status == RUN_SYNC_ERR
             || status == RUN_WALL_TIME_LIMIT_ERR) {
           // do like ACM
           if (test <= 0) {
@@ -1388,6 +1395,7 @@ do_write_kirov_standings(
       case RUN_PRESENTATION_ERR:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
       case RUN_STYLE_ERR:
       case RUN_REJECTED:
         if (!full_sol[up_ind]) sol_att[up_ind]++;
@@ -1461,6 +1469,7 @@ do_write_kirov_standings(
       case RUN_PRESENTATION_ERR:
       case RUN_MEM_LIMIT_ERR:
       case RUN_SECURITY_ERR:
+      case RUN_SYNC_ERR:
       case RUN_STYLE_ERR:
       case RUN_REJECTED:
         att_num[up_ind]++;
@@ -1485,7 +1494,12 @@ do_write_kirov_standings(
 
       /////
       if (prob->score_latest_or_unmarked > 0) {
-        if (run_status == RUN_OK) {
+        if (run_status == RUN_OK || run_status == RUN_PENDING_REVIEW) {
+          if (run_status == RUN_PENDING_REVIEW) {
+            pr_flag[up_ind] = 1;
+            ++total_prs;
+          }
+
           score = calc_kirov_score(0, 0, start_time,
                                    separate_user_score, user_mode, token_flags,
                                    pe, prob, att_num[up_ind],
@@ -1565,9 +1579,13 @@ do_write_kirov_standings(
           /* something strange... */
         }
       } else {
-        if (run_status == RUN_OK) {
-          if (!marked_flag[up_ind] || prob->ignore_unmarked <= 0
-              || pe->is_marked) {
+        if (run_status == RUN_OK || run_status == RUN_PENDING_REVIEW) {
+          if (run_status == RUN_PENDING_REVIEW) {
+            pr_flag[up_ind] = 1;
+            ++total_prs;
+          }
+
+          if (!marked_flag[up_ind] || prob->ignore_unmarked <= 0 || pe->is_marked) {
             marked_flag[up_ind] = pe->is_marked;
             if (!full_sol[up_ind]) sol_att[up_ind]++;
             score = calc_kirov_score(0, 0, start_time,
@@ -1672,9 +1690,6 @@ do_write_kirov_standings(
           if (!full_sol[up_ind]) sol_att[up_ind]++;
           disq_num[up_ind]++;
           ++total_disqualified;
-        } else if (run_status == RUN_PENDING_REVIEW) {
-          pr_flag[up_ind] = 1;
-          ++total_prs;
         } else if (run_status == RUN_PENDING) {
           ++trans_num[up_ind];
           ++total_pending;

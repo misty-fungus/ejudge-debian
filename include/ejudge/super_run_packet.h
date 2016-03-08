@@ -2,7 +2,7 @@
 #ifndef __SUPER_RUN_PACKET_H__
 #define __SUPER_RUN_PACKET_H__
 
-/* Copyright (C) 2012-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -47,6 +47,7 @@ struct super_run_in_global_packet
   ejintbool_t secure_run;
   ejintbool_t detect_violations;
   ejintbool_t enable_memory_limit_error;
+  ejintbool_t suid_run;
   ejintbool_t enable_max_stack_size;
   int user_id;
   unsigned char *user_login;
@@ -80,6 +81,7 @@ struct super_run_in_global_packet
   int time_limit_retry_count;
   unsigned char *checker_locale;
   unsigned char *run_uuid;
+  ejintbool_t zip_mode;
 
   int scoring_system_val META_ATTRIB((meta_hidden));
 };
@@ -95,6 +97,7 @@ struct super_run_in_problem_packet
   ejintbool_t interactive_valuer;
   ejintbool_t disable_pe;
   ejintbool_t disable_wtl;
+  ejintbool_t wtl_is_cf;
   ejintbool_t use_stdin;
   ejintbool_t use_stdout;
   ejintbool_t combined_stdin;
@@ -212,5 +215,10 @@ super_run_in_packet_unparse_cfg(FILE *out_f, struct super_run_in_packet *p);
 
 struct super_run_in_packet *
 super_run_in_packet_parse_cfg_str(const unsigned char *path, char *buf, size_t size);
+
+unsigned char *
+super_run_in_packet_get_variable(
+        const void *vp,
+        const unsigned char *name);
 
 #endif /* __SUPER_RUN_PACKET_H__ */

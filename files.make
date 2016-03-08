@@ -139,6 +139,7 @@ COMMON_CFILES=\
  contest_tmpl.c\
  copyright.c\
  csv.c\
+ dates_config.c\
  diff.c\
  digest_1.c\
  digest_2.c\
@@ -149,6 +150,7 @@ COMMON_CFILES=\
  dwarf_parse.c\
  ej_import_packet.c\
  ejudge_cfg.c\
+ ej_libzip.c\
  ej_uuid.c\
  errlog.c\
  expat_iface.c\
@@ -195,6 +197,7 @@ COMMON_CFILES=\
  prepare.c\
  prepare_out.c\
  prepare_serve.c\
+ prepare_dates.c\
  printing.c\
  problem_common.c\
  problem_config.c\
@@ -232,8 +235,10 @@ COMMON_CFILES=\
  super_http_request.c\
  super_proto.c\
  super_run_packet.c\
+ super_run_status.c\
  super_serve_pi.c\
  sha.c\
+ blowfish.c\
  t3m_dir_listener.c\
  t3m_submits.c\
  t3m_zip_packet_class.c\
@@ -366,6 +371,7 @@ CFILES=\
  ej-import-contest.c\
  ej-normalize.c\
  ej-page-gen.c\
+ ej-parblock.c\
  ej-polygon.c\
  ej-super-run.c\
  ejudge-configure-compilers.c\
@@ -514,6 +520,7 @@ HFILES=\
  ./include/ejudge/cr_serialize.h\
  ./include/ejudge/csv.h\
  ./include/ejudge/curtime.h\
+ ./include/ejudge/dates_config.h\
  ./include/ejudge/diff.h\
  ./include/ejudge/digest_io.h\
  ./include/ejudge/dwarf_parse.h\
@@ -524,6 +531,7 @@ HFILES=\
  ./include/ejudge/ej_limits.h\
  ./include/ejudge/ej_process.h\
  ./include/ejudge/ej_types.h\
+ ./include/ejudge/ej_libzip.h\
  ./include/ejudge/ej_uuid.h\
  ./include/ejudge/errlog.h\
  ./include/ejudge/expat_iface.h\
@@ -584,8 +592,10 @@ HFILES=\
  ./include/ejudge/super_html.h\
  ./include/ejudge/super_proto.h\
  ./include/ejudge/super_run_packet.h\
+ ./include/ejudge/super_run_status.h\
  ./include/ejudge/super-serve.h\
  ./include/ejudge/sha.h\
+ ./include/ejudge/blowfish.h\
  ./include/ejudge/t3m_dir_listener.h\
  ./include/ejudge/t3m_packet_class.h\
  ./include/ejudge/t3m_submits.h\

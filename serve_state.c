@@ -194,13 +194,25 @@ serve_state_destroy(
     xfree(state->compile_dirs[i].report_dir);
   }
   xfree(state->compile_dirs);
+
   for (i = 0; i < state->run_dirs_u; i++) {
-    xfree(state->run_dirs[i].status_dir);
-    xfree(state->run_dirs[i].report_dir);
-    xfree(state->run_dirs[i].team_report_dir);
-    xfree(state->run_dirs[i].full_report_dir);
+    struct run_dir_item *rdi = &state->run_dirs[i];
+    xfree(rdi->id);
+    xfree(rdi->status_dir);
+    xfree(rdi->report_dir);
+    xfree(rdi->team_report_dir);
+    xfree(rdi->full_report_dir);
   }
   xfree(state->run_dirs);
+
+  for (i = 0; i < state->run_queues_u; ++i) {
+    struct run_queue_item *rqi = &state->run_queues[i];
+    xfree(rqi->id);
+    xfree(rqi->queue_dir);
+    xfree(rqi->exe_dir);
+    xfree(rqi->heartbeat_dir);
+  }
+  xfree(state->run_queues);
 
   xfree(state->abstr_probs);
   xfree(state->abstr_testers);
@@ -857,7 +869,7 @@ serve_state_load_contest(
   serve_load_status_file(state);
   serve_set_upsolving_mode(state);
   serve_build_compile_dirs(state);
-  serve_build_run_dirs(state, contest_id);
+  serve_build_run_dirs(state, cnts);
 
   XCALLOC(state->prob_extras, state->max_prob + 1);
   for (i = 1; i <= state->max_prob; i++) {

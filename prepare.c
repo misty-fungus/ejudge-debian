@@ -1,6 +1,6 @@
 /* -*- c -*- */
 
-/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -31,6 +31,8 @@
 #include "ejudge/xml_utils.h"
 #include "ejudge/compat.h"
 #include "ejudge/variant_map.h"
+#include "ejudge/dates_config.h"
+#include "ejudge/l10n.h"
 
 #include "ejudge/xalloc.h"
 #include "ejudge/logger.h"
@@ -121,6 +123,8 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(enable_eoln_select, "d"),
   GLOBAL_PARAM(time_limit_retry_count, "d"),
   GLOBAL_PARAM(score_n_best_problems, "d"),
+  GLOBAL_PARAM(start_on_first_login, "d"),
+  GLOBAL_PARAM(enable_virtual_restart, "d"),
 
   GLOBAL_PARAM(stand_ignore_after, "t"),
   GLOBAL_PARAM(appeal_deadline, "t"),
@@ -334,6 +338,7 @@ static const struct config_parse_info section_global_params[] =
   GLOBAL_PARAM(load_user_group, "x"),
 
   GLOBAL_PARAM(tokens, "S"),
+  GLOBAL_PARAM(dates_config_file, "S"),
 
   GLOBAL_PARAM(compile_max_vm_size, "E"),
   GLOBAL_PARAM(compile_max_stack_size, "E"),
@@ -356,6 +361,7 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(interactive_valuer, "d"),  
   PROBLEM_PARAM(disable_pe, "d"),  
   PROBLEM_PARAM(disable_wtl, "d"),  
+  PROBLEM_PARAM(wtl_is_cf, "d"),  
   PROBLEM_PARAM(manual_checking, "d"),  
   PROBLEM_PARAM(examinator_num, "d"),  
   PROBLEM_PARAM(check_presentation, "d"),  
@@ -383,6 +389,8 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(ignore_compile_errors, "d"),
   PROBLEM_PARAM(full_score, "d"),
   PROBLEM_PARAM(full_user_score, "d"),
+  PROBLEM_PARAM(min_score_1, "d"),
+  PROBLEM_PARAM(min_score_2, "d"),
   PROBLEM_PARAM(test_score, "d"),
   PROBLEM_PARAM(run_penalty, "d"),
   PROBLEM_PARAM(acm_run_penalty, "d"),
@@ -407,6 +415,9 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(tokens_for_user_ac, "d"),
   PROBLEM_PARAM(disable_submit_after_ok, "d"),
   PROBLEM_PARAM(disable_security, "d"),
+  PROBLEM_PARAM(enable_suid_run, "d"),
+  PROBLEM_PARAM(enable_multi_header, "d"),
+  PROBLEM_PARAM(use_lang_multi_header, "d"),
   PROBLEM_PARAM(enable_compilation, "d"),
   PROBLEM_PARAM(skip_testing, "d"),
   PROBLEM_PARAM(variable_full_score, "d"),
@@ -517,6 +528,9 @@ static const struct config_parse_info section_problem_params[] =
   PROBLEM_PARAM(tokens, "S"),
   PROBLEM_PARAM(umask, "S"),
   PROBLEM_PARAM(ok_status, "S"),
+  PROBLEM_PARAM(header_pat, "S"),
+  PROBLEM_PARAM(footer_pat, "S"),
+  PROBLEM_PARAM(compiler_env_pat, "S"),
 
   { 0, 0, 0, 0 }
 };
@@ -533,6 +547,7 @@ static const struct config_parse_info section_language_params[] =
   LANGUAGE_PARAM(priority_adjustment, "d"),
   LANGUAGE_PARAM(insecure, "d"),
   LANGUAGE_PARAM(disable_security, "d"),
+  LANGUAGE_PARAM(enable_suid_run, "d"),
   LANGUAGE_PARAM(is_dos, "d"),
   LANGUAGE_PARAM(short_name, "s"),
   LANGUAGE_PARAM(long_name, "s"),
@@ -782,6 +797,8 @@ global_init_func(struct generic_section_config *gp)
   p->disable_clars = -1;
   p->disable_team_clars = -1;
   p->enable_eoln_select = -1;
+  p->start_on_first_login = -1;
+  p->enable_virtual_restart = -1;
   p->ignore_compile_errors = -1;
   p->disable_failed_test_view = -1;
   p->enable_printing = -1;
@@ -886,6 +903,9 @@ prepare_global_free_func(struct generic_section_config *gp)
   xfree(p->super_run_dir);
   xfree(p->tokens);
   xfree(p->token_info);
+  xfree(p->dates_config_file);
+  dates_config_free(p->dates_config);
+  xfree(p->checker_locale);
 
   memset(p, 0xab, sizeof(*p));
   xfree(p);
@@ -923,6 +943,7 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->interactive_valuer = -1;
   p->disable_pe = -1;
   p->disable_wtl = -1;
+  p->wtl_is_cf = -1;
   p->manual_checking = -1;
   p->check_presentation = -1;
   p->use_stdin = -1;
@@ -974,11 +995,16 @@ prepare_problem_init_func(struct generic_section_config *gp)
   p->tokens_for_user_ac = -1;
   p->disable_submit_after_ok = -1;
   p->disable_security = -1;
+  p->enable_suid_run = -1;
+  p->enable_multi_header = -1;
+  p->use_lang_multi_header = -1;
   p->enable_compilation = -1;
   p->skip_testing = -1;
   p->test_score = -1;
   p->full_score = -1;
   p->full_user_score = -1;
+  p->min_score_1 = -1;
+  p->min_score_2 = -1;
   p->variable_full_score = -1;
   p->hidden = -1;
   p->advance_to_next = -1;
@@ -1036,6 +1062,9 @@ prepare_problem_free_func(struct generic_section_config *gp)
   xfree(p->token_info);
   xfree(p->umask);
   xfree(p->ok_status);
+  xfree(p->header_pat);
+  xfree(p->footer_pat);
+  xfree(p->compiler_env_pat);
   sarray_free(p->test_sets);
   sarray_free(p->date_penalty);
   sarray_free(p->group_start_date);
@@ -2240,6 +2269,7 @@ prepare_insert_variant_num(
 static int
 set_defaults(
         const struct contest_desc *cnts,
+        const unsigned char *config_file,
         serve_state_t state,
         int mode,
         const unsigned char **subst_src,
@@ -2335,6 +2365,8 @@ set_defaults(
     g->disable_team_clars = DFLT_G_DISABLE_TEAM_CLARS;
   if (g->enable_eoln_select < 0)
     g->enable_eoln_select = 0;
+  if (g->start_on_first_login < 0) g->start_on_first_login = 0;
+  if (g->enable_virtual_restart < 0) g->enable_virtual_restart = 0;
   if (g->ignore_compile_errors == -1)
     g->ignore_compile_errors = DFLT_G_IGNORE_COMPILE_ERRORS;
   if (g->disable_failed_test_view == -1)
@@ -2866,12 +2898,8 @@ set_defaults(
 #if CONF_HAS_LIBINTL - 0 == 1
   if (mode == PREPARE_SERVE && g->enable_l10n) {
     /* convert locale string into locale id */
-    if (!strcmp(g->standings_locale, "ru_RU.KOI8-R")
-        || !strcmp(g->standings_locale, "ru")) {
-      g->standings_locale_id = 1;
-    } else {
-      g->standings_locale_id = 0;
-    }
+    g->standings_locale_id = l10n_parse_locale(g->standings_locale);
+    if (g->standings_locale_id < 0) g->standings_locale_id = 0;
     vinfo("standings_locale_id is %d", g->standings_locale_id);
   }
 #endif /* CONF_HAS_LIBINTL */
@@ -2942,6 +2970,11 @@ set_defaults(
 
   if (mode == PREPARE_SERVE && g->tokens && g->tokens[0]) {
     if (!(g->token_info = prepare_parse_tokens(stderr, g->tokens)))
+      return -1;
+  }
+
+  if (mode == PREPARE_SERVE && g->dates_config_file && g->dates_config_file[0]) {
+    if (!(g->dates_config = dates_config_parse_cfg(g->dates_config_file, config_file)))
       return -1;
   }
 
@@ -3131,6 +3164,10 @@ set_defaults(
     }
     ish = prob->short_name;
 
+    if (g->dates_config) {
+      prepare_copy_dates(prob, g->dates_config);
+    }
+
     /* parse XML here */
     if (!prob->xml_file[0] && si != -1 && aprob->xml_file[0]) {
       sformat_message(prob->xml_file, sizeof(prob->xml_file), 0,
@@ -3164,6 +3201,9 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_type, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_use_ac_not_ok, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_ok_status, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_header_pat, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_footer_pat, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_compiler_env_pat, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_ignore_prev_ac, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_team_enable_rep_view, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_team_enable_ce_view, prob, aprob, g);
@@ -3188,9 +3228,14 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_enable_compilation, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_skip_testing, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_security, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_enable_suid_run, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_enable_multi_header, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_use_lang_multi_header, prob, aprob, g);
 
     prepare_set_prob_value(CNTSPROB_full_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_full_user_score, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_min_score_1, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_min_score_2, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_variable_full_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_test_score, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_run_penalty, prob, aprob, g);
@@ -3214,6 +3259,7 @@ set_defaults(
     prepare_set_prob_value(CNTSPROB_interactive_valuer, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_pe, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_disable_wtl, prob, aprob, g);
+    prepare_set_prob_value(CNTSPROB_wtl_is_cf, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_manual_checking, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_examinator_num, prob, aprob, g);
     prepare_set_prob_value(CNTSPROB_check_presentation, prob, aprob, g);
@@ -4412,7 +4458,7 @@ prepare(
     return -1;
   }
   */
-  if (set_defaults(cnts, state, mode, subst_src, subst_dst) < 0) return -1;
+  if (set_defaults(cnts, config_file, state, mode, subst_src, subst_dst) < 0) return -1;
   return 0;
 }
 
@@ -4827,6 +4873,8 @@ prepare_set_global_defaults(struct section_global_data *g)
   if (g->disable_clars < 0) g->disable_clars = DFLT_G_DISABLE_CLARS;
   if (g->disable_team_clars < 0) g->disable_team_clars = DFLT_G_DISABLE_TEAM_CLARS;
   if (g->enable_eoln_select < 0) g->enable_eoln_select = 0;
+  if (g->start_on_first_login < 0) g->start_on_first_login = 0;
+  if (g->enable_virtual_restart < 0) g->enable_virtual_restart = 0;
   if (!g->max_file_length) g->max_file_length = DFLT_G_MAX_FILE_LENGTH;
   if (!g->max_line_length) g->max_line_length = DFLT_G_MAX_LINE_LENGTH;
   if (g->ignore_compile_errors < 0)
@@ -4935,6 +4983,7 @@ prepare_set_abstr_problem_defaults(struct section_problem_data *prob,
   if (prob->interactive_valuer < 0) prob->interactive_valuer = 0;
   if (prob->disable_pe < 0) prob->disable_pe = 0;
   if (prob->disable_wtl < 0) prob->disable_wtl = 0;
+  if (prob->wtl_is_cf < 0) prob->wtl_is_cf = 0;
   if (prob->manual_checking < 0) prob->manual_checking = 0;
   if (prob->examinator_num < 0) prob->examinator_num = 0;
   if (prob->check_presentation < 0) prob->check_presentation = 0;
@@ -5082,6 +5131,8 @@ prepare_new_global_section(int contest_id, const unsigned char *root_dir,
   global->disable_clars = DFLT_G_DISABLE_CLARS;
   global->disable_team_clars = DFLT_G_DISABLE_TEAM_CLARS;
   global->enable_eoln_select = 0;
+  global->start_on_first_login = 0;
+  global->enable_virtual_restart = 0;
   global->max_file_length = DFLT_G_MAX_FILE_LENGTH;
   global->max_line_length = DFLT_G_MAX_LINE_LENGTH;
   global->tests_to_accept = DFLT_G_TESTS_TO_ACCEPT;
@@ -5435,6 +5486,15 @@ prepare_copy_problem(const struct section_problem_data *in)
   if (in->ok_status) {
     out->ok_status = xstrdup(in->ok_status);
   }
+  if (in->header_pat) {
+    out->header_pat = xstrdup(in->header_pat);
+  }
+  if (in->footer_pat) {
+    out->footer_pat = xstrdup(in->footer_pat);
+  }
+  if (in->compiler_env_pat) {
+    out->compiler_env_pat = xstrdup(in->compiler_env_pat);
+  }
 
   return out;
 }
@@ -5461,6 +5521,7 @@ prepare_set_prob_value(
   INHERIT_BOOLEAN(interactive_valuer);
   INHERIT_BOOLEAN(disable_pe);
   INHERIT_BOOLEAN(disable_wtl);
+  INHERIT_BOOLEAN(wtl_is_cf);
   INHERIT_BOOLEAN(manual_checking);
 
   case CNTSPROB_examinator_num:
@@ -5511,6 +5572,21 @@ prepare_set_prob_value(
       out->ok_status = xstrdup(abstr->ok_status);
     }
     break;
+  case CNTSPROB_header_pat:
+    if (!out->header_pat && abstr && abstr->header_pat) {
+      out->header_pat = xstrdup(abstr->header_pat);
+    }
+    break;
+  case CNTSPROB_footer_pat:
+    if (!out->footer_pat && abstr && abstr->footer_pat) {
+      out->footer_pat = xstrdup(abstr->footer_pat);
+    }
+    break;
+  case CNTSPROB_compiler_env_pat:
+    if (!out->compiler_env_pat && abstr && abstr->compiler_env_pat) {
+      out->compiler_env_pat = xstrdup(abstr->compiler_env_pat);
+    }
+    break;
 
   INHERIT_BOOLEAN(ignore_prev_ac);
   INHERIT_BOOLEAN_2(team_enable_rep_view);
@@ -5527,6 +5603,9 @@ prepare_set_prob_value(
   INHERIT_BOOLEAN(tokens_for_user_ac);
   INHERIT_BOOLEAN_2(disable_submit_after_ok);
   INHERIT_BOOLEAN(disable_security);
+  INHERIT_BOOLEAN(enable_suid_run);
+  INHERIT_BOOLEAN(enable_multi_header);
+  INHERIT_BOOLEAN(use_lang_multi_header);
   INHERIT_BOOLEAN_2(disable_testing);
   INHERIT_BOOLEAN_2(disable_auto_testing);
   INHERIT_BOOLEAN(enable_compilation);
@@ -5544,6 +5623,14 @@ prepare_set_prob_value(
 
   case CNTSPROB_full_user_score:
     if (out->full_user_score < 0 && abstr) out->full_user_score = abstr->full_user_score;
+    break;
+
+  case CNTSPROB_min_score_1:
+    if (out->min_score_1 < 0 && abstr) out->min_score_1 = abstr->min_score_1;
+    break;
+
+  case CNTSPROB_min_score_2:
+    if (out->min_score_2 < 0 && abstr) out->min_score_2 = abstr->min_score_2;
     break;
 
   case CNTSPROB_test_score:
@@ -6063,6 +6150,7 @@ prepare_set_all_prob_values(
     CNTSPROB_interactive_valuer,
     CNTSPROB_disable_pe,
     CNTSPROB_disable_wtl,
+    CNTSPROB_wtl_is_cf,
     CNTSPROB_use_stdin,
     CNTSPROB_use_stdout,
     CNTSPROB_combined_stdin,
@@ -6087,6 +6175,8 @@ prepare_set_all_prob_values(
     CNTSPROB_ignore_compile_errors,
     CNTSPROB_full_score,
     CNTSPROB_full_user_score,
+    CNTSPROB_min_score_1,
+    CNTSPROB_min_score_2,
     CNTSPROB_variable_full_score,
     CNTSPROB_test_score,
     CNTSPROB_run_penalty,
@@ -6124,6 +6214,9 @@ prepare_set_all_prob_values(
     CNTSPROB_stand_ignore_score,
     CNTSPROB_stand_last_column,
     CNTSPROB_disable_security,
+    CNTSPROB_enable_suid_run,
+    CNTSPROB_enable_multi_header,
+    CNTSPROB_use_lang_multi_header,
     //CNTSPROB_super,
     //CNTSPROB_short_name,
     //CNTSPROB_long_name,
@@ -6146,6 +6239,9 @@ prepare_set_all_prob_values(
     //CNTSPROB_tokens,
     //CNTSPROB_umask,
     CNTSPROB_ok_status,
+    CNTSPROB_header_pat,
+    CNTSPROB_footer_pat,
+    CNTSPROB_compiler_env_pat,
     //CNTSPROB_token_info,
     //CNTSPROB_score_tests,
     //CNTSPROB_standard_checker,

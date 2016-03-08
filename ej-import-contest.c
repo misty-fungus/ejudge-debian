@@ -1,6 +1,6 @@
 /* -*- c -*- */
 
-/* Copyright (C) 2012-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -632,6 +632,7 @@ merge_problem_section(
         { CNTSPROB_interactive_valuer, META_PROBLEM_CONFIG_SECTION_interactive_valuer },
         { CNTSPROB_disable_pe, META_PROBLEM_CONFIG_SECTION_disable_pe },
         { CNTSPROB_disable_wtl, META_PROBLEM_CONFIG_SECTION_disable_wtl },
+        { CNTSPROB_wtl_is_cf, META_PROBLEM_CONFIG_SECTION_wtl_is_cf },
         { CNTSPROB_use_stdin, META_PROBLEM_CONFIG_SECTION_use_stdin },
         { CNTSPROB_use_stdout, META_PROBLEM_CONFIG_SECTION_use_stdout },
         { CNTSPROB_combined_stdin, META_PROBLEM_CONFIG_SECTION_combined_stdin },
@@ -677,6 +678,9 @@ merge_problem_section(
         { CNTSPROB_stand_ignore_score, META_PROBLEM_CONFIG_SECTION_stand_ignore_score },
         { CNTSPROB_stand_last_column, META_PROBLEM_CONFIG_SECTION_stand_last_column },
         { CNTSPROB_disable_security, META_PROBLEM_CONFIG_SECTION_disable_security },
+        { CNTSPROB_enable_suid_run, META_PROBLEM_CONFIG_SECTION_enable_suid_run },
+        { CNTSPROB_enable_multi_header, META_PROBLEM_CONFIG_SECTION_enable_multi_header },
+        { CNTSPROB_use_lang_multi_header, META_PROBLEM_CONFIG_SECTION_use_lang_multi_header },
         { CNTSPROB_valuer_sets_marked, META_PROBLEM_CONFIG_SECTION_valuer_sets_marked },
         { CNTSPROB_ignore_unmarked, META_PROBLEM_CONFIG_SECTION_ignore_unmarked },
         { CNTSPROB_disable_stderr, META_PROBLEM_CONFIG_SECTION_disable_stderr },
@@ -695,6 +699,8 @@ merge_problem_section(
         { CNTSPROB_real_time_limit, META_PROBLEM_CONFIG_SECTION_real_time_limit, 0 },
         { CNTSPROB_full_score, META_PROBLEM_CONFIG_SECTION_full_score, 0 },
         { CNTSPROB_full_user_score, META_PROBLEM_CONFIG_SECTION_full_user_score, 0 },
+        { CNTSPROB_min_score_1, META_PROBLEM_CONFIG_SECTION_min_score_1, 0 },
+        { CNTSPROB_min_score_2, META_PROBLEM_CONFIG_SECTION_min_score_2, 0 },
         { CNTSPROB_test_score, META_PROBLEM_CONFIG_SECTION_test_score, 0 },
         { CNTSPROB_run_penalty, META_PROBLEM_CONFIG_SECTION_run_penalty, 0 },
         { CNTSPROB_acm_run_penalty, META_PROBLEM_CONFIG_SECTION_acm_run_penalty, DFLT_P_ACM_RUN_PENALTY },
@@ -829,6 +835,9 @@ merge_problem_section(
         { CNTSPROB_tokens, META_PROBLEM_CONFIG_SECTION_tokens },
         { CNTSPROB_umask, META_PROBLEM_CONFIG_SECTION_umask },
         { CNTSPROB_ok_status, META_PROBLEM_CONFIG_SECTION_ok_status },
+        { CNTSPROB_header_pat, META_PROBLEM_CONFIG_SECTION_header_pat },
+        { CNTSPROB_footer_pat, META_PROBLEM_CONFIG_SECTION_footer_pat },
+        { CNTSPROB_compiler_env_pat, META_PROBLEM_CONFIG_SECTION_compiler_env_pat },
 
         { 0, 0 },
     };
@@ -940,6 +949,7 @@ generate_makefile(struct sid_state *ss,
     prepare_set_prob_value(CNTSPROB_interactive_valuer, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_disable_pe, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_disable_wtl, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_wtl_is_cf, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_manual_checking, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_examinator_num, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_check_presentation, tmp_prob, abstr, global);
@@ -958,6 +968,8 @@ generate_makefile(struct sid_state *ss,
     prepare_set_prob_value(CNTSPROB_test_score, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_full_score, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_full_user_score, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_min_score_1, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_min_score_2, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_solution_cmd, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_solution_src, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_source_header, tmp_prob, abstr, global);
@@ -1101,7 +1113,7 @@ do_import_contest(
         goto cleanup;
     }
 
-    ejudge_config = ejudge_cfg_parse(ejudge_xml_path);
+    ejudge_config = ejudge_cfg_parse(ejudge_xml_path, 1);
     if (!ejudge_config) {
         fatal2("'ejudge.xml' parsing failed");
         goto cleanup;

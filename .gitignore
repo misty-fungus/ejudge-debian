@@ -58,6 +58,8 @@ genmatcher
 /Makefile.in
 autom4te.cache
 struct-sizes
-
-# Quilt patches
-.pc
+ej-parblock
+ej-suid-exec
+ej-suid-chown
+ej-suid-kill
+ej-suid-ipcrm

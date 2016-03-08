@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id$ */
 #ifndef __RUN_H__
 #define __RUN_H__
 
-/* Copyright (C) 2010-2013 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -65,6 +64,24 @@ struct testinfo_vector
   struct testinfo *data;
 };
 
+struct run_listener;
+struct run_listener_ops
+{
+  void (*before_test)(struct run_listener *self, int test_no);
+};
+struct run_listener
+{
+  const struct run_listener_ops *ops;
+};
+
+struct remap_spec
+{
+  unsigned char *src_dir; // must begin and end with /, NULL terminate the list
+  unsigned char *dst_dir;
+  int src_len;
+  int dst_len;
+};
+
 void
 run_inverse_testing(
         struct serve_state *state,
@@ -98,12 +115,9 @@ run_tests(
         const unsigned char *user_spelling,
         const unsigned char *problem_spelling,
         const unsigned char *mirror_dir,
-        int utf8_mode);
+        int utf8_mode,
+        struct run_listener *listener,
+        const unsigned char *hostname,
+        const struct remap_spec *remaps);
 
 #endif /* __RUN_H__ */
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

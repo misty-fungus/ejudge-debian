@@ -2,7 +2,7 @@
 #ifndef __PROBLEM_CONFIG_H__
 #define __PROBLEM_CONFIG_H__
 
-/* Copyright (C) 2012-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or
@@ -41,6 +41,7 @@ struct problem_config_section
   ejintbool_t interactive_valuer;
   ejintbool_t disable_pe;
   ejintbool_t disable_wtl;
+  ejintbool_t wtl_is_cf;
   ejintbool_t use_stdin;
   ejintbool_t use_stdout;
   ejintbool_t combined_stdin;
@@ -86,6 +87,9 @@ struct problem_config_section
   ejintbool_t stand_ignore_score;
   ejintbool_t stand_last_column;
   ejintbool_t disable_security;
+  ejintbool_t enable_suid_run;
+  ejintbool_t enable_multi_header;
+  ejintbool_t use_lang_multi_header;
   ejintbool_t valuer_sets_marked;
   ejintbool_t ignore_unmarked;
   ejintbool_t disable_stderr;
@@ -98,6 +102,8 @@ struct problem_config_section
   int time_limit_millis;
   int full_score;
   int full_user_score;
+  int min_score_1;
+  int min_score_2;
   int test_score;
   int run_penalty;
   int acm_run_penalty;
@@ -169,6 +175,9 @@ struct problem_config_section
   unsigned char *tokens;
   unsigned char *umask;
   unsigned char *ok_status;
+  unsigned char *header_pat;
+  unsigned char *footer_pat;
+  unsigned char *compiler_env_pat;
 
   char **test_sets;
   char **date_penalty;

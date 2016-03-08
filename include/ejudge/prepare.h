@@ -2,7 +2,7 @@
 #ifndef __PREPARE_H__
 #define __PREPARE_H__
 
-/* Copyright (C) 2000-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2000-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -125,6 +125,8 @@ struct token_info
   int open_cost;      // token cost
   int open_flags;     // what opens by paying
 };
+
+struct dates_config;
 
 /* sizeof(struct section_global_data) == 350132/350296 */
 struct section_global_data
@@ -259,6 +261,10 @@ struct section_global_data
   ejintbool_t disable_auto_refresh;
   /** participants may select wanted EOLN type for tests */
   ejintbool_t enable_eoln_select;
+  /** start virtual contest on first login */
+  ejintbool_t start_on_first_login;
+  /** enable restarting of virtual contest */
+  ejintbool_t enable_virtual_restart;
 
   /** @deprecated the name of the contest */
   unsigned char name[256];
@@ -739,6 +745,11 @@ struct section_global_data
   // set to 1 if there exist a tokenized problem
   int enable_tokens META_ATTRIB((meta_private));
 
+  /** a separate dates configuration file */
+  unsigned char *dates_config_file;
+
+  struct dates_config *dates_config META_ATTRIB((meta_private));
+
   /** INTERNAL: text with unhandled variables */
   unsigned char *unhandled_vars;
 
@@ -795,6 +806,8 @@ struct section_problem_data
   ejintbool_t disable_pe;
   /** 1, if WTLs are converted to TLs */
   ejintbool_t disable_wtl;
+  /** 1, if WTLs are treated as CFs */
+  ejintbool_t wtl_is_cf;
   /** 1, if solution uses stdin for input */
   ejintbool_t use_stdin;
   /** 1, if solution uses stdout for output */
@@ -843,6 +856,10 @@ struct section_problem_data
   int full_score;
   /** score for successful user-visible solution (separate_user_score mode) */
   int full_user_score;
+  /** min score after run penalty */
+  int min_score_1;
+  /** min score after all subtractions */
+  int min_score_2;
   /** allow changing the score for successful solutions */
   ejintbool_t variable_full_score;
   /** score for one test */
@@ -919,6 +936,12 @@ struct section_problem_data
   ejintbool_t stand_last_column;
   /** disable security restrictions for this problem */
   ejintbool_t disable_security;
+  /** enable suid helpers for this problem */
+  ejintbool_t enable_suid_run;
+  /** enable headers/footers specific for each test */
+  ejintbool_t enable_multi_header;
+  /** use lang short name in multi headers */
+  ejintbool_t use_lang_multi_header;
   /** base abstract problem */
   unsigned char super[32];
   /** short name of the problem */
@@ -963,6 +986,12 @@ struct section_problem_data
   unsigned char *umask;
   /** success status (generalization of use_ac_not_ok) */
   unsigned char *ok_status;
+  /** header pattern for multi-header mode */
+  unsigned char *header_pat;
+  /** footer pattern for multi-header mode */
+  unsigned char *footer_pat;
+  /** compiler environment pattern for multi-header mode */
+  unsigned char *compiler_env_pat;
 
   struct token_info *token_info META_ATTRIB((meta_private));
 
@@ -1179,6 +1208,8 @@ struct section_language_data
   ejintbool_t insecure;
   /** disable security restrictions for this language */
   ejintbool_t disable_security;
+  /** enable suid helpers for this problem */
+  ejintbool_t enable_suid_run;
   /** perform unix->dos conversion */
   ejintbool_t is_dos;
   /** language short name */
@@ -1527,5 +1558,10 @@ prepare_parse_testsets(
         struct testset_info **p_info);
 void
 prepare_free_testsets(int t, struct testset_info *p);
+
+void
+prepare_copy_dates(
+        struct section_problem_data *prob,
+        struct dates_config *dcfg);
 
 #endif /* __PREPARE_H__ */

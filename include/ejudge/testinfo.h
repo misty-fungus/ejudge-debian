@@ -1,9 +1,8 @@
 /* -*- c -*- */
-/* $Id$ */
 #ifndef __TESTINFO_H__
 #define __TESTINFO_H__
 
-/* Copyright (C) 2003-2011 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2003-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -49,16 +48,28 @@ struct testinfo_struct
   int exit_code;
   int check_stderr;
   int disable_stderr;
+  int enable_subst;
   int cmd_argc;
   char **cmd_argv;
   char *comment;
   char *team_comment;
   int env_u;
   char **env_v;
+
+  int compiler_env_u;
+  char **compiler_env_v;
+
+  int style_checker_env_u;
+  char **style_checker_env_v;
 };
 typedef struct testinfo_struct testinfo_t;
 
-int testinfo_parse(const char *path, testinfo_t *pt);
+struct testinfo_subst_handler
+{
+  unsigned char * (*substitute)(struct testinfo_subst_handler *, const unsigned char *);
+};
+
+int testinfo_parse(const char *path, testinfo_t *pt, struct testinfo_subst_handler *sh);
 void testinfo_free(testinfo_t *pt);
 const char *testinfo_strerror(int errcode);
 unsigned char *testinfo_unparse_cmdline(const testinfo_t *pt);
@@ -69,9 +80,3 @@ unsigned char *testinfo_unparse_environ(const struct testinfo_struct *ti);
 #endif /* __cplusplus */
 
 #endif /* __TESTINFO_H__ */
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

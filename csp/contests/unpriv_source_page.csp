@@ -1,0 +1,206 @@
+<%
+%><%@include "unpriv_includes.csp"
+%><%
+#include "ejudge/fileutl.h"
+#include "ejudge/archive_paths.h"
+#include "ejudge/team_extra.h"
+#include "ejudge/ej_uuid.h"
+#include "ejudge/xuser_plugin.h"
+
+int
+ns_unpriv_parse_run_id(
+        FILE *fout,
+        struct http_request_info *phr,
+        const struct contest_desc *cnts,
+        struct contest_extra *extra,
+        int *p_run_id,
+        struct run_entry *pe);
+
+%><%@set ac_prefix = "NEW_SRV_ACTION_"
+%><%@set getter_name = "csp_get_unpriv_source_page"
+%><%@page csp_view_unpriv_source_page(PageInterface *ps, FILE *log_f, FILE *out_f, struct http_request_info *phr)
+%><%@include "unpriv_stdvars.csp"
+%><%
+  const struct section_problem_data *prob;
+  const struct section_language_data *lang = NULL;
+  int run_id;
+  char *rep_text = 0;
+  struct run_entry re;
+  unsigned char title[1024];
+  int clar_id = -1;
+  struct full_clar_entry_vector fcev = {};
+  int i;
+  int src_flags;
+  char *run_text = 0;
+  size_t run_size = 0;
+  path_t src_path;
+  int view_enabled = 1;
+  const unsigned char *language_type = "unknown";
+
+  start_time = run_get_start_time(cs->runlog_state);
+  stop_time = run_get_stop_time(cs->runlog_state);
+  if (global->is_virtual) {
+    start_time = run_get_virtual_start_time(cs->runlog_state, phr->user_id);
+    stop_time = run_get_virtual_stop_time(cs->runlog_state, phr->user_id, cs->current_time);
+  }
+
+  if (ns_unpriv_parse_run_id(out_f, phr, cnts, extra, &run_id, &re) < 0)
+    goto cleanup;
+  if (re.prob_id <= 0 || re.prob_id > cs->max_prob || !(prob = cs->probs[re.prob_id])) {
+    FAIL(NEW_SRV_ERR_INV_PROB_ID);
+  }
+  if (cs->clients_suspended) {
+    FAIL(NEW_SRV_ERR_CLIENTS_SUSPENDED);
+  }
+
+  if (re.user_id != phr->user_id) {
+    FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
+  }
+
+  if (cs->online_view_source < 0 || (!cs->online_view_source && global->team_enable_src_view <= 0)) {
+    FAIL(NEW_SRV_ERR_SOURCE_VIEW_DISABLED);
+  }
+  if (re.status > RUN_LAST || (re.status > RUN_MAX_STATUS && re.status < RUN_TRANSIENT_FIRST)) {
+    FAIL(NEW_SRV_ERR_SOURCE_UNAVAILABLE);
+  }
+
+  if ((src_flags = serve_make_source_read_path(cs, src_path, sizeof(src_path), &re)) < 0) {
+    FAIL(NEW_SRV_ERR_SOURCE_NONEXISTANT);
+  }
+  if (generic_read_file(&run_text, 0, &run_size, src_flags, 0, src_path, 0) < 0) {
+    FAIL(NEW_SRV_ERR_DISK_READ_ERROR);
+  }
+
+  if (re.lang_id > 0 && re.lang_id <= cs->max_lang) lang = cs->langs[re.lang_id];
+  if (lang && lang->binary) view_enabled = 0;
+  if (prob && prob->binary) view_enabled = 0;
+  if (view_enabled && run_text && run_size != strlen(run_text)) view_enabled = 0;
+  if (lang) {
+    if (!strcmp(lang->src_sfx, ".pas")) {
+      language_type = "pascal";
+    } else if (!strcmp(lang->src_sfx, ".c")) {
+      language_type = "c";
+    } else if (!strcmp(lang->src_sfx, ".cpp")) {
+      language_type = "cpp";
+    } else if (!strcmp(lang->src_sfx, ".for")) {
+      language_type = "fortran";
+    } else if (!strcmp(lang->src_sfx, ".py")) {
+      language_type = "python";
+    } else if (!strcmp(lang->src_sfx, ".pl")) {
+      language_type = "perl";
+    } else if (!strcmp(lang->src_sfx, ".pro")) {
+      language_type = "prolog";
+    } else if (!strcmp(lang->src_sfx, ".java")) {
+      language_type = "java";
+    } else if (!strcmp(lang->src_sfx, ".cs")) {
+      language_type = "csharp";
+    } else if (!strcmp(lang->src_sfx, ".vb")) {
+      language_type = "basic";
+    } else if (!strcmp(lang->src_sfx, ".rb")) {
+      language_type = "ruby";
+    } else if (!strcmp(lang->src_sfx, ".php")) {
+      language_type = "php";
+    }
+  }
+
+%><s:read var="clar_id" ignoreerrors="yes" default="-1" /><%
+  if (clar_id >= 0) {
+    struct clar_entry_v2 clar;
+    if (clar_get_record(cs->clarlog_state, clar_id, &clar) >= 0) {
+      if (clar.to == phr->user_id && clar.run_id > 0 && !memcmp(&re.run_uuid, &clar.run_uuid, sizeof(re.run_uuid))) {
+        // mark as read
+        if (cs->xuser_state) {
+          cs->xuser_state->vt->set_clar_status(cs->xuser_state, phr->user_id, clar_id, &clar.uuid);
+        }
+      }
+    }
+  }
+
+  if (ej_uuid_is_nonempty(re.run_uuid)) {
+    clar_fetch_run_messages(cs->clarlog_state, &re.run_uuid, &fcev);
+  }
+
+  unpriv_load_html_style(phr, cnts, 0, 0);
+  l10n_setlocale(phr->locale_id);
+  snprintf(title, sizeof(title), "%s %d", _("Source for run"), run_id);
+#define INCLUDE_PRISM 1
+%><%@include "unpriv_header.csp" 
+%><%@include "unpriv_menu.csp"
+%><%@include "unpriv_status.csp"
+%>
+
+<script src="<s:config name="style-prefix" />prism.js"></script>
+
+<div class="l14">
+    <div class="h2-long" style="margin-top: 13px; margin-bottom: 10px;">
+    <h2><s:_>Source code</s:_></h2>
+    </div>
+<%
+  if (view_enabled) {
+%>
+    <pre class="line-numbers language-<s:v value="language_type" escape="no" />"><code><s:v value="run_text" /></code></pre>
+<%
+  }
+%>
+
+<s:url name="DownloadRunUrl" ac="download-run">
+    <s:param name="run_id" value="run_id" />
+</s:url>
+<p style="display: inline-block;"><s:a url="DownloadRunUrl"><s:_>Download run</s:_></s:a></p>
+
+<%
+    if (fcev.u > 0) {
+%>
+<div class="h2-long" style="margin-top: 13px; margin-bottom: 10px;">
+<h2><s:_>Run comments</s:_></h2>
+</div>
+
+<div class="width-100">
+<table class="message-table">
+    <tr class="mes-top">
+        <td><s:_>Author</s:_></td>
+        <td><s:_>Run comment</s:_></td>
+    </tr>
+<%
+      for (i = 0; i < fcev.u; ++i) {
+%>
+   <tr>
+       <td class="profile">
+<%
+        if (!fcev.v[i].e.from) {
+            if (global->show_judge_identity > 0 && fcev.v[i].e.j_from > 0) {
+%><b><s:_>Judge</s:_></b> (<s:v value="teamdb_get_name_2(cs->teamdb_state, fcev.v[i].e.j_from)" />)<%
+            } else {
+%><b><s:_>Judge</s:_></b><%
+            }
+        } else {
+%><s:v value="teamdb_get_name_2(cs->teamdb_state, fcev.v[i].e.from)" /><%
+        }
+%>
+<br/>
+<s:v value="fcev.v[i].e.time" />
+       </td>
+       <td>
+<pre><s:v value="skip_message_headers(fcev.v[i].text)" checkExpr="" /></pre>
+       </td>
+   </tr>
+<%
+    }
+%>
+</table>
+</div>
+<%
+    }
+
+
+%>
+</div>
+<%@include "unpriv_footer.csp"
+%><%
+cleanup:;
+  clar_free_fcev(&fcev);
+  l10n_resetlocale();
+  html_armor_free(&ab);
+  xfree(rep_text);
+  xfree(run_text);
+%>

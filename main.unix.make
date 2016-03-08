@@ -1,6 +1,6 @@
 # -*- Makefile -*-
 
-# Copyright (C) 2014-2015 Alexander Chernov <cher@ejudge.ru> */
+# Copyright (C) 2014-2016 Alexander Chernov <cher@ejudge.ru> */
 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -47,7 +47,7 @@ CC_CFILES=compile-control.c version.c
 CC_OBJECTS=$(CC_CFILES:.c=.o) libcommon.a libplatform.a libcommon.a
 
 SERVE_CFILES=serve.c version.c
-SERVE_OBJECTS=$(SERVE_CFILES:.c=.o) libcommon.a libuserlist_clnt.a libplatform.a
+SERVE_OBJECTS=$(SERVE_CFILES:.c=.o) libcommon.a libuserlist_clnt.a libplatform.a libcommon.a
 
 RUN_CFILES=run.c version.c
 RUN_OBJECTS=$(RUN_CFILES:.c=.o) libcommon.a libplatform.a libcommon.a
@@ -148,12 +148,15 @@ IC_OBJECTS = $(IC_CFILES:.c=.o) libcommon.a libplatform.a libcommon.a
 G_CFILES = ej-page-gen.c 
 G_OBJECTS = $(G_CFILES:.c=.o) libcommon.a libplatform.a libcommon.a
 
+PB_CFILES = ej-parblock.c
+PB_OBJECTS = $(PB_CFILES:.c=.o) libcommon.a libplatform.a libcommon.a
+
 INSTALLSCRIPT = ejudge-install.sh
 BINTARGETS = ejudge-jobs-cmd ejudge-edit-users ejudge-setup ejudge-configure-compilers ejudge-control ejudge-execute ejudge-contests-cmd
-SERVERBINTARGETS = ej-compile ej-compile-control ej-run ej-nwrun ej-ncheck ej-batch ej-serve ej-users ej-users-control ej-jobs ej-jobs-control ej-super-server ej-super-server-control ej-contests ej-contests-control uudecode ej-convert-clars ej-convert-runs ej-fix-db ej-super-run ej-super-run-control ej-normalize ej-polygon ej-import-contest ej-page-gen
+SERVERBINTARGETS = ej-compile ej-compile-control ej-run ej-nwrun ej-ncheck ej-batch ej-serve ej-users ej-users-control ej-jobs ej-jobs-control ej-super-server ej-super-server-control ej-contests ej-contests-control uudecode ej-convert-clars ej-convert-runs ej-fix-db ej-super-run ej-super-run-control ej-normalize ej-polygon ej-import-contest ej-page-gen ej-parblock
 CGITARGETS = users${CGI_PROG_SUFFIX} serve-control${CGI_PROG_SUFFIX} new-client${CGI_PROG_SUFFIX}
 TARGETS = ${SERVERBINTARGETS} ${BINTARGETS} ${CGITARGETS} newrevinfo
-STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/unpriv3.css style/ejudge3.css style/priv.js style/priv_prob_dlg.js style/unpriv.js style/filter_expr.html style/sprintf.js style/ejudge3_ss.css style/ejudge_mobile.css style/jquery.min.js style/jquery.timepicker.css style/jquery.timepicker.min.js
+STYLEFILES = style/logo.gif style/priv.css style/unpriv.css style/unpriv3.css style/ejudge3.css style/priv.js style/priv_prob_dlg.js style/unpriv.js style/filter_expr.html style/sprintf.js style/ejudge3_ss.css style/ejudge_mobile.css style/jquery.min.js style/jquery.timepicker.css style/jquery.timepicker.min.js style/prism.js style/prism.css
 
 all: prereq_all local_all subdirs_all mo
 local_all: $(TARGETS) ejudge-config
@@ -242,7 +245,7 @@ install: local_install
 	if [ -f "${INSTALLSCRIPT}" ]; then install -m 0755 "${INSTALLSCRIPT}" "${DESTDIR}${bindir}"; fi
 
 ej-compile$(EXESFX) : $(C_OBJECTS)
-	$(LD) $(LDFLAGS) $(C_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB} ${LIBUUID}
+	$(LD) $(LDFLAGS) $(C_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB} ${LIBZIP} ${LIBUUID}
 
 ej-compile-control : $(CC_OBJECTS)
 	$(LD) $(LDFLAGS) $(CC_OBJECTS) -o $@ $(LDLIBS) ${EXPAT_LIB}
@@ -313,7 +316,22 @@ ej-convert-runs: ${CR_OBJECTS}
 	${LD} ${LDFLAGS} -rdynamic $^ libcommon.a -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl ${LIBUUID}
 
 ej-fix-db: ${FIX_DB_OBJECTS}
-	${LD} ${LDFLAGS} -rdynamic $^ -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl ${LIBUUID}
+	${LD} ${LDFLAGS} -rdynamic ${FIX_DB_OBJECTS} -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl ${LIBUUID}
+
+ej-parblock: ${PB_OBJECTS}
+	${LD} ${LDFLAGS} $^ -o $@ ${LDLIBS} ${EXPAT_LIB} -ldl ${LIBUUID}
+
+ej-suid-exec : ej-suid-exec.c
+	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@
+
+ej-suid-chown : ej-suid-chown.c
+	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@
+
+ej-suid-kill : ej-suid-kill.c
+	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@
+
+ej-suid-ipcrm : ej-suid-ipcrm.c
+	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@
 
 collect-emails: ${CE_OBJECTS}
 	${LD} ${LDFLAGS} $^ -o $@ ${LDLIBS} ${EXPAT_LIB}

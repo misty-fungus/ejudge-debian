@@ -1,6 +1,6 @@
 /* -*- c -*- */
 
-/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -691,7 +691,8 @@ process_compile_packet(
                         0 /* comp_pkt */,
                         1 /* no_db_flag */,
                         NULL /* uuid */,
-                        0 /* rejudge_flag */);
+                        0 /* rejudge_flag */,
+                        0 /* zip_mode */);
   if (r < 0) abort();
 
   return 0;
@@ -717,6 +718,8 @@ get_status_str_rus(int status)
     return "Превышение_ограничения_по_памяти";
   case RUN_SECURITY_ERR:
     return "Недопустимая_системная_операция";
+  case RUN_SYNC_ERR:
+    return "Ошибка синхронизации";
   case RUN_WALL_TIME_LIMIT_ERR:
     return "Превышение_времени";
   default:
@@ -1281,7 +1284,7 @@ server_loop(struct dir_listener_state *dl_state)
     }
 
     for (dlp = dl_state->first; dlp; dlp = dlp->next) {
-      r = scan_dir(dlp->spool_dir, pkt_name, sizeof(pkt_name));
+      r = scan_dir(dlp->spool_dir, pkt_name, sizeof(pkt_name), 0);
       if (r < 0) {
         if (r == -ENOMEM || r == -ENOENT || r == -ENFILE) {
           err("trying to recover, sleep for 5 seconds");
@@ -1510,7 +1513,7 @@ main(int argc, char *argv[])
   if (!ejudge_xml_path) {
     die("path to ejudge.xml configuration file is not specified");
   }
-  ejudge_config = ejudge_cfg_parse(ejudge_xml_path);
+  ejudge_config = ejudge_cfg_parse(ejudge_xml_path, 0);
   if (!ejudge_config) {
     die("configuration file '%s' is invalid", ejudge_xml_path);
   }

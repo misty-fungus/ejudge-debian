@@ -1,6 +1,6 @@
 /* -*- mode: c -*- */
 
-/* Copyright (C) 2005-2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2005-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -277,6 +277,10 @@ prepare_unparse_global(
     fprintf(f, "appeal_deadline = \"%s\"\n",
             xml_unparse_date(global->appeal_deadline));
   }
+  if (global->start_on_first_login > 0)
+    unparse_bool(f, "start_on_first_login", global->start_on_first_login);
+  if (global->enable_virtual_restart > 0)
+    unparse_bool(f, "enable_virtual_restart", global->enable_virtual_restart);
   fprintf(f, "\n");
 
   if (global->test_dir[0] && strcmp(global->test_dir, DFLT_G_TEST_DIR))
@@ -539,6 +543,11 @@ prepare_unparse_global(
 
   if (global->tokens && global->tokens[0]) {
     do_str(f, &ab, "tokens", global->tokens);
+    fprintf(f, "\n");
+  }
+
+  if (global->dates_config_file && global->dates_config_file[0]) {
+    do_str(f, &ab, "dates_config_file", global->dates_config_file);
     fprintf(f, "\n");
   }
 
@@ -879,6 +888,8 @@ prepare_unparse_lang(
     unparse_bool(f, "insecure", lang->insecure);
   if (lang->disable_security)
     unparse_bool(f, "disable_security", lang->disable_security);
+  if (lang->enable_suid_run)
+    unparse_bool(f, "enable_suid_run", lang->enable_suid_run);
   if (lang->is_dos > 0)
     unparse_bool(f, "is_dos", lang->is_dos);
   if (lang->binary)
@@ -1031,6 +1042,9 @@ prepare_unparse_prob(
   if ((prob->abstract && prob->disable_wtl == 1)
       || (!prob->abstract && prob->disable_wtl >= 0))
     unparse_bool(f, "disable_wtl", prob->disable_wtl);
+  if ((prob->abstract && prob->wtl_is_cf == 1)
+      || (!prob->abstract && prob->wtl_is_cf >= 0))
+    unparse_bool(f, "wtl_is_cf", prob->wtl_is_cf);
   if ((prob->abstract && prob->manual_checking == 1)
       || (!prob->abstract && prob->manual_checking >= 0))
     unparse_bool(f, "manual_checking", prob->manual_checking);
@@ -1209,6 +1223,12 @@ prepare_unparse_prob(
     if (prob->full_user_score >= 0 && global) {
       fprintf(f, "full_user_score = %d\n", prob->full_user_score);
     }
+    if (prob->min_score_1 >= 0) {
+      fprintf(f, "min_score_1 = %d\n", prob->min_score_1);
+    }
+    if (prob->min_score_2 >= 0) {
+      fprintf(f, "min_score_2 = %d\n", prob->min_score_2);
+    }
     if (prob->test_score >= 0) {
       if ((prob->abstract && prob->test_score != DFLT_P_TEST_SCORE)
           || !prob->abstract)
@@ -1347,6 +1367,12 @@ prepare_unparse_prob(
     unparse_bool(f, "use_ac_not_ok", prob->use_ac_not_ok);
   if (prob->ok_status && prob->ok_status[0])
     fprintf(f, "ok_status = \"%s\"\n", CARMOR(prob->ok_status));
+  if (prob->header_pat && prob->header_pat[0])
+    fprintf(f, "header_pat = \"%s\"\n", CARMOR(prob->header_pat));
+  if (prob->footer_pat && prob->footer_pat[0])
+    fprintf(f, "footer_pat = \"%s\"\n", CARMOR(prob->footer_pat));
+  if (prob->compiler_env_pat && prob->compiler_env_pat[0])
+    fprintf(f, "compiler_env_pat = \"%s\"\n", CARMOR(prob->compiler_env_pat));
   if (prob->ignore_prev_ac >= 0)
     unparse_bool(f, "ignore_prev_ac", prob->ignore_prev_ac);
   if (prob->team_enable_rep_view >= 0)
@@ -1379,6 +1405,12 @@ prepare_unparse_prob(
     unparse_bool(f, "disable_submit_after_ok", prob->disable_submit_after_ok);
   if (prob->disable_security >= 0)
     unparse_bool(f, "disable_security", prob->disable_security);
+  if (prob->enable_suid_run >= 0)
+    unparse_bool(f, "enable_suid_run", prob->enable_suid_run);
+  if (prob->enable_multi_header >= 0)
+    unparse_bool(f, "enable_multi_header", prob->enable_multi_header);
+  if (prob->use_lang_multi_header >= 0)
+    unparse_bool(f, "use_lang_multi_header", prob->use_lang_multi_header);
   if (prob->disable_testing >= 0)
     unparse_bool(f, "disable_testing", prob->disable_testing);
   if (prob->enable_compilation >= 0)
@@ -1478,6 +1510,8 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "disable_pe", prob->disable_pe);
   if (prob->disable_wtl > 0)
     unparse_bool(f, "disable_wtl", prob->disable_wtl);
+  if (prob->wtl_is_cf > 0)
+    unparse_bool(f, "wtl_is_cf", prob->wtl_is_cf);
   if (prob->manual_checking > 0)
     unparse_bool(f, "manual_checking", prob->manual_checking);
   if (prob->examinator_num > 0)
@@ -1601,6 +1635,12 @@ prepare_unparse_actual_prob(
       fprintf(f, "full_score = %d\n", prob->full_score);
     if (prob->full_user_score >= 0)
       fprintf(f, "full_user_score = %d\n", prob->full_user_score);
+    if (prob->min_score_1 >= 0) {
+      fprintf(f, "min_score_1 = %d\n", prob->min_score_1);
+    }
+    if (prob->min_score_2 >= 0) {
+      fprintf(f, "min_score_2 = %d\n", prob->min_score_2);
+    }
     if (prob->test_score >= 0)
       fprintf(f, "test_score = %d\n", prob->test_score);
     if (prob->variable_full_score > 0)
@@ -1709,6 +1749,12 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "use_ac_not_ok", prob->use_ac_not_ok);
   if (prob->ok_status && prob->ok_status[0])
     fprintf(f, "ok_status = \"%s\"\n", CARMOR(prob->ok_status));
+  if (prob->header_pat && prob->header_pat[0])
+    fprintf(f, "header_pat = \"%s\"\n", CARMOR(prob->header_pat));
+  if (prob->footer_pat && prob->footer_pat[0])
+    fprintf(f, "footer_pat = \"%s\"\n", CARMOR(prob->footer_pat));
+  if (prob->compiler_env_pat && prob->compiler_env_pat[0])
+    fprintf(f, "compiler_env_pat = \"%s\"\n", CARMOR(prob->compiler_env_pat));
   if (prob->ignore_prev_ac > 0)
     unparse_bool(f, "ignore_prev_ac", prob->ignore_prev_ac);
   if (prob->team_enable_rep_view > 0)
@@ -1741,6 +1787,12 @@ prepare_unparse_actual_prob(
     unparse_bool(f, "disable_submit_after_ok", prob->disable_submit_after_ok);
   if (prob->disable_security > 0)
     unparse_bool(f, "disable_security", prob->disable_security);
+  if (prob->enable_suid_run > 0)
+    unparse_bool(f, "enable_suid_run", prob->enable_suid_run);
+  if (prob->enable_multi_header > 0)
+    unparse_bool(f, "enable_multi_header", prob->enable_multi_header);
+  if (prob->use_lang_multi_header > 0)
+    unparse_bool(f, "use_lang_multi_header", prob->use_lang_multi_header);
   if (prob->disable_testing > 0)
     unparse_bool(f, "disable_testing", prob->disable_testing);
   if (prob->skip_testing  > 0)
@@ -2421,6 +2473,7 @@ prepare_unparse_testers(
     prepare_set_prob_value(CNTSPROB_interactive_valuer, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_disable_pe, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_disable_wtl, tmp_prob, abstr, global);
+    prepare_set_prob_value(CNTSPROB_wtl_is_cf, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_manual_checking, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_examinator_num, tmp_prob, abstr, global);
     prepare_set_prob_value(CNTSPROB_check_presentation,tmp_prob, abstr, global);

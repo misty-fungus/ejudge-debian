@@ -1,6 +1,6 @@
 /* -*- mode: c -*- */
 
-/* Copyright (C) 2015 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2015-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -104,7 +104,18 @@ init_func(void)
 static int
 finish_func(struct common_plugin_data *data)
 {
-  return 0;
+    if (data) {
+        struct common_mongo_state *state = (struct common_mongo_state *) data;
+        xfree(state->host);
+        xfree(state->database);
+        xfree(state->table_prefix);
+        xfree(state->password_file);
+        xfree(state->user);
+        xfree(state->password);
+        memset(state, 0, sizeof(*state));
+        xfree(state);
+    }
+    return 0;
 }
 
 static int
@@ -369,6 +380,5 @@ update_and_free_func(
 /*
  * Local variables:
  *  c-basic-offset: 4
- *  compile-command: "make"
  * End:
  */

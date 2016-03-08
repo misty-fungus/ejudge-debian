@@ -1,37 +1,32 @@
 <%
-/* $Id$ */
 %><%@include "priv_includes.csp"
 %><%
 #include "ejudge/super_run_packet.h"
+#include "ejudge/super_run_status.h"
 %><%@set getter_name = "csp_get_priv_testing_queue_page"
 %><%@set ac_prefix = "NEW_SRV_ACTION_"
 %><%@page csp_view_priv_testing_queue_page(PageInterface *pg, FILE *log_f, FILE *out_f, struct http_request_info *phr)
 %><%@include "priv_stdvars.csp"
 %><%
   const unsigned char *title = NULL;
-  const struct section_global_data *global = cs->global;
   struct TestingQueueArray vec;
+  struct super_run_status_vector srsv;
   int i, prob_id, user_id;
-  const unsigned char *arch;
-  unsigned char run_queue_dir[PATH_MAX];
-  const unsigned char *queue_dir = NULL;
+  const unsigned char *lang_short_name;
   int enable_main_menu = 0;
+  struct timeval td;
+  long long current_time_ms;
 
   memset(&vec, 0, sizeof(vec));
+  memset(&srsv, 0, sizeof(srsv));
 
   if (phr->role != USER_ROLE_ADMIN) FAIL(NEW_SRV_ERR_PERMISSION_DENIED);
 
-  if(cnts && cnts->run_managed) {
-    if (global->super_run_dir && global->super_run_dir[0]) {
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/var/queue", global->super_run_dir);
-    } else {
-      snprintf(run_queue_dir, sizeof(run_queue_dir), "%s/super-run/var/queue", EJUDGE_CONTESTS_HOME_DIR);
-    }
-    queue_dir = run_queue_dir;
-  } else {
-    queue_dir = global->run_queue_dir;
-  }
-  ns_scan_run_queue(queue_dir, cnts->id, &vec);
+  gettimeofday(&td, NULL);
+  current_time_ms = ((long long) td.tv_sec) * 1000 + td.tv_usec / 1000;
+
+  ns_scan_run_queue(cs, &vec);
+  ns_scan_heartbeat_dirs(cs, &srsv);
 
   l10n_setlocale(phr->locale_id);
   title = _("Testing queue");
@@ -49,30 +44,34 @@
     <tr>
         <th class="b1">NN</th>
         <th class="b1">ContestId</th>
+        <th class="b1">Run Queue</th>
         <th class="b1"><s:_>Packet name</s:_></th>
         <th class="b1"><s:_>Priority</s:_></th>
         <th class="b1">RunId</th>
-        <th class="b1"><s:_>Problem</s:_></th>
         <th class="b1"><s:_>User</s:_></th>
-        <th class="b1"><s:_>Architecture</s:_></th>
+        <th class="b1"><s:_>Problem</s:_></th>
+        <th class="b1"><s:_>Language</s:_></th>
         <th class="b1">JudgeId</th>
-        <th class="b1"><s:_>Create time</s:_></th>
+        <th class="b1"><s:_>Enqueue Time</s:_></th>
         <th class="b1"><s:_>Actions</s:_></th>
     </tr>
 <%  for (i = 0; i < vec.u; ++i) {
     const struct super_run_in_global_packet *srgp = vec.v[i].packet->global;
     const struct super_run_in_problem_packet *srpp = vec.v[i].packet->problem;
 
-    arch = srgp->arch;
-    if (!arch) arch = "";
+    lang_short_name = srgp->lang_short_name;
+    if (!lang_short_name) lang_short_name = "";
 %>
     <tr>
         <td class="b1"><s:v value="i + 1" /></td>
         <td class="b1"><s:v value="srgp->contest_id" /></td>
+        <td class="b1"><s:v escape="false" value="vec.v[i].queue_id" /></td>
         <td class="b1"><s:v escape="false" value="vec.v[i].entry_name" /></td>
         <td class="b1"><s:v value="vec.v[i].priority" /></td>
         <td class="b1"><s:v value="srgp->run_id" /></td>
 <%    if (srgp->contest_id == cnts->id) { %>
+<%      user_id = srgp->user_id; %>
+        <td class="b1"><s:v value="teamdb_get_name_2(cs->teamdb_state, user_id)" /></td>
         <td class="b1"><%
       prob_id = srpp->id;
       if (prob_id > 0 && prob_id <= cs->max_prob && cs->probs[prob_id]) {
@@ -81,16 +80,7 @@
 %>Problem <s:v value="prob_id" /><%
       }
 %></td>
-<%      user_id = srgp->user_id; %>
-        <td class="b1"><s:v value="teamdb_get_name_2(cs->teamdb_state, user_id)" /></td>
 <%    } else { %>
-        <td class="b1"><%
-      if (srpp->short_name && srpp->short_name[0]) {
-%><s:v value="srpp->short_name" /><%
-      } else {
-%>Problem <s:v value="srpp->id" /><%
-      }
-%></td>
         <td class="b1"><%
       if (srgp->user_name && srgp->user_name[0]) {
 %><s:v value="srgp->user_name" /><%
@@ -100,14 +90,21 @@
 %>User <s:v value="srgp->user_id" /><%
       }
 %></td>
+        <td class="b1"><%
+      if (srpp->short_name && srpp->short_name[0]) {
+%><s:v value="srpp->short_name" /><%
+      } else {
+%>Problem <s:v value="srpp->id" /><%
+      }
+%></td>
 <%    } %>
-        <td class="b1"><s:v value="arch" /></td>
+        <td class="b1"><s:v value="lang_short_name" /></td>
         <td class="b1"><s:v value="srgp->judge_id" /></td>
         <td class="b1"><s:v value="vec.v[i].mtime" /></td>
         <td class="b1"><%
-%><s:url name="DeleteUrl" ac="testing-delete"><s:param name="packet" value="vec.v[i].entry_name" /></s:url><%
-%><s:url name="UpUrl" ac="testing-up"><s:param name="packet" value="vec.v[i].entry_name" /></s:url><%
-%><s:url name="DownUrl" ac="testing-down"><s:param name="packet" value="vec.v[i].entry_name" /></s:url><%
+%><s:url name="DeleteUrl" ac="testing-delete"><s:param name="queue" value="vec.v[i].queue_id" /><s:param name="packet" value="vec.v[i].entry_name" /></s:url><%
+%><s:url name="UpUrl" ac="testing-up"><s:param name="queue" value="vec.v[i].queue_id" /><s:param name="packet" value="vec.v[i].entry_name" /></s:url><%
+%><s:url name="DownUrl" ac="testing-down"><s:param name="queue" value="vec.v[i].queue_id" /><s:param name="packet" value="vec.v[i].entry_name" /></s:url><%
 %><s:a url="DeleteUrl">X</s:a><%
 %>&nbsp;&nbsp;<s:a url="UpUrl">Up</s:a><%
 %>&nbsp;&nbsp;<s:a url="DownUrl">Down</s:a><%
@@ -124,15 +121,122 @@
 <td class="b0"><s:a ac="testing-down-all"><s:_>Down all</s:_></s:a></td>
 </tr></table>
 
+<h2>Invokers</h2>
+
+<table class="b1">
+    <tr>
+        <th class="b1">NN</th>
+        <th class="b1">InvokerID</th>
+        <th class="b1">PID</th>
+        <th class="b1">Run Queue</th>
+        <th class="b1">Status<br/> Updated</th>
+        <th class="b1">Status</th>
+        <th class="b1">ContestID</th>
+        <th class="b1">RunID</th>
+        <th class="b1">User</th>
+        <th class="b1">Problem</th>
+        <th class="b1">Language</th>
+        <th class="b1">Test</th>
+        <th class="b1">Enqueue Time</th>
+        <th class="b1">Testing Start<br/>Time</th>
+        <th class="b1">Ops</th>
+    </tr>
+<%
+  for (i = 0; i < srsv.u; ++i) {
+    const struct super_run_status *srs = &srsv.v[i]->status;
+    const unsigned char *super_run_id = super_run_status_get_str(srs, super_run_idx);
+    const unsigned char *queue_name = super_run_status_get_str(srs, queue_idx);
+    const unsigned char *user = super_run_status_get_str(srs, user_idx);
+    const unsigned char *prob_short_name = super_run_status_get_str(srs, prob_idx);
+    const unsigned char *lang_short_name = super_run_status_get_str(srs, lang_idx);
+    unsigned char status_update_buf[128];
+    unsigned char status_buf[128];
+    status_update_buf[0] = 0;
+    if (current_time_ms + 10000 < srs->timestamp) {
+      snprintf(status_update_buf, sizeof(status_update_buf), "<i>future</i>");
+    } else if (srs->timestamp + 10000 >= current_time_ms) {
+      snprintf(status_update_buf, sizeof(status_update_buf), "<b>now</b>");
+    } else {
+      long long diff = current_time_ms - srs->timestamp;
+      if (diff < 120000) {
+        snprintf(status_update_buf, sizeof(status_update_buf), "%d sec ago", (int)(diff / 1000));
+      } else if (diff < 3600000) {
+        snprintf(status_update_buf, sizeof(status_update_buf), "%d min ago", (int)(diff / 60000));
+      } else {
+        time_t tt = (int)(srs->timestamp / 1000);
+        struct tm *ptm = localtime(&tt);
+        snprintf(status_update_buf, sizeof(status_update_buf), "%04d-%02d-%02d %02d:%02d:%02d",
+                 ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday,
+                 ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+      }
+    }
+    status_buf[0] = 0;
+    if (srs->status == SRS_WAITING) {
+      long long diff = srs->timestamp - srs->last_run_ts;
+      if (diff < 5000) {
+        snprintf(status_buf, sizeof(status_buf), "WAITING");
+      } else if (diff < 120000) {
+        snprintf(status_buf, sizeof(status_buf), "WAITING (%d secs)", (int)(diff / 1000));
+      } else if (diff < 3600000) {
+        snprintf(status_buf, sizeof(status_buf), "WAITING (%d mins)", (int)(diff / (60 * 1000)));
+      } else if (diff < 24 * 60 * 60 * 1000) {
+        snprintf(status_buf, sizeof(status_buf), "WAITING (%d hours)", (int)(diff / (60 * 60 * 1000)));
+      } else {
+        snprintf(status_buf, sizeof(status_buf), "WAITING (long time)");
+      }
+    } else if (srs->status == SRS_TESTING) {
+        const unsigned char *down = "";
+        const unsigned char *stop = "";
+        if (srs->down_pending) down = "(D)";
+        if (srs->stop_pending) stop = "(S)";
+        snprintf(status_buf, sizeof(status_buf), "<b>TESTING</b>%s%s", stop, down);
+    } else {
+        snprintf(status_buf, sizeof(status_buf), "Unknown status %d", srs->status);
+    }
+%>
+    <tr>
+        <td class="b1"><s:v value="i + 1" /></td>
+        <td class="b1"><s:v value="super_run_id" /></td>
+        <td class="b1"><s:v value="srs->super_run_pid" /></td>
+        <td class="b1"><s:v value="queue_name" /></td>
+        <td class="b1"><s:v value="status_update_buf" escape="no" /></td>
+        <td class="b1"><s:v value="status_buf" escape="no" /></td>
+<%
+    if (srs->status == SRS_TESTING) {
+      time_t run_queue_time = srs->queue_ts / 1000;
+      time_t testing_start_time = srs->testing_start_ts / 1000;
+%>
+        <td class="b1"><s:v value="srs->contest_id" /></td>
+        <td class="b1"><s:v value="srs->run_id" /></td>
+        <td class="b1"><s:v value="user" /></td>
+        <td class="b1"><s:v value="prob_short_name" /></td>
+        <td class="b1"><s:v value="lang_short_name" /></td>
+        <td class="b1"><s:v value="srs->test_num" /></td>
+        <td class="b1"><% if (run_queue_time <= 0) { %>&nbsp;<% } else { %><s:v value="run_queue_time" /><% } %></td>
+        <td class="b1"><% if (testing_start_time <= 0) { %>&nbsp;<% } else { %><s:v value="testing_start_time" /><% } %></td>
+<%
+    } else {
+%>
+        <td class="b1" colspan="8">&nbsp;</td>
+<%
+    }
+%><%
+%><s:url name="DeleteInvoker" ac="invoker-delete"><s:param name="queue" value="srsv.v[i]->queue" /><s:param name="file" value="srsv.v[i]->file" /></s:url><%
+%><s:url name="StopInvoker" ac="invoker-stop"><s:param name="queue" value="srsv.v[i]->queue" /><s:param name="file" value="srsv.v[i]->file" /></s:url><%
+%><s:url name="DownInvoker" ac="invoker-down"><s:param name="queue" value="srsv.v[i]->queue" /><s:param name="file" value="srsv.v[i]->file" /></s:url><%
+%>        <td class="b1"><s:a url="DeleteInvoker" title="Delete Status File">[X]</s:a> <s:a url="StopInvoker" title="Stop Invoker (if supported)">[S]</s:a> <s:a url="DownInvoker" title="Shutdown Invoker Host (if supported)">[D]</s:a></td>
+    </tr>
+<%
+  }
+%>
+</table>
+
+
 <%@include "priv_footer.csp"
 %><%
 cleanup:
   l10n_resetlocale();
-  for (i = 0; i < vec.u; ++i) {
-    xfree(vec.v[i].entry_name);
-    super_run_in_packet_free(vec.v[i].packet);
-  }
-  xfree(vec.v); vec.v = 0;
-  vec.a = vec.u = 0;
+  testing_queue_array_free(&vec, 0);
+  super_run_status_vector_free(&srsv, 0);
   html_armor_free(&ab);
 %>

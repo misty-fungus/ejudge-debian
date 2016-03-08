@@ -1,7 +1,6 @@
 /* -*- c -*- */
-/* $Id$ */
 
-/* Copyright (C) 2012-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2012-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -20,6 +19,7 @@
 #include "ejudge/meta/super_run_packet_meta.h"
 #include "ejudge/prepare.h"
 #include "ejudge/errlog.h"
+#include "ejudge/misctext.h"
 
 #include "ejudge/xalloc.h"
 
@@ -34,6 +34,7 @@ super_run_in_global_packet_init(struct generic_section_config *gp)
   p->secure_run = -1;
   p->detect_violations = -1;
   p->enable_memory_limit_error = -1;
+  p->suid_run = -1;
   p->enable_max_stack_size = -1;
   p->user_id = -1;
   p->is_virtual = -1;
@@ -64,6 +65,7 @@ super_run_in_global_packet_set_default(struct generic_section_config *gp)
   if (p->secure_run < 0) p->secure_run = 0;
   if (p->detect_violations < 0) p->detect_violations = 0;
   if (p->enable_memory_limit_error < 0) p->enable_memory_limit_error = 0;
+  if (p->suid_run < 0) p->suid_run = 0;
   if (p->enable_max_stack_size < 0) p->enable_max_stack_size = 0;
   if (p->user_id < 0) p->user_id = 0;
   if (p->is_virtual < 0) p->is_virtual = 0;
@@ -118,6 +120,7 @@ super_run_in_problem_packet_init(struct generic_section_config *gp)
   p->interactive_valuer = -1;
   p->disable_pe = -1;
   p->disable_wtl = -1;
+  p->wtl_is_cf = -1;
   p->use_stdin = -1;
   p->use_stdout = -1;
   p->combined_stdin = -1;
@@ -160,6 +163,7 @@ super_run_in_problem_packet_set_default(struct generic_section_config *gp)
   if (p->interactive_valuer < 0) p->interactive_valuer = 0;
   if (p->disable_pe < 0) p->disable_pe = 0;
   if (p->disable_wtl < 0) p->disable_wtl = 0;
+  if (p->wtl_is_cf < 0) p->wtl_is_cf = 0;
   if (p->use_stdin < 0) p->use_stdin = 0;
   if (p->use_stdout < 0) p->use_stdout = 0;
   if (p->combined_stdin < 0) p->combined_stdin = 0;
@@ -366,3 +370,21 @@ super_run_in_packet_parse_cfg_str(const unsigned char *path, char *buf, size_t s
   //fclose(f); f = NULL;
   return pkg;
 }
+
+unsigned char *
+super_run_in_packet_get_variable(
+        const void *vp,
+        const unsigned char *name)
+{
+  const struct super_run_in_packet *p = (const struct super_run_in_packet *) vp;
+  if (!strncmp(name, "global.", 7)) {
+    return meta_get_variable_str(&meta_super_run_in_global_packet_methods, p->global, name + 7);
+  } else if (!strncmp(name, "problem.", 8)) {
+    return meta_get_variable_str(&meta_super_run_in_problem_packet_methods, p->problem, name + 8);
+  } else if (!strncmp(name, "tester.", 7)) {
+    return meta_get_variable_str(&meta_super_run_in_tester_packet_methods, p->tester, name + 7);
+  } else {
+    return meta_get_variable_str(&meta_super_run_in_global_packet_methods, p->global, name + 7);
+  }
+}
+

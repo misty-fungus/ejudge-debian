@@ -44,7 +44,8 @@ enum
   RUN_PENDING_REVIEW   = 16,
   RUN_REJECTED         = 17,
   RUN_SKIPPED          = 18,
-  RUN_MAX_STATUS       = 18,
+  RUN_SYNC_ERR         = 19,
+  RUN_MAX_STATUS       = 19,
 
   RUN_PSEUDO_FIRST     = 20,
   RUN_VIRTUAL_START    = 20,
@@ -316,6 +317,7 @@ int run_get_virtual_info(runlog_state_t state, int user_id,
 int run_clear_entry(runlog_state_t, int run_id);
 int run_squeeze_log(runlog_state_t);
 int run_has_transient_user_runs(runlog_state_t state, int user_id);
+int run_clear_user_entries(runlog_state_t, int user_id);
 
 int run_forced_clear_entry(runlog_state_t, int run_id);
 int run_set_hidden(runlog_state_t state, int run_id);

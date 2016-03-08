@@ -1,7 +1,6 @@
 /* -*- mode: c -*- */
-/* $Id$ */
 
-/* Copyright (C) 2010-2014 Alexander Chernov <cher@ejudge.ru> */
+/* Copyright (C) 2010-2016 Alexander Chernov <cher@ejudge.ru> */
 
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -372,7 +371,7 @@ check_file_name(
 static int
 get_tar_listing(const unsigned char *path, struct archive_file *arch)
 {
-  char *cmds[5];
+  char *cmds[6];
   int r, n;
   unsigned char *out = 0, *err = 0;
   int len, len1, len2;
@@ -391,7 +390,8 @@ get_tar_listing(const unsigned char *path, struct archive_file *arch)
   cmds[1] = "tvf";
   cmds[2] = (char*) path;
   cmds[3] = "--quoting-style=c";
-  cmds[4] = 0;
+  cmds[4] = "--numeric-owner";
+  cmds[5] = 0;
 
   r = ejudge_invoke_process(cmds, NULL, NULL, NULL, NULL, 0, &out, &err);
   if (r != 0) {
@@ -1678,9 +1678,3 @@ main(int argc, char **argv)
 
   return 0;
 }
-
-/*
- * Local variables:
- *  compile-command: "make"
- * End:
- */

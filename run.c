@@ -150,7 +150,7 @@ do_loop(void)
     }
     if (restart_flag) break;
 
-    r = scan_dir(global->run_queue_dir, pkt_name, sizeof(pkt_name));
+    r = scan_dir(global->run_queue_dir, pkt_name, sizeof(pkt_name), 0);
     if (r < 0) return -1;
     if (!r) {
       if (got_quit_packet && managed_mode_flag) {
@@ -348,7 +348,7 @@ do_loop(void)
                 exe_name, run_base,
                 report_path, full_report_path,
                 srgp->user_spelling,
-                srpp->spelling, NULL /* mirror_dir */, utf8_mode);
+                srpp->spelling, NULL /* mirror_dir */, utf8_mode, NULL, NULL, NULL /* remaps */);
       //if (cr_serialize_unlock(&serve_state) < 0) return -1;
 
       if (tst == &tn) {
