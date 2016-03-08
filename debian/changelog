@@ -1,3 +1,9 @@
+ejudge (3.4.2-1) unstable; urgency=medium
+
+  * [425aac2] new snapshot
+
+ -- Yaroslav Leonov <alximik@aeon.btty.su>  Tue, 08 Mar 2016 21:39:48 +0300
+
 ejudge (3.4.2-1~1.gbpf169ed) unstable; urgency=medium
 
   ** SNAPSHOT build @f169ed58e0ab93ff8a503f6f1266b695bcddbe22 **
