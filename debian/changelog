@@ -1,3 +1,11 @@
+ejudge (3.4.2-1~1.gbpf169ed) unstable; urgency=medium
+
+  ** SNAPSHOT build @f169ed58e0ab93ff8a503f6f1266b695bcddbe22 **
+
+  * [edebf35] New upstream version 3.4.2
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Tue, 08 Mar 2016 18:13:21 +0300
+
 ejudge (3.4.1-1) sid; urgency=medium
 
   * [4a68de3] new snapshot
