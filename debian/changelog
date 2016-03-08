@@ -1,3 +1,11 @@
+ejudge (3.5.1-1~1.gbp66ef06) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @66ef069753f6a985580155e7ae1c19c07b3b5448 **
+
+  * [7624a29] New upstream version 3.5.1
+
+ -- Yaroslav Leonov <alximik43@gmail.com>  Tue, 08 Mar 2016 23:39:23 +0300
+
 ejudge (3.4.2-1) unstable; urgency=medium
 
   * [425aac2] new snapshot
